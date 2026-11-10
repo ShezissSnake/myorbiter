@@ -61,6 +61,7 @@
   import Recipes from "../ui/builds/Recipes.svelte";
   import NoxList from "../ui/builds/NoxList.svelte";
   import OverframeList from "../ui/builds/OverframeList.svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model, settings = $bindable() }: { model: Model; settings: Settings } = $props();
   // Nox's Frame: registered with the builds core on the first mount (then sourceBuilds includes it).
@@ -334,7 +335,7 @@
       <div class="strip">
         <div class="art"><Art file={model.imageOf(item.name)} size={132} alt={item.name} fallback={kindIcon(item.type ?? label, item.name) ?? "foundry"} /></div>
         <div class="who">
-          <span class="register">{label}</span>
+          <span class="register"><Kind kind={label} /></span>
           <h2 class="mark nm">{item.name}</h2>
           <p class="yours">
             {#if owned}
@@ -369,7 +370,7 @@
         <div class="starters" aria-label="Start with yours">
           <span class="register">Your most built</span>
           {#each starters as r (r.unique)}
-            <button type="button" class="st" title="Builds for your {r.name} ({r.label})" onclick={() => choose(r.unique)}><Thumb file={model.imageOf(r.name)} size={34} /><span><b>{r.name}</b><small>{r.label}</small></span></button>
+            <button type="button" class="st" title="Builds for your {r.name} ({r.label})" onclick={() => choose(r.unique)}><Thumb file={model.imageOf(r.name)} size={34} /><span><b>{r.name}</b><small><Kind kind={r.label} size={12} /></small></span></button>
           {/each}
         </div>
       {/if}

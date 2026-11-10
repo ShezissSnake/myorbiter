@@ -35,6 +35,7 @@
   import { pickShowcase } from "../core/showcase";
   import { whileShown } from "../pane.svelte";
   import { typed } from "../typed.svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model, advice, sell }: { model: Model; advice: DucatOptions; sell: SellChoices } = $props();
 
@@ -139,7 +140,7 @@
 
   const sellCols: Column<SetRow>[] = $derived([
     { key: "name", label: "Set", value: (r) => r.name, defaultDesc: false, cell: nameCell },
-    { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false },
+    { key: "category", minor: true, label: "Type", value: (r) => r.category, muted: true, defaultDesc: false, cell: kindCell },
     { key: "sellable", label: "Sellable", value: (r) => sellableOf(r), align: "right", cell: sellCell, title: "Complete sets you can sell" },
     { key: "setPrice", label: "Set price", value: (r) => r.setPrice, align: "right", cell: setPriceCell },
     { key: "value", label: "Total", value: (r) => (r.setPrice == null ? null : r.setPrice * sellableOf(r)), align: "right", cell: totalCell },
@@ -178,6 +179,7 @@
   const savedPremium = $derived(rows.reduce((n, r) => n + (mode === "save" ? premium(r) : 0), 0));
 </script>
 
+{#snippet kindCell(r: SetRow)}<Kind kind={r.category} />{/snippet}
 {#snippet nameCell(r: SetRow)}
   <Named file={model.imageOf(r.name)} name={r.name}>
     {#if r.mastered}<span class="tag good">✓ mastered</span>{:else if r.ownedBuilt}<span class="tag" title="You own it built, not mastered yet">owned</span>{/if}

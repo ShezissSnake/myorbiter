@@ -126,6 +126,23 @@
     "sec-collection": "M6 5h14.5v11.5L18 19H3.5V7.5zM8.5 10h7",
     // Trade: the platinum hexagon with its P.
     "sec-trade": "M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2zM10 16.5v-9h3.6l1.9 1.9v1.9l-1.9 1.9H10",
+    // The Arsenal's slots (core/kinds.ts), at the left of every kind label.
+    // Warframe: a helm over its shoulders.
+    "kind-warframe": "M12 3l4 3v4l-4 3-4-3V6zM5.5 21v-3.5L12 14l6.5 3.5V21",
+    // Primary: a long gun and its grip.
+    "kind-primary": "M2.5 14.5l14-6.5 5 2-2 3.5-9.5 4.5-6.5 1zM9.5 15.5l1 4.5",
+    // Secondary: a pistol.
+    "kind-secondary": "M4.5 8h13l2 3.5H10.5l-1 6.5h-4z",
+    // Melee: a blade and its guard.
+    "kind-melee": "M20 3.5L9 14.5H6.5V17l-3 3 .5.5M20 3.5v3L10.5 16",
+    // Companion: a head with its ears up.
+    "kind-companion": "M5.5 4.5l3.5 4.5h6l3.5-4.5v9.5L12 20l-6.5-6z",
+    // Archwing: the wing seen from above.
+    "kind-archwing": "M12 4.5l9.5 13h-6.5l-3-4.5-3 4.5H2.5z",
+    // Necramech: the hull on its legs.
+    "kind-necramech": "M8 3.5h8v6H8zM5 9.5h14v6H5zM8 15.5v5M16 15.5v5",
+    // Amp: the prism, cut across.
+    "kind-amp": "M8.5 4.5h7L19 10l-7 9.5L5 10zM5 10h14M10 4.5 12 10l2-5.5",
     "chev-down": "M6 9l6 6 6-6",
     "chev-right": "M9 6l6 6-6 6",
   };

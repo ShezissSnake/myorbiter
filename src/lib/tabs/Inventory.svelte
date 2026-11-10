@@ -36,6 +36,7 @@
   import { reveal } from "../motion";
   import { whileShown } from "../pane.svelte";
   import { typed } from "../typed.svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
@@ -167,7 +168,7 @@
 
   const columns: Column<InventoryItem>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "min(26rem, 40%)" },
-    { key: "type", label: "Kind", value: (r) => spareOf(r)?.type ?? r.type, muted: true, defaultDesc: false, minor: true },
+    { key: "type", label: "Kind", value: (r) => spareOf(r)?.type ?? r.type, muted: true, defaultDesc: false, minor: true, cell: kindCell },
     { key: "qty", label: "Have", value: (r) => r.quantity, align: "right", cell: qtyCell },
     { key: "spare", label: "Spare", value: (r) => (spareOf(r) ? spare(r) : null), align: "right", cell: spareCell, title: "What you can sell: what you hold beyond what you keep (hover a number for why)" },
     { key: "price", label: "Each", value: (r) => priceOf(r), align: "right", cell: priceCell },
@@ -183,6 +184,7 @@
   {@const s = spareOf(r)}
   {#if s}<span class="sp" class:none={!s.spare} title={s.keep ? `Keeps ${s.keep}: ${s.why}` : s.why}>{s.spare.toLocaleString("en")}</span>{/if}
 {/snippet}
+{#snippet kindCell(r: InventoryItem)}<Kind kind={spareOf(r)?.type ?? r.type} />{/snippet}
 {#snippet nameCell(r: InventoryItem)}
   <Named file={model.imageOf(r.name) ?? model.imageOf(shown(r))} name={shown(r)}>
     {#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}

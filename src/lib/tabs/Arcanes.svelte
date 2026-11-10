@@ -28,6 +28,7 @@
   import { pickShowcase } from "../core/showcase";
   import { whileShown } from "../pane.svelte";
   import { typed } from "../typed.svelte";
+  import Segments from "../ui/Segments.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
   /** Your copies of an arcane by rank. */
@@ -189,7 +190,7 @@
 
 {#snippet progressCell(r: ArcaneRow)}
   <div class="prog" title="{r.copies} / {r.needed}{r.highestRank != null ? ` · best copy R${r.highestRank}` : ''}">
-    <div class="track"><div class="fill" class:done={r.complete} style:width="{Math.min(100, (r.copies / r.needed) * 100)}%"></div></div>
+    <Segments key="arcane:{r.name}" value={Math.min(r.copies, r.needed)} max={r.needed} fill label="{r.copies} of {r.needed} copies to max" />
     <span class="dim small">{r.complete && r.copies <= r.needed ? "maxed" : `${r.copies}/${r.needed}`}</span>
   </div>
 {/snippet}
@@ -380,10 +381,8 @@
   .wanted span { display: inline-flex; align-items: center; gap: .3rem; cursor: default; }
   .wanted span:hover { color: var(--platinum); }
   .prog { display: flex; align-items: center; gap: 0.5rem; min-width: 9rem; }
+  .prog :global(.meter) { flex: 1; }
   .prog .small { min-width: 2.6rem; text-align: right; font-variant-numeric: tabular-nums; }
-  .track { flex: 1; height: 6px; background: var(--rule); border-radius: 0; overflow: hidden; }
-  .fill { height: 100%; background: var(--platinum); }
-  .fill.done { background: var(--platinum); }
   .links { display: flex; gap: 1rem; }
   /* Nothing here: quiet, but still readable (about 5:1). */
   .nil { color: var(--platinum-deep); }

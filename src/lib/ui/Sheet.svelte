@@ -7,6 +7,7 @@
   import { fly } from "svelte/transition";
   import { trap } from "./trap";
   import { moving, ms, out, SETTLE, shade } from "../motion";
+  import Kind from "./Kind.svelte";
   // Opening slides in over SETTLE; closing slides off in 100 ms, as a dialog closes (nobody waits
   // to watch it go). With reduced motion they just appear and go. |global: an item's details mount
   // the sheet inside their own {#if} (Browse, ItemDetails), and it slides there too.
@@ -16,7 +17,7 @@
   // transition, not a Svelte transition, and its blurred shadow comes only once it has settled
   // (a blur repainted every frame of the slide made the window redraw).
 
-  let { open = $bindable(), title, kicker, wide = false, keep = false, children }: { open: boolean; title: string; kicker?: string; wide?: boolean; keep?: boolean; children: Snippet } = $props();
+  let { open = $bindable(), title, kicker, kind, wide = false, keep = false, children }: { open: boolean; title: string; kicker?: string; /** The kicker names this kind: its slot's icon leads it. */ kind?: string; wide?: boolean; keep?: boolean; children: Snippet } = $props();
 
   let seen = $state(false);
   $effect.pre(() => {
@@ -41,7 +42,7 @@
 {#snippet panel()}
   <header>
     <div>
-      {#if kicker}<div class="register">{kicker}</div>{/if}
+      {#if kicker}<div class="register">{#if kind}<Kind {kind} label={kicker} size={12} />{:else}{kicker}{/if}</div>{/if}
       <h2 class="mark">{title}</h2>
     </div>
     <button class="close" aria-label="Close" title="Close (Esc)" onclick={() => (open = false)}>

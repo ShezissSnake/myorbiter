@@ -5,6 +5,7 @@
   import { searchItems, type BuildableItem } from "../../core/buildsPage";
   import Thumb from "../Thumb.svelte";
   import Icon from "../Icon.svelte";
+  import Kind from "../Kind.svelte";
 
   let { model, items, recent = [], onpick, autofocus = false, placeholder = "Find a warframe, weapon, companion…" }: { model: Model; items: BuildableItem[]; recent?: BuildableItem[]; onpick: (unique: string) => void; autofocus?: boolean; placeholder?: string } = $props();
 
@@ -77,7 +78,7 @@
         <li id="{id}-{i}" role="option" aria-selected={i === at} class:at={i === at} onmousedown={(e) => e.preventDefault()} onclick={() => take(x)} onmousemove={() => (at = i)}>
           <Thumb file={model.imageOf(x.name)} size={26} />
           <span class="nm">{x.name}</span>
-          <span class="kd">{x.label}</span>
+          <span class="kd"><Kind kind={x.label} size={12} /></span>
           {#if x.owned}<span class="own" title="You have it">Yours</span>{/if}
         </li>
       {/each}

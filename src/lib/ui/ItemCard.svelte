@@ -4,6 +4,8 @@
   import GameIcon, { kindIcon, kindLabel, kindNote, type GameIconName } from "./GameIcon.svelte";
   import { info } from "../hover.svelte";
   import { pop } from "../motion";
+  import Icon from "./Icon.svelte";
+  import { kindSlot } from "../core/kinds";
   // An item as a card: its name, its artwork, whatever the page shows beside it (part chips,
   // rewards, prices), and a footer of tags. A gold notch in the top corner marks one to look at.
   let {
@@ -64,6 +66,8 @@
   // Only the kind before any " · " ("Warframe · MR 5"; not "Rare · Okina Prime Blueprint").
   const subKind = $derived(sub?.split(" · ")[0] ?? "");
   const subIcon = $derived(kind !== undefined ? kind : subKind ? kindIcon(subKind) : null);
+  /** The slot's drawn icon (core/kinds.ts), in the section's colour; other kinds keep the game's icon. */
+  const subSlot = $derived(kindSlot(kind !== undefined ? (kind ?? "") : subKind));
   const subText = $derived(sub ? kindLabel(subKind) + sub.slice(subKind.length) : "");
   // A Prime's name carries the word in Orokin gold, so Ash Prime stands apart from Ash at a glance.
   const titleParts = $derived(markPrime ? title.split(/\b(Prime)\b/) : [title]);
@@ -87,7 +91,7 @@
   <header>
     <div class="t">
       <h3 class="mark" title={hover ? undefined : title} use:info={hover ?? null}>{#each titleParts as t, i (i)}{#if i % 2}<span class="prime">{t}</span>{:else}{t}{/if}{/each}</h3>
-      {#if sub}<span class="register sub" title={kindNote(subKind)}>{#if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
+      {#if sub}<span class="register sub" title={kindNote(subKind)}>{#if subSlot}<span class="ki"><Icon name="kind-{subSlot}" size={12} stroke={1.4} /></span>{:else if subIcon}<GameIcon name={subIcon} size={11} />{/if}{subText}</span>{/if}
     </div>
     {#if onfav}
       <button class="star" class:on={fav} use:pop={!!fav} aria-pressed={fav} aria-label={fav ? `Remove ${title} from your wishlist` : `Add ${title} to your wishlist`} title={fav ? "On your wishlist (click to remove)" : "Add to your wishlist"} onclick={(e) => { e.stopPropagation(); onfav(); }}>
@@ -150,4 +154,5 @@
   .prime { color: var(--gold); }
   .sub { display: inline-flex; align-items: center; gap: .3rem; }
   .sub :global(.gi) { opacity: .75; }
+  .sub .ki { display: inline-flex; color: var(--sec); }
 </style>

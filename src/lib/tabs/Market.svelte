@@ -22,6 +22,7 @@
   import { takeIntent } from "../intent.svelte";
   import { whileShown } from "../pane.svelte";
   import { typed } from "../typed.svelte";
+  import Kind from "../ui/Kind.svelte";
 
   let { model }: { model: Model } = $props();
 
@@ -100,7 +101,7 @@
 
   const columns: Column<MarketRow>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "24rem" },
-    { key: "kind", label: "Category", value: (r) => label(r.category), muted: true, defaultDesc: false, minor: true },
+    { key: "kind", label: "Category", value: (r) => label(r.category), muted: true, defaultDesc: false, minor: true, cell: kindCell },
     { key: "price", label: "Price", value: (r) => r.price, sortValue: (r) => topPrice(r), align: "right", cell: priceCell, title: "What it sold for lately on warframe.market (the daily median). Mods and arcanes: unranked, then maxed" },
     { key: "trades", label: "Sold/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sold a day on warframe.market lately (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell, minor: true, title: "What Baro gives for it" },
@@ -109,6 +110,7 @@
   ];
 </script>
 
+{#snippet kindCell(r: MarketRow)}<Kind kind={r.category} label={label(r.category)} />{/snippet}
 {#snippet nameCell(r: MarketRow)}<Named file={art(r)} name={r.name} />{/snippet}
 {#snippet priceCell(r: MarketRow)}
   <span class="prices"><P v={r.price} />{#if r.priceMax != null}<span class="max" title="Maxed (rank {r.maxRank})"><P v={r.priceMax} dim /><span class="dim small">max</span></span>{/if}</span>

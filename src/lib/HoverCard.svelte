@@ -28,6 +28,7 @@
   import PartChip from "./ui/PartChip.svelte";
   import GameIcon, { eraIcon, kindIcon } from "./ui/GameIcon.svelte";
   import Avail from "./ui/Avail.svelte";
+  import Kind from "./ui/Kind.svelte";
 
   // squad: solo (1) or a radshare (4), as set on Relics: a crack's worth follows it, as the pages do.
   let { model, platPerDucat = 0, squad = 1 }: { model: Model; platPerDucat?: number; squad?: number } = $props();
@@ -127,7 +128,7 @@
         <Art file={c.image} size={78} fallback={kindIcon(c.type, it.name) ?? "foundry"} />
         <div class="ht">
           <b class="mark">{it.name}</b>
-          <span class="sub">{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ""}</span>
+          <span class="sub"><Kind kind={c.type} size={12} label="{c.type}{c.masteryReq ? ` · MR ${c.masteryReq}` : ``}" /></span>
           <span class="tags">{#if c.mastered}<span class="tag good">✓ Mastered</span>{:else if c.owned}<span class="tag mastery" title="Owned, not mastered yet">Owned</span>{:else if c.building}<span class="tag">Building</span>{:else if c.step}<span class="tag ok">{c.stepTag}</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}{#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}</span>
         </div>
       </header>

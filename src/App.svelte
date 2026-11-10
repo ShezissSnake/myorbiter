@@ -146,6 +146,7 @@
   import { inFissure } from "./lib/core/mission";
   import Lookup from "./lib/ui/Lookup.svelte";
   import { view } from "./lib/view.svelte";
+  import { meterBook } from "./lib/meters.svelte";
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { withoutNeverSell } from "./lib/core/sparesRules";
   import { ts } from "./lib/tennoscopeStore.svelte";
@@ -162,9 +163,11 @@
    * page area is under 900 px wide, and so on. The page area, not the window: with the sidebar
    * open a 1280 px window leaves less room than a 960 px one with it folded. (Not CSS container
    * queries: they'd trap the item sheets, which open from inside a page, in the page area.)
+   * Pages arrange themselves in three widths: compact under 1100 px (lt1100), regular, and wide
+   * from 1700 px (ge1700).
    */
   const ROOM_BELOW = [1100, 950, 930, 900, 760, 640];
-  const ROOM_ABOVE = [1850];
+  const ROOM_ABOVE = [1700, 1850];
   function room(node: HTMLElement) {
     const set = (w: number) => {
       const flags = [...ROOM_BELOW.filter((b) => w < b).map((b) => `lt${b}`), ...ROOM_ABOVE.filter((b) => w >= b).map((b) => `ge${b}`)].join(" ");
@@ -186,6 +189,9 @@
   // Show details (Settings, and the switch by each page's title): marks <html> for the shared
   // components' styles, and lets PageHead's switch change the setting.
   view.set = (on: boolean) => (settings.details = on);
+  // What each meter last showed (lib/meters.svelte.ts), kept in the settings.
+  meterBook.read = () => settings.meters;
+  meterBook.save = (m) => (settings.meters = m);
   $effect(() => {
     view.details = settings.details;
     document.documentElement.toggleAttribute("data-details", settings.details);
