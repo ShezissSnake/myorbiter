@@ -7,7 +7,18 @@
   import Icon from "../Icon.svelte";
   import Kind from "../Kind.svelte";
 
-  let { model, items, recent = [], onpick, autofocus = false, placeholder = "Find a warframe, weapon, companion…" }: { model: Model; items: BuildableItem[]; recent?: BuildableItem[]; onpick: (unique: string) => void; autofocus?: boolean; placeholder?: string } = $props();
+  let { model, items, recent = [], onpick, autofocus = false, placeholder = "Find a warframe, weapon, companion…", only = null, onclear }: {
+    model: Model; items: BuildableItem[]; recent?: BuildableItem[]; onpick: (unique: string) => void; autofocus?: boolean; placeholder?: string;
+    /** One kind only (Browse by kind): its name, and which items are of it. */
+    only?: { label: string; test: (x: BuildableItem) => boolean } | null;
+    /** Drops `only`. */
+    onclear?: () => void;
+  } = $props();
+  /** Opens the list with the focus in the box (Browse by kind, New build). */
+  export function focus() {
+    input?.focus();
+    open = true;
+  }
 
   let q = $state("");
   let open = $state(false);
@@ -16,6 +27,10 @@
   const id = `pick-${Math.random().toString(36).slice(2, 8)}`;
   // Nothing typed: recent first, then yours.
   const list = $derived.by(() => {
+    if (only) {
+      const of = items.filter(only.test);
+      return q.trim() ? searchItems(of, q, 60) : of.slice(0, 60);
+    }
     if (q.trim()) return searchItems(items, q, 30);
     const seen = new Set(recent.map((r) => r.unique));
     return [...recent, ...items.filter((x) => x.owned && !seen.has(x.unique)).slice(0, 30 - recent.length)];
@@ -69,11 +84,13 @@
     onkeydown={key}
     oninput={() => (open = true)}
   />
+  {#if only}<button type="button" class="only" title="Show every kind again" onclick={() => onclear?.()}>Only {only.label}<Icon name="close" size={11} /></button>{/if}
   {#if open && list.length}
     <ul class="list" id="{id}-list" role="listbox" aria-label="Items">
-      {#if !q.trim() && recent.length}<li class="head register" role="presentation">Recent</li>{/if}
+      {#if only}<li class="head register" role="presentation">{only.label}</li>
+      {:else if !q.trim() && recent.length}<li class="head register" role="presentation">Recent</li>{/if}
       {#each list as x, i (x.unique)}
-        {#if !q.trim() && i === recent.length && recent.length}<li class="head register" role="presentation">Yours</li>{/if}
+        {#if !only && !q.trim() && i === recent.length && recent.length}<li class="head register" role="presentation">Yours</li>{/if}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <li id="{id}-{i}" role="option" aria-selected={i === at} class:at={i === at} onmousedown={(e) => e.preventDefault()} onclick={() => take(x)} onmousemove={() => (at = i)}>
           <Thumb file={model.imageOf(x.name)} size={26} />
@@ -89,7 +106,8 @@
 </div>
 
 <style>
-  .picker { position: relative; width: 100%; max-width: 30rem; }
+  .picker { position: relative; width: 100%; max-width: 48rem; }
+  .only { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); height: 24px; display: inline-flex; align-items: center; gap: .35rem; padding: 0 .5rem; font-size: 11px; }
   .glass { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); color: var(--platinum-deep); pointer-events: none; display: inline-flex; }
   input { width: 100%; padding-left: 2rem; }
   .list { position: absolute; z-index: 20; top: calc(100% + 3px); left: 0; right: 0; max-height: 22rem; overflow: auto; margin: 0; padding: .25rem 0; list-style: none; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 1rem 2.4rem rgb(0 0 0 / 55%); }

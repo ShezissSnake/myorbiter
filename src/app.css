@@ -351,6 +351,27 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 11 11'%3E%3Cpath d='M5.5 1 10 5.5 5.5 10 1 5.5z' fill='none' stroke='%235d6671'/%3E%3C/svg%3E") right center / 11px 11px no-repeat,
     linear-gradient(var(--rule), var(--rule)) left center / calc(100% - 17px) 1px no-repeat;
 }
+/* A picture well: sunk, lit softly from behind the picture, a contact shadow under it, and corner
+   brackets (brackets mean "a picture"). Gradients rather than a drop-shadow filter on the picture:
+   a blurred filter is redrawn with every card on every scrolled frame, and on a long grid that was
+   most of the cost of scrolling. .small: no brackets, too small for them to read. */
+.picwell {
+  position: relative;
+  background: radial-gradient(ellipse 40% 9% at 50% 89%, rgb(0 0 0 / 60%), transparent 75%),
+    radial-gradient(circle at 50% 46%, rgb(241 243 246 / 7%), transparent 62%),
+    var(--well);
+  box-shadow: inset 0 2px 10px rgb(0 0 0 / 60%);
+}
+.picwell::before {
+  content: ""; position: absolute; inset: 6px; pointer-events: none; z-index: 1;
+  --b: var(--rule-control);
+  background:
+    linear-gradient(var(--b), var(--b)) left top / 10px 1px no-repeat, linear-gradient(var(--b), var(--b)) left top / 1px 10px no-repeat,
+    linear-gradient(var(--b), var(--b)) right top / 10px 1px no-repeat, linear-gradient(var(--b), var(--b)) right top / 1px 10px no-repeat,
+    linear-gradient(var(--b), var(--b)) left bottom / 10px 1px no-repeat, linear-gradient(var(--b), var(--b)) left bottom / 1px 10px no-repeat,
+    linear-gradient(var(--b), var(--b)) right bottom / 10px 1px no-repeat, linear-gradient(var(--b), var(--b)) right bottom / 1px 10px no-repeat;
+}
+.picwell.small::before { display: none; }
 /* A list plate's head bar: its label, then a hairline. */
 .plate-head { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--rule); }
 .plate-head::after { content: ""; flex: 1; height: 1px; background: var(--rule); }

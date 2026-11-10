@@ -43,7 +43,7 @@
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
-  import { shownPage, whenIdle } from "../pane.svelte";
+  import { shownPage, whenIdle, whileShown } from "../pane.svelte";
   import { UndoSlots } from "../undo.svelte";
   import { arrive, calm, flip, leave } from "../motion";
   import { useNox } from "../nox";
@@ -54,6 +54,9 @@
   import Icon from "../ui/Icon.svelte";
   import UndoSlot from "../ui/UndoSlot.svelte";
   import { kindIcon } from "../ui/GameIcon.svelte";
+  import Segments from "../ui/Segments.svelte";
+  import { kindSlot, SLOTS, SLOT_LABEL, type Slot } from "../core/kinds";
+  import { buildDate } from "../core/builds/store";
   import ItemPicker from "../ui/builds/ItemPicker.svelte";
   import BuildCard, { type Extras } from "../ui/builds/BuildCard.svelte";
   import PasteDialog from "../ui/builds/PasteDialog.svelte";
@@ -75,8 +78,72 @@
   /** Items opened this session, newest first. */
   let opened = $state<string[]>([]);
   const recent = $derived(recentItems(opened, settings.builds).map((u) => byUnique.get(u)).filter((x) => !!x));
-  /** Nothing open yet: your most built gear, to start from (once TennoScope reads your gear: by name alone it says nothing). */
-  const starters = $derived(pick || !model.gear?.length ? [] : startingItems(items, (u) => { const c = bestCopy(model.gear, u); return c ? (c.p ?? 0) + (c.f & 1) : 0; }).filter((x) => !opened.includes(x.unique)));
+  // ---------------------------------------------------------------- nothing picked yet
+
+  /** New build pressed with nothing picked: the picker asks what for, and the editor opens on the pick. */
+  let wantNew = $state(false);
+  let picker = $state<{ focus: () => void } | null>(null);
+  /** Browse by kind: the picker lists one kind only. */
+  let browse = $state<Slot | null>(null);
+  /** The width the landing has, for how many cards fit in a row (more in a wider pane, never wider cards). */
+  let landW = $state(0);
+  const landWide = $derived(landW >= 990);
+  const cardsN = $derived(Math.max(2, Math.min(5, Math.floor(((landWide ? landW - 316 : landW) + 16) / 256))));
+  /** Your most built: the items with the most saved builds, then the most recent; without any, your most invested gear. */
+  const mostBuilt = $derived.by(whileShown("builds", () => {
+    const per = new Map<string, { n: number; last: number }>();
+    for (const b of settings.builds) {
+      if (isOverframe(b)) continue;
+      const e = per.get(b.item) ?? { n: 0, last: 0 };
+      e.n++;
+      e.last = Math.max(e.last, buildDate(b));
+      per.set(b.item, e);
+    }
+    const rows = [...per].flatMap(([u, e]) => {
+      const c = model.catalogByUnique.get(u);
+      const k = c ? buildKindOf(c) : null;
+      return c && k ? [{ unique: u, name: c.name, label: kindLabelOf(c, k), fig: e.n, unit: e.n === 1 ? "build" : "builds", last: e.last }] : [];
+    }).sort((a, b) => b.fig - a.fig || b.last - a.last);
+    if (rows.length) return rows.slice(0, 9);
+    return startingItems(items, (u) => { const c = bestCopy(model.gear, u); return c ? (c.p ?? 0) + (c.f & 1) : 0; }, 9)
+      .map((x) => { const c = bestCopy(model.gear, x.unique); return { unique: x.unique, name: x.name, label: x.label, fig: c?.p ?? 0, unit: "Forma", last: 0 }; });
+  }));
+  /** The builds you saved or changed last, each with its tier and what you're missing of it. */
+  const recentBuilds = $derived.by(whileShown("builds", () => {
+    if (pick) return [];
+    return [...settings.builds].filter((b) => !isOverframe(b)).sort((a, b) => buildDate(b) - buildDate(a)).slice(0, 8).flatMap((b) => {
+      const it = model.catalogByUnique.get(b.item);
+      const k = it ? buildKindOf(it) : null;
+      if (!it || !k) return [];
+      const t = tierOf(b, it, model.catalogByUnique, k);
+      const r = missing(b, model, { tier: t });
+      return [{ b, it, label: kindLabelOf(it, k), tier: t.tier, have: r.lines.length - r.todo, of: r.lines.length, todo: r.todo }];
+    });
+  }));
+  /** Browse by kind: how many things of each kind take a build, and how many of them are yours. */
+  const byKind = $derived(SLOTS.map((slot) => {
+    const of = items.filter((x) => kindSlot(x.kind) === slot);
+    return { slot, n: of.length, mine: of.filter((x) => x.owned).length };
+  }).filter((r) => r.n));
+  const kindMax = $derived(Math.max(1, ...byKind.map((r) => r.n)));
+  const only = $derived(browse ? { label: SLOT_LABEL[browse], test: (x: { kind: string }) => kindSlot(x.kind) === browse } : null);
+  function browseKind(slot: Slot) {
+    browse = slot;
+    picker?.focus();
+  }
+  function newBuild() {
+    if (item && kind) {
+      editing = { build: blank(), copy: false };
+      return;
+    }
+    wantNew = true;
+    picker?.focus();
+  }
+  function openBuild(b: Build) {
+    choose(b.item);
+    later(() => bring(b));
+  }
+
   const item = $derived<CatalogItem | null>(pick ? (model.catalogByUnique.get(pick) ?? null) : null);
   const kind = $derived(item ? buildKindOf(item) : null);
   const label = $derived(item && kind ? kindLabelOf(item, kind) : "");
@@ -96,6 +163,12 @@
     variantOf = { low: null, medium: null, high: null };
     const c = bestCopy(model.gear, u);
     tier = !c ? "low" : (c.f & 1) && (c.p ?? 0) > 0 ? "high" : c.f & 1 ? "medium" : "low";
+    browse = null;
+    // New build was pressed before anything was picked: its editor opens for what was just picked.
+    if (wantNew) {
+      wantNew = false;
+      later(() => kind && (editing = { build: blank(), copy: false }));
+    }
   }
   // A link may ask for an item: "builds?item=/Lotus/…" (Builds on an item's details), or its name.
   $effect(() => {
@@ -322,7 +395,7 @@
 {#snippet hero()}
   <div class="arsenal">
     <div class="find">
-      <ItemPicker {model} {items} recent={recent.filter((r) => r.unique !== pick)} onpick={choose} autofocus={!pick} />
+      <ItemPicker bind:this={picker} {model} {items} recent={recent.filter((r) => r.unique !== pick)} onpick={choose} autofocus={!pick} {only} onclear={() => (browse = null)} placeholder={wantNew ? "What is the new build for? Find a warframe, weapon, companion…" : undefined} />
       {#if recent.length}
         <div class="recent" aria-label="Recent">
           {#each recent.filter((r) => r.unique !== pick).slice(0, 5) as r (r.unique)}
@@ -364,29 +437,21 @@
           {/each}
         </div>
       </div>
-    {:else}
+    {:else if !mostBuilt.length && !recentBuilds.length}
       <p class="lead dim">Pick anything that takes mods: a warframe or its exalted weapon, any weapon, a companion or its weapon, an archwing, arch-gun or arch-melee, a Necramech, a kitgun chamber, zaw strike or amp prism. Its builds, MyOrbiter's suggestion and what you're missing for each show here.</p>
-      {#if starters.length}
-        <div class="starters" aria-label="Start with yours">
-          <span class="register">Your most built</span>
-          {#each starters as r (r.unique)}
-            <button type="button" class="st" title="Builds for your {r.name} ({r.label})" onclick={() => choose(r.unique)}><Thumb file={model.imageOf(r.name)} size={34} /><span><b>{r.name}</b><small><Kind kind={r.label} size={12} /></small></span></button>
-          {/each}
-        </div>
-      {/if}
     {/if}
   </div>
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from MyOrbiter's suggestion." {hero} />
+  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from MyOrbiter's suggestion." {hero} {action} />
+  {#snippet action()}<button type="button" class="primary newb" title={item ? `Make a build of your own for ${item.name}, slot by slot` : "Make a build of your own: pick what it's for, then fill it slot by slot"} onclick={newBuild}><Icon name="plus" size={12} /> New build</button>{/snippet}
 
   {#if item && kind}
     <div class="bar">
       <h2 class="register th"><span class="tn2">{TIER_NAME[tier]}</span> · {TIER_MEANS[tier]}</h2>
       <span class="grow"></span>
       <button type="button" class="stamp" title="Paste a build from anywhere (Nox's Frame, a friend, Discord…), or a Nox's Frame build code: MyOrbiter reads the names" onclick={() => (pasting = true)}><Icon name="import" size={12} /> Paste a build</button>
-      <button type="button" title="Make a build of your own, slot by slot" onclick={() => (editing = { build: blank(), copy: false })}><Icon name="plus" size={12} /> New</button>
       <label class="age" title="Builds from other people older than this are hidden (by their site's date, else when you added them). 0: never hidden. Yours and MyOrbiter's never are">
         <span class="register">Hide older than</span>
         <input type="number" min="0" step="30" bind:value={ageText} onchange={setAge} onkeydown={(e) => e.key === "Enter" && setAge()} aria-label="Hide builds older than this many days (0: never)" />
@@ -474,6 +539,75 @@
     {/if}
 
     {#if recipeItem(item.uniqueName)}<Recipes {model} unique={item.uniqueName} />{/if}
+  {:else}
+    <!-- Nothing picked: your most built, your recent builds against your inventory, and every kind
+         to browse. A wider pane gets more cards and the side plates beside the main ones; a
+         narrower one stacks them. -->
+    <div class="landing" class:wide={landWide} bind:clientWidth={landW}>
+      {#if mostBuilt.length}
+        <h2 class="register">Your most built</h2>
+        <div class="row">
+          <ul class="cards" style:--n={cardsN} aria-label="Your most built">
+            {#each mostBuilt.slice(0, cardsN) as r (r.unique)}
+              <li><button type="button" class="mb" title="Builds for {r.name}" onclick={() => choose(r.unique)}>
+                <span class="mbwell picwell"><Art file={model.imageOf(r.name)} size={104} plain alt="" name={r.name} fallback={kindIcon(r.label, r.name) ?? "foundry"} /></span>
+                <span class="cap">
+                  <span class="mbn mark">{r.name}</span>
+                  <span class="mbf"><b class="mark">{r.fig}</b><span class="register">{r.unit}</span></span>
+                  <span class="register mbk"><Kind kind={r.label} size={12} /></span>
+                </span>
+              </button></li>
+            {/each}
+          </ul>
+          {#if mostBuilt.length > cardsN}
+            <section class="side plate-box" aria-label="Also often built">
+              <div class="plate-head"><span class="register">Also often built</span></div>
+              <ul class="also">
+                {#each mostBuilt.slice(cardsN, cardsN + 4) as r (r.unique)}
+                  <li><button type="button" title="Builds for {r.name}" onclick={() => choose(r.unique)}>
+                    <Thumb file={model.imageOf(r.name)} size={30} />
+                    <span class="an"><b>{r.name}</b><span class="register"><Kind kind={r.label} size={11} /></span></span>
+                    <span class="af mark">{r.fig}</span>
+                  </button></li>
+                {/each}
+              </ul>
+            </section>
+          {/if}
+        </div>
+      {/if}
+      <div class="row">
+        {#if recentBuilds.length}
+          <section class="plate-box recentb" aria-label="Recent builds">
+            <table>
+              <thead><tr><th>Recent builds</th><th class="c-for">For</th><th class="c-tier">Tier</th><th>Against your inventory</th><th class="right c-when">Changed</th></tr></thead>
+              <tbody>
+                {#each recentBuilds as r (r.b.id)}
+                  <tr>
+                    <td><button type="button" class="link rb" title="Open {r.b.title ?? 'this build'} on {r.it.name}" onclick={() => openBuild(r.b)}>{r.b.title ?? (r.b.source === "mine" ? "Your build" : "Pasted build")}</button></td>
+                    <td class="c-for"><span class="dim"><Kind kind={r.label} label={r.it.name} size={12} /></span></td>
+                    <td class="c-tier"><span class="tag">{TIER_NAME[r.tier]}</span></td>
+                    <td><span class="inv"><Segments key="build:{r.b.id}:inv" value={r.have} max={Math.max(1, r.of)} fill label="{r.have} of {r.of} things this build takes, against your inventory" /><span class:dim={r.todo > 0}>{r.of && !r.todo ? "Complete" : `${r.todo} missing`}</span></span></td>
+                    <td class="right dim c-when">{ageLine(r.b, Date.now()).replace(/^(added|updated) /, "")}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </section>
+        {/if}
+        <section class="side plate-box" aria-label="Browse by kind">
+          <div class="plate-head"><span class="register">Browse by kind</span></div>
+          <ul class="kinds">
+            {#each byKind as k (k.slot)}
+              <li><button type="button" class:on={browse === k.slot} aria-pressed={browse === k.slot} title="{k.n} {SLOT_LABEL[k.slot].toLowerCase()} take a build, {k.mine} of them yours: list them to pick one" onclick={() => browseKind(k.slot)}>
+                <i class="share" style:transform="scaleX({k.n / kindMax})" aria-hidden="true"></i>
+                <Kind kind={k.slot} label={SLOT_LABEL[k.slot]} />
+                <b class="kn">{k.n}</b>
+              </button></li>
+            {/each}
+          </ul>
+        </section>
+      </div>
+    </div>
   {/if}
 </div></div>
 
@@ -488,15 +622,8 @@
   .rc { display: inline-flex; align-items: center; gap: .4rem; padding: .18rem .55rem .18rem .2rem; font-family: var(--face-text); font-size: .8rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .rc:hover:not(:disabled) { color: var(--platinum); }
   .lead { margin: 0; max-width: 72ch; font-size: .88rem; line-height: 1.6; }
-  .starters { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem; }
-  .starters .register { flex-basis: 100%; font-size: 11px; }
-  .st { display: inline-flex; align-items: center; gap: .55rem; padding: .25rem .8rem .25rem .25rem; font-family: var(--face-text); letter-spacing: 0; text-transform: none; text-align: left; }
-  .st span { display: grid; line-height: 1.15; }
-  .st b { font-weight: 500; font-size: .86rem; color: var(--platinum); }
-  .st small { font-size: .7rem; color: var(--platinum-deep); }
-  .st:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
   .strip { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 1.2rem; }
-  .art { width: 132px; height: 132px; display: grid; place-items: center; border: 1px solid var(--rule); background: radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--sec) 10%, var(--plate)), var(--well) 75%); clip-path: var(--cut); }
+  .art { width: 132px; height: 132px; display: grid; place-items: center; }
   .who { display: grid; gap: .35rem; min-width: 0; }
   .nm { font-size: clamp(1.8rem, 3vw, 2.6rem); line-height: .9; overflow-wrap: anywhere; }
   .yours { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .9rem; font-size: .82rem; color: var(--platinum-deep); }
@@ -563,6 +690,61 @@
   .ot b { font-weight: 500; color: var(--platinum); }
   .ot .dim { margin-left: .35em; }
   .ofr .out { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
+  /* Nothing picked: the landing. Two columns (main, side) from a regular pane up; one below. */
+  .landing { display: grid; gap: var(--step); margin-top: var(--step); }
+  .landing h2 { margin: 0; }
+  .row { display: grid; gap: 16px; align-items: start; }
+  .landing.wide .row { grid-template-columns: minmax(0, 1fr) 300px; }
+  .landing.wide .row > :only-child { grid-column: 1 / -1; }
+  .plate-box { background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule); box-shadow: var(--plate-light); min-width: 0; }
+  .cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 16px; }
+  .mb {
+    all: unset; box-sizing: border-box; cursor: pointer; display: grid; width: 100%; min-width: 0;
+    background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule); box-shadow: var(--plate-light);
+    clip-path: polygon(0 0, calc(100% - 12px) 0, 100% 12px, 100% 100%, 12px 100%, 0 calc(100% - 12px));
+  }
+  .mb:hover { border-color: var(--rule-bright); }
+  .mb:focus-visible { outline: 2px solid var(--sec); outline-offset: -2px; }
+  .mbwell { display: grid; place-items: center; height: 150px; margin: 8px 8px 0; }
+  /* The caption: a flat bar of the section's colour above it. */
+  .cap { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 4px 12px; padding: 12px 14px 12px; border-top: 2px solid var(--sec); margin-top: 8px; }
+  .mbn { font-size: 20px; line-height: 1.05; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum); }
+  .mbf { grid-row: span 2; display: grid; justify-items: end; gap: 2px; }
+  .mbf b { font-size: 20px; line-height: 1; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .mbf .register { font-size: 11px; }
+  .mbk { font-size: 11px; min-width: 0; overflow: hidden; }
+  .also { list-style: none; margin: 0; padding: 0; }
+  .also li + li { border-top: 1px solid var(--rule); }
+  .also button { all: unset; box-sizing: border-box; cursor: pointer; width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 14px; min-height: 56px; }
+  .also button:hover { background: var(--raised); }
+  .also button:focus-visible { outline: 2px solid var(--sec); outline-offset: -2px; }
+  .an { display: grid; gap: 2px; min-width: 0; }
+  .an b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .an .register { font-size: 11px; }
+  .af { font-size: 18px; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .recentb table { width: 100%; border-collapse: collapse; background: none; }
+  /* The table's head row is the plate's head bar. */
+  .recentb th { height: 36px; padding: 0 12px; text-align: left; font-family: var(--face-register); font-weight: 500; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-dim); border-bottom: 1px solid var(--rule); background: none; }
+  .recentb td { height: 48px; padding: 0 12px; white-space: nowrap; border-bottom: 1px solid var(--rule); }
+  .recentb tr:last-child td { border-bottom: none; }
+  .recentb .right { text-align: right; }
+  .rb { font-family: var(--face-text); font-size: 14px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--platinum); text-decoration: none; text-align: left; }
+  .rb:hover { text-decoration: underline; }
+  .inv { display: inline-flex; align-items: center; gap: 12px; }
+  /* Every row's meter the same length, whatever the build takes. */
+  .inv > :global(.meter) { width: 140px; }
+  .newb { display: inline-flex; align-items: center; gap: .45rem; }
+  .kinds { list-style: none; margin: 0; padding: 0; }
+  .kinds li + li { border-top: 1px solid var(--rule); }
+  .kinds button { all: unset; box-sizing: border-box; cursor: pointer; position: relative; width: 100%; display: flex; align-items: center; gap: 12px; height: 36px; padding: 0 14px; color: var(--platinum); }
+  /* A flat bar behind each count, its share of the largest kind. */
+  .share { position: absolute; inset: 0; transform-origin: left center; background: color-mix(in srgb, var(--sec) 12%, transparent); pointer-events: none; }
+  .kinds button > :global(.kind) { position: relative; }
+  .kn { position: relative; margin-left: auto; font-family: var(--face-figures); font-variant-numeric: tabular-nums; }
+  .kinds button:hover { background: var(--raised); }
+  .kinds button.on { box-shadow: inset 2px 0 0 var(--sec); }
+  .kinds button:focus-visible { outline: 2px solid var(--sec); outline-offset: -2px; }
+  :global(html[data-room~="lt900"]) .c-tier, :global(html[data-room~="lt760"]) .c-for, :global(html[data-room~="lt640"]) .c-when { display: none; }
   .builds { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; }
   .builds > li { min-width: 0; scroll-margin-top: 1rem; }
   .builds > li.fresh :global(.build) { box-shadow: 0 0 0 1px var(--gold); transition: box-shadow 1s var(--out); }
