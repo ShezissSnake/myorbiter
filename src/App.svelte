@@ -2720,7 +2720,7 @@
       {#each sections as sec (sec)}
         {@const ps = pages.filter((p) => p.group === sec)}
         {@const open = !settings.sectionsClosed.includes(sec)}
-        <button type="button" class="secbar" class:here={!open && ps.some((p) => p.id === (navTo ?? settings.tab))} data-section={sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
+        <button type="button" class="secbar" class:here={!open && ps.some((p) => p.id === (navTo ?? settings.tab))} data-section={sec} aria-label={sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
           <Icon name={sectionIcon(sec)} size={14} stroke={1.8} />
           <span class="lbl">{sec}</span>
           {#if !open}<span class="n" aria-hidden="true">{ps.length}</span>{/if}
