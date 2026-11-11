@@ -2,6 +2,8 @@
   // One set of 16px line icons, drawn to sit together: square-cut, 1.3px strokes, Orokin
   // geometry (diamonds, hexagons, struck rings) rather than generic UI glyphs.
   const PATHS: Record<string, string> = {
+    // A void fissure: a diamond split down the middle by the rift (a mission type without its own glyph).
+    mission: "M8 1.2 14.8 8 8 14.8 1.2 8zM8.9 3.4 7.1 7.4 8.9 8.6 7.1 12.6",
     // A plan: a reticle over the relic's diamond.
     planner: "M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M8 4.8 11.2 8 8 11.2 4.8 8z",
     // Four parts that make a set.

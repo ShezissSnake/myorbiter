@@ -411,8 +411,16 @@ async function walk(size, look, { settingsOnce = false } = {}) {
     await pause(p, 2500);
     await look(p, size, label);
   }
-  // Settings, each section scrolled into view.
-  await p.locator("button[aria-label='Settings']").click();
+  // The sidebar foot's More menu, open (drawn over the page: nothing in it may be cut off).
+  await p.locator(".rail .foot button.more").click();
+  await pause(p, 400);
+  await look(p, size, "More menu");
+  await p.keyboard.press("Escape");
+  await pause(p, 300);
+  // Settings (from More), each section scrolled into view.
+  await p.locator(".rail .foot button.more").click();
+  await pause(p, 300);
+  await p.locator(".moremenu [data-item='Settings']").click();
   await pause(p, 1200);
   if (settingsOnce) await look(p, size, "Settings");
   else {

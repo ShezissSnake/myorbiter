@@ -20,7 +20,7 @@ const ticks = (label) => ({
     const sync = [];
     for (let i = 0; i < 3; i++) {
       // Quiet 1.2 s: the app's catch-up of hidden pages waits for 1 s without input.
-      sync.push(await s.measure(`document.querySelector('.syncrow button.sync').click()`, { quiet: 1200 }));
+      sync.push(await s.measure(`document.querySelector('.rail .foot button.sync').click()`, { quiet: 1200 }));
       await s.measure("void 0", { quiet: 1500, max: 4000 });
     }
     // warframe.market's listings, every 30 s (marketPoll in App.svelte): waits for it.
@@ -253,11 +253,11 @@ SCENARIOS.syncDebug = {
   runs: 1,
   async run(s) {
     const before = await s.eval("window.__perf.fetches.length");
-    const btn = await s.eval(`(() => { const b = document.querySelector('.syncrow button.sync'); return b ? [b.outerHTML.slice(0, 300), b.disabled, b.getAttribute('aria-busy')] : null; })()`);
-    await s.eval(`document.querySelector('.syncrow button.sync').click()`);
+    const btn = await s.eval(`(() => { const b = document.querySelector('.rail .foot button.sync'); return b ? [b.outerHTML.slice(0, 300), b.disabled, b.getAttribute('aria-busy')] : null; })()`);
+    await s.eval(`document.querySelector('.rail .foot button.sync').click()`);
     await new Promise((r) => setTimeout(r, 4000));
     const after = await s.eval(`window.__perf.fetches.slice(${before}).map(f => f.url.replace(location.origin, '') + ' ' + Math.round(f.t1 - f.t0))`);
-    const label = await s.eval(`document.querySelector('.syncrow button.sync').textContent.trim().slice(0, 80)`);
+    const label = await s.eval(`document.querySelector('.rail .foot button.sync').textContent.trim().slice(0, 80)`);
     return { btn, after, label };
   },
 };
@@ -277,7 +277,7 @@ const helpOver = (flat) => ({
       await s.measure(nav(label));
       await s.measure("void 0", { quiet: 1500, max: 4000 });
       const open = await s.measure(`document.querySelector('.pane.shown [data-help]').click()`, { quiet: 600 });
-      const update = await s.measure(`document.querySelector('.syncrow button.sync').click()`, { quiet: 1200 });
+      const update = await s.measure(`document.querySelector('.rail .foot button.sync').click()`, { quiet: 1200 });
       const held = await s.measure("void 0", { quiet: 60000, max: 10000 });
       const close = await s.measure(`document.querySelector('[role=dialog][aria-modal=true]').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`, { quiet: 600 });
       out[label] = { open, update, held, close };

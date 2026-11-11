@@ -3190,7 +3190,7 @@
   .state { position: relative; display: grid; gap: 4px; min-width: 0; padding: 4px 36px 8px 18px; }
   .state :global(.helpmark.corner) { top: 2px; right: 8px; background: #0e1013; }
   .st { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; line-height: 17px; }
-  .st .register { flex: none; width: 66px; font-size: 11px; }
+  .st .register { flex: none; width: 72px; font-size: 11px; }
   .st .v { min-width: 0; color: var(--platinum); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dia { width: 7px; height: 7px; flex: none; background: var(--platinum); transform: rotate(45deg); }
   .dia.hollow { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
@@ -3211,7 +3211,6 @@
   .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
   .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
-  .foot :global(.sync.done), .foot :global(.sync.failed) { color: var(--platinum-dim); }
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */

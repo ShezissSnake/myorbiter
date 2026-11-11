@@ -80,8 +80,9 @@
       close(true);
     }
   }
+  // The focus goes back to More first, so closing what the item opened lands there again.
   function choose(it: MoreItem) {
-    close(false);
+    close(true);
     it.run();
   }
   // A click anywhere but the menu or its button closes it; so does the focus going elsewhere (a
@@ -93,10 +94,18 @@
       if (!menu?.contains(t) && !button?.contains(t)) close(false);
     };
     const resize = () => close(false);
+    // Esc closes it wherever the focus is (a click on More doesn't focus it everywhere).
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || menu?.contains(e.target as Node) || button?.contains(e.target as Node)) return;
+      e.preventDefault();
+      close(true);
+    };
+    window.addEventListener("keydown", esc);
     window.addEventListener("pointerdown", away, true);
     window.addEventListener("focusin", away, true);
     window.addEventListener("resize", resize);
     return () => {
+      window.removeEventListener("keydown", esc);
       window.removeEventListener("pointerdown", away, true);
       window.removeEventListener("focusin", away, true);
       window.removeEventListener("resize", resize);
@@ -109,13 +118,13 @@
   });
 </script>
 
-<button bind:this={button} type="button" class="tool more" class:on={open} aria-haspopup="menu" aria-expanded={open} aria-controls="more-{uid}" aria-label="More" title="More: search, help, report a bug, settings{items.some((i) => i.tone) ? ', TennoScope' : ''}" onclick={(e) => (open ? close(false) : show(e.detail === 0))} onkeydown={onButtonKey}>
+<button bind:this={button} type="button" class="tool more" class:on={open} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? `more-${uid}` : undefined} aria-label="More" title="More: search, help, report a bug, settings{items.some((i) => i.tone) ? ', TennoScope' : ''}" onclick={(e) => (open ? close(false) : show(e.detail === 0))} onkeydown={onButtonKey}>
   <span class="ti"><GameIcon name="menu" size={24} even /></span><span class="lbl">More</span><span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
 </button>
 {#if open}
   <div bind:this={menu} id="more-{uid}" class="moremenu" class:side={compact} role="menu" aria-label="More" tabindex="-1" style={place} onkeydown={onMenuKey}>
     {#each items as it (it.label)}
-      <button type="button" role="menuitem" class="mi" class:on={it.on} data-item={it.label} title={it.title} onclick={() => choose(it)}>
+      <button type="button" role="menuitem" tabindex="-1" class="mi" class:on={it.on} aria-current={it.on ? "page" : undefined} data-item={it.label} title={it.title} onclick={() => choose(it)}>
         {#if it.icon}<Icon name={it.icon} size={15} stroke={1.3} />{:else}<i class="tsd tone-{it.tone ?? 'off'}"></i>{/if}
         <span class="ml">{it.label}</span>
         {#if it.keys}<span class="k">{it.keys}</span>{/if}

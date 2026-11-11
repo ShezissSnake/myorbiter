@@ -160,7 +160,11 @@
       </span>
     {:else}
       {#if picture}
-        <span class="mark lead pic"><span class:turn={spin && st === "working"}><GameIcon name={picture} size={size} even /></span></span>
+        <span class="mark lead pic">
+          {#if st === "done"}<Icon name="check" size={Math.round(size * 0.7)} />
+          {:else if st === "failed"}<b class="bang">!</b>
+          {:else}<span class:turn={spin && st === "working"}><GameIcon name={picture} size={size} even /></span>{/if}
+        </span>
       {:else if icon}
         <span class="mark lead">
           {#if st === "done"}<Icon name="check" size={12} />
