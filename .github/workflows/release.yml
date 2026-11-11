@@ -13,7 +13,8 @@ name: Release
 #                      0.2.<n>. On main it also signs, publishes the build-<n> release, moves
 #                      Experimental to the build and rebuilds the website; on any other branch it
 #                      stops after the builds and leaves the downloads as the run's artifacts, for
-#                      3 days.
+#                      3 days. With `experimental` off it signs and publishes build-<n> from any
+#                      branch and leaves Experimental alone (a fix for Beta, then promoted).
 #   promote            promote-check ─ promote ─ site ─ deploy: moves build <n> to Beta or Stable,
 #                      then rebuilds the website (main only).
 #   pages              site ─ deploy: the website (scripts/site.mjs) on GitHub Pages (main only).
@@ -74,6 +75,10 @@ on:
         default: beta
       windows:
         description: "release: build the Windows installer too. A build without it is published but can't go on a channel."
+        type: boolean
+        default: true
+      experimental:
+        description: "release: put the build on Experimental (main only). Off: sign and publish build-<n> from any branch and leave Experimental as it is; Beta or Stable only by promote."
         type: boolean
         default: true
 
@@ -280,7 +285,7 @@ jobs:
           compression-level: 0
 
       - name: Say where the files are
-        if: github.ref != 'refs/heads/main'
+        if: github.ref != 'refs/heads/main' && inputs.experimental
         env:
           REF: ${{ github.ref_name }}
         run: echo "**Not published:** built from \`$REF\`, not main. The downloads are this run's artifacts, for 3 days." >>"$GITHUB_STEP_SUMMARY"
@@ -381,9 +386,10 @@ jobs:
           retention-days: 3
           compression-level: 0
 
-  # Signs the AppImage and the setup.exe for the updater. Only on main, once every build that was
-  # asked for has succeeded. The key comes from the release-signing environment, whose protection
-  # rules (main only, and reviewers if set) can hold this job until approved (docs/maintaining.md).
+  # Signs the AppImage and the setup.exe for the updater. Only on main (or with `experimental` off),
+  # once every build that was asked for has succeeded. The key comes from the release-signing
+  # environment, whose protection rules (the branches it allows, and reviewers if set) can stop or
+  # hold this job until approved (docs/maintaining.md).
   # It runs two GitHub actions (checkout, download-artifact) and the repository's dependency-free
   # signer with the runner's preinstalled Node: no package manager, no build, no cache. The key is
   # in the environment of the signing step alone, and scripts/updater-sign.mjs never prints it.
@@ -391,7 +397,7 @@ jobs:
     name: Sign the updater downloads
     needs: [test, linux, windows]
     if: >-
-      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      ${{ !cancelled() && (github.ref == 'refs/heads/main' || !inputs.experimental)
       && needs.linux.result == 'success'
       && (needs.windows.result == 'success' || needs.windows.result == 'skipped') }}
     runs-on: ubuntu-24.04
@@ -481,9 +487,10 @@ jobs:
 
   # Everything else the release carries, read-only: myorbiter-source.tar.gz (the complete source of
   # the commit, as the GPL-3.0 asks), latest.json (scripts/github-manifest.mjs: this build's
-  # version, notes from the commit subjects since the build on Experimental, each signed download on
-  # build-<n>, every signature checked again) and SHA256SUMS of every file. A build is complete,
-  # and may go on a channel, when it is signed and has both the Linux and the Windows download.
+  # version, notes from the commit subjects since the build on Experimental (or Beta), each signed
+  # download on build-<n>, every signature checked again) and SHA256SUMS of every file. A build is
+  # complete, and may go on a channel, when it is signed and has both the Linux and the Windows
+  # download.
   assemble:
     name: Release files
     needs: [test, sign]
@@ -519,16 +526,17 @@ jobs:
       - name: Source
         run: git archive --format=tar.gz --prefix="myorbiter-build-$BUILD/" --output release-files/myorbiter-source.tar.gz "$GITHUB_SHA"
 
-      # The commit subjects since the build on Experimental, when that one is an ancestor of this
-      # one; otherwise the last 15.
+      # The commit subjects since the build on Experimental (on Beta, with `experimental` off), when
+      # that one is an ancestor of this one; otherwise the last 15.
       - name: Release notes
         if: needs.sign.outputs.signed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          BASELINE: ${{ inputs.experimental && 'experimental' || 'beta' }}
         run: |
           set -uo pipefail
           prev=""
-          if gh release download experimental --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/previous.json" 2>/dev/null; then
+          if gh release download "$BASELINE" --repo "$GITHUB_REPOSITORY" --pattern latest.json --output "$RUNNER_TEMP/previous.json" 2>/dev/null; then
             prev=$(jq -r '.commit // empty' "$RUNNER_TEMP/previous.json")
           fi
           if [[ "$prev" =~ ^[0-9a-f]{40}$ ]] && git merge-base --is-ancestor "$prev" "$GITHUB_SHA" 2>/dev/null; then
@@ -599,7 +607,8 @@ jobs:
         with:
           subject-checksums: release-files/SHA256SUMS
 
-  # The build-<n> pre-release with every file, then Experimental. It checks out nothing and runs only
+  # The build-<n> pre-release with every file, then Experimental (not with `experimental` off: a
+  # build published that way reaches a channel only by promote). It checks out nothing and runs only
   # gh, jq and coreutils on the artifacts the jobs above made, and attaches a file only if SHA256SUMS
   # lists it with that checksum. Last, so a build only reaches a channel once everything before it
   # worked.
@@ -607,7 +616,7 @@ jobs:
     name: Publish
     needs: [test, sign, assemble, attest]
     if: >-
-      ${{ !cancelled() && github.ref == 'refs/heads/main'
+      ${{ !cancelled() && (github.ref == 'refs/heads/main' || !inputs.experimental)
       && needs.assemble.result == 'success'
       && (needs.attest.result == 'success' || needs.attest.result == 'skipped') }}
     runs-on: ubuntu-24.04
@@ -686,7 +695,7 @@ jobs:
       # first time), which installed copies on Experimental read first. Never backwards: a run that
       # finishes after a newer one leaves the channel on the newer build.
       - name: Publish to Experimental
-        if: env.COMPLETE == 'true'
+        if: env.COMPLETE == 'true' && inputs.experimental
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

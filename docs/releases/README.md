@@ -20,7 +20,9 @@ PipeWire, 0.3.48 or newer: the AppImage runs on SteamOS and any x86-64 Linux wit
 22.04, Debian 12 and later), the .deb on Debian and Ubuntu from those releases on, not on SteamOS);
 `windows`, with the *windows* box ticked, builds the Windows installer natively on a Windows
 runner. Only a run on `main` goes further; on any other branch the downloads stay as the run's
-artifacts for 3 days.
+artifacts for 3 days, unless the *experimental* box is unticked: then the build is signed and
+published from that branch without going on Experimental, if the `release-signing` environment
+allows the branch (a fix for Beta, `docs/maintaining.md`).
 
 The jobs that build (and so run npm, pnpm and Cargo code) never see the signing key and hold only a
 read-only token. `sign` signs; `assemble` adds `myorbiter-source.tar.gz`, the complete source of the
@@ -49,7 +51,9 @@ which keeps the manifests GitLab's last build left there.
   the previous Experimental build, and each download's address on `build-<n>` and signature. When
   the build has both the Linux and Windows downloads, `publish` copies its `latest.json` to the
   `experimental` release (never back to an older build). Without the key, the build is still
-  published, unsigned and on no channel, and the run's summary says so.
+  published, unsigned and on no channel, and the run's summary says so. With *experimental*
+  unticked, the build is published the same way but Experimental is left alone, and the notes
+  start from Beta's build instead.
 - **Promoting.** Run workflow on `main` with *task* `promote`, the build's number and *beta* or
   *stable*. It checks the build (its `latest.json`, both downloads and their signatures) and
   copies exactly that `latest.json` to the `beta` or `stable` release. Promoting to Stable also
