@@ -115,8 +115,8 @@ the downloads), prints everything MyOrbiter reads from the log.
 
 TennoScope reads the same log, only in Overlay and Full mode and only while the game runs (ten
 times a second, a hundred while a reward screen is open): for the inventory sync, the reward screen
-(the squad's relics, the screen opening and closing, the rewards, and the squad's account ids), and
-when Baro's Ducat Kiosk opens and closes. Its own bug report can save a copy of the log, with IP and
+(the squad's relics, the screen opening and closing, the rewards, and the squad's account ids,
+which nothing uses any more), and when Baro's Ducat Kiosk opens and closes. Its own bug report can save a copy of the log, with IP and
 e-mail addresses removed, on this computer, only if you ask for it.
 
 ## warframe.market

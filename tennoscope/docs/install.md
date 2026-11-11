@@ -254,8 +254,6 @@ fix.
   which is why Borderless is a requirement rather than a suggestion. If a driver or
   overlay conflict leaves the strip invisible, `TENNOSCOPE_OPAQUE_OVERLAY=1` draws it
   with a solid background instead.
-- **Windows polling costs more than Linux.** There is no `soft-dirty` equivalent, so
-  every memory poll rescans every region rather than only the pages the game wrote.
 - **Card geometry** is measured against a 1920x1080 reward screen and scaled by window
   height, which is how Warframe scales its HUD, with each position an offset from the
   window's horizontal centre. 16:10, a Steam Deck's native 1280x800, has its own capture

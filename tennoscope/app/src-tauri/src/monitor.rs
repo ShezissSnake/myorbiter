@@ -1331,12 +1331,7 @@ pub(crate) fn run(
             .chain(reward_log.observe_bytes(&log_bytes))
         {
             if generation.is_current() {
-                reward_session.handle_event(
-                    event,
-                    process,
-                    &shared,
-                    &app,
-                );
+                reward_session.handle_event(event, process, &shared, &app);
             }
         }
         // Same bytes, second machine: the kiosk's lifecycle is independent of the reward screen's
