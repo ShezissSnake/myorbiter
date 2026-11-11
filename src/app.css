@@ -563,6 +563,6 @@ tr.era-wash > td:first-child { box-shadow: inset 2px 0 0 color-mix(in srgb, var(
 /* Four hues far apart, each at least 6:1 on the slab: Fissures ice blue, Progress green, Collection
    violet, Trade platinum gold. */
 [data-section="Fissures"] { --sec: #7fd1e0; --sec-dim: #4b7a83; --sec-sigil: url("/game/void-tear.png"); --sec-name: "Fissures"; }
-[data-section="Progress"] { --sec: #6fbf95; --sec-dim: #437158; --sec-sigil: url("/game/mastery.png"); --sec-name: "Progress"; }
-[data-section="Collection"] { --sec: #a48be0; --sec-dim: #614f82; --sec-sigil: url("/game/warframes.png"); --sec-name: "Collection"; }
-[data-section="Trade"] { --sec: #d6ae4a; --sec-dim: #a3843a; --sec-sigil: url("/game/market.png"); --sec-name: "Trade"; }
+[data-section="Progress"] { --sec: #6fbf95; --sec-dim: #437158; --sec-sigil: url("/game/mastery-mark.png"); --sec-name: "Progress"; }
+[data-section="Collection"] { --sec: #a48be0; --sec-dim: #614f82; --sec-sigil: url("/game/bundle.png"); --sec-name: "Collection"; }
+[data-section="Trade"] { --sec: #d6ae4a; --sec-dim: #a3843a; --sec-sigil: url("/game/trading.png"); --sec-name: "Trade"; }

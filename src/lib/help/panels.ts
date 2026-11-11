@@ -128,9 +128,10 @@ const WATCHING: Walkthrough = {
 const ITEM = `.sheet:has(> header > [data-help="item-sheet"])`;
 /** One of the sheet's sections, by the part of its "?". */
 const sheetPart = (part: string) => `${ITEM} section:has([data-help="${part}"])`;
-/** Opens an item's sheet through Find anything (Ctrl+K): the item itself is the first match for its whole name. */
+/** Opens an item's sheet through Find anything (More, Search): the item itself is the first match for its whole name. */
 const openItem = (name: string): Step[] => [
-  { click: ".rail .foot button[aria-label='Find anything']" },
+  { click: ".rail .foot button.more" },
+  { click: ".moremenu [data-item='Search']" },
   { fill: "[role=dialog][aria-label='Find anything'] input", text: name },
   { press: "Enter" },
   { wait: 3000 },
@@ -280,38 +281,40 @@ const RAIL: Walkthrough = {
       },
     },
     {
-      title: "Sync, find, notifications",
+      title: "Sync, notifications, more",
       lines: [
         "Sync asks TennoScope for a new inventory read and fills while it waits (Ctrl+R).",
-        "The magnifier finds anything by name and opens it (Ctrl+K).",
-        "The bell: what MyOrbiter told you lately; its number is how many are new.",
-        "Without Full mode or the game running, Sync rereads TennoScope's last saved read.",
-      ],
-      shot: {
-        open: "home",
-        part: `${FOOT} .syncrow`,
-        marks: [
-          { at: `${FOOT} .syncrow button.sync`, is: "n", n: 1, from: "bottom" },
-          { at: `${FOOT} .syncrow button[aria-label='Find anything']`, is: "n", n: 2, from: "bottom" },
-          { at: `${FOOT} .syncrow button.bell`, is: "n", n: 3, from: "bottom" },
-        ],
-      },
-    },
-    {
-      title: "TennoScope, Guide and Settings",
-      lines: [
-        "TennoScope opens its panel. Filled light: all well; red outline: a look; filled red: trouble.",
-        "The Guide (F1): what each page is for, and how to use it.",
-        "The gear opens Settings (Ctrl+,).",
-        "Report a bug: here with the sidebar folded; otherwise Settings, the Guide, or Shift+F1.",
+        "Without Full mode or the game running, it rereads TennoScope's last saved read.",
+        "Notifications: what MyOrbiter told you lately; its number is how many are new.",
+        "More opens a menu with the rest: search, help, settings and TennoScope.",
       ],
       shot: {
         open: "home",
         part: `${FOOT} .tools`,
         marks: [
-          { at: `${FOOT} .tools button.tsbtn`, is: "n", n: 1, from: "top" },
-          { at: `${FOOT} .tools button[aria-label='Guide']`, is: "n", n: 2, from: "top" },
-          { at: `${FOOT} .tools button[aria-label='Settings']`, is: "n", n: 3, from: "top" },
+          { at: `${FOOT} .tools button.sync`, is: "n", n: 1, from: "right" },
+          { at: `${FOOT} .tools button.bell`, is: "n", n: 2, from: "right" },
+          { at: `${FOOT} .tools button.more`, is: "n", n: 3, from: "right" },
+        ],
+      },
+    },
+    {
+      title: "In More",
+      lines: [
+        "Search finds anything by name and opens it (Ctrl+K). Help opens the Guide (F1).",
+        "Report a bug says what went wrong, as an issue on GitHub or copied (Shift+F1).",
+        "Settings (Ctrl+,). TennoScope opens its panel; its diamond filled means all is well.",
+        "Arrow keys move through the menu; Esc closes it. The shortcuts work without it.",
+      ],
+      shot: {
+        open: "home",
+        steps: [{ click: `${FOOT} button.more` }, { wait: 600 }],
+        part: ".moremenu",
+        marks: [
+          { at: ".moremenu [data-item='Search']", is: "n", n: 1, from: "right" },
+          { at: ".moremenu [data-item='Help']", is: "n", n: 2, from: "right" },
+          { at: ".moremenu [data-item='Report a bug']", is: "n", n: 3, from: "right" },
+          { at: ".moremenu [data-item='Settings']", is: "n", n: 4, from: "right" },
         ],
       },
     },
@@ -361,7 +364,7 @@ const FIRST_RUN: Walkthrough = {
       ],
       shot: {
         open: "home",
-        steps: [{ click: ".rail .foot button.tsbtn" }, { wait: 1500 }],
+        steps: [{ click: ".rail .foot button.more" }, { click: ".moremenu [data-item='TennoScope']" }, { wait: 1500 }],
         part: INVENTORY,
         marks: [
           { at: `${INVENTORY} .kv`, is: "n", n: 1, from: "corner" },
@@ -384,7 +387,7 @@ const FIRST_RUN: Walkthrough = {
 const NEWS = ".pane.shown section.news";
 const DAY = `${NEWS} .newshead + .day`;
 const ROWS = `${DAY} + ul.rows`;
-const GUIDE: Step[] = [{ click: ".rail .foot button[aria-label='Guide']" }, { wait: 3000 }];
+const GUIDE: Step[] = [{ click: ".rail .foot button.more" }, { click: ".moremenu [data-item='Help']" }, { wait: 3000 }];
 
 const WHATS_NEW: Walkthrough = {
   id: "whats-new",

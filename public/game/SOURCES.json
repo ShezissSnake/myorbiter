@@ -370,5 +370,69 @@
  "relic-requiem-flawless": {
   "file": "relic-requiem-flawless.png",
   "source": "https://wiki.warframe.com/w/File:RequiemRelicFlawless.png"
+ },
+ "forma": {
+  "file": "forma.png",
+  "source": "https://wiki.warframe.com/w/File:Forma.png"
+ },
+ "wishlist": {
+  "file": "wishlist.png",
+  "source": "https://wiki.warframe.com/w/File:WishlistIcon.png"
+ },
+ "prime-plate": {
+  "file": "prime-plate.png",
+  "source": "https://wiki.warframe.com/w/File:MarketFancyPrimeAccessIcon%28xWhite%29.png"
+ },
+ "duplicates": {
+  "file": "duplicates.png",
+  "source": "https://wiki.warframe.com/w/File:IconModDuplicates%28xWhite%29.png"
+ },
+ "player": {
+  "file": "player.png",
+  "source": "https://wiki.warframe.com/w/File:IconPlayer%28xWhite%29.png"
+ },
+ "fissure-canister": {
+  "file": "fissure-canister.png",
+  "source": "https://wiki.warframe.com/w/File:IconFisureCanisterMarker%28xWhite%29.png"
+ },
+ "mastered": {
+  "file": "mastered.png",
+  "source": "https://wiki.warframe.com/w/File:IconMastered%28xWhite%29.png"
+ },
+ "bundle": {
+  "file": "bundle.png",
+  "source": "https://wiki.warframe.com/w/File:IconBundle%28xWhite%29.png"
+ },
+ "trading": {
+  "file": "trading.png",
+  "source": "https://wiki.warframe.com/w/File:TradingIcon%28xWhite%29.png"
+ },
+ "refresh-timer": {
+  "file": "refresh-timer.png",
+  "source": "https://wiki.warframe.com/w/File:RefreshTimerIcon%28xWhite%29.png"
+ },
+ "mail": {
+  "file": "mail.png",
+  "source": "https://wiki.warframe.com/w/File:MailIcon%28xBlack%29.png (recoloured white)"
+ },
+ "menu": {
+  "file": "menu.png",
+  "source": "https://wiki.warframe.com/w/File:IconGamepadXboxMenu%28xWhite%29.png"
+ },
+ "planner-slate": {
+  "file": "planner-slate.png",
+  "source": "Drawn for MyOrbiter: a slate in the style of the game pictures beside it"
+ },
+ "browse-lens": {
+  "file": "browse-lens.png",
+  "source": "Drawn for MyOrbiter: a cart seen through a lens, after https://wiki.warframe.com/w/File:Market%28xWhite%29.png"
+ },
+ "locker": {
+  "file": "locker.png",
+  "source": "Drawn for MyOrbiter: a locker, after https://wiki.warframe.com/w/File:OpenLootLocker%28xWhite%29.png"
+ },
+ "mastery-mark": {
+  "file": "mastery-mark.png",
+  "source": "https://wiki.warframe.com/w/File:MasteryAffinity64%28xDark%29.png (its light parts, as a flat white glyph)"
  }
 }

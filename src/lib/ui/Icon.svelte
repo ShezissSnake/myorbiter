@@ -2,32 +2,14 @@
   // One set of 16px line icons, drawn to sit together: square-cut, 1.3px strokes, Orokin
   // geometry (diamonds, hexagons, struck rings) rather than generic UI glyphs.
   const PATHS: Record<string, string> = {
-    // Home: the orbiter itself, a ring around a core.
-    home: "M8 5.6a2.4 2.4 0 1 0 0 4.8 2.4 2.4 0 0 0 0-4.8zM1.5 8c0-1.6 2.9-2.9 6.5-2.9S14.5 6.4 14.5 8 11.6 10.9 8 10.9 1.5 9.6 1.5 8z",
-    // Sales: a coin with an upward tick.
-    sales: "M8 1.8a6.2 6.2 0 1 0 0 12.4A6.2 6.2 0 0 0 8 1.8zM5.4 9.6 7.4 7.6 8.8 9l2-2.2M9.4 6.8h1.4v1.4",
-    // A void fissure: a diamond split down the middle by the rift.
+    // A void fissure: a diamond split down the middle by the rift (a mission type without its own glyph).
     mission: "M8 1.2 14.8 8 8 14.8 1.2 8zM8.9 3.4 7.1 7.4 8.9 8.6 7.1 12.6",
     // A plan: a reticle over the relic's diamond.
     planner: "M8 1.5v3M8 11.5v3M1.5 8h3M11.5 8h3M8 4.8 11.2 8 8 11.2 4.8 8z",
-    // A void relic: the capsule and its core.
-    relics: "M6 1.5h4l2.5 3v7l-2.5 3H6l-2.5-3v-7zM8 5.2 10 8l-2 2.8L6 8z",
-    // A storage crate: lid, body and its latch.
-    inventory: "M2 6h12v7.5H2zM2.8 6 4 2.5h8L13.2 6M6.3 9h3.4",
-    // Mastery: a chevron rising from its rank line.
-    mastery: "M2.5 13.5h11M3.5 10.5 8 6l4.5 4.5M3.5 6.5 8 2l4.5 4.5",
     // Four parts that make a set.
     sets: "M2.5 2.5h4.6v4.6H2.5zM8.9 2.5h4.6v4.6H8.9zM2.5 8.9h4.6v4.6H2.5zM8.9 8.9h4.6v4.6H8.9z",
-    // The Prime hexagon with its chevron.
-    parts: "M8 1.5 13.5 4.6v6.8L8 14.5l-5.5-3.1V4.6zM5.4 9.6 8 5.6l2.6 4",
     // An arcane: a sigil, the triangle in its ring.
     arcanes: "M8 1.8a6.2 6.2 0 1 0 0 12.4A6.2 6.2 0 0 0 8 1.8zM8 4.3l3.3 5.8H4.7z",
-    // A mod card, top corner notched, with its polarity.
-    mods: "M3.5 1.5h6.5l2.5 2.5v10.5h-9zM5.6 6.5 8 11.5l2.4-5",
-    // Ducats: a stack of coins.
-    ducats: "M2.5 4.5c0-1.4 2.5-2.5 5.5-2.5s5.5 1.1 5.5 2.5-2.5 2.5-5.5 2.5-5.5-1.1-5.5-2.5zM2.5 4.5v7c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5v-7M2.5 8c0 1.4 2.5 2.5 5.5 2.5s5.5-1.1 5.5-2.5",
-    // warframe.market: a price tag on a string.
-    market: "M14.5 1.5 10 2 2 10l4 4 8-8zM11.2 4.8h.01M10.6 2 13 .9",
     // Help on one part: a question mark of 45° strokes (the hook a diamond's top half), and its dot.
     help: "M5.2 5.2 8 2.4l2.8 2.8L8 8v2.2M8 12.8v.9",
     guide: "M8 1.8a6.2 6.2 0 1 0 0 12.4A6.2 6.2 0 0 0 8 1.8zM6.3 6.3a1.8 1.8 0 1 1 2.4 1.7c-.5.2-.7.6-.7 1.1v.4M8 11.2v.2",
@@ -148,8 +130,6 @@
     "chev-down": "M6 9l6 6 6-6",
     "chev-right": "M9 6l6 6-6 6",
   };
-  /** A section's glyph (pages.ts groups). */
-  export const sectionIcon = (group: string) => `sec-${group.toLowerCase()}`;
 
   /** The glyph for a mission type ("Extermination", "Mobile Defense", "Void Cascade"…); the fissure's for anything else. */
   export function missionIcon(type: string | null | undefined): string {

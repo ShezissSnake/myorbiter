@@ -131,7 +131,9 @@
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
   import { loadWikiData } from "./lib/core/wikiData";
-  import Icon, { sectionIcon } from "./lib/ui/Icon.svelte";
+  import Icon from "./lib/ui/Icon.svelte";
+  import Crest from "./lib/ui/Crest.svelte";
+  import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -2673,6 +2675,16 @@
     if (r.setup.desktop_capture_action_available || !r.setup.access_mode) return "warn";
     return "ok";
   });
+  /** What the foot's More holds, each with its shortcut: Search, Help, Report a bug, Settings, and TennoScope where it runs. */
+  const moreItems = $derived.by((): MoreItem[] => [
+    ...(model && !onConsole ? [{ label: "Search", icon: "search", keys: "Ctrl+K", title: "Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)", run: () => (showLookup = true) }] : []),
+    { label: "Help", icon: "guide", keys: "F1", title: "The Guide: how to use MyOrbiter (F1)", on: settings.tab === "guide", run: () => (settings.tab = "guide") },
+    { label: "Report a bug", icon: "bug", keys: "Shift+F1", title: "Report a bug: say what went wrong, then open it as an issue on GitHub or copy it. MyOrbiter sends nothing itself (Shift+F1)", run: () => bugReport.show() },
+    { label: "Settings", icon: "settings", keys: "Ctrl+,", title: "Settings (Ctrl+,)", run: () => (showSettings = true) },
+    ...(ts.status && !noTennoScope
+      ? [{ label: "TennoScope", tone: tsTone, title: tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details", run: () => (showTennoscope = true) }]
+      : []),
+  ]);
   // The page list scrolls on a short window: a fade at its foot says there's more below, and at
   // its head that there's more above.
   let navEl = $state<HTMLElement | null>(null);
@@ -2776,8 +2788,8 @@
   <aside class="rail" aria-label="MyOrbiter">
     <div class="brand">
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
-           version the updater compares), small and muted, and your platinum. -->
-      {#if compact}<Wordmark glyph height={26} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><Icon name="sec-trade" size={15} stroke={1.8} /></span>{/if}</span></span>{/if}
+           version the updater compares), small and muted, and your platinum with its picture. -->
+      {#if compact}<Wordmark glyph height={26} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><GameIcon name="platinum" size={16} even /><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><GameIcon name="platinum" size={16} even /></span>{/if}</span></span>{/if}
       <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
         <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
       </button>
@@ -2785,7 +2797,7 @@
 
     {#snippet navItem(p: Page)}
       <button class="nav" class:home={p.id === "home"} class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
-        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={p.id === "home" ? 18 : 20} />{:else}<Icon name={p.icon.line} size={p.id === "home" ? 16 : 18} stroke={p.id === "home" ? 1.8 : 1.5} />{/if}</span>
+        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={28} even />{:else}<Icon name={p.icon.line} size={22} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
         {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
@@ -2794,9 +2806,9 @@
       </button>
     {/snippet}
 
-    <!-- Home is the root, level with the section bars. Each section's bar opens or closes its pages
-         (kept in settings); closed, it shows how many pages it holds, and the section of the page
-         you're on keeps its colour mark. -->
+    <!-- Home is the root, level with the section bars. Each section's bar shows its crest and opens
+         or closes its pages (kept in settings); closed, it shows how many pages it holds and a rule
+         in its colour, and the section of the page you're on keeps its colour mark at its edge. -->
     <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
@@ -2804,7 +2816,7 @@
         {@const open = !settings.sectionsClosed.includes(sec)}
         {@const here = !open && ps.some((p) => p.id === (navTo ?? settings.tab))}
         <button type="button" class="secbar" class:here data-section={sec} aria-label={here ? `${sec}, holding the open page` : sec} aria-expanded={open} aria-controls="sec-{sec}" title={open ? `${sec}: click to close` : `${sec}, ${ps.length} page${ps.length === 1 ? "" : "s"}: click to open`} onclick={() => toggleSection(sec)}>
-          <Icon name={sectionIcon(sec)} size={14} stroke={1.8} />
+          <Crest section={sec} size={32} />
           <span class="lbl">{sec}</span>
           {#if !open}<span class="n" aria-hidden="true">{ps.length}</span>{/if}
           <span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
@@ -2816,35 +2828,23 @@
     </nav>
 
     <!-- The one place that says how the app is doing: the game, the inventory read (or the fissure
-         under way) and warframe.market, each with a diamond (filled: fine; hollow: not yet or off). -->
+         under way) and warframe.market, each with a diamond (filled: fine; hollow: not yet or off).
+         Folded, the three diamonds alone (each line on hover). Then Sync, Notifications and More,
+         one a row; More holds the rest. The foot's "?" sits at the status's top right corner. -->
     <div class="foot">
       <div class="state" role="group" aria-label="Status" data-card="status">
         {#each statusNow.items as it (it.label)}
           <div class="st" title={it.title}><i class="dia" class:hollow={!it.ok}></i><span class="register">{it.label}</span><span class="v">{it.value}</span></div>
         {/each}
+        <HelpMark part="rail.foot" corner />
       </div>
-      <div class="syncrow">
-      <ProgressButton bind:this={syncButton} class="sync" job={syncJob} busy={loading && !bundle} icon="refresh" spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
+      <div class="tools">
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={24} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
-        {#if model && !onConsole}<button class="tool" aria-label="Find anything" aria-expanded={showLookup} title="Find anything by name: an item, a prime part, a relic, a mod or arcane you hold (Ctrl+K)" onclick={() => (showLookup = true)}><Icon name="search" size={14} /></button>{/if}
-        <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><Icon name="bell" size={14} />{#if unread}<span class="count">{unread > 99 ? "99+" : unread}</span>{/if}</button>
-      </div>
       {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
-      <div class="tools">
-        {#if ts.status && !noTennoScope}
-          <button class="tool tsbtn tone-{tsTone}" aria-label="TennoScope" title={tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details"} onclick={() => (showTennoscope = true)}>
-            <i></i><span class="lbl">TennoScope</span>
-          </button>
-        {/if}
-        <button class="tool" class:on={settings.tab === "guide"} aria-label="Guide" title="How to use MyOrbiter (F1)" onclick={() => (settings.tab = "guide")}><Icon name="guide" size={14} /></button>
-        <!-- Report a bug, beside the Guide where the row has room: the folded sidebar, or no TennoScope
-             button. Unfolded with TennoScope the row is full (and the sidebar has no height to
-             spare at 800 px), so there it's in Settings, the Guide and Shift+F1. -->
-        {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitHub or copy it. MyOrbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
-        <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
-        <!-- The foot's "?": what the state lines and these tools are. -->
-        <HelpMark part="rail.foot" />
+      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={24} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      <MoreMenu items={moreItems} {compact} />
       </div>
     </div>
   </aside>
@@ -3114,60 +3114,68 @@
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: #0e1013; border-right: 1px solid var(--rule);
   }
-  .brand { display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 16px; }
+  .brand { flex: none; display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 16px; }
   .brand-text { flex: 1; display: grid; gap: 6px; min-width: 0; color: var(--platinum); }
   .brand-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
   /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
   .brand-ver { min-width: 0; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Platinum: the one gold in the frame. */
+  /* Platinum: the one gold in the frame, always with its picture. */
   .brand-plat { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--gold); }
   .brand-plat b { font-family: var(--face-mark); font-weight: 700; font-size: 15px; line-height: 1; font-variant-numeric: tabular-nums; }
   .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
   .fold:hover { color: var(--platinum); }
-  /* The page list scrolls on a short window; the top and the foot stay. */
-  nav { display: flex; flex-direction: column; padding: 0 0 8px; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
+  /* The page list scrolls on a short window; the top and the foot stay. One row height, 34 px, for
+     Home, every section's bar, every page and every button in the foot, in both widths. */
+  nav { display: flex; flex-direction: column; padding: 0 0 6px; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
   nav { scroll-padding-block: 2.5rem 3rem; }
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
   .nav {
-    position: relative; flex: none; display: flex; align-items: center; gap: 12px; width: 100%; height: 32px; text-align: left;
-    border: 0; background: transparent; padding: 0 12px 0 39px; color: var(--platinum-dim);
+    position: relative; flex: none; display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; text-align: left;
+    border: 0; background: transparent; padding: 0 12px 0 36px; color: var(--platinum-dim);
     font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none;
   }
-  /* The track: one hairline under the section's glyph, the page icons lined up under its name. */
+  /* The track: one hairline under the section's crest, the pages' pictures hung beside it. */
   .nav::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 1px; background: var(--rule); }
-  .nav .ic { width: 18px; height: 18px; display: grid; place-items: center; flex: none; opacity: .78; }
+  /* A page's picture, 28 px, in its own colours: quieter at rest, near full hovered, full when open.
+     No glow: that is kept for the page's primary action and the crest. */
+  .nav .ic { width: 28px; height: 28px; display: grid; place-items: center; flex: none; opacity: .7; }
+  .nav :global(.gi) { overflow: visible; }
   .nav:hover:not(:disabled) { color: var(--platinum); background: linear-gradient(rgb(241 243 246 / 4%), rgb(241 243 246 / 4%)) no-repeat 22px 0 / calc(100% - 22px) 100%; }
-  .nav:hover .ic, .nav.on .ic { opacity: 1; }
+  .nav:hover .ic { opacity: .9; }
+  .nav.on .ic { opacity: 1; }
   /* The open page: its piece of the track lit in the section's colour, and a flat tint from the
      track to the sidebar's right edge. */
   .nav.on { color: var(--platinum); font-weight: 600; background: linear-gradient(color-mix(in srgb, var(--sec) 14%, transparent), color-mix(in srgb, var(--sec) 14%, transparent)) no-repeat 22px 0 / calc(100% - 22px) 100%; }
   .nav.on::before { width: 2px; background: var(--sec); }
-  /* Home: the root, level with the section names, white, in the title's type; no track. Open, a
-     neutral tint across the full width and a white bar at the sidebar's edge. */
-  .nav.home { height: 36px; padding-left: 16px; gap: 9px; color: var(--platinum); }
+  /* Home: the root, level with the section names, white, in the title's type; no track, its mark on
+     the track's line. Open, a neutral tint across the full width and a white bar at the edge. */
+  .nav.home { padding-left: 8px; color: var(--platinum); }
   .nav.home::before { display: none; }
-  .nav.home .ic { width: 16px; height: 16px; opacity: 1; }
+  .nav.home .ic { opacity: .92; }
   .nav.home .lbl { font-family: var(--face-mark); font-weight: 700; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
   .nav.home:hover:not(:disabled) { background: rgb(255 255 255 / 4%); }
   .nav.home.on { background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
-  /* A section's bar: raised, across the whole sidebar, hairlines above and below; its glyph and name
-     in its colour, the chevron at the right. Closed, the chevron points right and the bar says how
-     many pages it holds; holding the open page, it keeps the section's 2 px mark. */
+  .nav.home.on .ic { opacity: 1; }
+  /* A section's bar: raised, across the whole sidebar, hairlines above and below, as tall as a row;
+     its crest on the track's line, its name in its colour, the chevron at the right. Closed, the
+     chevron points right, the bar says how many pages it holds and carries a 2 px rule in its
+     colour along its foot; holding the open page, it keeps the section's 2 px mark at its edge. */
   .secbar {
-    flex: none; display: flex; align-items: center; gap: 9px; width: 100%; height: 28px; margin-top: 6px; padding: 0 12px 0 16px;
+    flex: none; display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin-top: 4px; padding: 0 12px 0 6px;
     background: var(--raised); border: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
     color: var(--sec); text-align: left;
   }
   .secbar:hover:not(:disabled) { color: var(--sec); border-color: var(--rule); background: #1d2127; }
   .secbar:active:not(:disabled) { transform: none; background: var(--raised); }
   .secbar:focus-visible { outline-offset: -2px; }
-  .secbar .lbl { flex: 1; min-width: 0; font-family: var(--face-register); font-size: 12px; font-weight: 500; letter-spacing: .14em; text-transform: uppercase; }
+  .secbar .lbl { flex: 1; min-width: 0; font-family: var(--face-register); font-size: 12px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; }
   .secbar .n { font-family: var(--face-register); font-size: 12px; letter-spacing: .08em; color: var(--platinum-deep); font-variant-numeric: tabular-nums; }
   .secbar .chv { display: grid; place-items: center; color: var(--platinum-dim); transition: transform var(--quick) var(--out); }
   .secbar[aria-expanded="false"] .chv { transform: rotate(-90deg); }
-  .secbar.here { box-shadow: inset 2px 0 0 var(--sec); }
+  .secbar[aria-expanded="false"] { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--sec) 75%, transparent); }
+  .secbar.here { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--sec) 75%, transparent), inset 2px 0 0 var(--sec); }
   .secpages > div { display: flex; flex-direction: column; }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .badge { margin-left: auto; }
@@ -3175,87 +3183,76 @@
   .nav .live { margin-left: auto; width: 7px; height: 7px; background: var(--platinum); transform: rotate(45deg); flex: none; }
   .nav .live.dim { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
 
-  /* One column, never wider than the rail: a wide label (a sync's note) can't push the rows past the
-     rail's edge, where the search, the bell, the Guide and Settings would be cut off. */
-  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; padding: 12px 12px 14px; border-top: 1px solid var(--rule); }
-  .state { display: grid; gap: 5px; min-width: 0; }
-  .st { display: flex; align-items: center; gap: 8px; min-width: 0; font-size: 13px; line-height: 18px; }
-  .st .register { flex: none; width: 68px; font-size: 11px; }
+  /* The foot: the status, then Sync, Notifications and More, one a row, never scrolled. One column,
+     never wider than the rail: a wide label can't push a row past the rail's edge. */
+  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); padding: 6px 0; border-top: 1px solid var(--rule); }
+  /* The foot's "?" at the status's top right corner; the lines keep clear of it. */
+  .state { position: relative; display: grid; gap: 4px; min-width: 0; padding: 4px 36px 8px 18px; }
+  .state :global(.helpmark.corner) { top: 2px; right: 8px; background: #0e1013; }
+  .st { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; line-height: 17px; }
+  .st .register { flex: none; width: 72px; font-size: 11px; }
   .st .v { min-width: 0; color: var(--platinum); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dia { width: 7px; height: 7px; flex: none; background: var(--platinum); transform: rotate(45deg); }
   .dia.hollow { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
-  .syncrow { display: flex; gap: .4rem; }
-  /* Sync and TennoScope take what the row leaves (basis and width 0: their labels don't size the row).
-     A label longer than the button starts at its left edge and is clipped on the right, not centred
-     out past both edges. Tight padding and tracking: the same label is up to a tenth wider in one
-     engine than another, and "Up to date" has to fit in all of them. */
-  .syncrow :global(.sync) { display: flex; justify-content: center; justify-content: safe center; align-items: center; gap: .4rem; flex: 1 1 0; width: 0; min-width: 0; padding-left: .45rem; padding-right: .45rem; letter-spacing: .1em; }
-  /* Every button down here is one height, folded or not: a control, 32 px. */
-  .syncrow :global(.sync), .tool { height: 32px; padding-top: 0; padding-bottom: 0; }
-  .tool { background: transparent; }
+  /* Sync, Notifications and More: a row each, the picture on the track's line, the label after it. */
+  .tools { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .foot :global(.tool) {
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 34px; min-width: 0;
+    padding: 0 12px 0 10px; border: 0; background: transparent; color: var(--platinum-dim);
+    font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; text-align: left;
+  }
+  .foot :global(.tool:hover:not(:disabled)) { color: var(--platinum); background: rgb(255 255 255 / 4%); }
+  .foot :global(.tool:active:not(:disabled)) { transform: none; }
+  .foot :global(.tool:focus-visible) { outline-offset: -2px; }
+  .foot :global(.tool .ti), .foot :global(.tool .mark.pic) { width: 24px; height: 24px; display: grid; place-items: center; flex: none; opacity: .82; }
+  .foot :global(.tool:hover .ti), .foot :global(.tool:hover .mark.pic) { opacity: 1; }
+  .foot :global(.tool.on) { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
+  .foot :global(.tool.on .ti) { opacity: 1; }
+  .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
+  .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
+  .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
+  .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
-  .syncerr { margin: 0; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
+  .syncerr { margin: 0; padding: 0 12px 4px 44px; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
   .compact .syncerr { display: none; }
-  .tools { display: flex; gap: .4rem; }
-  /* The foot's "?", as tall as the tools beside it. */
-  .tools :global(.helpmark) { height: 32px; width: 32px; margin-left: 0; }
-  .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
-  /* The page that's open (Guide): marked as Home is, a white edge and a neutral tint. */
-  .tool.on { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
-  .tsbtn { flex: 1 1 0; width: 0; min-width: 0; justify-content: flex-start; }
-  .bell { position: relative; }
-  /* How many new: a neutral tag on the bell's corner. */
-  .bell .count { position: absolute; top: -.45rem; right: -.45rem; min-width: 1.1rem; padding: .05rem .25rem; font-family: var(--face-register); font-size: 11px; font-weight: 500; line-height: 1.2; text-align: center; color: var(--platinum); background: var(--raised); border: 1px solid var(--rule-control); animation: pop .25s ease-out; }
-  .bell.paused :global(svg) { opacity: .45; }
-  /* Paused: a slash through the bell, not just a dimmer one. */
-  .bell.paused::after { content: ""; position: absolute; left: 50%; top: 50%; width: 1.1rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
-  /* Folded: no room for a number, a white diamond says there's something new (the tooltip has how many). */
-  .compact .bell .count { top: 3px; right: 3px; min-width: 0; width: 6px; height: 6px; padding: 0; font-size: 0; border: 0; background: var(--platinum); transform: rotate(45deg); animation: none; }
+  /* How many new: a neutral tag, at the row's end; folded, on the picture's corner. */
+  .bell .count { margin-left: auto; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; color: var(--platinum); animation: pop .25s ease-out; }
+  .bell.paused .ti { opacity: .45; }
+  /* Paused: a slash through the envelope, not just a dimmer one. */
+  .bell.paused::after { content: ""; position: absolute; left: 22px; top: 50%; width: 1.3rem; height: 1px; background: var(--platinum-dim); transform: translate(-50%, -50%) rotate(-45deg); }
   @keyframes pop { from { transform: scale(.4); } to { transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) { .bell .count { animation: none; } }
-  /* TennoScope's state: a diamond, filled when fine, red when it needs you. */
-  .tsbtn i { width: 7px; height: 7px; background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); transform: rotate(45deg); flex: none; }
-  .tsbtn.tone-ok i { background: var(--platinum); box-shadow: none; }
-  .tsbtn.tone-warn i { background: none; box-shadow: inset 0 0 0 1px var(--oxblood); }
-  .tsbtn.tone-bad i { background: var(--oxblood); box-shadow: none; }
 
-  /* ---- icons only: folded by hand, or a narrow window */
-  .compact .brand { justify-content: center; padding-left: .5rem; padding-right: .5rem; flex-direction: column; align-items: center; gap: .4rem; }
+  /* ---- icons only: folded by hand, or a narrow window. Home, every bar, every page and every
+     button in the foot on one centre line; no track, no indent, no chevron. */
+  .compact .brand { justify-content: center; padding: 14px 0 4px; flex-direction: column; align-items: center; gap: 6px; }
   .compact .fold { margin-left: 0; }
-  .compact .brand-plat { margin: 0; }
+  .compact .brand-plat { margin: 0; gap: 4px; }
   .compact .brand-plat b { font-size: 13px; }
   .compact .brand-text, .compact .lbl { display: none; }
-  /* Folded, a section's bar keeps its glyph and chevron (its name on hover); the pages under it
-     centre their icons, no track. */
-  .compact .secbar { justify-content: center; gap: 4px; padding: 0; }
-  .compact .secbar .n { display: none; }
+  .compact .secbar { justify-content: center; padding: 0; }
+  .compact .secbar .n, .compact .secbar .chv { display: none; }
   .compact .nav { justify-content: center; padding: 0; }
   .compact .nav::before { display: none; }
   .compact .nav.on { background: color-mix(in srgb, var(--sec) 14%, transparent); box-shadow: inset 2px 0 0 var(--sec); }
   .compact .nav.home.on { background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
-  .compact .nav .badge, .compact .nav .live { position: absolute; top: 3px; right: 6px; margin: 0; }
-  .compact .badge { min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
-  /* Folded: the three state diamonds in a row (each line on hover), then Sync across, then the bell,
-     TennoScope, Guide and Settings two by two. */
-  .compact .foot { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .35rem; padding: .6rem .5rem .7rem; }
-  .compact .state { grid-column: 1 / -1; display: flex; justify-content: center; gap: 10px; padding: 2px 0 4px; }
+  .compact .nav .badge { position: absolute; top: 1px; right: 5px; margin: 0; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
+  .compact .nav .live { position: absolute; top: 4px; right: 9px; margin: 0; }
+  /* Folded: the three state diamonds in a row (each line on hover), the "?" under them. */
+  .compact .state { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 4px 0 6px; }
+  .compact .state :global(.helpmark.corner) { position: static; width: 20px; height: 20px; flex-basis: 20px; margin: 0 25px; }
   .compact .st { gap: 0; }
   /* The words stay for screen readers, out of sight. */
   .compact .st .register, .compact .st .v { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .compact :global(.sync) { grid-column: 1 / -1; }
-  .compact :global(.sync .lbls) { display: none; }
-  .compact .tools, .compact .syncrow { display: contents; }
-  .compact :global(.sync), .compact .tool { padding-left: 0; padding-right: 0; width: auto; min-width: 0; }
-  .compact .tsbtn { justify-content: center; }
-  /* A short window: the top and the foot tighter, so more of the list shows before it scrolls. */
+  .compact .foot :global(.tool) { justify-content: center; padding: 0; }
+  .compact .foot :global(.tool .lbls), .compact .foot :global(.tool .lbl), .compact .foot :global(.tool .chv) { display: none; }
+  .compact .bell .count { position: absolute; top: 1px; right: 7px; margin: 0; }
+  .compact .bell.paused::after { left: 50%; }
+  /* A short window: the top tighter, so more of the list shows before it scrolls. Rows keep their height. */
   @media (max-height: 820px) {
     .brand { padding-top: 12px; padding-bottom: 4px; }
     .shell:not(.compact) .brand :global(.wm) { height: 27px; width: auto; }
-    .secbar { margin-top: 4px; }
-    .nav { height: 30px; }
-    .nav.home { height: 32px; }
-    .foot { gap: 8px; padding-top: 10px; padding-bottom: 10px; }
-    .state { gap: 3px; }
   }
 
   .notice { clip-path: var(--cut); margin-top: var(--field); padding: 1.6rem 1.8rem; border: 1px solid var(--rule); background: var(--plate); max-width: 52rem; display: grid; gap: .8rem; }

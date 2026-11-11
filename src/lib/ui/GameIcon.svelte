@@ -11,6 +11,9 @@
     | "warframes" | "primary" | "secondary" | "melee" | "companions" | "archwing" | "foundry" | "riven" | "cycles"
     | "railjack" | "plexus" | "amp" | "duviri" | "hex" | "bounty" | "daily-reset" | "archon-hunt" | "regal-aya"
     | "archon-shard-azure" | "archon-shard-amber" | `faction-${Faction}`
+    // The sidebar's own: game marks for pages, sections and the foot, and three drawn to match.
+    | "forma" | "wishlist" | "prime-plate" | "duplicates" | "player" | "fissure-canister" | "mastered" | "bundle"
+    | "mastery-mark" | "trading" | "refresh-timer" | "mail" | "menu" | "planner-slate" | "browse-lens" | "locker"
     | `relic-${"lith" | "meso" | "neo" | "axi" | "requiem"}-${"intact" | "exceptional" | "flawless" | "radiant"}`;
 
   type Faction = "grineer" | "corpus" | "infested" | "orokin" | "sentient" | "murmur" | "scaldra" | "techrot";
@@ -91,10 +94,12 @@
 </script>
 
 <script lang="ts">
-  let { name, size = 16, title }: { name: GameIconName; size?: number; title?: string } = $props();
+  import { evenTransform } from "./evened";
+  // `even`: drawn at the size the eye reads as the others' (ui/evened.ts), as the sidebar draws them.
+  let { name, size = 16, title, even = false }: { name: GameIconName; size?: number; title?: string; even?: boolean } = $props();
 </script>
 
-<img class="gi {name}" class:sigil={name.startsWith("faction-")} src="/game/{name}.png" width={size} height={size} alt={title ?? ""} {title} decoding="async" draggable="false" />
+<img class="gi {name}" class:sigil={name.startsWith("faction-")} src="/game/{name}.png" width={size} height={size} alt={title ?? ""} {title} style:transform={even ? evenTransform(name) : null} decoding="async" draggable="false" />
 
 <style>
   .gi { display: inline-block; flex: none; object-fit: contain; vertical-align: middle; }

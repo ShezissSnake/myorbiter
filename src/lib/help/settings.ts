@@ -27,7 +27,9 @@ const CHOOSE = { click: `${N} .top button[role=radio]:has-text('Choose')` };
 const GROUP = `${N} section.how + section.grp`;
 
 const T = `.sheet[aria-label="TennoScope"]`;
-const TSBTN = { click: ".rail .foot button.tsbtn" };
+/** TennoScope's panel opens from the foot's More menu. */
+const MORE = { click: ".rail .foot button.more" };
+const TSBTN = { click: ".moremenu [data-item='TennoScope']" };
 const tsSec = (part: string) => `${T} section:has([data-help="${part}"])`;
 
 const SETTINGS_MAIN: Walkthrough = {
@@ -75,7 +77,7 @@ const SETTINGS_MAIN: Walkthrough = {
       title: "Builds and notifications",
       lines: [
         "Read builds from Nox's Frame: an item's top-voted builds, read when you open its builds.",
-        "Open notifications: the bell's panel, a switch for each kind and a pause.",
+        "Open notifications: the envelope's panel, a switch for each kind and a pause.",
         "Nothing is read in the background; each page is kept a week, read 3 seconds apart.",
         "Nox's Frame off: Builds lists none; its link still opens the site.",
       ],
@@ -307,7 +309,7 @@ const NOTICES: Walkthrough = {
       lines: [
         "Recent: what MyOrbiter told you, newest first; click one to open what it's about.",
         "Choose: which kinds it tells you about, and a pause for all of them.",
-        "The number on the bell is how many are new.",
+        "The number on the envelope is how many are new.",
         "Once you've had Recent open, closing the panel marks them all read.",
       ],
       shot: {
@@ -406,7 +408,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [TSBTN, { wait: 2000 }],
+        steps: [MORE, TSBTN, { wait: 2000 }],
         part: `${T} > header, ${T} section.state, ${tsSec("tennoscope.screen-capture")}, ${tsSec("tennoscope.reward-overlay")}`,
         marks: [
           { at: `${T} section.state .line`, is: "n", n: 1, from: "corner" },
@@ -426,7 +428,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [TSBTN, { wait: 2000 }],
+        steps: [MORE, TSBTN, { wait: 2000 }],
         part: `${tsSec("tennoscope.inventory")}, ${tsSec("tennoscope.health")}`,
         marks: [
           { at: `${tsSec("tennoscope.inventory")} .kv`, is: "n", n: 1, from: "corner" },
