@@ -72,6 +72,9 @@ MyOrbiter is free software under the GPL-3.0-only ([LICENSE](LICENSE)), with no 
 offer for the GPL and LGPL libraries in the downloads, and every other licence, are in
 [NOTICE.md](NOTICE.md). Digital Extremes' artwork is not covered by the GPL.
 
+MyOrbiter is written largely by AI (Claude, by Anthropic), directed by its maintainer, who decides
+what is built and what is released. [The code is open for anyone to read](https://github.com/ShezissSnake/myorbiter).
+
 ## Reporting a bug
 
 In MyOrbiter, Shift+F1 opens *Report a bug*, which shows you the report first. *Open on GitHub*

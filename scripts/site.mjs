@@ -212,7 +212,7 @@ ${body().replaceAll("{{base}}", () => base)}
 <footer class="foot">
 <p>MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes. Warframe and its artwork are © and ™ Digital Extremes Ltd.; the game's icons shown here are theirs, used to identify what they depict, and are not covered by MyOrbiter's licence.</p>
 <p>MyOrbiter is free software under the <a href="${REPO}/blob/main/LICENSE">GNU General Public License, version 3 only</a>, with no warranty. <a href="${base}index.html#licence">Licence and sources</a> · <a href="${REPO}">Source on GitHub</a> · <a href="${REPO}/blob/main/NOTICE.md">Notices</a> · <a href="${href(PRIVACY_PAGE.url)}">What it reads and sends</a></p>
-</footer>
+${file === "index.html" ? `<p>MyOrbiter is written largely by AI (Claude, by Anthropic), directed by its maintainer, who decides what is built and what is released. <a href="${REPO}">The code is open for anyone to read</a>.</p>\n` : ""}</footer>
 </body>
 </html>
 `;
