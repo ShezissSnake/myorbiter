@@ -681,13 +681,15 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // A prime's main blueprint is filed under the generic blueprint picture, which the image set
   // doesn't have: show the item it builds instead.
   const own = (name: string) => {
-    const f = OWN_PICTURE[name] ?? heldImage.get(name) ?? cat.imageByName.get(name) ?? rel.imageByBase.get(name);
+    const f = heldImage.get(name) ?? cat.imageByName.get(name) ?? rel.imageByBase.get(name);
     return f && f !== "blueprint.png" ? f : undefined;
   };
   const imageOf = (name: string): string | null => {
     // A stack ("2X Forma Blueprint") looks like one of it.
     const one = name.replace(/^\d+\s*X\s+/i, "");
-    return own(one) ?? own(one.replace(/ Blueprint$/, "")) ?? relicImage(one);
+    const base = one.replace(/ Blueprint$/, "");
+    // An item's own picture first, before anything the inventory, catalog or relics file it under.
+    return OWN_PICTURE[one] ?? OWN_PICTURE[base] ?? own(one) ?? own(base) ?? relicImage(one);
   };
 
   const relicByUnique = rel.relicByUnique;

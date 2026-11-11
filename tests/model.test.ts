@@ -93,6 +93,10 @@ test("a sync with the same catalogs keeps what's worked out from them, and reads
   const f = read(1, [{ ...inv("/Lotus/Types/Items/MiscItems/Forma", "Forma", 4), image_name: "GenericComponent.png" }]);
   assert.equal(f.imageOf("Forma Blueprint"), "Forma.png");
   assert.equal(f.imageOf("2X Forma Blueprint"), "Forma.png");
+  // A held Forma Blueprint filed under the generic picture too: still the Forma's own.
+  const fb = read(1, [{ ...inv("/Lotus/Types/Recipes/Components/FormaBlueprint", "Forma Blueprint", 2), image_name: "GenericComponent.png" }]);
+  assert.equal(fb.imageOf("Forma Blueprint"), "Forma.png");
+  assert.equal(fb.imageOf("Forma"), "Forma.png");
   // Varzia brings the relic back: worked out again for her stock.
   const c = buildModel({ observed_at: 4, inventory: [], catalog, relics, prices: null } as Bundle, { fissures: null, resurgence: [{ uniqueName: "/R/A1Bronze" }], resurgenceExpiry: null } as never);
   assert.equal(c.sourcesByReward.get("Valkyr Prime Systems")?.[0].resurgence, true);
