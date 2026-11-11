@@ -287,3 +287,35 @@ const helpOver = (flat) => ({
 });
 SCENARIOS.helpBlur = helpOver(false);
 SCENARIOS.helpFlat = helpOver(true);
+
+/**
+ * Record timings (src/lib/timing.ts) on, and `PERF_TOUR_MS` (5 minutes) of going through every
+ * page as a player would: each rail page, Home, a Sync each lap, Settings opened and closed. Then
+ * Settings › Logs › Copy timing report, and the report as the app wrote it.
+ */
+SCENARIOS.tour = {
+  runs: 1,
+  record: true,
+  syncReload: true,
+  async run(s) {
+    const until = Date.now() + Number(process.env.PERF_TOUR_MS ?? 300_000);
+    const openSettings = `document.querySelector('.foot button[aria-label="Settings"]').click()`;
+    const esc = `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`;
+    let laps = 0;
+    while (Date.now() < until) {
+      for (const l of [...PAGES, "Home"]) {
+        await s.measure(nav(l), { quiet: 400, max: 4000 });
+        if (Date.now() >= until) break;
+      }
+      await s.measure(`document.querySelector('.syncrow button.sync').click()`, { quiet: 1200 });
+      await s.measure(openSettings, { quiet: 600 });
+      await s.measure(esc, { quiet: 600 });
+      laps++;
+    }
+    await s.measure(openSettings, { quiet: 600 });
+    await s.measure(`[...document.querySelectorAll('.sheet button')].find(b => b.textContent.trim() === 'Copy timing report').click()`, { quiet: 600 });
+    await new Promise((r) => setTimeout(r, 1000));
+    const report = await s.eval(`document.querySelector('textarea[aria-label="Timing report"]')?.value ?? null`);
+    return { laps, report };
+  },
+};

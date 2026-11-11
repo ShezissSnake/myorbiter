@@ -23,11 +23,14 @@ const only = arg("scenarios", Object.keys(SCENARIOS).join(",")).split(",");
 const inspPort = Number(arg("inspector-port", "9317"));
 
 /** Starts a fresh page (new website data), waits for the app to settle, returns the session. */
-async function open(tab = "home", early = false, syncReload = false) {
+async function open(tab = "home", early = false, syncReload = false, record = false) {
   const data = mkdtempSync(join(process.env.PERF_TMP ?? tmpdir(), "perf-wk-"));
   const start = join(data, "start.js");
   // The app's settings as a returning player has them: news seen, Full mode asked, this page open.
-  writeFileSync(start, `try{const s=JSON.parse(localStorage.getItem('orbiter-settings')??'{}');s.newsSeen='9999';s.fullModeAsked=true;s.tab=${JSON.stringify(tab)};localStorage.setItem('orbiter-settings',JSON.stringify(s));}catch(e){}localStorage.${syncReload ? "setItem('perf-sync','reload')" : "removeItem('perf-sync')"};`);
+  // Record timings (src/lib/timing.ts) on for a scenario that asks, or for every one with
+  // PERF_RECORD=1 (to compare the recorder's cost: the same scenarios with it off and on).
+  const rec = record || process.env.PERF_RECORD === "1";
+  writeFileSync(start, `try{const s=JSON.parse(localStorage.getItem('orbiter-settings')??'{}');s.newsSeen='9999';s.fullModeAsked=true;s.recordTimings=${rec};s.tab=${JSON.stringify(tab)};localStorage.setItem('orbiter-settings',JSON.stringify(s));}catch(e){}localStorage.${syncReload ? "setItem('perf-sync','reload')" : "removeItem('perf-sync')"};`);
   const t0 = Date.now();
   const host = spawn("/usr/bin/python3", ["-I", join(here, "host.py"), url, size, data, start, join(here, "probe.js")], {
     env: { ...process.env, WEBKIT_INSPECTOR_HTTP_SERVER: `127.0.0.1:${inspPort}` },
@@ -87,7 +90,7 @@ for (const name of only) {
   results.scenarios[name] = [];
   for (let run = 0; run < (sc.runs ?? runs); run++) {
    for (const page of sc.perPage ?? [null]) {
-    const s = await open(sc.tab ?? "home", !!sc.early, !!sc.syncReload);
+    const s = await open(sc.tab ?? "home", !!sc.early, !!sc.syncReload, !!sc.record);
     try {
       const r = await sc.run({ ...s, measure: (code, opts) => measure(s, code, opts), eval: (e) => s.insp.eval(e), evalAsync: (e) => s.insp.evalAsync(e) }, { page });
       results.scenarios[name].push({ run, boot: s.boot, ...r });

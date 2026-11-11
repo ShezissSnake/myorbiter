@@ -31,6 +31,7 @@ import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, Dar
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
+import { timing, type TimingEnv } from "./timing";
 import { defaultUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 import { meterMemoryOf } from "./core/meterMemory";
@@ -258,6 +259,8 @@ export interface Settings {
   buildsMaxAgeDays: number;
   /** Read an item's builds from Nox's Frame when its builds are opened (core/builds/noxsframe.ts). */
   buildsFromNox: boolean;
+  /** Record timings (Settings › Logs, lib/timing.ts): off unless switched on. */
+  recordTimings: boolean;
   /** Updates: the release channel, a version put off with Later, the last check (core/updates.ts). */
   updates: UpdateSettings;
 }
@@ -489,6 +492,7 @@ export const defaultSettings = (): Settings => ({
   builds: [],
   buildsMaxAgeDays: DEFAULT_BUILDS_MAX_AGE_DAYS,
   buildsFromNox: true,
+  recordTimings: false,
   updates: defaultUpdates(),
 });
 
@@ -496,8 +500,13 @@ const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
+  // Record timings: each command's round trip, by name only (never its arguments or answer).
+  const t0 = timing.on ? performance.now() : 0;
+  let ok = false;
   try {
-    return await invoke<T>(cmd, args);
+    const out = await invoke<T>(cmd, args);
+    ok = true;
+    return out;
   } catch (e) {
     // A warframe.market request held back until a time warframe.market gave: that time as the
     // clock shows it (core/marketWait.ts). Any other error goes on as it came.
@@ -507,6 +516,9 @@ async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T
       throw waitWords(e as string);
     }
     throw e;
+  } finally {
+    // The recorder's own (its minute line in the log, its report) are listed apart.
+    if (t0) timing.command(cmd, performance.now() - t0, ok, cmd.startsWith("timing_") || (cmd === "log_line" && args?.area === "timings"));
   }
 }
 
@@ -955,6 +967,8 @@ export async function loadSettings(): Promise<Settings> {
     buildsMaxAgeDays: sanitizeMaxAgeDays(raw?.buildsMaxAgeDays),
     // On unless turned off.
     buildsFromNox: raw?.buildsFromNox !== false,
+    // Off unless switched on.
+    recordTimings: raw?.recordTimings === true,
     // Settings from before updates: Stable, never checked.
     updates: sanitizeUpdates(raw?.updates),
   };
@@ -1281,12 +1295,29 @@ export async function reportEnv(): Promise<{ version: string; os: string; arch: 
 /** How the window is drawn on Linux (src-tauri/src/rendering.rs): this start's mode, and the saved choice. */
 export interface RenderingState {
   linux: boolean;
-  now: { mode: "accelerated" | "sharedMemory" | "compat" | "yours"; why: "none" | "chosen" | "afterCrash"; nvidia: boolean; wayland: boolean; set: string[]; yours: string[] } | null;
+  now: { mode: "accelerated" | "sharedMemory" | "dmaBuf" | "compat" | "yours"; why: "none" | "chosen" | "afterCrash" | "dmaBufFailed"; nvidia: boolean; wayland: boolean; set: string[]; yours: string[] } | null;
   /** Compatibility rendering saved for the next start. */
   next: boolean;
+  /** The experimental DMA-BUF frames (NVIDIA) saved for the next start. */
+  dmabuf: boolean;
 }
 export async function renderingState(): Promise<RenderingState> {
-  return inTauri ? invoke<RenderingState>("rendering_state") : { linux: false, now: null, next: false };
+  return inTauri ? invoke<RenderingState>("rendering_state") : { linux: false, now: null, next: false, dmabuf: false };
+}
+/** Experimental, NVIDIA on Linux: frames handed over as DMA-BUF from the next start, or back to shared memory. */
+export async function setDmabufRendering(on: boolean): Promise<void> {
+  if (inTauri) await invoke("set_dmabuf_rendering", { on });
+}
+
+// ---------------------------------------------------------------- Record timings
+
+/** Where a timing report is taken (timing.rs); null in a browser. */
+export async function timingEnv(): Promise<TimingEnv | null> {
+  return inTauri ? invoke<TimingEnv>("timing_env") : null;
+}
+/** Saves a timing report in the log folder; gives the file's name (null in a browser). */
+export async function saveTimingReport(text: string): Promise<string | null> {
+  return inTauri ? invoke<string>("timing_save_report", { text }) : null;
 }
 /** Compatibility rendering on or off, from the next start. */
 export async function setCompatRendering(on: boolean): Promise<void> {
