@@ -303,6 +303,14 @@ const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Me
 const DUCATS_NOW: Record<string, number> = { "Nami Skyla Prime Blade": 65 };
 
 /**
+ * Items WFCD files under a stand-in picture, by name, with their own picture in WFCD's image set.
+ * Forma is filed under GenericComponent.png, the generic component picture, in which the Forma is
+ * drawn squeezed to about three fifths of its width; WFCD's Forma.png shows it as it is (a Forma
+ * Blueprint and a "2X Forma Blueprint" stack show it too, through imageOf).
+ */
+const OWN_PICTURE: Record<string, string> = { Forma: "Forma.png" };
+
+/**
  * Catalog entries marked masterable that give no mastery of their own: Sirius & Orion's second son
  * (the pair counts once, under Sirius & Orion), and the second Grimoire the game keeps for the
  * Doppelganger (only the Tenno one counts). Left in, they'd sit on Mastery as never finished.
@@ -679,7 +687,9 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   const imageOf = (name: string): string | null => {
     // A stack ("2X Forma Blueprint") looks like one of it.
     const one = name.replace(/^\d+\s*X\s+/i, "");
-    return own(one) ?? own(one.replace(/ Blueprint$/, "")) ?? relicImage(one);
+    const base = one.replace(/ Blueprint$/, "");
+    // An item's own picture first, before anything the inventory, catalog or relics file it under.
+    return OWN_PICTURE[one] ?? OWN_PICTURE[base] ?? own(one) ?? own(base) ?? relicImage(one);
   };
 
   const relicByUnique = rel.relicByUnique;

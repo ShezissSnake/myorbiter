@@ -9,8 +9,11 @@
 // figures, a labelled section; PART_HEADS and PART_BODIES below) carries a "?" (ui/HelpMark.svelte)
 // or sits under a head that does, each "?" names a part the help list knows, and the page it opens
 // is written (has its picture); a part whose page isn't is listed as pending. With the help
-// open on Orders and Sell spares it checks the dialog at every size too. Exits 1 when it finds
-// any of these.
+// open on Orders and Sell spares it checks the dialog at every size too. In every view it also
+// checks each picture's shape: one drawn more than 2 % wider or narrower than its own shape fails
+// (findStretched); a last view, Current fissure's reward cards with the demo's Forma Blueprint and
+// every item picture swapped for a wide one, makes sure a picture well is tried with a picture
+// that isn't square. Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -25,10 +28,11 @@
 // ImageMagick (`magick`). Every request to warframe.market is stopped: the sweep sends none.
 
 import { spawn, execFileSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { deflateSync } from "node:zlib";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const arg = (name) => {
@@ -143,6 +147,100 @@ function findClipping(deliberate) {
   return found;
 }
 
+/** How far a picture's drawn shape may be from its own (width over height) before it counts as stretched. */
+const SHAPE_SLACK = 0.02;
+
+/**
+ * Runs in the page: every picture drawn now at a shape other than its own. A picture is an
+ * `<img>` that has loaded, or a background or mask picture (`url(…)`) on an element or its
+ * ::before or ::after. An `<img>` keeps its shape unless its object-fit is `fill` (the default),
+ * which stretches it to its box; a background keeps it unless its size names both a width and a
+ * height. SVG drawings are left out: they are the page's own marks, drawn to the box they're given.
+ * Async: a background picture's own size is read by loading it again (from the cache).
+ */
+async function findStretched(slack) {
+  const found = [];
+  let checked = 0;
+  const describe = (el, pseudo) => {
+    const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 3).join(".") : "";
+    const label = el.getAttribute("alt") || el.getAttribute("aria-label") || el.getAttribute("title") || "";
+    // Where it is: the nearest ancestor that names itself (a card's label, a dialog's).
+    const named = el.parentElement?.closest("[aria-label]");
+    const where = named ? ` in "${named.getAttribute("aria-label").replace(/\s+/g, " ").slice(0, 50)}"` : "";
+    return `${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${pseudo ?? ""}${label ? ` "${label.replace(/\s+/g, " ").slice(0, 50)}"` : ""}${where}`;
+  };
+  const isSvg = (src) => /^data:image\/svg|\.svg(\?|#|$)/i.test(src);
+  const fileOf = (src) => (src.startsWith("data:") ? "inline picture" : decodeURIComponent(src.split(/[?#]/)[0].split("/").pop()));
+  const drawn = (el, cs) => {
+    if (cs.display === "none" || cs.visibility !== "visible") return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1 ? r : null;
+  };
+  const report = (el, pseudo, src, own, w, h) => {
+    checked++;
+    const off = (w / h) / (own.w / own.h) - 1;
+    if (Math.abs(off) <= slack) return;
+    found.push({ picture: `${describe(el, pseudo)} (${fileOf(src)})`, own: `${own.w}×${own.h}`, drawn: `${w.toFixed(1)}×${h.toFixed(1)}`, off: `${off > 0 ? "+" : ""}${(off * 100).toFixed(1)}%` });
+    el.setAttribute("data-sweep", "");
+  };
+  for (const img of document.querySelectorAll("img")) {
+    if (!img.complete || !img.naturalWidth || !img.naturalHeight || isSvg(img.currentSrc || img.src)) continue;
+    const cs = getComputedStyle(img);
+    const r = drawn(img, cs);
+    if (!r) continue;
+    const own = { w: img.naturalWidth, h: img.naturalHeight };
+    // Its content box: what the picture is fitted into.
+    const px = (v) => parseFloat(v) || 0;
+    const w = r.width - px(cs.borderLeftWidth) - px(cs.borderRightWidth) - px(cs.paddingLeft) - px(cs.paddingRight);
+    const h = r.height - px(cs.borderTopWidth) - px(cs.borderBottomWidth) - px(cs.paddingTop) - px(cs.paddingBottom);
+    if (w <= 1 || h <= 1) continue;
+    // contain, scale-down and none keep the picture's own shape; cover crops it but keeps it too.
+    if (cs.objectFit === "fill") report(img, null, img.currentSrc || img.src, own, w, h);
+    else report(img, null, img.currentSrc || img.src, own, own.w, own.h);
+  }
+  // Background and mask pictures, each layer with its own size.
+  const sizes = new Map();
+  const ownSize = (src) => {
+    if (!sizes.has(src))
+      sizes.set(src, new Promise((done) => {
+        const im = new Image();
+        im.onload = () => done(im.naturalWidth && im.naturalHeight ? { w: im.naturalWidth, h: im.naturalHeight } : null);
+        im.onerror = () => done(null);
+        im.src = src;
+      }));
+    return sizes.get(src);
+  };
+  const layers = (v) => v.split(/,(?![^(]*\))/).map((s) => s.trim());
+  for (const el of document.body.querySelectorAll("*")) {
+    for (const pseudo of [null, "::before", "::after"]) {
+      const cs = getComputedStyle(el, pseudo);
+      if (pseudo && (cs.content === "none" || cs.content === "normal")) continue;
+      for (const [image, size] of [[cs.backgroundImage, cs.backgroundSize], [cs.maskImage || cs.webkitMaskImage, cs.maskSize || cs.webkitMaskSize]]) {
+        if (!image || !image.includes("url(")) continue;
+        const r = pseudo ? null : drawn(el, cs);
+        if (!pseudo && !r) continue;
+        const sz = layers(size ?? "auto");
+        for (const [i, layer] of layers(image).entries()) {
+          const m = /^url\("?(.*?)"?\)$/.exec(layer);
+          if (!m || isSvg(m[1])) continue;
+          const s = (sz[i % sz.length] ?? "auto").split(/\s+/);
+          // cover, contain, one length (the height follows) or either side auto: its own shape.
+          if (s.length < 2 || s.includes("auto")) continue;
+          const own = await ownSize(m[1]);
+          if (!own) continue;
+          // Percentages are of the box the picture is placed in (the padding box, near enough).
+          const box = pseudo ? { width: parseFloat(cs.width) || 0, height: parseFloat(cs.height) || 0 } : r;
+          const len = (v, of) => (v.endsWith("%") ? (parseFloat(v) / 100) * of : parseFloat(v));
+          const w = len(s[0], box.width);
+          const h = len(s[1], box.height);
+          if (w > 1 && h > 1) report(el, pseudo, m[1], own, w, h);
+        }
+      }
+    }
+  }
+  return { found, checked };
+}
+
 /**
  * The shapes a part takes, for the help check. A head (a list plate's head bar, a section heading
  * on a page or in a panel, a tool or filter row) must hold its own "?"; a body (a table, the band
@@ -215,6 +313,52 @@ function coverage({ heads, bodies, inside }) {
   };
 }
 
+/**
+ * The reward screen the wide-picture view shows: the demo's own first screen with a Forma
+ * Blueprint on it (demo/dev-reward-screens.json), whose item art is the widest-looking on a card.
+ */
+const FORMA_SCREEN = JSON.parse(readFileSync(join(root, "demo/dev-reward-screens.json"), "utf8")).find((s) => s.cards?.includes("Forma Blueprint"));
+if (!FORMA_SCREEN) throw new Error("demo/dev-reward-screens.json has no screen with a Forma Blueprint: the wide-picture view needs one");
+
+/**
+ * A wide stand-in picture (2:1, two round discs, so a stretch shows at a glance), served in the
+ * wide-picture view for every item picture: WFCD's art is square, and a square picture can't show
+ * a well that squeezes it. Made here as a PNG, so the sweep needs no picture files of its own.
+ */
+function widePicture(w = 320, h = 160) {
+  const row = w * 4 + 1;
+  const raw = Buffer.alloc(row * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const disc = Math.hypot(x - w / 4, y - h / 2) < h * 0.38 ? [127, 209, 224] : Math.hypot(x - (3 * w) / 4, y - h / 2) < h * 0.38 ? [214, 174, 74] : null;
+      raw.set(disc ? [...disc, 255] : [40, 46, 54, 255], y * row + 1 + x * 4);
+    }
+  const crcTable = Array.from({ length: 256 }, (_, n) => {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    return c >>> 0;
+  });
+  const crc = (buf) => {
+    let c = 0xffffffff;
+    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
+    return (c ^ 0xffffffff) >>> 0;
+  };
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const len = Buffer.alloc(4);
+    len.writeUInt32BE(data.length);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc(body));
+    return Buffer.concat([len, body, sum]);
+  };
+  const head = Buffer.alloc(13);
+  head.writeUInt32BE(w, 0);
+  head.writeUInt32BE(h, 4);
+  head.set([8, 6, 0, 0, 0], 8); // 8 bits a channel, RGBA
+  return Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), chunk("IHDR", head), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
+}
+const WIDE_PICTURE = widePicture();
+
 const answers = async () => {
   try {
     return (await fetch(url)).ok;
@@ -246,11 +390,22 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 const pause = (p, ms) => p.waitForTimeout(ms);
 
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
-async function open(size, { firstRun = false, noInventory = false } = {}) {
+async function open(size, { firstRun = false, noInventory = false, widePictures = false } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h } });
   await p.route(/warframe\.market/, (r) => r.abort());
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
+  // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
+  // item picture wide.
+  if (widePictures) {
+    await p.route(/\/dev-reward-screen\.json/, async (r) => {
+      try {
+        const res = await r.fetch();
+        await r.fulfill({ response: res, json: { ...(await res.json()), cards: FORMA_SCREEN.cards } });
+      } catch {} // the page closed while it was asked
+    });
+    await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
+  }
   p.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
   await p.addInitScript((first) => {
     try {
@@ -317,6 +472,11 @@ function focusNow() {
 }
 
 const findings = [];
+/** Pictures drawn out of their own shape, and how many pictures were looked at. */
+const stretched = [];
+let picturesChecked = 0;
+/** The window sizes where the wide-picture view didn't get the Forma Blueprint's card drawn with its picture. */
+const wideMissed = [];
 const helpMissing = [];
 const helpUnknown = [];
 const helpPending = new Map();
@@ -341,6 +501,9 @@ async function check(p, size, view) {
   if (coverageOnly) return;
   const found = await p.evaluate(findClipping, DELIBERATE.map(({ selector, why }) => ({ selector, why })));
   for (const f of found) findings.push({ size: `${size.w}×${size.h}`, view, ...f });
+  const shapes = await p.evaluate(findStretched, SHAPE_SLACK);
+  for (const f of shapes.found) stretched.push({ size: `${size.w}×${size.h}`, view, ...f });
+  picturesChecked += shapes.checked;
   if (work) {
     const png = join(work, `${size.w}x${size.h}-${String(shots.length).padStart(3, "0")}.png`);
     await p.screenshot({ path: png });
@@ -403,7 +566,7 @@ async function tabThrough(p, size, view) {
 /** Every view of the demo at one size, `look` called on each. Settings is one view per section
  *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
  *  same whichever section is in view). */
-async function walk(size, look, { settingsOnce = false } = {}) {
+async function walk(size, look, { settingsOnce = false, widePictures = true } = {}) {
   const p = await open(size);
   const labels = await p.locator("button.nav").evaluateAll((els) => els.map((e) => e.querySelector(".lbl")?.textContent?.trim() ?? ""));
   for (const label of labels.filter(Boolean)) {
@@ -501,6 +664,24 @@ async function walk(size, look, { settingsOnce = false } = {}) {
   const setup = await open(size, { noInventory: true });
   await look(setup, size, "TennoScope setup");
   await setup.close();
+  // Current fissure's reward cards with wide pictures (the Forma Blueprint's among them): a
+  // picture well that squeezes or stretches its picture shows here first.
+  if (widePictures) {
+    const wide = await open(size, { widePictures: true });
+    await wide.locator("button.nav", { hasText: "Current fissure" }).first().click();
+    await pause(wide, 2500);
+    // The cards in view and their pictures loaded (they load lazily).
+    await wide.locator(".rc").first().scrollIntoViewIfNeeded({ timeout: 5000 }).catch(() => {});
+    await wide.waitForFunction(() => [...document.querySelectorAll(".rc .art img")].every((i) => i.complete), null, { timeout: 15000 }).catch(() => {});
+    const reached = await wide.evaluate(() => {
+      const card = [...document.querySelectorAll(".rc")].find((c) => /: Forma Blueprint(,|$)/.test(c.getAttribute("aria-label") ?? ""));
+      const img = card?.querySelector(".art img");
+      return !!img && img.complete && img.naturalWidth > img.naturalHeight;
+    });
+    if (!reached) wideMissed.push(`${size.w}×${size.h}`);
+    await look(wide, size, "Current fissure, wide pictures");
+    await wide.close();
+  }
 }
 
 try {
@@ -527,13 +708,13 @@ try {
   if (out) work = mkdtempSync(join(tmpdir(), "myorbiter-sweep-"));
   for (const size of SIZES) {
     console.log(`${size.w}×${size.h}`);
-    await walk(size, check);
+    await walk(size, check, { widePictures: !coverageOnly });
   }
   // The keyboard, on its own walk so the clipping checks above see the views as before.
   const keys = !coverageOnly && SIZES.some((s) => s.w === KEYS_SIZE.w && s.h === KEYS_SIZE.h);
   if (keys) {
     console.log(`keyboard, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
-    await walk(KEYS_SIZE, tabThrough, { settingsOnce: true });
+    await walk(KEYS_SIZE, tabThrough, { settingsOnce: true, widePictures: false });
   }
   if (out) {
     mkdirSync(out, { recursive: true });
@@ -551,6 +732,12 @@ try {
   for (const f of bugs) console.log(`CLIPPED ${f.size} ${f.view}: ${f.kind}: ${f.element}${f.by ? ` by ${f.by}` : ""} (${f.detail})`);
   for (const f of meant) console.log(`deliberate ${f.size} ${f.view}: ${f.element} (${f.deliberate})`);
   console.log(`${bugs.length} clipped, ${meant.length} deliberate, ${shots.length || "no"} views saved`);
+  // Pictures out of their own shape.
+  if (!coverageOnly) {
+    for (const f of stretched) console.log(`STRETCHED ${f.size} ${f.view}: ${f.picture}: its own shape ${f.own}, drawn ${f.drawn} (${f.off})`);
+    for (const s of wideMissed) console.log(`NOT REACHED ${s}: the reward cards' Forma Blueprint wasn't drawn with a wide picture, so the wells weren't checked with one`);
+    console.log(`${stretched.length} pictures out of shape, ${picturesChecked} pictures checked`);
+  }
   if (keys) {
     for (const f of keyFindings) console.log(`KEYBOARD ${f.size} ${f.view}: ${f.element}: ${f.reason}`);
     for (const n of keyNotes) console.log(`keyboard note: ${n}`);
@@ -569,7 +756,7 @@ try {
   for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
   for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
-  if (bugs.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;
