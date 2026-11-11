@@ -209,7 +209,10 @@
   .body.nopic { grid-template-rows: auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
   /* A flex box, so the picture's max-height resolves against the well's height and never runs past it. */
   figure { margin: 0; min-height: 160px; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; }
-  img, .ph { display: block; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+  /* The picture is fitted, never stretched: app.css's .picwell img. The hidden pages' stand-in
+     (.ph) is fitted the same way, so it holds the height the picture will take. */
+  img, .ph { display: block; min-width: 0; min-height: 0; width: auto; height: auto; }
+  .ph { max-width: 100%; max-height: 100%; }
   .nopicture { color: var(--platinum-deep); }
   .words { display: grid; align-content: start; gap: 10px; min-width: 0; }
   h3 { margin: 0; font-size: 20px; }

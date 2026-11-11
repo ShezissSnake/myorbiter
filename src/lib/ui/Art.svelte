@@ -35,7 +35,6 @@
   /* Inside a well of its own (a card's picture area): just the picture. */
   .art.plain { background: none; box-shadow: none; }
   .art.plain::before { display: none; }
-  img { max-width: 100%; max-height: 100%; object-fit: contain; }
   /* Mastered or out of reach: greyed and darker (a colour filter, no blur). */
   .dim img { filter: grayscale(.55) brightness(.75); }
   .kind { display: inline-flex; opacity: .6; }

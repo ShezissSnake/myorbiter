@@ -322,7 +322,9 @@ const RESOURCES = [
   ["/Lotus/Types/Items/MiscItems/Salvage", "Salvage", 128900], ["/Lotus/Types/Items/MiscItems/Circuits", "Circuits", 21400], ["/Lotus/Types/Items/MiscItems/Morphic", "Morphics", 212],
   ["/Lotus/Types/Items/MiscItems/Gallium", "Gallium", 88], ["/Lotus/Types/Items/MiscItems/OxiumAlloy", "Oxium", 3150], ["/Lotus/Types/Items/MiscItems/Cryotic", "Cryotic", 9840], ["/Lotus/Types/Items/MiscItems/Nanospores", "Nano Spores", 240500],
 ];
-for (const [path, name, n] of RESOURCES) row(path, name, "resource", n);
+// With the picture WFCD files each under, as the app's inventory read gives it (Forma's is the
+// generic component picture).
+for (const [path, name, n] of RESOURCES) row(path, name, "resource", n, { image_name: anything.get(path)?.imageName ?? null });
 
 // ------------------------------------------------------------------ the catalog the bundle carries
 
