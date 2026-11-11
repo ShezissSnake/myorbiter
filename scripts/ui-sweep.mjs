@@ -7,8 +7,8 @@
 // has no accessible name (an icon-only button or link with no label, title or text). In every
 // view it also checks the help: each part (a head bar, a tool or filter row, a table, a band of
 // figures, a labelled section; PART_HEADS and PART_BODIES below) carries a "?" (ui/HelpMark.svelte)
-// or sits under a head that does, and each "?" names a part the help list knows; the parts whose
-// walk-through is still a placeholder are listed as pending, which doesn't fail. With the help
+// or sits under a head that does, each "?" names a part the help list knows, and the page it opens
+// is written (has its picture); a part whose page isn't is listed as pending. With the help
 // open on Orders and Sell spares it checks the dialog at every size too. In every view it also
 // checks each picture's shape: one drawn more than 2 % wider or narrower than its own shape fails
 // (findStretched); a last view, Current fissure's reward cards with the demo's Forma Blueprint and
@@ -247,7 +247,7 @@ async function findStretched(slack) {
  * of figures under a title, a labelled section, anything marked data-part) is covered by a "?"
  * inside it or in the head just above it.
  */
-const PART_HEADS = [".plate-head", ".page h2.register", ".page h3.register.lead", ".page .bar", ".page .tools", ".sheet section > h3.register", "aside.side section > h3.register"];
+const PART_HEADS = [".plate-head", ".page h2.register", ".page h3.register.lead", ".page .bar", ".page .tools", ".sheet section > h3.register", "aside.side section > h3.register", ".sheet section > .hmark > h3.register", "aside.side section > .hmark > h3.register"];
 const PART_BODIES = ["table", ".band", "section[aria-label]", "[data-part]"];
 /** Groups inside a part that its own "?" covers: they repeat, and aren't parts of their own. */
 const PART_OF = [{ selector: ".dayblock", why: "the notifications' day groups: one list, under the panel's own \"?\"" }];
@@ -270,17 +270,21 @@ function coverage({ heads, bodies, inside }) {
   const isHead = (el) => !!el?.matches?.(head);
   // A head carries its "?", or its row does, at the right end (a heading beside the row's buttons).
   const headOk = (el) => marked(el) || !!el.parentElement?.querySelector(":scope > [data-help]");
+  // The head an element is or starts with: itself, its first child (a heading row), or that
+  // child's first child (a heading in its row with the "?" beside it, .hmark, inside a wider row).
+  const headOf = (el) => [el, el?.firstElementChild, el?.firstElementChild?.firstElementChild].find(isHead) ?? null;
   // A body sits under a head with a "?": the head just before it, or the first child of a box it
   // is in (a section and its heading), a few levels up at most.
   const underHead = (el) => {
     for (let n = el, i = 0; n && i < 5 && !n.matches(".pane, .page-inner, .sheet, aside.side, [role=dialog]"); n = n.parentElement, i++) {
       // A heading row (a heading with a note or the "?" beside it) counts as the head it starts with.
       for (let s = n.previousElementSibling, j = 0; s && j < 3; s = s.previousElementSibling, j++) {
-        if (isHead(s)) return headOk(s);
-        if (isHead(s.firstElementChild)) return headOk(s.firstElementChild);
+        const h = headOf(s);
+        if (h) return headOk(h);
       }
       const first = n.parentElement?.firstElementChild;
-      if (first && first !== n && isHead(first) && headOk(first)) return true;
+      const fh = first && first !== n ? headOf(first) : null;
+      if (fh && headOk(fh)) return true;
       if (n !== el && n.matches("[data-part]") && marked(n)) return true;
       // A "?" in the corner of a box covers what the box holds (the band's figures, the signature strip).
       if (n.parentElement?.querySelector(":scope > [data-help].corner")) return true;
@@ -750,9 +754,9 @@ try {
     console.log(`NO HELP ${f.size} ${f.view}: ${f.element}`);
   }
   for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
-  for (const [part, view] of [...helpPending].sort()) console.log(`pending ${part} (${view})`);
+  for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
-  if (bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length) process.exitCode = 1;
+  if (bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;

@@ -114,7 +114,7 @@
 
   {#if ts.unpatched}
     <section class="callout">
-      <h3 class="register">This TennoScope doesn't talk to MyOrbiter<HelpMark part="tennoscope.unpatched" /></h3>
+      <div class="hmark"><h3 class="register">This TennoScope doesn't talk to MyOrbiter</h3><HelpMark part="tennoscope.unpatched" /></div>
       <p class="prose">It's an unpatched build, so MyOrbiter can't show its state, read the reward cards or run it without a window. Build MyOrbiter's TennoScope (see <code>tennoscope/ORBITER.md</code> in MyOrbiter's folder) and point Settings at it.</p>
     </section>
   {/if}
@@ -122,14 +122,14 @@
   {#if r}
     {#if r.setup.desktop_capture_action_available}
       <section class="callout gold">
-        <h3 class="register">Allow screen capture<HelpMark part="tennoscope.screen-capture" /></h3>
+        <div class="hmark"><h3 class="register">Allow screen capture</h3><HelpMark part="tennoscope.screen-capture" /></div>
         <p class="prose">TennoScope can't see the reward screen yet, so there's no overlay and MyOrbiter gets no cards. Your desktop asks once which screen it may read.</p>
         <div><ProgressButton job={allowJob} tone="gold" label="Allow screen capture" working="Asking…" failLabel="Couldn't ask" status title="Ask TennoScope to request screen capture: your desktop asks which screen it may read" onclick={allow} /></div>
       </section>
     {/if}
 
     <section class:callout={blocksOverlay} class:gold={blocksOverlay}>
-      <h3 class="register">Reward overlay<HelpMark part="tennoscope.reward-overlay" /></h3>
+      <div class="hmark"><h3 class="register">Reward overlay</h3><HelpMark part="tennoscope.reward-overlay" /></div>
       {#if windowMode}
         <div class="kv"><span>Warframe's display mode</span><strong>{MODE_WORD[windowMode] ?? windowMode}</strong></div>
       {/if}
@@ -145,7 +145,7 @@
     </section>
 
     <section>
-      <h3 class="register">Inventory<HelpMark part="tennoscope.inventory" /></h3>
+      <div class="hmark"><h3 class="register">Inventory</h3><HelpMark part="tennoscope.inventory" /></div>
       <div class="kv">
         <span>Last read</span><strong>{synced}</strong>
         <span>Access</span><strong>{access?.name ?? "Not set up"}</strong>
@@ -162,7 +162,7 @@
     </section>
 
     <section>
-      <h3 class="register">Health<HelpMark part="tennoscope.health" /></h3>
+      <div class="hmark"><h3 class="register">Health</h3><HelpMark part="tennoscope.health" /></div>
       <ul class="health">
         {#each ROWS as row (row.key)}
           {@const h = r.health[row.key]}
@@ -181,7 +181,7 @@
 <style>
   section { display: grid; gap: .7rem; }
   h3 { margin: 0; color: var(--platinum-dim); display: flex; align-items: center; }
-  h3 > :global(.helpmark) { margin-left: auto; }
+  .hmark > :global(.helpmark) { margin-left: auto; }
   .line { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .line strong { font-family: var(--face-mark); font-size: 1.2rem; text-transform: uppercase; letter-spacing: .01em; }
   .row { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; }

@@ -66,7 +66,7 @@ test("every page keeps the limits: a short heading, a few short lines, at most f
       for (const l of p.lines) assert.ok(words(l) <= LIMITS.lineWords, `${at}: "${l}" is ${words(l)} words`);
       const total = words(p.title) + p.lines.reduce((n, l) => n + words(l), 0);
       assert.ok(total <= LIMITS.pageWords, `${at}: ${total} words`);
-      if (!wt.pending) assert.ok(p.shot, `${at}: a written page has a picture`);
+      assert.ok(p.shot, `${at}: every page is written: it has a picture`);
       if (!p.shot) continue;
       assert.ok(p.shot.marks.length <= LIMITS.marks, `${at}: ${p.shot.marks.length} marks`);
       // Numbered marks key the first lines: 1 to n, in order, no more numbers than lines.
@@ -102,9 +102,11 @@ test('every "?" in the app opens a real page of a real walk-through, and every c
     assert.ok(hit.at >= 0 && hit.at < hit.wt.pages.length);
   }
   for (const wt of WALKTHROUGHS) for (const part of Object.keys(wt.covers)) assert.ok(inSource.has(part), `${wt.id} covers ${part}, which no "?" in the app has`);
-  // The Trade and Fissures pages are written; the rest wait, one page each.
-  for (const id of ["orders", "spares", "sales", "browse", "buy", "sell", "mission", "relics", "planner"]) assert.ok(walkthroughById[id] && !walkthroughById[id].pending, `${id} is written`);
-  for (const wt of WALKTHROUGHS.filter((w) => w.pending)) assert.equal(wt.pages.length, 1, `${wt.id}: a placeholder is one page`);
+  // No placeholder is left: the page every "?" opens is written.
+  for (const part of inSource.keys()) {
+    const hit = forPart(part)!;
+    assert.ok(hit.wt.pages[hit.at].shot, `${part} opens ${hit.wt.id} page ${hit.at + 1}, which isn't written`);
+  }
 });
 
 test("every picture belongs to a page, every page's picture is there, taken from its definition as it is now", () => {
@@ -173,7 +175,13 @@ test("the dialog keeps the focus inside, closes on the shade and on a page chang
   assert.match(dialog, /role="dialog" aria-modal="true"/);
   assert.match(dialog, /use:trap=\{\{ onescape: \(\) => help\.close\(\), restore: false \}\}/, "focus kept inside, Esc closes, and only the help puts the focus back (not on a page change)");
   assert.match(dialog, /class="shade"[^>]*onclick=\{\(\) => help\.close\(\)\}/, "a click on the shade closes");
-  assert.match(dialog, /\{#if pic && file\}/, "the picture loads only for the page shown");
+  assert.match(dialog, /\{#if pic && file && shown\}/, "the picture loads only for the page shown");
+  assert.match(dialog, /<svg class="ph"/, "a hidden page holds its picture's place without loading it");
+  // As tall as the walk-through's tallest page, up to 640 px, the same on every page of it.
+  assert.match(dialog, /max-height: min\(640px, calc\(100% - 48px\)\)/);
+  assert.doesNotMatch(dialog, /\.box \{[^}]*[;\s]height: min\(640px/, "no fixed height");
+  assert.match(dialog, /\{#each wt\.pages as p, i \(i\)\}\s*<div class="sizer" aria-hidden="true" inert>/, "every page of the walk-through is laid out, hidden, to size the box");
+  assert.match(dialog, /<svg class="ph" width=\{px\.w\} height=\{px\.h\}/, "a hidden page's picture holds the room the file is drawn at");
   const css = read("src/app.css");
   for (const [name, s] of [["HelpDialog.svelte", dialog], ["app.css", css]] as const) {
     assert.doesNotMatch(s, /backdrop-filter/, `${name}: no backdrop-filter`);

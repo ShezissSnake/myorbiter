@@ -522,7 +522,7 @@
 
     {#if overframeLinks.length}
       <section class="ofr" data-card="overframe" aria-label="Saved from Overframe">
-        <h2 class="register">Saved from Overframe<HelpMark part="builds.saved-links" /></h2>
+        <div class="hmark"><h2 class="register">Saved from Overframe</h2><HelpMark part="builds.saved-links" /></div>
         <p class="dim small">Overframe's builds open on overframe.gg: MyOrbiter keeps the link only.</p>
         <ul>
           {#each overframeLinks as o (o.build.id)}
@@ -548,7 +548,7 @@
          narrower one stacks them. -->
     <div class="landing" class:wide={landWide} bind:clientWidth={landW}>
       {#if mostBuilt.length}
-        <h2 class="register">Your most built<HelpMark part="builds.most-built" /></h2>
+        <div class="hmark"><h2 class="register">Your most built</h2><HelpMark part="builds.most-built" /></div>
         <div class="row">
           <ul class="cards" style:--n={cardsN} aria-label="Your most built">
             {#each mostBuilt.slice(0, cardsN) as r (r.unique)}
@@ -688,6 +688,8 @@
 
   .ofr { margin-top: var(--course); padding-top: var(--step); border-top: 1px solid var(--rule); }
   .ofr h2 { margin: 0 0 .3rem; color: var(--sec); font-size: .7rem; }
+  .ofr .hmark { margin: 0 0 .3rem; }
+  .ofr .hmark > h2 { margin: 0; }
   .ofr ul { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
   .ofr li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .5rem .75rem; background: var(--plate); border: 1px solid var(--rule); }
   .ot { flex: 1; min-width: 0; }

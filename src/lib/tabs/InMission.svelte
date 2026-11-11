@@ -268,7 +268,7 @@
   {#if relics.length}
     {#if ranked.length}
       <div class="pool-head">
-        <h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}<HelpMark part="mission.pool" /></h2>
+        <div class="hmark"><h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}</h2><HelpMark part="mission.pool" /></div>
         {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
@@ -295,7 +295,7 @@
     {/if}
 
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
-    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}<HelpMark part="mission.relics" /></h2>
+    <div class="hmark"><h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2><HelpMark part="mission.relics" /></div>
     {#if showRelics}<div class="reveal" transition:reveal><div><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div></div>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
@@ -306,7 +306,7 @@
   {/if}
 
   {#if history.length}
-    <h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}<HelpMark part="mission.session" /></h2>
+    <div class="hmark"><h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}</h2><HelpMark part="mission.session" /></div>
     <p class="sum small">
       <span>{history.length} mission{history.length === 1 ? "" : "s"}{fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}</span>
       {#if sessionValue}<span title="What the rewards you took sell for, at daily median prices"><P v={sessionValue} /></span>{/if}
@@ -335,6 +335,8 @@
 
 <style>
   h2 { margin: var(--course) 0 .6rem; }
+  .hmark { margin: var(--course) 0 .6rem; }
+  .hmark > h2 { margin: 0; }
   .sum { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1.1rem; margin: -.2rem 0 .6rem; }
   .sum > span { display: inline-flex; align-items: center; gap: .3rem; }
   .sum .gold { color: var(--gold); }
@@ -465,7 +467,7 @@
   .share { color: var(--platinum-dim); }
   .share.off { color: var(--alert); }
   .pool-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin: var(--course) 0 .6rem; }
-  .pool-head h2 { margin: 0; }
+  .pool-head h2, .pool-head .hmark { margin: 0; }
   .pool .rank { width: 2rem; color: var(--platinum-deep); font-family: var(--face-figures); font-size: 11px; }
   .pool:not(.history) .rank { padding-left: .5rem; box-shadow: inset 3px 0 0 var(--rar, transparent); }
   .pool .sc { width: 2.6rem; text-align: right; font-family: var(--face-mark); font-size: 1.15rem; }

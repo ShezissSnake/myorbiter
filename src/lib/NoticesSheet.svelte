@@ -250,7 +250,7 @@
     {#each groups as grp (grp.g)}
       <section class="grp">
         <header>
-          <h3 class="register">{grp.g}<HelpMark part="notices.kinds" /></h3>
+          <div class="hmark"><h3 class="register">{grp.g}</h3><HelpMark part="notices.kinds" /></div>
           <span class="dim small">{note(grp.g)}</span>
           <button class="link quiet" title={allOn(grp.kinds) ? `Turn off every kind under ${grp.g}` : `Turn on every kind under ${grp.g}`} onclick={() => setAll(grp.kinds, !allOn(grp.kinds))}>{allOn(grp.kinds) ? "All off" : "All on"}</button>
         </header>
@@ -305,6 +305,7 @@
   .grp header { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
   .grp header .link { margin-left: auto; }
   .grp h3 { margin: 0; display: flex; align-items: center; gap: .5rem; }
+  .grp .hmark { gap: .5rem; }
   .how { position: relative; padding-right: 2rem; }
   .nowrap { white-space: nowrap; }
   .discord { display: grid; gap: .45rem; padding-top: .8rem; border-top: 1px solid var(--rule); }

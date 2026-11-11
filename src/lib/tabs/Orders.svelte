@@ -1043,7 +1043,7 @@
     {#if mkt.buys.length}
       <!-- Buy orders you posted (from Wishlist, or on the website): what you're paying, and a way to take one down. -->
       <section class="buys" aria-label="Your buy orders">
-        <h2 class="register yours">Your buy orders<HelpMark part="orders.buy-orders" /></h2>
+        <div class="hmark"><h2 class="register yours">Your buy orders</h2><HelpMark part="orders.buy-orders" /></div>
         <ul>
           {#each mkt.buys as o (o.id)}
             {@const it = mkt.item(o.itemId)}
@@ -1066,7 +1066,7 @@
     {#if auctions.length}
       <!-- Riven auctions: warframe.market keeps them apart from listings, and they aren't repriced automatically. -->
       <section class="buys" aria-label="Your riven auctions">
-        <h2 class="register yours">Your riven auctions<HelpMark part="orders.auctions" /></h2>
+        <div class="hmark"><h2 class="register yours">Your riven auctions</h2><HelpMark part="orders.auctions" /></div>
         <ul>
           {#each auctions as a (a.id)}
             {@const w = weaponOf(a)}
