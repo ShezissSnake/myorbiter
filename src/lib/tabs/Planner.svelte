@@ -243,11 +243,11 @@
     <div class="view swap" class:off={mode !== "sets"} use:fresh={mode === "sets"} in:arrive={{ y: 0 }}>
       <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
       {#if setsLast.length}
-        <h2 class="register">One part from a complete set, and your relics drop it<HelpMark part="planner.last" /></h2>
+        <div class="hmark"><h2 class="register">One part from a complete set, and your relics drop it</h2><HelpMark part="planner.last" /></div>
         {@render gapList(setsLast, "last")}
       {/if}
       {#if setsUncovered.length}
-        <h2 class="register">Close, but none of your relics drop the missing part<HelpMark part="planner.uncovered" /></h2>
+        <div class="hmark"><h2 class="register">Close, but none of your relics drop the missing part</h2><HelpMark part="planner.uncovered" /></div>
         {@render gapList(setsUncovered, "uncovered")}
       {/if}
     </div>
@@ -270,6 +270,8 @@
     .view.off { display: block; content-visibility: hidden; }
   }
   h2 { margin: var(--course, 2rem) 0 .6rem; }
+  .hmark { margin: var(--course, 2rem) 0 .6rem; }
+  .hmark > h2 { margin: 0; }
   .closed { margin-left: .5rem; font-family: var(--face-register); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--platinum-deep); white-space: nowrap; }
   .buyp { white-space: nowrap; margin-left: auto; }
   .buyp + .setp { margin-left: 0; }

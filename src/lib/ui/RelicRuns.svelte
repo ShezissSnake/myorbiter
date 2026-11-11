@@ -52,7 +52,7 @@
 
 <section class="runs">
   <div class="hh">
-    <h2 class="register">Relic runs<HelpMark part="stats.relic-runs" /></h2>
+    <div class="hmark"><h2 class="register">Relic runs</h2><HelpMark part="stats.relic-runs" /></div>
     {#if sum.screens}<span class="dim small">Each card at today's warframe.market price, or its ducats at your rate ({platPerDucat}p each) when that's more</span>{/if}
   </div>
 

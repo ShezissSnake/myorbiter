@@ -151,7 +151,7 @@
 
 <Sheet bind:open keep title="Settings" kicker="MyOrbiter" help="settings">
   <section>
-    <h3 class="register">Platform<HelpMark part="settings.platform" /></h3>
+    <div class="hmark"><h3 class="register">Platform</h3><HelpMark part="settings.platform" /></div>
     <label class="field">
       <span class="register">Where you play</span>
       <select value={settings.market.platform} onchange={(e) => { settings.market.platform = e.currentTarget.value as Platform; settings.market.relicPrices = {}; }}>
@@ -162,7 +162,7 @@
   </section>
 
   <section>
-    <h3 class="register">Pages<HelpMark part="settings.pages" /></h3>
+    <div class="hmark"><h3 class="register">Pages</h3><HelpMark part="settings.pages" /></div>
     <label class="field">
       <span class="register">Open on</span>
       <select bind:value={settings.startPage}>
@@ -200,7 +200,7 @@
 
   {#if !onConsole}
   <section>
-    <h3 class="register">TennoScope<HelpMark part="settings.tennoscope" /></h3>
+    <div class="hmark"><h3 class="register">TennoScope</h3><HelpMark part="settings.tennoscope" /></div>
     <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with MyOrbiter">
       In the background, with no window of its own, and closed again when you close MyOrbiter. A TennoScope you start yourself is left alone.
     </Switch>
@@ -218,7 +218,7 @@
   </section>
 
   <section>
-    <h3 class="register">Where things are<HelpMark part="settings.where-things-are" /></h3>
+    <div class="hmark"><h3 class="register">Where things are</h3><HelpMark part="settings.where-things-are" /></div>
     <label class="field">
       <span class="register">TennoScope's data folder</span>
       <input class="path" bind:value={dataDir} title={dataDir || undefined} placeholder={defaultDir ? `Default: ${defaultDir}` : "TennoScope's default"} spellcheck="false" />
@@ -232,7 +232,7 @@
   </section>
 
   <section>
-    <h3 class="register">Fissures<HelpMark part="settings.fissures" /></h3>
+    <div class="hmark"><h3 class="register">Fissures</h3><HelpMark part="settings.fissures" /></div>
     <Switch bind:on={settings.jumpToPick} label="Show Current fissure when the reward screen opens">
       MyOrbiter switches to the reward pick by itself, so it's on screen when you need it.
     </Switch>
@@ -242,7 +242,7 @@
   </section>
 
   <section>
-    <h3 class="register">Overlays<HelpMark part="settings.overlays" /></h3>
+    <div class="hmark"><h3 class="register">Overlays</h3><HelpMark part="settings.overlays" /></div>
     <p class="hint">What TennoScope draws over the game. MyOrbiter keeps reading the reward screen with an overlay off, so its pick still shows on Current fissure.</p>
     <Switch bind:on={settings.overlay.reward} label="Fissure reward screen">
       Under each reward card: what it's worth and whether to take it.
@@ -275,7 +275,7 @@
   {/if}
 
   <section id="settings-trades">
-    <h3 class="register">Trades<HelpMark part="settings.trades" /></h3>
+    <div class="hmark"><h3 class="register">Trades</h3><HelpMark part="settings.trades" /></div>
     <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
     <Switch bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
       Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
@@ -301,26 +301,26 @@
 
   {#if !onConsole}
   <section>
-    <h3 class="register">Selling<HelpMark part="settings.selling" /></h3>
+    <div class="hmark"><h3 class="register">Selling</h3><HelpMark part="settings.selling" /></div>
     <p class="hint">Selling rules are on <button type="button" class="link" title="Sell spares, at the foot: save prime parts for sets, sell veiled rivens, the minimum prices" onclick={() => { open = false; ongo("spares#minimums"); }}>Sell spares</button>.</p>
   </section>
   {/if}
 
   <section>
-    <h3 class="register">Builds<HelpMark part="settings.builds" /></h3>
+    <div class="hmark"><h3 class="register">Builds</h3><HelpMark part="settings.builds" /></div>
     <Switch bind:on={settings.buildsFromNox} label={NOX_SETTING.label}>
       {NOX_SETTING.help} Off: Builds lists none, and its Nox's Frame link still opens the site in your browser.
     </Switch>
   </section>
 
   <section>
-    <h3 class="register">Notifications<HelpMark part="settings.notifications" /></h3>
+    <div class="hmark"><h3 class="register">Notifications</h3><HelpMark part="settings.notifications" /></div>
     <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What MyOrbiter told you lately, and a switch for each kind ({onConsole ? "your listings, rivens, rare alerts, Baro, fissures" : "sales, listings, alerts and invasions with mastery you're missing, Baro, fissures"}…), with a pause for all of them.</p>
     <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
   </section>
 
   <section id="settings-updates" data-card="updates">
-    <h3 class="register">Updates<HelpMark part="settings.updates" /></h3>
+    <div class="hmark"><h3 class="register">Updates</h3><HelpMark part="settings.updates" /></div>
     <p class="ver"><img class="wordmark" src={wordmark} alt="This is MyOrbiter" height="28" /> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
     {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
@@ -350,7 +350,7 @@
   <div id="settings-display"><RenderingSetting /></div>
 
   <section id="settings-logs">
-    <h3 class="register">Logs<HelpMark part="settings.logs" /></h3>
+    <div class="hmark"><h3 class="register">Logs</h3><HelpMark part="settings.logs" /></div>
     <p class="hint">What MyOrbiter did and what went wrong, one line each, for when something misbehaves: TennoScope starting or failing, every change it made to your listings and every request warframe.market turned down, and errors in this window. Never your warframe.market sign-in. TennoScope keeps its own. Send both when you report a problem.</p>
     {#if folders}{@const f = folders}
       <div class="row">
@@ -362,7 +362,7 @@
   </section>
 
   <section id="settings-report">
-    <h3 class="register">Report a bug<HelpMark part="settings.report-bug" /></h3>
+    <div class="hmark"><h3 class="register">Report a bug</h3><HelpMark part="settings.report-bug" /></div>
     <p class="hint">Something not working? Say what happened, and MyOrbiter fills in an issue on GitHub for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
     <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is posted until you press Submit new issue on GitHub" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
   </section>
@@ -384,7 +384,7 @@
   section:last-child { border-bottom: 0; }
   .sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
   h3 { margin: 0; color: var(--gold); display: flex; align-items: center; }
-  h3 > :global(.helpmark) { margin-left: auto; }
+  .hmark > :global(.helpmark) { margin-left: auto; }
   .sub { margin: .4rem 0 0; font-size: .88rem; font-weight: 600; color: var(--platinum); }
   .minutes input { width: 5rem; }
   .shows { display: flex; flex-wrap: wrap; gap: .4rem; margin: -.3rem 0 .2rem; }

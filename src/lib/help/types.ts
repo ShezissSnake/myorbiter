@@ -43,6 +43,12 @@ export interface Shot {
   marks: Mark[];
   /** The window the picture is taken in, CSS pixels; 1280×800 unless given. */
   size?: [number, number];
+  /**
+   * A dialog that only opens as MyOrbiter starts: "first-run", the first start's Full mode question,
+   * not asked yet. The picture is taken in a window of its own, of that dialog as it opens, with no
+   * answer given; `open` and `steps` are not used.
+   */
+  startup?: "first-run";
 }
 
 /** One page of a walk-through: one idea. */
@@ -51,7 +57,7 @@ export interface HelpPage {
   title: string;
   /** Up to four lines of at most 16 words; with numbered marks, line i is about mark i + 1, and lines past the last number are plain. */
   lines: string[];
-  /** Its picture; none on a placeholder. */
+  /** Its picture (the tests and the sweep fail on a page without one). */
   shot?: Shot;
 }
 
@@ -67,6 +73,4 @@ export interface Walkthrough {
   good?: { text: string; warn?: boolean };
   /** Each part this walk-through covers (the "?" controls' part ids), with the page about it (1-based). */
   covers: Record<string, number>;
-  /** Not written yet: one page that says so and links to the Guide. */
-  pending?: boolean;
 }

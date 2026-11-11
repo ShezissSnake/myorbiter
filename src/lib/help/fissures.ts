@@ -1,9 +1,11 @@
 // The Fissures section's walk-throughs: Current fissure, Relics and Planner.
 
 import type { Walkthrough } from "./types";
-import { guideOf } from "./pending";
+import { guideOf } from "./guide";
 
 const holder = (part: string) => `.pane.shown :has(> [data-help="${part}"])`;
+/** The squad's relics' heading row: the heading and its "?". */
+const RELHEAD = ".pane.shown .hmark:has(> h2.relhead)";
 
 const MISSION: Walkthrough = {
   id: "mission",
@@ -44,8 +46,8 @@ const MISSION: Walkthrough = {
         open: "mission",
         steps: [{ click: ".pane.shown h2.relhead button" }],
         // The heading and the first two relics: the rest are more of the same.
-        part: ".pane.shown h2.relhead, .pane.shown h2.relhead + .reveal section.cards > :nth-child(-n+2)",
-        marks: [{ at: ".pane.shown h2.relhead + .reveal section.cards > :first-child", is: "outline" }],
+        part: `${RELHEAD}, ${RELHEAD} + .reveal section.cards > :nth-child(-n+2)`,
+        marks: [{ at: `${RELHEAD} + .reveal section.cards > :first-child`, is: "outline" }],
       },
     },
     {

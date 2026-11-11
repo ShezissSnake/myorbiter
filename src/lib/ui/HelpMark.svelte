@@ -9,9 +9,10 @@
 
   let { part, corner = false }: { part: string; corner?: boolean } = $props();
   const hit = $derived(forPart(part));
-  const about = $derived(hit ? hit.wt.pages[hit.at].title : "");
-  const name = $derived(hit ? (hit.wt.pending ? hit.wt.title : about) : "");
+  const name = $derived(hit ? hit.wt.pages[hit.at].title : "");
+  /** The page it opens has no picture: not written yet (the sweep and tests/help.test.ts fail on it). */
+  const pending = $derived(!!hit && !hit.wt.pages[hit.at].shot);
 </script>
 
-<!-- data-pending: its walk-through isn't written yet; data-unknown: no walk-through covers the part (the sweep fails on it). -->
-<button type="button" class="helpmark" class:corner data-help={part} data-pending={hit?.wt.pending ? "" : undefined} data-unknown={hit ? undefined : ""} aria-haspopup="dialog" aria-label={`How to use this: ${name}`} title={`How to use this: ${name}`} onclick={(e) => help.open(part, e.currentTarget)}><Icon name="help" size={14} stroke={1.5} /></button>
+<!-- data-pending: the page it opens isn't written yet; data-unknown: no walk-through covers the part (the sweep fails on either). -->
+<button type="button" class="helpmark" class:corner data-help={part} data-pending={pending ? "" : undefined} data-unknown={hit ? undefined : ""} aria-haspopup="dialog" aria-label={`How to use this: ${name}`} title={`How to use this: ${name}`} onclick={(e) => help.open(part, e.currentTarget)}><Icon name="help" size={14} stroke={1.5} /></button>

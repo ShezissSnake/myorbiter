@@ -187,7 +187,7 @@
 
   <section class="got">
     <div class="hh">
-      <h2 class="register" title="Parts that turned up in your inventory between two reads, from relics, missions or anything else; what a trade brought in is left out">Parts you got<HelpMark part="stats.parts-you-got" /></h2>
+      <div class="hmark"><h2 class="register" title="Parts that turned up in your inventory between two reads, from relics, missions or anything else; what a trade brought in is left out">Parts you got</h2><HelpMark part="stats.parts-you-got" /></div>
       {#if got.length}<span class="small dim">{gotCount} part{gotCount === 1 ? "" : "s"} · <P v={Math.round(gotWorth)} /> at today's prices</span>{/if}
     </div>
     {#if got.length}
@@ -204,7 +204,7 @@
 
   <div class="split">
     <section class="types">
-      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type<HelpMark part="stats.profit-by-type" /></h2><span class="dim small">from the game's trade log and Sales</span></div>
+      <div class="hh"><div class="hmark"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type</h2><HelpMark part="stats.profit-by-type" /></div><span class="dim small">from the game's trade log and Sales</span></div>
       {#if byType.length}
         <table>
           <thead><tr><th>Type</th><th class="right">Revenue</th><th class="right">Spent</th><th class="right">Profit</th></tr></thead>
@@ -219,7 +219,7 @@
 
     <section class="history">
       <div class="hh">
-        <h2 class="register">Trade history<HelpMark part="stats.trade-history" /></h2>
+        <div class="hmark"><h2 class="register">Trade history</h2><HelpMark part="stats.trade-history" /></div>
         {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade MyOrbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
         {#if exported}<span class="small" class:dim={exportJob.state !== "failed"} class:bad={exportJob.state === "failed"} role="status">{exported}</span>{/if}
         <Seg bind:value={show} label="Which trades" options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />

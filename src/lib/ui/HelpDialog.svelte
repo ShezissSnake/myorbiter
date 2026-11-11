@@ -1,7 +1,8 @@
 <script lang="ts">
   // The help, over the page: a walk-through of a few pages, each a marked picture of a piece of the
   // screen and a few words. It sits centred over the content area (the sidebar stays as it is),
-  // taking most of it (up to 960 by 640, a margin all round; a small area it fills), with the area
+  // up to 960 wide and as tall as the walk-through's tallest page needs, up to 640 (a margin all
+  // round; a small area it fills), with the area
   // darkened behind it by a flat shade (the page behind is marked .helpblur, for a still blur that
   // app.css leaves off until it's measured).
   // Browsed with the arrows, the dots or the arrow keys; Esc, Close or a click on the shade closes it
@@ -10,6 +11,7 @@
   import { help } from "../help/help.svelte";
   import { pictureFile } from "../help/index";
   import PICTURES from "../help/pictures.json";
+  import type { HelpPage } from "../help/types";
   import { pageById, type PageId } from "../pages";
   import { trap } from "./trap";
   import { scrim } from "./scrim";
@@ -25,11 +27,27 @@
   const app = $derived(wt && wt.app !== "shared" ? pageById[wt.app as PageId] : null);
   const section = $derived(app?.group || undefined);
   const kicker = $derived(app ? (app.group ? `${app.group} · ${app.label}` : app.label) : "MyOrbiter");
-  const file = $derived(wt && page?.shot ? pictureFile(wt, help.at) : null);
-  const pic = $derived(file ? (pics[file] ?? null) : null);
+  /** A page's picture file and its size as shown, or nulls when it has none (or it isn't taken yet). */
+  const picOf = (i: number) => {
+    const file = wt?.pages[i]?.shot ? pictureFile(wt, i) : null;
+    return { file, pic: file ? (pics[file] ?? null) : null };
+  };
+  /**
+   * The size a picture is drawn at before the well shrinks it: the file's own pixels, twice its size
+   * on the page and at most 1200 wide (scripts/help-shots.mjs), as `width: auto` draws the image.
+   * A hidden page's empty box takes the same size, so it holds as much room as the picture would.
+   */
+  const fileSize = (pic: { w: number; h: number }) => {
+    const w = Math.min(pic.w * 2, 1200);
+    return { w, h: Math.round((pic.h * w) / pic.w) };
+  };
   /** Numbered marks: the first lines are keyed to them, line 1 to mark 1; any lines after are plain. */
-  const numbered = $derived(page?.shot?.marks.filter((m) => m.is === "n").length ?? 0);
-  const keyed = $derived(numbered > 0);
+  const numberedOf = (p: HelpPage) => p.shot?.marks.filter((m) => m.is === "n").length ?? 0;
+  /**
+   * A picture over three times as wide as it is tall (a tool row, a strip of figures) goes above
+   * the words on a wide box too: beside them it would shrink to half its size.
+   */
+  const stripOf = (pic: { w: number; h: number } | null) => !!pic && pic.w > pic.h * 3;
 
   // The content area: #main's box, followed while the help is open (the sidebar folding, the
   // Watching column coming or going, the window resized).
@@ -53,13 +71,8 @@
   });
   /** A small area: the help fills it rather than leaving a margin. */
   const fill = $derived(area.w < 720 || area.h < 520);
-  /**
-   * Picture beside the words on a wide box, under them on a narrow one. A picture over three times
-   * as wide as it is tall (a tool row, a strip of figures) goes above the words on a wide box too:
-   * beside them it would shrink to half its size.
-   */
-  const strip = $derived(!!pic && pic.w > pic.h * 3);
-  const beside = $derived(area.w >= 900 && !strip);
+  /** Picture beside the words on a wide box, under them on a narrow one (a strip always above). */
+  const wide = $derived(area.w >= 900);
 
   // The page behind marked while the help is open: one class on the page shown, on and off in one
   // step (motion.md rule 4: a blur on it would never animate). app.css gives it no style for now.
@@ -95,11 +108,44 @@
   const uid = $props.id();
 </script>
 
+{#snippet body(p: HelpPage, i: number, shown: boolean)}
+  {@const { file, pic } = picOf(i)}
+  {@const numbered = numberedOf(p)}
+  {@const last = !!wt && i === wt.pages.length - 1}
+  <div class="body" class:beside={wide && !stripOf(pic)} class:nopic={!p.shot} class:strip={stripOf(pic)}>
+    {#if p.shot}
+      <figure class="picwell">
+        {#if pic && file && shown}
+          {#key file}<img src="/help/{file}" width={pic.w} height={pic.h} alt={`${p.title}: the part of the page this is about${numbered ? ", with the numbered places marked" : ", marked"}`} decoding="async" />{/key}
+        {:else if pic}
+          {@const px = fileSize(pic)}
+          <svg class="ph" width={px.w} height={px.h} viewBox="0 0 {px.w} {px.h}"></svg>
+        {:else}
+          <span class="nopicture register">Picture not taken yet</span>
+        {/if}
+      </figure>
+    {/if}
+    <div class="words" aria-live={shown ? "polite" : undefined}>
+      <h3 class="name-mark">{p.title}</h3>
+      {#if numbered}
+        <ol class="keyed">{#each p.lines.slice(0, numbered) as line, k (k)}<li><span class="num" aria-hidden="true">{k + 1}</span><span>{line}</span></li>{/each}</ol>
+        {#each p.lines.slice(numbered) as line, k (k)}<p>{line}</p>{/each}
+      {:else}
+        {#each p.lines as line, k (k)}<p>{line}</p>{/each}
+      {/if}
+      {#if last && wt?.good}
+        <p class="good" class:warn={wt.good.warn}>{#if wt.good.warn}<i class="dia" aria-hidden="true"></i><span class="register">Watch out</span>{:else}<span class="register">Good to know</span>{/if}<span class="gt">{wt.good.text}</span></p>
+      {/if}
+      {#if last}<button type="button" class="link guide" onclick={toGuide}>More in the Guide</button>{/if}
+    </div>
+  </div>
+{/snippet}
+
 {#if wt && page}
   <div class="zone" data-section={section} style:left="{area.x}px" style:top="{area.y}px" style:width="{area.w}px" style:height="{area.h}px">
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="shade" use:scrim onclick={() => help.close()} in:fade|global={{ dir: "in" }} out:fade|global={{ dir: "out" }}></div>
-    <div class="box" class:fill class:beside role="dialog" aria-modal="true" aria-labelledby="help-title-{uid}" tabindex="-1" onkeydown={onkey} use:trap={{ onescape: () => help.close(), restore: false }} in:settle|global={{ dir: "in" }} out:settle|global={{ dir: "out" }}>
+    <div class="box" class:fill role="dialog" aria-modal="true" aria-labelledby="help-title-{uid}" tabindex="-1" onkeydown={onkey} use:trap={{ onescape: () => help.close(), restore: false }} in:settle|global={{ dir: "in" }} out:settle|global={{ dir: "out" }}>
       <header>
         <div class="titles">
           <span class="register kicker">{kicker}</span>
@@ -107,29 +153,15 @@
         </div>
         <button type="button" class="ib close" aria-label="Close the help" title="Close (Esc)" onclick={() => help.close()}><Icon name="close" size={12} stroke={1.5} /></button>
       </header>
-      <div class="body" class:nopic={!page.shot} class:strip>
-        {#if page.shot}
-          <figure class="picwell">
-            {#if pic && file}
-              {#key file}<img src="/help/{file}" width={pic.w} height={pic.h} alt={`${page.title}: the part of the page this is about${keyed ? ", with the numbered places marked" : ", marked"}`} decoding="async" />{/key}
-            {:else}
-              <span class="nopicture register">Picture not taken yet</span>
-            {/if}
-          </figure>
-        {/if}
-        <div class="words" aria-live="polite">
-          <h3 class="name-mark">{page.title}</h3>
-          {#if keyed}
-            <ol class="keyed">{#each page.lines.slice(0, numbered) as line, i (i)}<li><span class="num" aria-hidden="true">{i + 1}</span><span>{line}</span></li>{/each}</ol>
-            {#each page.lines.slice(numbered) as line, i (i)}<p>{line}</p>{/each}
-          {:else}
-            {#each page.lines as line, i (i)}<p>{line}</p>{/each}
-          {/if}
-          {#if help.last && wt.good}
-            <p class="good" class:warn={wt.good.warn}>{#if wt.good.warn}<i class="dia" aria-hidden="true"></i><span class="register">Watch out</span>{:else}<span class="register">Good to know</span>{/if}<span class="gt">{wt.good.text}</span></p>
-          {/if}
-          {#if help.last}<button type="button" class="link guide" onclick={toGuide}>More in the Guide</button>{/if}
-        </div>
+      <!-- Every page of the walk-through laid out in the same place, hidden, with the page shown on
+           top, so the box is as tall as its tallest page needs (up to 640 px) and keeps that height
+           while it's browsed, and while a page's picture is still loading. A hidden page holds its
+           picture's place with an empty box of the same size: only the page shown loads its picture. -->
+      <div class="pages">
+        {#each wt.pages as p, i (i)}
+          <div class="sizer" aria-hidden="true" inert>{@render body(p, i, false)}</div>
+        {/each}
+        {@render body(page, help.at, true)}
       </div>
       <footer>
         <button type="button" class="ib step" aria-label="Previous page" title="Previous (←)" disabled={help.at === 0} onclick={() => help.prev()}><span class="flip"><Icon name="arrow-right" size={14} stroke={1.5} /></span></button>
@@ -152,26 +184,32 @@
   .shade { position: absolute; inset: 0; background: rgb(6 7 9 / 70%); pointer-events: auto; }
   .box {
     position: relative; pointer-events: auto; outline: none;
-    width: min(960px, calc(100% - 48px)); height: min(640px, calc(100% - 48px));
+    /* As tall as the walk-through's tallest page needs, at most 640 px (the grid shrinks the
+       pictures to fit when a page would need more). */
+    width: min(960px, calc(100% - 48px)); max-height: min(640px, calc(100% - 48px));
     display: grid; grid-template-rows: auto minmax(0, 1fr) auto;
     background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule-bright); clip-path: var(--cut);
     box-shadow: var(--plate-light);
   }
-  .box.fill { width: 100%; height: 100%; clip-path: none; border: 0; }
+  .box.fill { width: 100%; height: 100%; max-height: none; clip-path: none; border: 0; }
   header { display: flex; align-items: flex-start; gap: 16px; padding: 16px 16px 12px 24px; border-bottom: 1px solid var(--rule); }
   .titles { flex: 1; min-width: 0; display: grid; gap: 6px; }
   .kicker { color: var(--sec); }
   h2 { font-size: 28px; line-height: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .close { --ib: 32px; }
+  /* The pages, one on top of the other: the hidden ones only hold the height. */
+  .pages { min-height: 0; display: grid; grid-template: minmax(0, 1fr) / minmax(0, 1fr); }
+  .pages > * { grid-area: 1 / 1; min-height: 0; }
+  .sizer { display: grid; visibility: hidden; pointer-events: none; }
   .body { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 16px; padding: 16px 24px; overflow: auto; }
-  .beside .body { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 24px; }
+  .body.beside { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 24px; }
   /* A strip is short whatever the box: its well is as tall as it, and the words follow. */
   .body.strip { grid-template-rows: auto auto; align-content: start; }
   .body.strip figure { min-height: 0; }
   .body.nopic { grid-template-rows: auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
   /* A flex box, so the picture's max-height resolves against the well's height and never runs past it. */
   figure { margin: 0; min-height: 160px; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; }
-  img { display: block; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
+  img, .ph { display: block; min-width: 0; min-height: 0; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; }
   .nopicture { color: var(--platinum-deep); }
   .words { display: grid; align-content: start; gap: 10px; min-width: 0; }
   h3 { margin: 0; font-size: 20px; }

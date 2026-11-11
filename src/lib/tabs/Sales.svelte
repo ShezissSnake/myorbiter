@@ -271,7 +271,7 @@
 
   <div class="loghead">
     <div class="import">
-      <h2 class="register">Sale log<HelpMark part="sales.log" /></h2>
+      <div class="hmark"><h2 class="register">Sale log</h2><HelpMark part="sales.log" /></div>
       <ProgressButton stamp={false} icon="import" job={importJob} label="Import" working="Importing…" doneLabel="Imported" failLabel="Couldn't import" title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={!mkt.me?.ingameName} onclick={importFromMarket} />
       {#if sales.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export sales as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
