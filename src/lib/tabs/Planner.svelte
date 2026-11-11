@@ -8,6 +8,7 @@
   import { crackRows, filterGaps, radiantRows, type CrackRow, type RadiantMetric, type RadiantRow, type SetGap } from "../core/advice";
   import type { AdviceSettings } from "../backend";
   import Table from "../ui/Table.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Named from "../ui/Named.svelte";
@@ -198,6 +199,7 @@
     blurb={mode === "sets"
       ? "Your relics most likely to finish a set you're close to."
       : "Where 100 Void Traces gain the most."}
+    help={{ band: "planner.band", hero: "planner.plate" }}
   >
     {#snippet band()}
       {#if mode === "sets"}
@@ -218,7 +220,7 @@
   </PageHead>
 
   <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
-  <div class="modes"><Tabs bind:value={mode} label="Planner view" options={[{ v: "sets", label: "Complete sets", title: "Which relics to crack to finish sets you're close to" }, { v: "radiant", label: "Make radiant", title: "Where your Void Traces gain the most, refining relics to radiant" }]} /></div>
+  <div class="modes"><Tabs bind:value={mode} label="Planner view" options={[{ v: "sets", label: "Complete sets", title: "Which relics to crack to finish sets you're close to" }, { v: "radiant", label: "Make radiant", title: "Where your Void Traces gain the most, refining relics to radiant" }]} /><HelpMark part="planner.modes" /></div>
   <div class="bar">
     <input type="search" aria-label="Filter relics by name, part or reward" title="Shows only what matches what you type" placeholder={mode === "sets" ? "Relic or part…" : "Relic or reward…"} bind:value={query} />
     {#if mode === "sets"}
@@ -234,17 +236,18 @@
       {#if forWish.size}<Chip bind:on={wishOnly} label="For my wishlist" title="Only relics you hold that drop a part for something on your wishlist" />{/if}
       {#if fissures && ERAS_SHOWN.some((e) => !openNow[e]?.length)}<Chip bind:on={openOnly} label="Fissure open now" title="Only relics with a fissure of their era open right now (some eras have none at the moment)" />{/if}
     </Fold>
+    <HelpMark part="planner.filters" />
   </div>
 
   {#if drawnSets}
     <div class="view swap" class:off={mode !== "sets"} use:fresh={mode === "sets"} in:arrive={{ y: 0 }}>
       <div class="sets-table"><Table rows={setsRows} columns={crackCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortSets} clear={setsAnyFilter ? clear : null} empty="None of your relics drop a missing part." /></div>
       {#if setsLast.length}
-        <h2 class="register">One part from a complete set, and your relics drop it</h2>
+        <h2 class="register">One part from a complete set, and your relics drop it<HelpMark part="planner.last" /></h2>
         {@render gapList(setsLast, "last")}
       {/if}
       {#if setsUncovered.length}
-        <h2 class="register">Close, but none of your relics drop the missing part</h2>
+        <h2 class="register">Close, but none of your relics drop the missing part<HelpMark part="planner.uncovered" /></h2>
         {@render gapList(setsUncovered, "uncovered")}
       {/if}
     </div>
@@ -257,6 +260,9 @@
 </div></div>
 
 <style>
+  /* The view's tabs, and the "?" at the right end of their row. */
+  .modes { display: flex; align-items: center; gap: 8px; }
+  .modes > :global(:first-child) { flex: 1; min-width: 0; }
   /* The tab not chosen: kept laid out but not drawn, so showing it again is quick (where
      content-visibility isn't known, simply not there). */
   .view.off { display: none; }

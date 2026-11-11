@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "./HelpMark.svelte";
   // Relic runs: what your fissure rounds came to, per hour, session by session. Every reward
   // screen TennoScope read, with the card you took once an inventory read shows it arriving.
   import type { Model } from "../core/model";
@@ -51,7 +52,7 @@
 
 <section class="runs">
   <div class="hh">
-    <h2 class="register">Relic runs</h2>
+    <h2 class="register">Relic runs<HelpMark part="stats.relic-runs" /></h2>
     {#if sum.screens}<span class="dim small">Each card at today's warframe.market price, or its ducats at your rate ({platPerDucat}p each) when that's more</span>{/if}
   </div>
 
@@ -77,7 +78,7 @@
       </thead>
       <tbody>
         {#each sum.sessions.slice(0, limit) as s (s.start)}
-          <tr class="session" class:open={open === s.start} tabindex="0" aria-expanded={open === s.start} onclick={() => toggle(s.start)} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle(s.start))}>
+          <tr class="session" class:open={open === s.start} tabindex="0" aria-label={`${day(s.start)} ${s.runs.length === 1 ? hm(s.start) : `${hm(s.start)}–${hm(s.end)}`}: ${s.runs.length} reward screen${s.runs.length === 1 ? "" : "s"}`} aria-expanded={open === s.start} onclick={() => toggle(s.start)} onkeydown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), toggle(s.start))}>
             <td><span class="when"><span class="chev" aria-hidden="true">{open === s.start ? "▾" : "▸"}</span>{day(s.start)}<span class="dim">{s.runs.length === 1 ? hm(s.start) : `${hm(s.start)}–${hm(s.end)}`}</span></span></td>
             <td class="right">{s.runs.length}</td>
             <!-- One screen has no length of its own: it counts as a typical round, and a rate from one card says little. -->

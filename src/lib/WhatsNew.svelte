@@ -13,6 +13,7 @@
   import NewsItems from "./ui/NewsItems.svelte";
   import NewsIcon from "./ui/NewsIcon.svelte";
   import Rich from "./ui/Rich.svelte";
+  import HelpMark from "./ui/HelpMark.svelte";
 
   // go: opens a page (Show me, or a page named in the text), and closes this.
   let { open = $bindable(), seen, ondone, go = null }: { open: boolean; seen: string; ondone: () => void; go?: ((to: string) => void) | null } = $props();
@@ -71,9 +72,12 @@
         <h2 id="upd-title" class="register">What's new in MyOrbiter</h2>
         <p class="dim small">{since.count} {since.count === 1 ? "change" : "changes"} since you last opened MyOrbiter{#if updateState.line}<span class="ver" title="The version you're on, and the channel it came from (Settings, Updates)"> · MyOrbiter {updateState.line}</span>{/if}</p>
       </div>
-      <button class="close" aria-label="Close" title="Close (Esc)" onclick={close}>
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
-      </button>
+      <div class="ends">
+        <HelpMark part="whats-new" />
+        <button class="close" aria-label="Close" title="Close (Esc)" onclick={close}>
+          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
+        </button>
+      </div>
     </header>
 
     <div class="scroll">
@@ -125,6 +129,7 @@
   }
   .update::before { content: ""; position: absolute; inset: 0 0 auto; height: 2px; background: var(--gold); }
 
+  .ends { display: flex; align-items: center; gap: .5rem; }
   .top { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 1.4rem; padding: 1.6rem 2rem 1.2rem; border-bottom: 1px solid var(--rule); }
   .kick h2 { margin: 0; color: var(--gold); font-size: .72rem; letter-spacing: .22em; }
   .kick p { margin: .3rem 0 0; }

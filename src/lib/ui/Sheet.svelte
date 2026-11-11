@@ -17,7 +17,9 @@
   // transition, not a Svelte transition, and its blurred shadow comes only once it has settled
   // (a blur repainted every frame of the slide made the window redraw).
 
-  let { open = $bindable(), title, kicker, kind, wide = false, keep = false, children }: { open: boolean; title: string; kicker?: string; /** The kicker names this kind: its slot's icon leads it. */ kind?: string; wide?: boolean; keep?: boolean; children: Snippet } = $props();
+  import HelpMark from "./HelpMark.svelte";
+  // `help`: the panel's part id, for its "?" beside Close.
+  let { open = $bindable(), title, kicker, kind, wide = false, keep = false, help, children }: { open: boolean; title: string; kicker?: string; /** The kicker names this kind: its slot's icon leads it. */ kind?: string; wide?: boolean; keep?: boolean; help?: string; children: Snippet } = $props();
 
   let seen = $state(false);
   $effect.pre(() => {
@@ -45,6 +47,7 @@
       {#if kicker}<div class="register">{#if kind}<Kind {kind} label={kicker} size={12} />{:else}{kicker}{/if}</div>{/if}
       <h2 class="mark">{title}</h2>
     </div>
+    {#if help}<HelpMark part={help} />{/if}
     <button class="close" aria-label="Close" title="Close (Esc)" onclick={() => (open = false)}>
       <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d="M3 3l10 10M13 3 3 13" stroke="currentColor" stroke-width="1.5" /></svg>
     </button>
@@ -83,6 +86,9 @@
   .sheet.keep.settled { box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control); }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
   header .register { color: var(--platinum-dim); margin-bottom: .45rem; }
+  /* The title takes the room, so the "?" sits beside Close at the right end. */
+  header > div:first-child { flex: 1; min-width: 0; }
+  header > :global(.helpmark) { align-self: center; }
   h2 { font-size: 2.1rem; }
   .close { padding: .5rem; line-height: 0; }
   /* One column no wider than the sheet: a long unbreakable line (a path) can't widen every section

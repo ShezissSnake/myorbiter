@@ -261,3 +261,29 @@ SCENARIOS.syncDebug = {
     return { btn, after, label };
   },
 };
+
+/**
+ * The help over a page (ui/HelpDialog.svelte): the click on the page's first "?" to the dialog's
+ * paint, the page updating behind it (a Sync), 10 s open, and Esc. `helpFlat` is the help as it
+ * ships, the shade alone; `helpBlur` puts a still blur on the page behind (the rule app.css leaves
+ * off until this shows it costs little), to compare.
+ */
+const helpOver = (flat) => ({
+  syncReload: true,
+  async run(s) {
+    if (!flat) await s.eval(`(() => { const st = document.createElement('style'); st.textContent = '.pane.helpblur { filter: blur(3px); }'; document.head.append(st); return 0; })()`);
+    const out = {};
+    for (const label of ["Orders", "Mastery"]) {
+      await s.measure(nav(label));
+      await s.measure("void 0", { quiet: 1500, max: 4000 });
+      const open = await s.measure(`document.querySelector('.pane.shown [data-help]').click()`, { quiet: 600 });
+      const update = await s.measure(`document.querySelector('.syncrow button.sync').click()`, { quiet: 1200 });
+      const held = await s.measure("void 0", { quiet: 60000, max: 10000 });
+      const close = await s.measure(`document.querySelector('[role=dialog][aria-modal=true]').dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`, { quiet: 600 });
+      out[label] = { open, update, held, close };
+    }
+    return out;
+  },
+});
+SCENARIOS.helpBlur = helpOver(false);
+SCENARIOS.helpFlat = helpOver(true);

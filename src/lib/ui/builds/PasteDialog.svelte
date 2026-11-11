@@ -4,6 +4,7 @@
   // what it couldn't, with suggestions to pick for those, and the build as it would be. Save keeps it.
   // A Nox's Frame build code (NFB1:…, its "Copy build code") is unpacked here, with no network:
   // the part for this item, and what it couldn't carry over.
+  import HelpMark from "../HelpMark.svelte";
   import { tick } from "svelte";
   import { scrim } from "../scrim";
   import type { Model } from "../../core/model";
@@ -125,7 +126,7 @@
 <div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="dialog" role="dialog" aria-modal="true" aria-label="Paste a build for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
-    <div class="register head">Paste a build · {item.name}</div>
+    <div class="register head"><span>Paste a build · {item.name}</span><HelpMark part="builds.paste" /></div>
     <label class="field">
       <span class="register">The build</span>
       <textarea bind:this={area} bind:value={text} rows="7" placeholder={"Paste a build from anywhere: Nox's Frame, a friend, Discord…, or a Nox's Frame build code (NFB1:…)\nAura: Corrosive Projection\nVitality, Steel Fiber R8, Primed Continuity…\nArcanes: Energize, Grace"} title="Any list of mod and arcane names, with ranks if you like, or a Nox's Frame build code (Copy build code on its build page): paste it here" oninput={() => readSoon()} onpaste={() => readSoon(true)}></textarea>
@@ -216,7 +217,7 @@
 <style>
   .scrim { position: fixed; inset: 0; z-index: 50; background: rgb(6 7 9 / 72%); display: grid; place-items: center; padding: 1rem; }
   .dialog { clip-path: var(--cut); width: min(52rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: var(--plate); border: 1px solid var(--rule-bright); padding: 1.2rem 1.4rem 1.1rem; display: grid; gap: .8rem; box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%); }
-  .head { color: var(--sec); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--sec); }
   .field { display: grid; gap: .3rem; min-width: 0; }
   textarea { font: inherit; font-size: .84rem; color: var(--platinum); background: var(--well); border: 1px solid var(--rule-control); padding: .5rem .6rem; resize: vertical; min-height: 7rem; text-transform: none; letter-spacing: 0; }
   textarea:focus-visible, input:focus-visible { outline: 2px solid var(--sec); outline-offset: 1px; }

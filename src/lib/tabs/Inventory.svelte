@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import Count from "../ui/Count.svelte";
@@ -279,7 +280,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Inventory" brief="Everything you own, and what it's worth." blurb="Everything you own, with what it's worth on warframe.market.">
+  <PageHead help={{ band: "inventory.band", hero: "inventory.showcase" }} title="Inventory" brief="Everything you own, and what it's worth." blurb="Everything you own, with what it's worth on warframe.market.">
     {#snippet hero()}
       <Showcase
         items={exhibits}
@@ -318,6 +319,7 @@
     <span class="grow"></span>
     <!-- Not a filter: it opens the list of gear you can sell to the game for credits. -->
     <button type="button" class="letgo" class:on={letGo} aria-pressed={letGo} onclick={() => (letGo = !letGo)} title="Gear you can't trade and no longer need: a weapon, frame or companion once you've mastered it and own a better version of it (the Dual Decurion once you have Prisma Dual Decurions), and extra copies of something mastered. Sell them for credits in game">Gear to sell for credits · <Count value={goCount} /></button>
+    <HelpMark part="inventory.filters" />
   </div>
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}

@@ -6,6 +6,7 @@
   // added here by hand for trades made outside warframe.market.
   import type { Model } from "../core/model";
   import type { Sale, Settings } from "../backend";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Stat from "../ui/Stat.svelte";
@@ -215,7 +216,7 @@
 
 <div class="page"><div class="page-inner">
   <!-- Nothing logged: no row of zeros, just how sales get here. -->
-  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} hero={ticker} />
+  <PageHead title="Sales" brief="What you've sold, and the platinum it made." blurb="What you've sold, and the platinum it made." band={sales.length ? band : undefined} hero={ticker} help={{ band: "sales.band", hero: "sales.ticker" }} />
     {#snippet ticker()}<Ticker id="sales" label="Your sales, live" items={tape} />{/snippet}
     {#snippet band()}
       <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big tick /></Stat>
@@ -228,6 +229,7 @@
   {#if !sales.length}
     <div class="reveal" transition:reveal><div>
     <section class="panel empty">
+      <HelpMark part="sales.empty" corner />
       <h2 class="mark">No sales logged yet</h2>
       {#if settings.market.platform !== "pc"}
       <p class="prose">Press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button> when it sells, or import your warframe.market sales below.</p>
@@ -241,7 +243,7 @@
     <div class="reveal" transition:reveal><div>
     <div class="grid">
       <section class="chart">
-        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} label="Span" onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /></div>
+        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} label="Span" onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /><HelpMark part="sales.chart" /></div>
         <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
         {#key picks}
         <div class="bars" class:grow={picks > 0} role="img" aria-label="Platinum made per day">
@@ -255,7 +257,7 @@
         <div class="axis register"><span>{new Date(days[0].at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><span>today</span></div>
       </section>
       <section class="top">
-        <div class="register">Best sellers</div>
+        <div class="head"><span class="register">Best sellers</span><span class="grow"></span><HelpMark part="sales.best" /></div>
         {#each top as t (t.item)}
           <div class="trow"><Named file={image(t.item)} name={t.item} size={30}>{#if fast.has(t.item)}<span class="tag fast" title="Sold {OFTEN} or more times in the last 30 days: keep it listed, and list more copies if you have them">sells often</span>{/if}</Named><span class="dim small n">{t.qty}×</span><P v={t.plat} /></div>
         {:else}
@@ -269,7 +271,7 @@
 
   <div class="loghead">
     <div class="import">
-      <h2 class="register">Sale log</h2>
+      <h2 class="register">Sale log<HelpMark part="sales.log" /></h2>
       <ProgressButton stamp={false} icon="import" job={importJob} label="Import" working="Importing…" doneLabel="Imported" failLabel="Couldn't import" title={mkt.me?.ingameName ? "Import sales from warframe.market: every sale you marked sold there that isn't logged here yet" : "Import sales from warframe.market: sign in on Orders first"} disabled={!mkt.me?.ingameName} onclick={importFromMarket} />
       {#if sales.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export sales as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every logged sale as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportSales} />{/if}
       {#if importing}<span class="small dim" role="status">Reading warframe.market…</span>{:else if imported}<span class="small" class:dim={!importFailed} class:bad={importFailed} role="status">{imported}</span>{/if}
@@ -282,6 +284,7 @@
       <span class="dim">×</span>
       <span class="plat"><input type="number" min="1" placeholder="Price" title="The platinum you got for each one" bind:value={price} aria-label="Platinum each" /><Metal kind="plat" size={14} /></span>
       <IconButton icon="plus" tone="gold" type="submit" label="Add sale" title={blocked ?? "Add it to the log"} disabled={!!blocked} />
+      <HelpMark part="sales.add" />
     </form>
     {#if unknown}<p class="small warn note">Not an item MyOrbiter knows: it won't be compared with the market.</p>
     {:else if qty != null && Math.round(qty) < 1}<p class="small warn note">Quantity is at least 1.</p>{/if}
@@ -320,6 +323,7 @@
   .grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(18rem, 1fr); gap: 1.6rem; margin: var(--step) 0 var(--course); }
   /* Page area under 950 px (App sets the flag, by the room pages actually have). */
   :global(html[data-room~="lt950"]) .grid { grid-template-columns: 1fr; }
+  .empty { position: relative; }
   .chart, .top { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem; }
   .head { display: flex; align-items: center; margin-bottom: .8rem; gap: 1rem; }
   .head .small { display: inline-flex; align-items: center; gap: .4rem; }
@@ -332,7 +336,7 @@
   .col:hover { background: rgb(255 255 255 / 5%); }
   .axis { display: flex; justify-content: space-between; margin-top: .4rem; color: var(--platinum-deep); }
   .top { display: grid; gap: .55rem; align-content: start; }
-  .top > .register { margin-bottom: .2rem; }
+  .top > .head { margin-bottom: .2rem; }
   .trow { display: grid; grid-template-columns: minmax(0, 1fr) 2.4rem 4rem; gap: .8rem; align-items: center; }
   .trow .n, .trow :global(.amt) { justify-self: end; }
 

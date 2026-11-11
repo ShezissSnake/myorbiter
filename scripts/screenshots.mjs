@@ -3,7 +3,11 @@
 // them, in site/shots/large/), taken from the invented account (`npm run dev:demo`, demo/), never
 // from public/dev-*.json.
 //
-//   npm run screenshots [-- --port 1431] [-- --only site|docs]
+//   npm run screenshots [-- --port 1431] [-- --only site|docs|help] [-- --id <walk-through>]
+//
+// `--only help` takes the help's pictures instead (scripts/help-shots.mjs: public/help/ and
+// src/lib/help/pictures.json), all of them or one walk-through's with --id. It runs under tsx (the
+// npm script does), since the help list is TypeScript.
 //
 // It installs Playwright's Chromium if it isn't there yet (`playwright install chromium`, into
 // Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
@@ -30,7 +34,9 @@ const url = `http://localhost:${port}/`;
 
 const onlyArg = process.argv.indexOf("--only");
 const only = onlyArg > 0 ? process.argv[onlyArg + 1] : null;
-if (only !== null && only !== "site" && only !== "docs") throw new Error(`--only takes site or docs, not ${only}`);
+if (only !== null && only !== "site" && only !== "docs" && only !== "help") throw new Error(`--only takes site, docs or help, not ${only}`);
+const idArg = process.argv.indexOf("--id");
+const helpId = idArg > 0 ? process.argv[idArg + 1] : null;
 
 // Pages, in the order the app's sidebar has them, and what each needs before its picture.
 const SHOTS = [
@@ -130,6 +136,10 @@ try {
 
   work = mkdtempSync(join(tmpdir(), "myorbiter-shots-"));
   browser = await chromium.launch();
+  if (only === "help") {
+    const { takeHelp } = await import("./help-shots.mjs");
+    await takeHelp(browser, url, root, work, helpId);
+  }
   for (const [kind, { w, h, out, pages, large }] of Object.entries(SIZES)) {
     if (only && kind !== only) continue;
     if (large) mkdirSync(join(root, out, "large"), { recursive: true });

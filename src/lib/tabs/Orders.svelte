@@ -20,6 +20,7 @@
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Vessel from "../ui/Vessel.svelte";
   import Named from "../ui/Named.svelte";
@@ -705,6 +706,7 @@
           <p class="note">of {trades.limit} today · resets in {resets}</p>
         </div>
       {/if}
+      <HelpMark part="orders.tiles" corner />
     </section>
   {/if}
 
@@ -721,6 +723,7 @@
         <ProgressButton variant="icon" icon="refresh" spin tone="quiet" job={reloadJob} label="Reload" working="Reloading…" doneLabel="Reloaded" failLabel="Couldn't reload" title="Fetch your listings from warframe.market again" disabled={!!mkt.op} onclick={reloadListings} />
         {@render signOut()}
       </span>
+      <HelpMark part="orders.status" />
     </section>
   {/snippet}
   {#if mkt.linked && mkt.accountError}{@render statusPlate()}{/if}
@@ -758,6 +761,7 @@
 
   {#if mkt.accountError}
     <section class="panel">
+      <HelpMark part="orders.unreachable" corner />
       {#if mkt.signInRefused}
         <h2 class="mark">warframe.market refused the sign-in</h2>
         <p class="prose">It no longer accepts MyOrbiter's sign-in (it expired, or was signed out elsewhere). Sign out, then sign in again: listing and repricing wait until you do.</p>
@@ -770,6 +774,7 @@
     </section>
   {:else if !mkt.linked}
     <section class="panel signin">
+      <HelpMark part="orders.sign-in" corner />
       <h2 class="mark">Sign in to warframe.market</h2>
       <p class="prose">{console ? "MyOrbiter signs in to warframe.market itself." : "MyOrbiter keeps its own sign-in, separate from TennoScope's."} The token goes into your system keyring; the password is sent to warframe.market once and never stored.</p>
       <Seg label="Sign in with" bind:value={how} options={[{ v: "password", label: "Email & password" }, { v: "token", label: "Paste a token" }]} />
@@ -803,6 +808,7 @@
             <button type="button" class="link quiet small" title="Their warframe.market profile: reputation and reviews" aria-busy={links.isOpening(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)} onclick={() => openUrl(`https://warframe.market/profile/${encodeURIComponent(w.name)}`)}><Opening url={`https://warframe.market/profile/${encodeURIComponent(w.name)}`}>profile ↗</Opening></button>
           </span>
         {/each}
+        <HelpMark part="orders.whispers" />
         {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
       </section>
     {/if}
@@ -827,6 +833,7 @@
       <h2 class="register yours">Your listings</h2>
       {#if wts.length}<CopyButton class="wts" text={() => wts[wtsAt]} label={wts.length > 1 ? `Copy trade-chat line ${wtsAt + 1} of ${wts.length}` : "Copy trade-chat line"} sizer={wts.length > 1 ? [`Copy trade-chat line ${wts.length} of ${wts.length}`] : []} oncopied={() => (wtsNext = wtsAt + 1)}
         title={`Copy your shown listings as a trade chat line, to paste in game too:\n${wts[wtsAt]}${wts.length > 1 ? `\n(${wts.length} lines: each press copies the next)` : ""}`} />{/if}
+      <HelpMark part="orders.listings" />
       </div>
       <section class="newlisting" aria-label="New listing">
         <span class="register">New listing</span>
@@ -842,7 +849,7 @@
           </div>{/if}</span>
         {#if console && (!matches.length || !searchOpen)}<span class="dim small hint">Type a name, pick it, then set how many you have to sell and the price.</span>
         {:else if !matches.length || !searchOpen}<span class="dim small hint">or the <Icon name="list" size={13} /> on any card or row in Inventory, Sets, Prime parts, Arcanes, Mods or Relics.</span>{/if}
-
+        <HelpMark part="orders.new-listing" />
       </section>
     </div>
     <div class="bar tools">
@@ -886,6 +893,7 @@
       </Fold>
       {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
       {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton class="showall" variant="link" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
+      <HelpMark part="orders.reprice" />
     </div>
 
     <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
@@ -1035,7 +1043,7 @@
     {#if mkt.buys.length}
       <!-- Buy orders you posted (from Wishlist, or on the website): what you're paying, and a way to take one down. -->
       <section class="buys" aria-label="Your buy orders">
-        <h2 class="register yours">Your buy orders</h2>
+        <h2 class="register yours">Your buy orders<HelpMark part="orders.buy-orders" /></h2>
         <ul>
           {#each mkt.buys as o (o.id)}
             {@const it = mkt.item(o.itemId)}
@@ -1058,7 +1066,7 @@
     {#if auctions.length}
       <!-- Riven auctions: warframe.market keeps them apart from listings, and they aren't repriced automatically. -->
       <section class="buys" aria-label="Your riven auctions">
-        <h2 class="register yours">Your riven auctions</h2>
+        <h2 class="register yours">Your riven auctions<HelpMark part="orders.auctions" /></h2>
         <ul>
           {#each auctions as a (a.id)}
             {@const w = weaponOf(a)}
@@ -1092,7 +1100,7 @@
     {/if}
     {#if mkt.log.length}
       <section class="log" aria-label="Activity">
-        <div class="register">Activity</div>
+        <div class="loghead"><span class="register">Activity</span><HelpMark part="orders.activity" /></div>
         {#each mkt.log.slice(0, 30) as l (l.at + l.text)}
           <div class="line {l.tone}"><span class="register">{fmt(l.at)}</span> {l.text}</div>
         {/each}
@@ -1105,7 +1113,7 @@
 
 <style>
   /* The figure tiles: four across, two by two in a compact pane; three fill the row on a console. */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 16px; margin-bottom: var(--step); }
+  .tiles { position: relative; display: grid; grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr)); gap: 16px; margin-bottom: var(--step); }
   :global(html[data-room~="lt1100"]) .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .tile {
     min-width: 0; padding: 14px 18px 12px; clip-path: var(--cut);
@@ -1130,6 +1138,10 @@
   :global(html[data-room~="ge1700"]) .side .sparesline .go { margin-left: auto; }
   .status { display: flex; flex-wrap: wrap; align-items: flex-start; gap: .6rem 1rem; margin-top: var(--step); padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .status > .register { padding-top: .55rem; }
+  .status > :global(.helpmark) { margin-top: 4px; }
+  .whispers > :global(.helpmark) { margin-left: auto; }
+  /* The activity's head stays in sight while its lines scroll under it. */
+  .loghead { position: sticky; top: -.7rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-top: -.2rem; background: var(--plate); }
   .account { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; padding-top: .2rem; }
   .account .who { margin-right: .4rem; }
   .account :global(.ib) { --ib: 32px; }
@@ -1142,6 +1154,9 @@
   .buys .plat input { width: 5.5rem; }
   .listhead { display: grid; gap: .7rem; margin-top: var(--step); padding-top: .9rem; border-top: 1px solid var(--rule); }
   .lhtop { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1.6rem; }
+  /* The trade-chat line and the "?" together at the right end. */
+  .lhtop > h2 { margin-right: auto; }
+  .lhtop > :global(.helpmark) { margin-left: -1rem; }
   .minp { width: 4.2rem; padding: .4rem .5rem; }
 
   /* New listing: a search with a dropdown of what you hold. */
@@ -1189,7 +1204,7 @@
 
   /* The page's error box; not the tags of the same name ("over market"), which keep the tag's own look. */
   div.alert { border: 1px solid var(--oxblood); color: var(--oxblood); padding: .7rem 1rem; margin: var(--step) 0; font-size: .84rem; }
-  .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
+  .panel { position: relative; border: 1px solid var(--rule); background: var(--plate); padding: 1.2rem 1.4rem; margin: var(--step) 0; display: grid; gap: .8rem; }
   .signin h2 { font-size: 1.9rem; }
   .row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
   .wide { min-width: 28rem; }

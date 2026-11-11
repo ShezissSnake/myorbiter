@@ -11,6 +11,7 @@
   import { wikiUrl } from "../backend";
   import Browse from "../ui/Browse.svelte";
   import ItemCard from "../ui/ItemCard.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Ticker, { type Tick } from "../ui/Ticker.svelte";
   import Named from "../ui/Named.svelte";
@@ -154,7 +155,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Browse market" brief="Everything on warframe.market, by price." blurb="Everything warframe.market trades: what it sold for lately, how often it sells.">
+  <PageHead title="Browse market" brief="Everything on warframe.market, by price." blurb="Everything warframe.market trades: what it sold for lately, how often it sells." help={{ hero: "browse.ticker" }}>
     {#snippet hero()}<Ticker id="browse" label="The market, live" items={tape} />{/snippet}
   </PageHead>
 
@@ -184,6 +185,7 @@
       <input type="number" min="0" step="any" placeholder="any" bind:value={minTrades} aria-label="Minimum sold a day" />
     </label>
     </Fold>
+    <HelpMark part="browse.filters" />
   </div>
 
   {#if !mkt.items.length}
@@ -193,7 +195,7 @@
       <p class="dim">Loading warframe.market's item list…</p>
     {/if}
   {:else}
-    <Browse id="market-browse" {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
+    <Browse id="market-browse" help={{ list: "browse.list", sheet: "browse.sheet" }} {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
     {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>{/if}
   {/if}
 </div></div>

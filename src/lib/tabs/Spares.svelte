@@ -20,6 +20,7 @@
   import { whenIdle, whileShown } from "../pane.svelte";
   import { UndoSlots } from "../undo.svelte";
   import { Job, JobError } from "../job.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import SparesPlan from "../ui/SparesPlan.svelte";
   import PlanReview from "../ui/spares/PlanReview.svelte";
@@ -271,6 +272,7 @@
             title={stale ? "You changed what to sell since this plan: plan again first" : "Send these changes to warframe.market, one at a time"} disabled={!!mkt.busy || stale} onclick={apply} />
         {/if}
         <button type="button" disabled={!!mkt.busy} title="Put this plan away: nothing is sent" onclick={() => (mkt.bulk = null)}>Cancel</button>
+        <HelpMark part="spares.plan" />
       </div>
       {#if masteryRank != null && masteryRank >= 2}
         {@const copies = changes.reduce((n, a) => n + (a.type === "remove" ? 0 : a.quantity), 0)}

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -281,7 +282,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
+  <PageHead help={{ band: "arcanes.band", hero: "arcanes.showcase" }} title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet hero()}
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No arcanes read yet: press Sync while Warframe is running, and they go on display here." />
     {/snippet}
@@ -307,6 +308,7 @@
         { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
         { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
       ]} />
+      <HelpMark part="arcanes.packs" />
     </header>
     <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
     <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
@@ -336,6 +338,7 @@
     <option value="none">In no collection</option>
   </select>
   </Fold>
+  <HelpMark part="arcanes.filters" />
   </div>
 
   {#if show === "spares"}

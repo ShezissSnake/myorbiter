@@ -8,6 +8,7 @@
   //
   // It draws the choices (settings.market.spares, version 2: core/sparesRules.ts) and the counts
   // the page gives it (core/bulk.ts: sparesPreview, planTally).
+  import HelpMark from "./HelpMark.svelte";
   import type { Snippet } from "svelte";
   import CategoryRow from "./spares/CategoryRow.svelte";
   import FamilyLine from "./spares/FamilyLine.svelte";
@@ -109,6 +110,7 @@
       {:else}<span title="Working out what each kind would list">…</span>{/if}
       {#if !usual}<button type="button" class="link quiet" title="Every choice back to MyOrbiter's usual one (what you never sell stays as it is)" onclick={() => (rules = usualKeeping(rules))}>Back to the usual rules</button>{/if}
     </div>
+    <HelpMark part="spares.kinds" />
   </header>
 
   <div class="cats">
@@ -248,6 +250,7 @@
       </Switch>
     </div>
     <Minimums bind:minPrice bind:minByCategory />
+    <HelpMark part="spares.minimums" corner />
     <p class="note">Nothing is listed or priced under its minimum (a spare that sells for less is left out), and repricing raises a listing under it to it. Your own floors on Orders, a prime's ducats and a relic's crack value still hold above it.</p>
   </div>
 
@@ -260,12 +263,13 @@
     </span>
     <span class="grow"></span>
     {#if actions}{@render actions()}{/if}
+    <HelpMark part="spares.plan-button" />
   </footer>
 </div>
 
 <style>
   .spares-plan { display: grid; gap: .7rem; }
-  .top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .4rem 1.5rem; }
+  .top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem 1.5rem; }
   .lead { margin: 0; }
   .totals { display: inline-flex; align-items: baseline; gap: .9rem; font-size: .82rem; color: var(--platinum-dim); font-variant-numeric: tabular-nums; margin-left: auto; }
   .totals b { font-family: var(--face-mark); font-size: 1.15rem; color: var(--platinum); margin-right: .15rem; }
@@ -286,6 +290,6 @@
   /* The plan button keeps to the right, wrapped onto its own line or not. */
   .foot :global(.planbtn) { margin-left: auto; }
   .switches { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .7rem 2rem; padding-bottom: .5rem; margin-bottom: .2rem; border-bottom: 1px solid var(--rule); }
-  .minimums { display: grid; gap: .35rem; padding: .55rem .7rem; border: 1px solid var(--rule); background: var(--well); }
+  .minimums { position: relative; display: grid; gap: .35rem; padding: .55rem 2.6rem .55rem .7rem; border: 1px solid var(--rule); background: var(--well); }
   .grow { flex: 1; }
 </style>

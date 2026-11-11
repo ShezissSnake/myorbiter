@@ -21,6 +21,7 @@
   import Icon from "./Icon.svelte";
   import Chip from "./Chip.svelte";
   import P from "./P.svelte";
+  import HelpMark from "./HelpMark.svelte";
 
   let { model, live, settings = $bindable(), console = false, bountyTables = null, go, shortListings = [], liveError = null }: { model: Model | null; live: Live; settings: Settings; console?: boolean; bountyTables?: BountyTable[] | null; go: (t: string) => void; shortListings?: { id: string; itemId: string }[]; liveError?: string | null } = $props();
 
@@ -102,7 +103,7 @@
   {#each settings.side.cards as k (k)}
     {#if on(k) && k === "alerts"}
       <section>
-        <h3 class="register"><Icon name="bell" size={11} /> Alerts</h3>
+        <h3 class="register"><Icon name="bell" size={11} /> Alerts<HelpMark part="watching.alerts" /></h3>
         {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !rareInvasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
         <ul class="cards">
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")} title="Visible listings on warframe.market for more copies than you hold now">Listed more than you hold: {shortListings.length} listing{shortListings.length === 1 ? "" : "s"}</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
@@ -115,7 +116,7 @@
       </section>
     {:else if on(k) && k === "fissures"}
       <section>
-        <h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}</h3>
+        <h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}<HelpMark part="watching.fissures" /></h3>
         {#if mine}
           <!-- Just your alerts' matches: few enough to read as one list, soonest to close first. -->
           {#if soonest.length}<ul class="cards">{#each soonest as f (f.id)}{@render fissureCard(f)}{/each}</ul>{/if}
@@ -129,18 +130,18 @@
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>
-        <h3 class="register"><GameIcon name="cycles" size={13} /> Clocks</h3>
+        <h3 class="register"><GameIcon name="cycles" size={13} /> Clocks<HelpMark part="watching.clocks" /></h3>
         <ul class="tiles">{#each cycles as c (c.key)}<li class="tile" title="{c.label}: {c.state} for {left(c.ends)}"><GameIcon name={(c.key === "zariman" && factionIcon(c.state)) || CYCLE_ICON[c.key]} size={18} /><span class="tx"><b class="st-{c.state}">{c.state}</b><span class="dim small">{c.label}</span><span class="t">{left(c.ends)}</span></span></li>{/each}</ul>
       </section>
     {:else if on(k) && k === "foundry"}
       <section>
-        <h3 class="register"><GameIcon name="foundry" size={13} /> Foundry</h3>
+        <h3 class="register"><GameIcon name="foundry" size={13} /> Foundry<HelpMark part="watching.foundry" /></h3>
         {#if !builds.length}<p class="dim small">Nothing building.</p>{/if}
         <ul class="cards">{#each builds as b (b.key)}<li class="card" class:era-wash={b.ready} style:--tint={b.ready ? "var(--verdigris)" : null}><Thumb file={b.image} name={b.name} size={26} /><span class="tx"><b>{b.name}</b>{#if b.points}<span class="dim small">{b.points.toLocaleString()} mastery</span>{/if}</span><span class="t" class:ready={b.ready}>{b.ready ? "Ready" : left(new Date(b.readyAt).toISOString())}</span></li>{/each}</ul>
       </section>
     {:else if on(k) && k === "bounties" && boards.length}
       <section>
-        <h3 class="register"><GameIcon name="bounty" size={13} /> Bounties</h3>
+        <h3 class="register"><GameIcon name="bounty" size={13} /> Bounties<HelpMark part="watching.bounties" /></h3>
         <ul class="cards">
           {#each boards as b (b.key)}
             {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
@@ -151,7 +152,7 @@
       </section>
     {:else if on(k) && k === "market"}
       <section>
-        <h3 class="register"><GameIcon name="market" size={13} /> Market</h3>
+        <h3 class="register"><GameIcon name="market" size={13} /> Market<HelpMark part="watching.market" /></h3>
         {#if mkt.linked}
           <div class="figs">
             <span><b>{mkt.orders.filter((o) => o.type === "sell" && o.visible).length}</b><span class="dim small">listed</span></span>
@@ -171,6 +172,7 @@
   .ib:hover { color: var(--gold); border-color: var(--rule); }
   .choose { display: flex; flex-wrap: wrap; gap: .3rem; }
   section { display: grid; gap: .35rem; }
+  h3 > :global(.helpmark) { margin-left: auto; }
   h3 { display: flex; align-items: center; gap: .35rem; margin: 0; font-size: 11px; color: var(--platinum-dim); }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: .82rem; }

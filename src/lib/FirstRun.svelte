@@ -5,6 +5,7 @@
   // no click outside): either answer is a click, and either is changed later in Settings,
   // TennoScope.
   import { scrim } from "./ui/scrim";
+  import HelpMark from "./ui/HelpMark.svelte";
   import { trap } from "./ui/trap";
   import { opens, shade } from "./motion";
   import { FULL_MODE_WARNING } from "./FullMode.svelte";
@@ -24,6 +25,7 @@
     <header>
       <span class="register kicker">First start</span>
       <h2 class="mark" id="first-run-title">Should TennoScope read your inventory?</h2>
+      <HelpMark part="first-run" corner />
     </header>
     <p class="prose" id="first-run-what">
       MyOrbiter runs TennoScope beside it. Without Full mode, TennoScope reads the game's log and the reward
@@ -42,7 +44,7 @@
 <style>
   .scrim { position: fixed; inset: 0; z-index: 50; background: rgb(6 7 9 / 72%); display: grid; place-items: center; padding: 1rem; }
   .dialog { clip-path: var(--cut); width: min(40rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: var(--plate); border: 1px solid var(--rule-bright); box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%), inset 3px 0 0 var(--gold-dim); padding: 1.3rem 1.5rem 1.1rem; display: grid; gap: .9rem; outline: none; }
-  header { display: grid; gap: .3rem; }
+  header { display: grid; gap: .3rem; position: relative; padding-right: 2rem; }
   .kicker { color: var(--gold); }
   h2 { font-size: 1.7rem; margin: 0; }
   p { margin: 0; }

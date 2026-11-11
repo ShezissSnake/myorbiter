@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import { shownPage, whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
   import { untrack } from "svelte";
@@ -661,7 +662,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead hero={!console && mine.length ? showcase : undefined} title="Rivens" brief={console ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
+  <PageHead help={{ band: "rivens.band", hero: "rivens.showcase" }} hero={!console && mine.length ? showcase : undefined} title="Rivens" brief={console ? "Rivens for sale, graded, and alerts." : "Your rivens graded, and what they sell for."} blurb={console ? "Find rivens for sale, each roll graded, what each weapon's rivens traded for last week, and alerts when one you want is listed at your price." : "Your rivens graded stat by stat, and what each weapon's rivens sold for last week."}>
     {#snippet band()}
       {#if !console}
       <Stat label="Unveiled" note="Read from your inventory">{mine.length}</Stat>
@@ -694,6 +695,7 @@
         </article>
       {/each}
       <p class="dim small">Read while you're choosing in game (press Sync at the cycle screen if it doesn't show). The stats are weighed by what players look for on a riven: crit, multishot, damage and elements first; a curse on zoom or recoil costs nothing.</p>
+      <HelpMark part="rivens.cycling" corner />
     </section>
   {/if}
 
@@ -723,6 +725,7 @@
       </select>
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
+      <HelpMark part="rivens.filters" />
     </div>
     <Browse id="rivens" bind:opened rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
       {#snippet tools()}
@@ -743,7 +746,7 @@
   {/if}
 
   <section class="finder">
-    <h2 class="register lead">Find a riven</h2>
+    <h2 class="register lead">Find a riven<HelpMark part="rivens.finder" /></h2>
     {#if !meta}
       <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
@@ -928,7 +931,7 @@
   .checking { display: inline-flex; align-items: center; gap: .6rem; }
   .steps { margin: .2rem 0 .6rem; padding-left: 1.2rem; display: grid; gap: .2rem; }
   /* A riven mid-cycle: the two rolls side by side, the one to keep lit. */
-  .cycling { display: grid; gap: .8rem; margin-bottom: var(--step); }
+  .cycling { position: relative; padding-top: 30px; display: grid; gap: .8rem; margin-bottom: var(--step); }
   .choice { border: 1px solid var(--gold-dim); background: var(--plate); padding: .9rem 1rem; display: grid; gap: .6rem; }
   .choice header { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
   .choice header b { font-size: 1.1rem; }

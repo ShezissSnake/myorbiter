@@ -29,6 +29,8 @@ export interface TrapOptions {
    * back to what had it before.
    */
   active?: boolean;
+  /** False: closing leaves the focus alone, for a dialog that puts it back itself (the help). */
+  restore?: boolean;
 }
 
 export function trap(node: HTMLElement, options: TrapOptions = {}) {
@@ -84,7 +86,7 @@ export function trap(node: HTMLElement, options: TrapOptions = {}) {
     window.removeEventListener("keydown", onKey);
     const i = open.indexOf(node);
     if (i >= 0) open.splice(i, 1);
-    const from = opener;
+    const from = opts.restore === false ? null : opener;
     opener = null;
     // Back where it was, unless something else took the focus meanwhile (another panel opening).
     setTimeout(() => {

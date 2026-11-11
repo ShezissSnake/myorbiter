@@ -15,6 +15,7 @@
   import Count from "./Count.svelte";
   import { keepWhile } from "../pane.svelte";
   import { arrive, fresh } from "../motion";
+  import HelpMark from "./HelpMark.svelte";
   import { inView, progressive } from "../progress.svelte";
 
   let {
@@ -37,6 +38,7 @@
     tools,
     count,
     opened = $bindable(null),
+    help,
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -67,7 +69,11 @@
     count?: (n: number) => string;
     /** The row whose details panel is open: the page can open one itself (the showcase above it). */
     opened?: T | null;
+    /** The parts' ids for the "?": the list (its sort row) and a row's details panel; `<id>.list` and `<id>.sheet` unless given. */
+    help?: { list?: string; sheet?: string };
   } = $props();
+  const helpList = $derived(help?.list ?? `${id}.list`);
+  const helpSheet = $derived(help?.sheet ?? `${id}.sheet`);
 
   const key_ = () => `orbiter-layout-${id}`;
   let layout = $state<"cards" | "list">(read());
@@ -190,6 +196,7 @@
   <span class="dim small nowrap"><Count value={view.length} format={(n) => (count ? count(Math.round(n)) : `${Math.round(n).toLocaleString("en")} ${Math.round(n) === 1 ? "item" : "items"}`)} /></span>
   <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
   {#if tools}{@render tools()}{/if}
+  <HelpMark part={helpList} />
 </div>
 
 {#snippet firstCell(r: T)}
@@ -214,7 +221,7 @@
 {/if}
 
 {#if detail && opened != null}
-  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} kicker={kicker?.(opened)} wide>
+  <Sheet bind:open={sheet.v} title={title ? title(opened) : ""} kicker={kicker?.(opened)} wide help={helpSheet}>
     {@render detail(opened)}
   </Sheet>
 {/if}

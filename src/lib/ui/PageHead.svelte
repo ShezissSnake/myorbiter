@@ -14,7 +14,10 @@
   import { PANE } from "../statusStrip.svelte";
   import { pageById, type PageId } from "../pages";
   import Icon, { sectionIcon } from "./Icon.svelte";
-  let { title, blurb, brief, band, hero, action, lede }: { title: string; blurb?: string; brief?: string; band?: Snippet; hero?: Snippet; action?: Snippet; lede?: Snippet } = $props();
+  import HelpMark from "./HelpMark.svelte";
+  // `help`: the parts' ids for the "?" on the band of figures and on the signature (hero), each at
+  // its top right corner (neither has a head bar).
+  let { title, blurb, brief, band, hero, action, lede, help }: { title: string; blurb?: string; brief?: string; band?: Snippet; hero?: Snippet; action?: Snippet; lede?: Snippet; help?: { band?: string; hero?: string } } = $props();
   const pane = getContext<string | undefined>(PANE);
   const section = pane ? (pageById[pane as PageId]?.group ?? "") : "";
   const line = $derived(brief ?? blurb);
@@ -54,9 +57,9 @@
   </div></div></div>
 {/if}
 <!-- data-card "hero": What's New's Show me lights a section's signature (page#hero). -->
-{#if hero}<div class="hero" data-card="hero">{@render hero()}</div>{/if}
+{#if hero}<div class="hero" class:helped={!!help?.hero} data-card="hero">{@render hero()}{#if help?.hero}<HelpMark part={help.hero} corner />{/if}</div>{/if}
 <!-- A band that comes or goes with the page's data (Sales' first or last sale) folds rather than snaps. -->
-{#if band}<div class="reveal" transition:reveal><div><section class="band">{@render band()}</section></div></div>{/if}
+{#if band}<div class="reveal" transition:reveal><div><section class="band" class:helped={!!help?.band}>{@render band()}{#if help?.band}<HelpMark part={help.band} corner />{/if}</section></div></div>{/if}
 
 <style>
   /* Fixed height: the title's top is at the same y on every page, whatever the line under it says. */
@@ -87,6 +90,10 @@
   .details.on { color: var(--platinum); }
   .details.on .box { background: var(--platinum); border-color: var(--platinum); }
   .hero { margin: 0 0 var(--step); }
+  /* The "?" in the top right corner: the band keeps a column clear for it. */
+  .hero.helped, .band.helped { position: relative; }
+  /* Room for the corner "?" so it never sits on the figures (the Void Trace count, a card's label). */
+  .band.helped, .hero.helped { padding-right: 36px; }
   .band {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
     /* A plate, so nothing behind the page shows through the figures; lit from the top. */

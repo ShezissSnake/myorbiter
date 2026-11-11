@@ -48,6 +48,7 @@
   import { arrive, calm, flip, leave } from "../motion";
   import { useNox } from "../nox";
   import PageHead from "../ui/PageHead.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import Art from "../ui/Art.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import Count from "../ui/Count.svelte";
@@ -444,7 +445,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Builds" brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from MyOrbiter's suggestion." {hero} {action} />
+  <PageHead title="Builds" help={{ hero: "builds.arsenal" }} brief="Mod builds for anything, and what you're missing." blurb="Mod and arcane builds for anything that takes them, in three tiers by what they take, with what you're missing of each against your inventory. Paste a build from anywhere, make your own, or start from MyOrbiter's suggestion." {hero} {action} />
   {#snippet action()}<button type="button" class="primary newb" title={item ? `Make a build of your own for ${item.name}, slot by slot` : "Make a build of your own: pick what it's for, then fill it slot by slot"} onclick={newBuild}><Icon name="plus" size={12} /> New build</button>{/snippet}
 
   {#if item && kind}
@@ -458,6 +459,7 @@
         <span class="register">days</span>
       </label>
       {#if hiddenOld}<button type="button" class="link" aria-pressed={showOld} title={showOld ? "Hide them again" : "Show the builds hidden for their age, this time only"} onclick={() => (showOld = !showOld)}>{showOld ? "Hide old ones" : `${hiddenOld} older hidden: show`}</button>{/if}
+      <HelpMark part="builds.tier-bar" />
     </div>
 
     {#if tags.length}
@@ -466,6 +468,7 @@
           <span class="tg"><span class="register">{g.family}</span>{#each g.tags as t (t)}<button type="button" class="tagchip" class:on={picked.includes(t)} aria-pressed={picked.includes(t)} title={picked.includes(t) ? `Showing builds tagged ${t}: click to drop it` : `Show only builds tagged ${t}${picked.length ? " (and the other tags picked)" : ""}`} onclick={() => toggleTag(t)}>{t}</button>{/each}</span>
         {/each}
         {#if picked.length}<button type="button" class="link" title="Show every build again" onclick={() => (picked = [])}>Clear tags</button>{/if}
+        <HelpMark part="builds.tags" />
       </div>
     {/if}
 
@@ -519,7 +522,7 @@
 
     {#if overframeLinks.length}
       <section class="ofr" data-card="overframe" aria-label="Saved from Overframe">
-        <h2 class="register">Saved from Overframe</h2>
+        <h2 class="register">Saved from Overframe<HelpMark part="builds.saved-links" /></h2>
         <p class="dim small">Overframe's builds open on overframe.gg: MyOrbiter keeps the link only.</p>
         <ul>
           {#each overframeLinks as o (o.build.id)}
@@ -545,7 +548,7 @@
          narrower one stacks them. -->
     <div class="landing" class:wide={landWide} bind:clientWidth={landW}>
       {#if mostBuilt.length}
-        <h2 class="register">Your most built</h2>
+        <h2 class="register">Your most built<HelpMark part="builds.most-built" /></h2>
         <div class="row">
           <ul class="cards" style:--n={cardsN} aria-label="Your most built">
             {#each mostBuilt.slice(0, cardsN) as r (r.unique)}
@@ -561,7 +564,7 @@
           </ul>
           {#if mostBuilt.length > cardsN}
             <section class="side plate-box" aria-label="Also often built">
-              <div class="plate-head"><span class="register">Also often built</span></div>
+              <div class="plate-head"><span class="register">Also often built</span><HelpMark part="builds.also-built" /></div>
               <ul class="also">
                 {#each mostBuilt.slice(cardsN, cardsN + 4) as r (r.unique)}
                   <li><button type="button" title="Builds for {r.name}" onclick={() => choose(r.unique)}>
@@ -592,10 +595,11 @@
                 {/each}
               </tbody>
             </table>
+            <HelpMark part="builds.recent" corner />
           </section>
         {/if}
         <section class="side plate-box" aria-label="Browse by kind">
-          <div class="plate-head"><span class="register">Browse by kind</span></div>
+          <div class="plate-head"><span class="register">Browse by kind</span><HelpMark part="builds.browse-kinds" /></div>
           <ul class="kinds">
             {#each byKind as k (k.slot)}
               <li><button type="button" class:on={browse === k.slot} aria-pressed={browse === k.slot} title="{k.n} {SLOT_LABEL[k.slot].toLowerCase()} take a build, {k.mine} of them yours: list them to pick one" onclick={() => browseKind(k.slot)}>
@@ -722,6 +726,8 @@
   .an b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .an .register { font-size: 11px; }
   .af { font-size: 18px; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .recentb { position: relative; }
+  .recentb :is(th, td):last-child { padding-right: 42px; }
   .recentb table { width: 100%; border-collapse: collapse; background: none; }
   /* The table's head row is the plate's head bar. */
   .recentb th { height: 36px; padding: 0 12px; text-align: left; font-family: var(--face-register); font-weight: 500; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: var(--platinum-dim); border-bottom: 1px solid var(--rule); background: none; }

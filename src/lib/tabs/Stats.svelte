@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import { whileShown } from "../pane.svelte";
   import { exportFile } from "../backend";
   import { numberFormat } from "../ui/table";
@@ -154,7 +155,7 @@
 
 <div class="page"><div class="page-inner">
   {#snippet ticker()}<Ticker id="stats" label="Your inventory's value, live" items={tape} />{/snippet}
-  <PageHead hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
+  <PageHead help={{ band: "stats.band", hero: "stats.ticker" }} hero={ticker} title="Stats" brief="Your trades, relic runs and account over time." blurb="Your account over time, what your relic runs come to, the parts you got, and every trade you've made in game.">
     {#snippet band()}
       <Stat label="Revenue" note="Sales in this span: the game's trade log and Sales" title="Revenue: platinum from sales in this span, from the game's trade log (the trade window MyOrbiter read), plus sales logged on Sales that no logged trade covers"><P v={revenue} big tick /></Stat>
       <Stat label="Spent" tone="dim" note="Platinum paid for items"><P v={spent} big tick /></Stat>
@@ -163,7 +164,7 @@
     {/snippet}
   </PageHead>
 
-  <div class="bar"><Seg bind:value={span} label="Span" options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything MyOrbiter has logged" }]} /></div>
+  <div class="bar"><Seg bind:value={span} label="Span" options={[{ v: "30", label: "30 days", title: "Figures, charts and trades from the last 30 days" }, { v: "90", label: "90 days", title: "Figures, charts and trades from the last 90 days" }, { v: "all", label: "All", title: "Everything MyOrbiter has logged" }]} /><HelpMark part="stats.span" /></div>
 
   <div title="Worked out as Inventory does, at each inventory read. Market value: every copy at the daily median. Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month. The figures by the title are from the last read">
     <TimeChart single={hist.length === 1 ? "" : undefined} title={lastRead ? `Inventory value · at last read, ${new Date(lastRead).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : "Inventory value"} {at} series={[{ label: "Market value", color: "var(--chart-plat)", values: hist.map((p) => p.worth) }, { label: "Quick-sale value", color: GOLD, values: hist.map((p) => p.liquid) }]} height={190} />
@@ -186,7 +187,7 @@
 
   <section class="got">
     <div class="hh">
-      <h2 class="register" title="Parts that turned up in your inventory between two reads, from relics, missions or anything else; what a trade brought in is left out">Parts you got</h2>
+      <h2 class="register" title="Parts that turned up in your inventory between two reads, from relics, missions or anything else; what a trade brought in is left out">Parts you got<HelpMark part="stats.parts-you-got" /></h2>
       {#if got.length}<span class="small dim">{gotCount} part{gotCount === 1 ? "" : "s"} · <P v={Math.round(gotWorth)} /> at today's prices</span>{/if}
     </div>
     {#if got.length}
@@ -203,7 +204,7 @@
 
   <div class="split">
     <section class="types">
-      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type</h2><span class="dim small">from the game's trade log and Sales</span></div>
+      <div class="hh"><h2 class="register" title="Revenue and spent by what was traded, from the game's trade log (plus sales on Sales that no logged trade covers)">Profit by type<HelpMark part="stats.profit-by-type" /></h2><span class="dim small">from the game's trade log and Sales</span></div>
       {#if byType.length}
         <table>
           <thead><tr><th>Type</th><th class="right">Revenue</th><th class="right">Spent</th><th class="right">Profit</th></tr></thead>
@@ -218,7 +219,7 @@
 
     <section class="history">
       <div class="hh">
-        <h2 class="register">Trade history</h2>
+        <h2 class="register">Trade history<HelpMark part="stats.trade-history" /></h2>
         {#if settings.market.trades.length}<ProgressButton variant="icon" icon="export" tone="quiet" job={exportJob} label="Export trades as CSV" doneLabel="Saved" failLabel="Couldn't save" title="Save every trade MyOrbiter read from the game as a CSV file in your Downloads folder, for a spreadsheet" onclick={exportTrades} />{/if}
         {#if exported}<span class="small" class:dim={exportJob.state !== "failed"} class:bad={exportJob.state === "failed"} role="status">{exported}</span>{/if}
         <Seg bind:value={show} label="Which trades" options={[{ v: "all", label: "All", title: "Every trade" }, { v: "sale", label: "Sales", title: "Trades where you gave items and got only platinum" }, { v: "purchase", label: "Purchases", title: "Trades where you gave only platinum for items" }, { v: "trade", label: "Swaps", title: "Everything else: items for items, items and platinum both ways, gifts" }]} />

@@ -19,6 +19,7 @@
   import { mkt } from "./marketStore.svelte";
   import PriceHistory from "./ui/PriceHistory.svelte";
   import Sheet from "./ui/Sheet.svelte";
+  import HelpMark from "./ui/HelpMark.svelte";
   import Art from "./ui/Art.svelte";
   import PartChip from "./ui/PartChip.svelte";
   import Thumb from "./ui/Thumb.svelte";
@@ -161,7 +162,7 @@
 </script>
 
 {#if item && c}
-  <Sheet bind:open={open.v} title={item.name} kind={c.type} kicker={`${c.type}${c.masteryReq ? ` · Mastery rank ${c.masteryReq}` : ""}`} wide>
+  <Sheet bind:open={open.v} title={item.name} kind={c.type} kicker={`${c.type}${c.masteryReq ? ` · Mastery rank ${c.masteryReq}` : ""}`} wide help="item-sheet">
     <span class="anchor" bind:this={anchor} hidden></span>
     <section class="hero">
       <Art file={c.image} size={230} alt={item.name} fallback={kindIcon(c.type, item.name) ?? "foundry"} />
@@ -199,13 +200,14 @@
           {@const loose = c.parts.filter((p) => p.tradable).reduce((n, p) => (n == null || p.price == null ? null : n + p.price * p.required), 0 as number | null)}
           <div class="cell"><span class="register">Parts sold loose</span><P v={loose == null ? null : Math.round(loose)} big /></div>
         {/if}
+        <HelpMark part="item-sheet.prices" corner />
       </section>
       {#if bookState !== "missing"}<section class="history"><PriceHistory name={tradeName} known={(c.setPrice ?? model.price(item.name)) != null} /></section>{/if}
     {/if}
 
     {#if row && !row.unobtainable}
       <section class="how">
-        <h3 class="register lead">How to get it</h3>
+        <h3 class="register lead">How to get it<HelpMark part="item-sheet.how" /></h3>
         <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}{#if row.acq.players}<span class="players">{row.acq.players}</span>{/if}</p></div>
         {#if wish && wish.missing.length && ((wish.odds != null && wish.odds > 0) || wish.buyCost != null)}
           {@const odds = wish.odds != null && wish.odds > 0 ? wish.odds : null}
@@ -219,7 +221,7 @@
 
     {#if c.parts.length}
       <section>
-        <h3 class="register lead">Built from{#if c.partBuilt} <span class="built" title="You hold the {familyOf(item.uniqueName)?.part ?? 'part'} already, or it's in a build: its blueprint and resources are spent">Built ✓</span>{:else if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}</h3>
+        <h3 class="register lead">Built from{#if c.partBuilt} <span class="built" title="You hold the {familyOf(item.uniqueName)?.part ?? 'part'} already, or it's in a build: its blueprint and resources are spent">Built ✓</span>{:else if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}<HelpMark part="item-sheet.built-from" /></h3>
         <ul class="bom">
           {#each c.parts as p (p.name)}
             {@const w = where(p)}
@@ -258,7 +260,7 @@
 
     {#if plan && plan.resources.length}
       <section class="plan">
-        <h3 class="register lead">What building it takes now <span class="tier t-{plan.tier}" title={TIER_TIP[plan.tier]}>{TIER_LABEL[plan.tier]}</span>{#if plan.credits} <span class="dim cost"><GameIcon name="credits" size={13} /> {plan.credits.toLocaleString("en")}</span>{/if}</h3>
+        <h3 class="register lead">What building it takes now <span class="tier t-{plan.tier}" title={TIER_TIP[plan.tier]}>{TIER_LABEL[plan.tier]}</span>{#if plan.credits} <span class="dim cost"><GameIcon name="credits" size={13} /> {plan.credits.toLocaleString("en")}</span>{/if}<HelpMark part="item-sheet.plan" /></h3>
         {#if plan.parts.some((p) => p.state === "blueprint" || p.state === "missing")}
           <ul class="steps">
             {#each plan.parts.filter((p) => p.state !== "built") as p (p.label)}
@@ -284,7 +286,7 @@
 
     {#if isFrame}
       <section>
-        <h3 class="register lead">Base stats</h3>
+        <h3 class="register lead">Base stats<HelpMark part="item-sheet.base-stats" /></h3>
         <div class="stats">
           <div><span class="register">Health</span><b>{num(item.health, 0)}</b></div>
           <div><span class="register">Shield</span><b>{num(item.shield, 0)}</b></div>
@@ -309,7 +311,7 @@
       </section>
     {:else if isWeapon}
       <section>
-        <h3 class="register lead">Stats</h3>
+        <h3 class="register lead">Stats<HelpMark part="item-sheet.stats" /></h3>
         <div class="stats">
           <div><span class="register">Damage</span><b>{num(item.totalDamage, 1)}</b></div>
           <div><span class="register">Critical</span><b>{pct(item.criticalChance)} <span class="dim">×{num(item.criticalMultiplier, 1)}</span></b></div>
@@ -343,12 +345,13 @@
   /* The ★ itself pops as it fills (motion.ts, pop). */
   .star .glyph { display: inline-block; }
   .history { margin-top: .8rem; }
-  .market { display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border: 1px solid var(--rule); background: var(--well); }
+  .market { position: relative; padding-right: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr)); border: 1px solid var(--rule); background: var(--well); }
   .cell { display: grid; gap: .35rem; padding: .8rem 1rem; align-content: start; }
   .cell + .cell { border-left: 1px solid var(--rule); }
   .cell.buy .register { color: var(--verdigris); }
   .cell.sell .register { color: var(--gold); }
   h3 { margin: 0 0 .7rem; display: flex; align-items: center; gap: .6rem; }
+  h3 > :global(.helpmark) { margin-left: auto; }
   /* The part's already built: said once, in the heading, rather than "Missing" down the list. */
   .built { margin-left: .4rem; color: var(--verdigris); letter-spacing: .1em; }
   .cost { display: inline-flex; align-items: center; gap: .3rem; letter-spacing: .06em; text-transform: none; font-family: var(--face-text); font-size: .78rem; }

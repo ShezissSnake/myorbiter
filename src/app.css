@@ -372,9 +372,31 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
     linear-gradient(var(--b), var(--b)) right bottom / 10px 1px no-repeat, linear-gradient(var(--b), var(--b)) right bottom / 1px 10px no-repeat;
 }
 .picwell.small::before { display: none; }
-/* A list plate's head bar: its label, then a hairline. */
+/* A list plate's head bar: its label, then a hairline, then the part's "?" at the right end. */
 .plate-head { display: flex; align-items: center; gap: 10px; height: 36px; padding: 0 14px; border-bottom: 1px solid var(--rule); }
 .plate-head::after { content: ""; flex: 1; height: 1px; background: var(--rule); }
+
+/* The "?" (ui/HelpMark.svelte): a square control, always at the right end of a part's head bar,
+   after its hairline; quiet (the muted text colour, 4.5:1 on a plate) until hovered or focused,
+   then the text colour. Where a part has no bar, `.corner` puts it at the part's top right corner
+   (the part is then positioned). */
+.helpmark {
+  display: inline-grid; place-items: center; flex: none; order: 9; width: 24px; height: 24px; padding: 0;
+  background: transparent; border: 1px solid var(--rule-bright); color: var(--platinum-deep);
+  letter-spacing: 0; vertical-align: middle;
+}
+.helpmark:hover:not(:disabled), .helpmark:focus-visible { color: var(--platinum); border-color: var(--rule-control); background: rgb(241 243 246 / 6%); }
+.helpmark.corner { position: absolute; top: 6px; right: 6px; z-index: 2; background: var(--plate); }
+.plate-head > .helpmark { margin-right: -6px; }
+.plate-head::after, .page h2.register::after, .page h3.register.lead::after { order: 8; }
+.page :is(h2.register, h3.register.lead) > .helpmark { margin-left: .2rem; }
+/* In a tool or filter row: the last thing on the row, at its right end. */
+.bar > .helpmark, .tools > .helpmark { margin-left: auto; }
+.bar :is(button.helpmark), .tools :is(button.helpmark) { height: 24px; }
+/* While the help is open, the page behind it carries .helpblur (HelpDialog). A still blur on it,
+   `.pane.helpblur { filter: blur(3px); }`, is off until the perf harness shows it costs little
+   (scripts/perf/scenarios.mjs, helpBlur against helpFlat): the flat shade alone for now. If it
+   goes on, it goes on and off in one step, never animated (motion.md rule 4). */
 
 /* ---------------------------------------------------------------- page layout */
 

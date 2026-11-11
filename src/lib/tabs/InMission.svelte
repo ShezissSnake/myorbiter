@@ -8,6 +8,7 @@
   import Thumb from "../ui/Thumb.svelte";
   import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import { nearTraceCap, traceCap, voidTraces } from "../core/traces";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
   import Avail from "../ui/Avail.svelte";
@@ -258,6 +259,7 @@
     blurb={ms?.mission && (live || ms.reward_screen_open) ? ms.mission : live || paths.length ? "The squad's relics and rewards." : "Not in a fissure. The squad's relics and rewards show here once a void fissure loads; other missions have nothing to pick."}
     band={onScreen ? undefined : stats}
     hero={screen}
+    help={{ band: "mission.band", hero: "mission.screen" }}
   />
 
   {#if noCardsWhy}<p class="why dim small">{noCardsWhy}</p>
@@ -266,7 +268,7 @@
   {#if relics.length}
     {#if ranked.length}
       <div class="pool-head">
-        <h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}</h2>
+        <h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}<HelpMark part="mission.pool" /></h2>
         {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
@@ -293,17 +295,18 @@
     {/if}
 
     <!-- Each relic's own rewards, a click away: the list above already says what to take. -->
-    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}</h2>
+    <h2 class="register relhead"><button class="link" aria-expanded={showRelics} onclick={() => (showRelics = !showRelics)} title="Each relic in the squad with its rewards and odds"><span class="chev side" aria-hidden="true">▸</span> The squad's relics · {relics.length}</button>{#if showRelics}<span class="legend">Gold: a part you still need · dimmed: you've mastered what it builds · the edge: its rarity (bronze common, silver uncommon, gold rare)</span>{/if}<HelpMark part="mission.relics" /></h2>
     {#if showRelics}<div class="reveal" transition:reveal><div><section class="cards">{#each relics as r, i (r.path + i)}{@render relicCard(r)}{/each}</section></div></div>{/if}
   {:else if !onScreen}
     <div class="empty" class:compact={history.length > 0}>
+      <HelpMark part="mission.empty" corner />
       <p>Start a void fissure and the squad's relics show up here as the mission loads. Warframe writes them to its log, and MyOrbiter only reads that file.</p>
       <p class="dim small">The relic picker before a mission isn't logged by the game, so the vaulted tags for choosing a relic are on <strong>Relics</strong>.</p>
     </div>
   {/if}
 
   {#if history.length}
-    <h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}</h2>
+    <h2 class="register">This session{sessionRewards ? ` · ${sessionRewards} relic reward${sessionRewards === 1 ? "" : "s"}` : ""}<HelpMark part="mission.session" /></h2>
     <p class="sum small">
       <span>{history.length} mission{history.length === 1 ? "" : "s"}{fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}</span>
       {#if sessionValue}<span title="What the rewards you took sell for, at daily median prices"><P v={sessionValue} /></span>{/if}
@@ -478,7 +481,7 @@
   .from span { white-space: nowrap; }
   /* Each relic in its era's colour, as on the fissure board. */
   .from .rl { display: inline-flex; align-items: center; gap: .25rem; color: color-mix(in srgb, var(--tint, var(--platinum-dim)) 80%, var(--platinum)); }
-  .empty { margin-top: var(--step); max-width: 46rem; padding: 1.4rem 1.6rem; border: 1px solid var(--rule); background: var(--plate); }
+  .empty { position: relative; margin-top: var(--step); max-width: 46rem; padding: 1.4rem 2.6rem 1.4rem 1.6rem; border: 1px solid var(--rule); background: var(--plate); }
   .empty.compact p:last-child { display: none; }
   /* Details off: the score's make-up and the weights go to hover (the Score keeps it in its title). */
   :global(html:not([data-details])) .pool .bc, :global(html:not([data-details])) .weights { display: none; }
