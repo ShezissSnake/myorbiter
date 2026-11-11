@@ -8,11 +8,10 @@ use super::{
     reward_observer::{RewardObservation, RewardObserverState},
     reward_ocr::{self, ScreenRewardSource},
     reward_recognition::{RecognitionTiming, RecognizedRewards, RewardRecognition},
-    reward_source::LiveMemoryRewardState,
 };
 use app_core::{InventoryRefreshOutcome, MasteryView};
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::BTreeMap,
     fs,
     io::{Read, Seek, SeekFrom},
     path::{Path, PathBuf},
@@ -29,8 +28,8 @@ use warframe_acquisition::LinuxProc as ProcessObserver;
 use warframe_acquisition::WindowsProc as ProcessObserver;
 use warframe_acquisition::{
     AcquisitionError, CatalogCache, CatalogIndex, GameProcess, MarketPriceCache, MasteryEvidence,
-    MemoryReader, PriceTable, ProcessDiscovery, RelicCatalogCache, RelicRewardIndex,
-    RewardCatalogEntry, RewardMemoryScanner, WarmOutcome, WfcdCatalogHttp, WfcdRelicCatalogHttp,
+    PriceTable, ProcessDiscovery, RelicCatalogCache, RelicRewardIndex,
+    RewardCatalogEntry, WarmOutcome, WfcdCatalogHttp, WfcdRelicCatalogHttp,
 };
 use warframe_domain::RewardCandidate;
 
@@ -762,128 +761,6 @@ fn confirmed_process_observation<T: Copy, E>(
     discovered.as_ref().ok().copied()
 }
 
-/// The responder scans that belong to one reward attempt.
-///
-/// A generation invalidates workers already in flight; the two indexes must turn over with that
-/// generation or an old responder can block or populate a later fissure.
-#[derive(Default)]
-struct RecordScans {
-    records: Arc<Mutex<BTreeMap<String, String>>>,
-    active: Arc<Mutex<BTreeSet<String>>>,
-    generation: Arc<AtomicU64>,
-    workers: Mutex<Vec<std::thread::JoinHandle<()>>>,
-}
-
-impl RecordScans {
-    fn reset(&self) {
-        self.generation.fetch_add(1, Ordering::AcqRel);
-        if let Ok(mut records) = self.records.lock() {
-            records.clear();
-        }
-        if let Ok(mut active) = self.active.lock() {
-            active.clear();
-        }
-        if let Ok(mut workers) = self.workers.lock() {
-            for worker in workers.drain(..) {
-                let _ = worker.join();
-            }
-        }
-    }
-
-    fn track_worker(&self, worker: std::thread::JoinHandle<()>) {
-        if let Ok(mut workers) = self.workers.lock() {
-            workers.push(worker);
-        } else {
-            let _ = worker.join();
-        }
-    }
-
-    fn scan(
-        &self,
-        identity: String,
-        process: GameProcess,
-        candidates: &[warframe_acquisition::RewardNeedle],
-        generation: MonitorGeneration,
-    ) {
-        if candidates.is_empty() {
-            return;
-        }
-        let Ok(mut active) = self.active.lock() else {
-            return;
-        };
-        if !active.insert(identity.clone()) {
-            return;
-        }
-        drop(active);
-
-        let candidates = candidates.to_vec();
-        let records = Arc::clone(&self.records);
-        let active = Arc::clone(&self.active);
-        let mission_generation = Arc::clone(&self.generation);
-        let expected_generation = mission_generation.load(Ordering::Acquire);
-        if !generation.is_current() {
-            release_player_record_scan(&identity, &active);
-            return;
-        }
-        let worker = std::thread::spawn(move || {
-            let started = Instant::now();
-            if !generation.is_current() {
-                release_player_record_scan(&identity, &active);
-                return;
-            }
-            let procfs = ProcessObserver::new();
-            let scanner = RewardMemoryScanner::new(
-                256 * 1024,
-                768 * 1024 * 1024,
-                Duration::from_millis(1_500),
-            );
-            let resolution = scan_player_record_until_ready(
-                expected_generation,
-                &mission_generation,
-                Duration::from_millis(750),
-                || {
-                    if !generation.is_current() {
-                        return warframe_acquisition::RewardResolution::Incomplete;
-                    }
-                    scanner
-                        .resolve_records(
-                            &procfs,
-                            &process,
-                            &candidates,
-                            warframe_acquisition::RewardRecordQuery {
-                                responders: &[identity.as_str()],
-                                local_identity: None,
-                                local_choice: None,
-                            },
-                            warframe_acquisition::RewardRecordPolicy::LiveStructured,
-                        )
-                        .unwrap_or(warframe_acquisition::RewardResolution::Incomplete)
-                },
-            );
-            trace_responder_reward_scan(&identity, started.elapsed(), &resolution);
-            if generation.is_current() {
-                store_player_record_if_current(
-                    expected_generation,
-                    &mission_generation,
-                    &identity,
-                    resolution,
-                    &records,
-                );
-            }
-            release_player_record_scan(&identity, &active);
-        });
-        self.track_worker(worker);
-    }
-}
-
-/// What one observed log event may do: the effective access policy, the monitor generation
-/// it belongs to, and the second it was observed in. Bundled so handler signatures stay small.
-#[derive(Clone, Copy)]
-struct EventScope<'a> {
-    policy: AccessPolicy,
-    generation: &'a MonitorGeneration,
-}
-
 /// Everything whose lifetime is one monitored Warframe process's reward stream.
 ///
 /// The monitor supplies events and application side effects; this session owns the coupled
@@ -892,9 +769,7 @@ struct EventScope<'a> {
 /// stale-result retirement. The monitor never captures synchronously.
 struct RewardSession {
     recognition: RewardRecognition<ScreenRewardSource, fn() -> ScreenRewardSource>,
-    memory: LiveMemoryRewardState,
     observer: RewardObserverState,
-    scans: RecordScans,
     price_cache: MarketPriceCache,
     /// Consecutive background failures and their reason, so routine pre-screen blanks do not
     /// mark health degraded every poll while broken capture still reports immediately.
@@ -917,13 +792,7 @@ impl RewardSession {
                 RecognitionTiming::live(),
                 ScreenRewardSource::new,
             ),
-            memory: LiveMemoryRewardState::new(RewardMemoryScanner::new(
-                256 * 1024,
-                768 * 1024 * 1024,
-                Duration::from_millis(1_500),
-            )),
             observer: RewardObserverState::new(1, 1),
-            scans: RecordScans::default(),
             price_cache,
             degraded_reason: None,
             degraded_streak: 0,
@@ -934,27 +803,23 @@ impl RewardSession {
         &mut self,
         event: RewardLogEvent,
         process: Option<GameProcess>,
-        procfs: &ProcessObserver,
         shared: &SharedRuntime,
         app: &AppHandle,
-        scope: EventScope<'_>,
     ) {
         match event {
-            RewardLogEvent::RewardWindowOpened => {
-                if scope.policy.read_process_memory
-                    && let Some(process) = process
-                {
-                    let _ = procfs.reset_recent_writes(&process);
-                }
-            }
-            RewardLogEvent::ResponderExpected { identity } => {
-                self.scan_responder(identity, process, scope.policy, scope.generation);
-            }
-            RewardLogEvent::ResponderReceived { identity, is_local } => {
-                if !is_local {
-                    self.scan_responder(identity, process, scope.policy, scope.generation);
-                }
-            }
+            RewardLogEvent::Closed => self.close(shared, app),
+            other => self.observe_event(other, process),
+        }
+    }
+
+    /// Everything a reward log event does that needs no window or runtime. It reads nothing from
+    /// the game's memory in any access mode: the cards come from the screen alone.
+    fn observe_event(&mut self, event: RewardLogEvent, process: Option<GameProcess>) {
+        match event {
+            RewardLogEvent::RewardWindowOpened
+            | RewardLogEvent::ResponderExpected { .. }
+            | RewardLogEvent::ResponderReceived { .. }
+            | RewardLogEvent::Closed => {}
             RewardLogEvent::ResponsesComplete { .. } => {
                 // Constraints for the background reader; never captures here.
                 // A vanished game has no window to read, so skip stale rosters.
@@ -963,21 +828,11 @@ impl RewardSession {
                 }
             }
             RewardLogEvent::BaselineRequested { .. } => {
-                self.scans.reset();
-                let Some(_process) = process else {
-                    self.memory.clear();
+                if process.is_none() {
                     self.recognition.close();
                     return;
-                };
-                self.recognition.observe(&event);
-                // Keep the dormant responder-scan candidates in step with recognition.
-                // Recognition owns the catalog derivation; memory only mirrors it.
-                let candidates = self.recognition.candidates();
-                if scope.policy.read_process_memory {
-                    self.memory.prepare_candidates(&candidates);
-                } else {
-                    self.memory.clear();
                 }
+                self.recognition.observe(&event);
                 // Price the pool while the mission is still running; the reward screen is
                 // minutes away. Warming never blocks event handling.
                 let entries = self.recognition.pool_entries();
@@ -989,29 +844,7 @@ impl RewardSession {
                 }
                 self.recognition.observe(&event);
             }
-            RewardLogEvent::Closed => self.close(shared, app),
         }
-    }
-
-    fn scan_responder(
-        &self,
-        identity: String,
-        process: Option<GameProcess>,
-        policy: AccessPolicy,
-        generation: &MonitorGeneration,
-    ) {
-        if self.recognition.resolved() || !policy.read_process_memory {
-            return;
-        }
-        let Some(process) = process else {
-            return;
-        };
-        self.scans.scan(
-            identity,
-            process,
-            &self.recognition.candidates(),
-            generation.clone(),
-        );
     }
 
     fn publish(
@@ -1123,8 +956,6 @@ impl RewardSession {
         // drops its source and pauses; recognition resumes against the preserved pool when the
         // process returns. Full clearing is reserved for the log's Closed event.
         self.recognition.suspend();
-        self.memory.clear();
-        self.scans.reset();
         if self.observer.miss().hide {
             hide();
         }
@@ -1136,8 +967,6 @@ impl RewardSession {
 
     fn close(&mut self, shared: &SharedRuntime, app: &AppHandle) {
         self.recognition.close();
-        self.scans.reset();
-        self.memory.clear();
         self.observer.miss();
         // A new screen starts a fresh degraded-health streak; otherwise the next fissure's
         // first routine blank could hit the warning threshold on the previous screen's count.
@@ -1502,17 +1331,7 @@ pub(crate) fn run(
             .chain(reward_log.observe_bytes(&log_bytes))
         {
             if generation.is_current() {
-                reward_session.handle_event(
-                    event,
-                    process,
-                    &procfs,
-                    &shared,
-                    &app,
-                    EventScope {
-                        policy,
-                        generation: &generation,
-                    },
-                );
+                reward_session.handle_event(event, process, &shared, &app);
             }
         }
         // Same bytes, second machine: the kiosk's lifecycle is independent of the reward screen's
@@ -2324,97 +2143,6 @@ where
             "[DEBUG-kiosk] poller exit epoch={epoch} looks=still:{looks_still}/motion:{looks_motion}/blind:{looks_blind}/unmeasured:{looks_unmeasured}/reads:{looks_reads}",
         );
     })
-}
-
-pub fn release_player_record_scan(identity: &str, active_scans: &Mutex<BTreeSet<String>>) {
-    if let Ok(mut active) = active_scans.lock() {
-        active.remove(identity);
-    }
-}
-
-pub fn rotate_choices_to_local(choices: &mut [String], local_name: &str) {
-    if let Some(index) = choices.iter().position(|name| name == local_name) {
-        choices.rotate_left(index);
-    }
-}
-
-pub fn assemble_player_record_choices(
-    responders: &[&str],
-    local_identity: Option<&str>,
-    local_choice: Option<&str>,
-    records: &std::collections::BTreeMap<String, String>,
-) -> Option<Vec<String>> {
-    let local_identity = local_identity?;
-    let mut choices = vec![local_choice?.to_owned()];
-    for identity in responders
-        .iter()
-        .copied()
-        .filter(|identity| *identity != local_identity)
-    {
-        choices.push(records.get(identity)?.clone());
-    }
-    (choices.len() == responders.len()).then_some(choices)
-}
-
-pub fn store_player_record_if_current(
-    expected_generation: u64,
-    generation: &AtomicU64,
-    identity: &str,
-    resolution: warframe_acquisition::RewardResolution,
-    records: &Mutex<BTreeMap<String, String>>,
-) {
-    if generation.load(Ordering::Acquire) != expected_generation {
-        return;
-    }
-    let warframe_acquisition::RewardResolution::Confirmed { choices, .. } = resolution else {
-        return;
-    };
-    let [choice] = choices.as_slice() else {
-        return;
-    };
-    if let Ok(mut records) = records.lock()
-        && generation.load(Ordering::Acquire) == expected_generation
-    {
-        records.insert(identity.to_owned(), choice.clone());
-    }
-}
-
-pub fn scan_player_record_until_ready(
-    expected_generation: u64,
-    generation: &AtomicU64,
-    timeout: Duration,
-    mut scan: impl FnMut() -> warframe_acquisition::RewardResolution,
-) -> warframe_acquisition::RewardResolution {
-    let started = Instant::now();
-    while generation.load(Ordering::Acquire) == expected_generation {
-        let resolution = scan();
-        if matches!(
-            &resolution,
-            warframe_acquisition::RewardResolution::Confirmed { choices, .. }
-                if choices.len() == 1
-        ) {
-            return resolution;
-        }
-        if started.elapsed() >= timeout {
-            break;
-        }
-        std::thread::sleep(Duration::from_millis(25));
-    }
-    warframe_acquisition::RewardResolution::Incomplete
-}
-
-fn trace_responder_reward_scan(
-    identity: &str,
-    elapsed: Duration,
-    resolution: &warframe_acquisition::RewardResolution,
-) {
-    let suffix = identity
-        .get(identity.len().saturating_sub(6)..)
-        .unwrap_or(identity);
-    log::debug!(
-        "[DEBUG-responder] identity=…{suffix} elapsed_ms={} resolution={resolution:?}",
-        elapsed.as_millis(),
-    );
 }
 
 /// Fetch platinum prices without blocking the overlay.
@@ -4629,56 +4357,69 @@ mod tests {
             Some(Path::new("/q/EE.log"))
         ));
     }
-    #[test]
-    fn resetting_record_scans_waits_for_memory_workers_to_retire() {
-        let scans = Arc::new(RecordScans::default());
-        let (started_tx, started_rx) = std::sync::mpsc::channel();
-        let (release_tx, release_rx) = std::sync::mpsc::channel();
-        let worker = std::thread::spawn(move || {
-            started_tx.send(()).expect("report worker start");
-            release_rx.recv().expect("release memory worker");
-        });
-        scans.track_worker(worker);
-        started_rx.recv().expect("memory worker starts");
-
-        let retiring = Arc::clone(&scans);
-        let (retired_tx, retired_rx) = std::sync::mpsc::channel();
-        let resetter = std::thread::spawn(move || {
-            retiring.reset();
-            retired_tx.send(()).expect("report retirement");
-        });
-        assert!(
-            retired_rx.recv_timeout(Duration::from_millis(20)).is_err(),
-            "reset returned while a process-memory worker was still active"
-        );
-
-        release_tx.send(()).expect("release worker");
-        retired_rx
-            .recv_timeout(Duration::from_secs(1))
-            .expect("reset returns after memory worker retires");
-        resetter.join().expect("resetter exits");
+    /// Bit 55 of a page's `/proc/self/pagemap` entry: written since the last `clear_refs` reset.
+    #[cfg(target_os = "linux")]
+    fn soft_dirty(address: usize) -> Option<bool> {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut pagemap = std::fs::File::open("/proc/self/pagemap").ok()?;
+        pagemap
+            .seek(SeekFrom::Start((address as u64 / 4096) * 8))
+            .ok()?;
+        let mut entry = [0u8; 8];
+        pagemap.read_exact(&mut entry).ok()?;
+        Some(u64::from_le_bytes(entry) >> 55 & 1 == 1)
     }
+
+    /// A reward screen reads nothing from the game's memory and writes nothing to its process in
+    /// any access mode. The stand-in game here is the test process itself, and the write that
+    /// used to happen is the Linux `clear_refs` reset, which is visible in a page's soft-dirty bit.
+    #[cfg(target_os = "linux")]
     #[test]
+    fn reward_screen_events_never_touch_the_game_process() {
+        let mut page = vec![0u8; 3 * 4096];
+        let offset = (4096 - page.as_ptr() as usize % 4096) % 4096;
+        let address = page.as_ptr() as usize + offset;
+        let dirty = |page: &mut Vec<u8>| {
+            page[offset] = page[offset].wrapping_add(1);
+            std::hint::black_box(&page);
+            soft_dirty(address)
+        };
+        use warframe_acquisition::MemoryReader;
+        let game = GameProcess::new(std::process::id());
 
-    fn resetting_record_scans_invalidates_workers_and_clears_both_indexes() {
-        let scans = RecordScans::default();
-        scans.generation.store(41, Ordering::Release);
-        scans
-            .records
-            .lock()
-            .expect("records")
-            .insert("squadmate".to_owned(), "Forma Blueprint".to_owned());
-        scans
-            .active
-            .lock()
-            .expect("active scans")
-            .insert("squadmate".to_owned());
+        // Control: the reset the monitor used to issue clears the bit, so the check below can fail.
+        if dirty(&mut page) != Some(true) {
+            eprintln!("soft-dirty tracking is not available here; skipping");
+            return;
+        }
+        ProcessObserver::new()
+            .reset_recent_writes(&game)
+            .expect("reset the test process's soft-dirty bits");
+        assert_eq!(soft_dirty(address), Some(false), "control reset had no effect");
 
-        scans.reset();
-
-        assert_eq!(scans.generation.load(Ordering::Acquire), 42);
-        assert!(scans.records.lock().expect("records").is_empty());
-        assert!(scans.active.lock().expect("active scans").is_empty());
+        let mut session = RewardSession::new(None, None, Vec::new(), MarketPriceCache::default());
+        assert_eq!(dirty(&mut page), Some(true));
+        for event in [
+            RewardLogEvent::RewardWindowOpened,
+            RewardLogEvent::ResponderExpected {
+                identity: "remote-a".to_owned(),
+            },
+            RewardLogEvent::ResponderReceived {
+                identity: "remote-a".to_owned(),
+                is_local: false,
+            },
+            RewardLogEvent::ResponderReceived {
+                identity: "local".to_owned(),
+                is_local: true,
+            },
+        ] {
+            session.observe_event(event, Some(game));
+        }
+        assert_eq!(
+            soft_dirty(address),
+            Some(true),
+            "a reward screen event reset the game's soft-dirty bits"
+        );
     }
 
     /// Delayed market prices are gated by the monitor generation alone: a retired generation

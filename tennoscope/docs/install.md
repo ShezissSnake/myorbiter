@@ -213,8 +213,7 @@ On Windows this section does not apply: TennoScope opens the game with
 configuration.
 
 On Linux, TennoScope reads `/proc/<pid>/maps` and `/proc/<pid>/mem` of your own game
-process, and resets the soft-dirty page bits through `/proc/<pid>/clear_refs` so a poll
-only rescans the pages the game wrote. On most distributions this works out of the box,
+process. On most distributions this works out of the box,
 with nothing to configure: the kernel lets a process inspect others running as the same
 user. The exception is a distribution that ships Yama in restricted mode, Ubuntu being
 the common one:
@@ -255,8 +254,6 @@ fix.
   which is why Borderless is a requirement rather than a suggestion. If a driver or
   overlay conflict leaves the strip invisible, `TENNOSCOPE_OPAQUE_OVERLAY=1` draws it
   with a solid background instead.
-- **Windows polling costs more than Linux.** There is no `soft-dirty` equivalent, so
-  every memory poll rescans every region rather than only the pages the game wrote.
 - **Card geometry** is measured against a 1920x1080 reward screen and scaled by window
   height, which is how Warframe scales its HUD, with each position an offset from the
   window's horizontal centre. 16:10, a Steam Deck's native 1280x800, has its own capture

@@ -12,7 +12,7 @@ const WARNING = /export const FULL_MODE_WARNING =\s*"([^"]+)";/.exec(read("src/l
 test("the warning says what Digital Extremes publishes and where Full mode sends what it reads", () => {
   assert.match(WARNING, /Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk/);
   assert.match(WARNING, /could put your account at risk/);
-  assert.match(WARNING, /only sends your login session to Digital Extremes and the names of reward items read from memory to warframe\.market, for their prices\.$/);
+  assert.match(WARNING, /only sends your login session to Digital Extremes and the names of reward items read from the screen to warframe\.market, for their prices\.$/);
   assert.ok(!/EULA/.test(WARNING));
 });
 

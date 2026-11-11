@@ -78,9 +78,8 @@ pub use reward_recognition::{
     RewardRecognition,
 };
 pub use reward_source::{
-    BoundMemoryRewardSource, CardCandidates, LiveMemoryRewardState, MemoryRewardSource,
-    RewardChoiceSet, RewardChoiceSource, RewardSourceCoordinator, RewardSourceDiagnostic,
-    RewardSourceResult, VisualRewardSource,
+    CardCandidates, MemoryRewardSource, RewardChoiceSet, RewardChoiceSource,
+    RewardSourceCoordinator, RewardSourceDiagnostic, RewardSourceResult, VisualRewardSource,
 };
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

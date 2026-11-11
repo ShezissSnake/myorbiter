@@ -12,7 +12,7 @@ path beside each.
 
 | What | Where it goes | When |
 | --- | --- | --- |
-| The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the names of the squad's rewards are priced on warframe.market; the rest stays on your PC | only in Full mode, which is off until you choose it |
+| The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the rest stays on your PC | only in Full mode, which is off until you choose it |
 | The game's window, captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
 | Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
 | The game's log (`EE.log`) | a trade that sold one of your listings marks it sold and gives the player +rep on warframe.market (each off unless you turn it on); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
@@ -46,21 +46,13 @@ mode, without asking again. With Full mode on:
   read is older than the session, once more five minutes later if that read didn't arrive, after a
   trade in the log is marked as a sale, and when you press the riven overlay key. At most one read
   every 15 seconds; an ask inside that time is dropped.
-- **The reward screen.** When the log shows a reward screen, TennoScope also reads the game's
-  memory around each squad member's account id (taken from the log) to find which reward each one
-  picked. Only the reward's name is kept; the player names and session keys that sit beside it in
-  memory are discarded. The reward names are priced on warframe.market (below).
 - **Nothing is written into the game's memory or folder.** No keys, no clicks, no input of any kind.
-  On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only, with
-  `/proc/<pid>/pagemap` read to find the pages that changed. On Windows it reads through
-  `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open. What the code
-  shows: MyOrbiter's code doesn't set their access rights itself, and its comments call them read
-  access (`PROCESS_VM_READ`). What wasn't audited: the access those libraries actually ask Windows
-  for. Nothing in the code writes to the game's memory on either system. The one thing TennoScope
-  writes about the game's process: on Linux, once when the log shows a reward screen opening, it
-  writes `4` to `/proc/<pid>/clear_refs`. That resets the kernel's record of which of the game's
-  memory pages have changed, so the next read only looks at those. It doesn't change the game's
-  memory, though the game's next write to each page costs it a small kernel fault.
+  On Linux, memory is opened for reading only: `/proc/<pid>/mem` opened read-only. On Windows it
+  reads through `ReadProcessMemory` and `VirtualQueryEx`, with handles that two libraries open. What
+  the code shows: MyOrbiter's code doesn't set their access rights itself, and its comments call them
+  read access (`PROCESS_VM_READ`). What wasn't audited: the access those libraries actually ask
+  Windows for. Nothing in the code writes to the game's memory on either system, and TennoScope
+  writes nothing to the game's process at all.
 - **The risk.** Digital Extremes publishes no list of allowed or forbidden third-party programs;
   [its forum post](https://forums.warframe.com/topic/1383123/) leaves using them at your own risk.
   Full mode could put your account at risk: that's your call. MyOrbiter never calls it safe.
@@ -123,8 +115,8 @@ the downloads), prints everything MyOrbiter reads from the log.
 
 TennoScope reads the same log, only in Overlay and Full mode and only while the game runs (ten
 times a second, a hundred while a reward screen is open): for the inventory sync, the reward screen
-(the squad's relics, the screen opening and closing, the rewards, and the squad's account ids), and
-when Baro's Ducat Kiosk opens and closes. Its own bug report can save a copy of the log, with IP and
+(the squad's relics, the screen opening and closing, the rewards, and the squad's account ids,
+which nothing uses any more), and when Baro's Ducat Kiosk opens and closes. Its own bug report can save a copy of the log, with IP and
 e-mail addresses removed, on this computer, only if you ask for it.
 
 ## warframe.market
