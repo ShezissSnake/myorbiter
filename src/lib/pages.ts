@@ -34,7 +34,11 @@ export interface Page {
   label: string;
   /** Section in the sidebar; Home and Guide stand alone. */
   group: "" | "Fissures" | "Progress" | "Collection" | "Trade";
-  /** The game's own icon where there is a fitting one, else one of MyOrbiter's line icons. */
+  /**
+   * The page's picture: the game's own, in its colours (its flat glyphs white), or one drawn to sit
+   * with them. No two pages share one, and none is a section's glyph (SECTION_GLYPH). The Guide,
+   * which has no row, keeps a line icon.
+   */
   icon: { game: GameIconName } | { line: string };
   hint: string;
   /** The hint on a console, where the page does less. */
@@ -42,25 +46,25 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
-  { id: "home", label: "Home", group: "", icon: { line: "home" }, hint: "Today at a glance: your market, live fissures, what's ready to sell, Baro and Varzia, the easiest mastery next", consoleHint: "Today at a glance: your market, the world's clocks, live fissures, Baro and Varzia" },
-  { id: "mission", label: "Current fissure", group: "Fissures", icon: { game: "void-tear" }, hint: "The fissure you're in: the squad's relics, and which reward to take" },
+  { id: "home", label: "Home", group: "", icon: { game: "dojo" }, hint: "Today at a glance: your market, live fissures, what's ready to sell, Baro and Varzia, the easiest mastery next", consoleHint: "Today at a glance: your market, the world's clocks, live fissures, Baro and Varzia" },
+  { id: "mission", label: "Current fissure", group: "Fissures", icon: { game: "fissure-canister" }, hint: "The fissure you're in: the squad's relics, and which reward to take" },
   { id: "relics", label: "Relics", group: "Fissures", icon: { game: "relic-axi-intact" }, hint: "Your relics: what's vaulted, what a crack is worth, live fissures" },
-  { id: "planner", label: "Planner", group: "Fissures", icon: { game: "void-traces" }, hint: "Which relics to crack to complete sets, and which to make radiant" },
-  { id: "mastery", label: "Mastery", group: "Progress", icon: { game: "mastery" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
+  { id: "planner", label: "Planner", group: "Fissures", icon: { game: "planner-slate" }, hint: "Which relics to crack to complete sets, and which to make radiant" },
+  { id: "mastery", label: "Mastery", group: "Progress", icon: { game: "mastered" }, hint: "Everything you haven't mastered, easiest first, and how to get it" },
   { id: "foundry", label: "Foundry", group: "Progress", icon: { game: "foundry" }, hint: "Every warframe, weapon and companion with its parts: what you own, what you've mastered, what you can build" },
-  { id: "builds", label: "Builds", group: "Progress", icon: { line: "mods" }, hint: "Mod and arcane builds for anything that takes them, in three tiers, and what you're missing for each" },
-  { id: "wishlist", label: "Wishlist", group: "Progress", icon: { line: "star" }, hint: "The things you starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs" },
-  { id: "inventory", label: "Inventory", group: "Collection", icon: { line: "inventory" }, hint: "Everything you own, with what it's worth" },
+  { id: "builds", label: "Builds", group: "Progress", icon: { game: "forma" }, hint: "Mod and arcane builds for anything that takes them, in three tiers, and what you're missing for each" },
+  { id: "wishlist", label: "Wishlist", group: "Progress", icon: { game: "wishlist" }, hint: "The things you starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs" },
+  { id: "inventory", label: "Inventory", group: "Collection", icon: { game: "locker" }, hint: "Everything you own, with what it's worth" },
   { id: "parts", label: "Prime parts", group: "Collection", icon: { game: "ducats" }, hint: "Every prime part: keep it, sell it, or trade it to Baro for ducats" },
-  { id: "sets", label: "Sets", group: "Collection", icon: { line: "sets" }, hint: "Complete prime sets you could sell, and sets almost done" },
+  { id: "sets", label: "Sets", group: "Collection", icon: { game: "prime-plate" }, hint: "Complete prime sets you could sell, and sets almost done" },
   { id: "mods", label: "Mods", group: "Collection", icon: { game: "endo" }, hint: "Spare mod copies to sell, beyond your best one and one to give away" },
   { id: "arcanes", label: "Arcanes", group: "Collection", icon: { game: "vosfor" }, hint: "Arcanes by price, how close you are to maxing each, and spares to sell or dissolve for Vosfor" },
   { id: "rivens", label: "Rivens", group: "Collection", icon: { game: "riven" }, hint: "Your rivens graded, what similar ones sell for, and alerts for the ones you want", consoleHint: "Find rivens for sale, each roll graded, and alerts for the ones you want" },
   { id: "market", label: "Orders", group: "Trade", icon: { game: "market" }, hint: "Your warframe.market listings, kept at the market price" },
-  { id: "spares", label: "Sell spares", group: "Trade", icon: { game: "platinum" }, hint: "Choose what to sell and how, look over the plan, list it in one go" },
-  { id: "browse", label: "Browse market", group: "Trade", icon: { line: "list" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
+  { id: "spares", label: "Sell spares", group: "Trade", icon: { game: "duplicates" }, hint: "Choose what to sell and how, look over the plan, list it in one go" },
+  { id: "browse", label: "Browse market", group: "Trade", icon: { game: "browse-lens" }, hint: "Everything warframe.market trades, yours or not: browse by category, price and how often it sells" },
   { id: "sales", label: "Sales", group: "Trade", icon: { game: "platinum" }, hint: "What you've sold and the platinum it made" },
-  { id: "stats", label: "Stats", group: "Trade", icon: { line: "chart" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
+  { id: "stats", label: "Stats", group: "Trade", icon: { game: "player" }, hint: "Your platinum, credits, Endo and more over time, and every trade you've made" },
   { id: "guide", label: "Guide", group: "", icon: { line: "guide" }, hint: "What each page is for and how to use it" },
 ];
 
@@ -150,3 +154,14 @@ export function moveSection(gs: { group: string; pages: Page[] }[], group: strin
 
 /** The sidebar's sections, by name (as the pages name them): what a saved closed section may be. */
 export const SECTION_NAMES: string[] = sectionsOf(PAGES);
+
+/**
+ * Each section's glyph, the game's own, drawn flat in the section's colour inside its crest: on the
+ * section's bar in the sidebar and in the head of each of its pages (ui/Crest.svelte).
+ */
+export const SECTION_GLYPH: Record<Exclude<Page["group"], "">, GameIconName> = {
+  Fissures: "void-tear",
+  Progress: "mastery-mark",
+  Collection: "bundle",
+  Trade: "trading",
+};

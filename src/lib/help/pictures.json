@@ -102,7 +102,7 @@
     "bytes": 53258
   },
   "first-run-2.webp": {
-    "hash": "a29bc814ed8ee6e0",
+    "hash": "28db40a3db5d919f",
     "w": 575,
     "h": 275,
     "bytes": 19000
@@ -252,31 +252,31 @@
     "bytes": 18482
   },
   "item-sheet-1.webp": {
-    "hash": "79b808e76aa5c36b",
+    "hash": "4508a7df24cd0b5b",
     "w": 943,
     "h": 363,
     "bytes": 25044
   },
   "item-sheet-2.webp": {
-    "hash": "1d7734d50d430279",
+    "hash": "6c64cb4d494d6869",
     "w": 926,
     "h": 152,
     "bytes": 8644
   },
   "item-sheet-3.webp": {
-    "hash": "57abace627d6ae52",
+    "hash": "2f0650fe73c43632",
     "w": 927,
     "h": 147,
-    "bytes": 11942
+    "bytes": 11878
   },
   "item-sheet-4.webp": {
-    "hash": "f205f2e68c9cac72",
+    "hash": "42b476fe555448d2",
     "w": 927,
     "h": 612,
-    "bytes": 43586
+    "bytes": 43514
   },
   "item-sheet-5.webp": {
-    "hash": "4d78c7ee13eac9ea",
+    "hash": "460f1cc63d8a4a4a",
     "w": 909,
     "h": 144,
     "bytes": 5724
@@ -457,21 +457,21 @@
   },
   "rail-1.webp": {
     "hash": "e853c4512ff36f7d",
-    "w": 280,
-    "h": 102,
-    "bytes": 6896
+    "w": 256,
+    "h": 105,
+    "bytes": 6640
   },
   "rail-2.webp": {
-    "hash": "02eb3113eaae3fff",
-    "w": 235,
-    "h": 98,
-    "bytes": 4584
+    "hash": "4aface5590873e11",
+    "w": 292,
+    "h": 124,
+    "bytes": 5926
   },
   "rail-3.webp": {
-    "hash": "4dc09243ea2f6347",
-    "w": 235,
-    "h": 103,
-    "bytes": 5310
+    "hash": "4a57cb81c596aa45",
+    "w": 284,
+    "h": 202,
+    "bytes": 8784
   },
   "relics-1.webp": {
     "hash": "508b5309a7bda7b5",
@@ -690,13 +690,13 @@
     "bytes": 24988
   },
   "tennoscope-1.webp": {
-    "hash": "821670e74dbb4113",
+    "hash": "4062929cf6353aa8",
     "w": 591,
     "h": 543,
     "bytes": 46632
   },
   "tennoscope-2.webp": {
-    "hash": "f64143188362cddc",
+    "hash": "0ce7acf3cd11ca57",
     "w": 575,
     "h": 553,
     "bytes": 35226
@@ -732,16 +732,16 @@
     "bytes": 16990
   },
   "whats-new-1.webp": {
-    "hash": "f40a0b06a0a649da",
+    "hash": "560297366818c3d2",
     "w": 989,
-    "h": 266,
-    "bytes": 21206
+    "h": 267,
+    "bytes": 21166
   },
   "whats-new-2.webp": {
-    "hash": "91af419f60aa2913",
+    "hash": "59d6e8ebeddf5a27",
     "w": 989,
-    "h": 266,
-    "bytes": 32886
+    "h": 267,
+    "bytes": 34012
   },
   "wishlist-1.webp": {
     "hash": "725b62f623f1ed4a",

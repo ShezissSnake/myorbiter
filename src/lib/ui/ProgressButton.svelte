@@ -10,6 +10,7 @@
   import type { HTMLButtonAttributes } from "svelte/elements";
   import type { Job, JobState } from "../job.svelte";
   import Icon from "./Icon.svelte";
+  import GameIcon, { type GameIconName } from "./GameIcon.svelte";
 
   let {
     job = null,
@@ -28,6 +29,8 @@
     icon = null,
     spin = false,
     busyIcon = null,
+    picture = null,
+    aside = false,
     size = 14,
     status = false,
     title = undefined,
@@ -66,6 +69,10 @@
     spin?: boolean;
     /** Icon variant: shown (turning, with spin) in place of the icon while working: an import's arrow becomes a refresh. */
     busyIcon?: string | null;
+    /** Text: one of the game's pictures before the label, in place of `icon` (turning, with spin, while working). */
+    picture?: GameIconName | null;
+    /** Text: the label stays put and what the work says (working, done, failed) sits after it, at the far end. */
+    aside?: boolean;
     size?: number;
     /** A line under the button: what it's doing, or why it failed. */
     status?: boolean;
@@ -152,13 +159,24 @@
         {:else}<span class:turn={spin && st === "working"}><Icon name={(st === "working" && busyIcon) || icon || "refresh"} {size} /></span>{/if}
       </span>
     {:else}
-      {#if icon}
+      {#if picture}
+        <span class="mark lead pic"><span class:turn={spin && st === "working"}><GameIcon name={picture} size={size} even /></span></span>
+      {:else if icon}
         <span class="mark lead">
           {#if st === "done"}<Icon name="check" size={12} />
           {:else if st === "failed"}<b class="bang">!</b>
           {:else}<span class:turn={spin && st === "working"}><Icon name={icon} size={12} /></span>{/if}
         </span>
       {/if}
+      {#if aside}
+        <span class="lbls"><span class="on">{label}</span></span>
+        <span class="lbls aside">
+          <span class:on={st === "working"}>{workWord}</span>
+          <span class:on={st === "done"}>{doneWord}</span>
+          <span class:on={st === "failed"}><b class="bang">!</b>{failWord}</span>
+          {#each sizer as s, i (i)}<span>{s}</span>{/each}
+        </span>
+      {:else}
       <span class="lbls">
         <span class:on={st === "idle"}>{label}</span>
         <span class:on={st === "working"}>{workWord}</span>
@@ -166,6 +184,7 @@
         <span class:on={st === "failed"}>{#if !icon}<b class="bang">!</b>{/if}{failWord}</span>
         {#each sizer as s, i (i)}<span>{s}</span>{/each}
       </span>
+      {/if}
       {#if variant === "link"}<i class="hair" class:sweep={st === "working" && p == null} class:step={st === "working" && p != null} class:on={st === "working"} style:transform={st === "working" && p != null ? `scaleX(${p})` : null} aria-hidden="true"></i>{/if}
     {/if}
   </button>

@@ -13,7 +13,7 @@
   import { fold, reveal } from "../motion";
   import { PANE } from "../statusStrip.svelte";
   import { pageById, type PageId } from "../pages";
-  import Icon, { sectionIcon } from "./Icon.svelte";
+  import Crest from "./Crest.svelte";
   import HelpMark from "./HelpMark.svelte";
   // `help`: the parts' ids for the "?" on the band of figures and on the signature (hero), each at
   // its top right corner (neither has a head bar).
@@ -31,8 +31,8 @@
 
 <header class="head">
   {#if section}
-    <!-- The crest: two squares turned to diamonds, the inner in the section's colour, and its glyph. -->
-    <span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i><Icon name={sectionIcon(section)} size={30} stroke={1.5} /></span>
+    <!-- The section's crest, the same mark as on its bar in the sidebar. -->
+    <span class="crestbox"><Crest {section} size={104} /></span>
   {/if}
   <div class="tx">
     <span class="kicker register">{section}</span>
@@ -64,12 +64,8 @@
 <style>
   /* Fixed height: the title's top is at the same y on every page, whatever the line under it says. */
   .head { display: flex; align-items: center; gap: 24px; height: 124px; margin-top: 40px; min-width: 0; }
-  .crest { position: relative; flex: none; width: 104px; height: 104px; margin-left: -8px; display: grid; place-items: center; overflow: hidden; color: var(--sec); }
-  .crest i { position: absolute; transform: rotate(45deg); }
-  .crest .outer { inset: 16px; border: 1px solid var(--rule); }
   /* The crest's glow stays inside its box (the box clips it). */
-  .crest .inner { inset: 26px; border: 1px solid color-mix(in srgb, var(--sec) 55%, transparent); background: color-mix(in srgb, var(--sec) 7%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--sec) 22%, transparent); }
-  .crest :global(svg) { position: relative; }
+  .crestbox { flex: none; display: grid; margin-left: -8px; overflow: hidden; }
   .tx { flex: 1; min-width: 0; display: grid; justify-items: start; }
   /* The kicker keeps its line outside a section too, so the title doesn't move up there. */
   .kicker { display: block; height: 16px; line-height: 16px; color: var(--sec); }
@@ -110,5 +106,5 @@
     .engr { margin: 12px 0 16px; }
   }
   /* A narrow page: the crest goes before the title does. */
-  :global(html[data-room~="lt640"]) .crest { display: none; }
+  :global(html[data-room~="lt640"]) .crestbox { display: none; }
 </style>

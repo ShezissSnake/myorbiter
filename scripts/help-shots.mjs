@@ -169,7 +169,9 @@ async function reach(p, shot, where) {
     await p.waitForTimeout(400);
   }
   if (shot.open === "settings") {
-    await p.locator(".rail .foot button[title^='Settings']").first().click();
+    // Settings is in the foot's More menu.
+    await p.locator(".rail .foot button.more").first().click();
+    await p.locator(".moremenu [data-item='Settings']").first().click();
   } else {
     const label = pageById[shot.open]?.label;
     if (!label) throw new Error(`${where}: no page ${shot.open}`);
