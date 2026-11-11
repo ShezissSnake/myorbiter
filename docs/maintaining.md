@@ -233,6 +233,24 @@ clocks) is read live, so Home and Current fissure change from one run to the nex
 `node_modules` is a link to another folder, Vite refuses to serve the fonts and the pictures come
 out in fallback fonts: run it where `node_modules` is a real folder.
 
+### The help's pictures
+
+Each page of a walk-through behind a "?" (`src/lib/help/`) shows a cropped, marked picture from the
+same invented account, kept in `public/help/` and listed in `src/lib/help/pictures.json` with a
+hash of the page's picture definition (where it opens, its clicks, the piece cropped, its marks).
+`npm test` fails when a page has no picture, a picture belongs to no page, or a definition changed
+since its picture was taken. Before a release, when walk-through pages changed, take the pictures
+again, all of them or one walk-through's:
+
+```fish
+npm run screenshots -- --only help
+npm run screenshots -- --only help --id orders
+```
+
+The script stops on a selector that matches nothing, keeps each picture under 60 KB, and removes
+pictures no page has any more. The demo has no sales, so the Sales pictures add a few invented
+ones in the throwaway browser.
+
 ## AI and automation
 
 - [ ] **Never install an AI bot, GitHub App or integration that acts on public comments** (answers,

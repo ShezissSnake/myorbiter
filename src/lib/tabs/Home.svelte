@@ -29,6 +29,7 @@
   import { nextMondayUtc } from "../core/today";
   import IconButton from "../ui/IconButton.svelte";
   import PageHead from "../ui/PageHead.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import Chip from "../ui/Chip.svelte";
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -476,10 +477,11 @@
   <span class="tick"><Tick {on} label="{what} done" title={on ? `${what}: done. Click to untick` : `Tick off ${what} once it's done; it clears itself at the reset, in ${until(resets, now)}`} onclick={() => toggleChore(key, resets)} /></span>
 {/snippet}
 
-{#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string)}
+{#snippet head(icon: GameIconName | null, line: string | null, title: string, to: string | null, action: string, part: string)}
   <header class="ph">
     <span class="pt">{#if icon}<GameIcon name={icon} size={22} />{:else if line}<Icon name={line} size={18} />{/if}<span class="register">{title}</span></span>
     {#if to}<button class="link" onclick={() => go(to)}>{action} →</button>{/if}
+    <HelpMark {part} />
   </header>
 {/snippet}
 
@@ -494,7 +496,7 @@
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
     <!-- First days with MyOrbiter: the few things that make the rest of it work, each a click away. -->
     <div class="startfold reveal" out:unfold><div><section class="start" aria-label="Start here">
-      <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button></header>
+      <header><span class="register">Start here</span><span class="dim small">{startSteps.filter((x) => x.done).length} of {startSteps.length} done</span><button type="button" class="link quiet small" title="Put this card away (it goes on its own once every step is done)" onclick={() => (settings.startDone = true)}>Not now</button><HelpMark part="home.start" /></header>
       <ol>
         {#each startSteps as x (x.label)}
           <li class:done={x.done}><Tick on={x.done} size={1.05} /><button type="button" class="link" disabled={x.done} title={x.hint} onclick={x.go}>{x.label}</button><span class="dim small">{x.why}</span></li>
@@ -510,6 +512,7 @@
         {#each cards as c (c.key)}<Chip on={!hidden.has(c.key)} label={c.label} title={`${c.hint}. Click to ${hidden.has(c.key) ? "show" : "hide"} it.`} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
       </div>
       {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
+      <HelpMark part="home.customise" corner />
     </section></div></div>
   {/if}
 
@@ -542,6 +545,7 @@
         {/if}
         </div>
       {/each}
+      <HelpMark part="home.needs-you" corner />
     </section>
   {/if}
 
@@ -568,12 +572,13 @@
             <div><span class="register">{#if RESET_ICON[r.key]}<span class="rk-sm"><GameIcon name={RESET_ICON[r.key]} size={11} /></span>{/if}{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
           </div>
         {/each}
+        <HelpMark part="home.world" corner />
       </section>
     {/if}
 
     <!-- Market -->
     <section class="panel market" data-card="market" class:off={off("market")} class:full={alone("market")} style:grid-row={rowSpan("market")}>
-      {@render head("market", null, "Your orders", "market", "Orders")}
+      {@render head("market", null, "Your orders", "market", "Orders", "home.market")}
       {#if mkt.linked}
         <div class="presence"><Presence settings={settings.market} quiet tradesLeft={trades.left} resets={trades.resets} /></div>
         <div class="figs">
@@ -604,7 +609,7 @@
 
     <!-- Ready to list -->
     <section class="panel ready" class:off={off("ready")} class:half={orphan("ready")} class:lone={lone("ready")} style:--n={share("ready")} data-card="ready">
-      {@render head("platinum", null, "Ready to list", "spares", "Sell spares")}
+      {@render head("platinum", null, "Ready to list", "spares", "Sell spares", "home.ready")}
       {#if !ticked}
         <p class="dim">Nothing ticked on <b>Sell spares</b>.</p>
       {:else if !byKind.length}
@@ -626,7 +631,7 @@
 
     <!-- Fissures -->
     <section class="panel fissures" data-card="fissures" class:off={off("fissures")}>
-      {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics")}
+      {@render head("void-tear", null, "Fissures now", console ? null : "relics", "Relics", "home.fissures")}
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
@@ -666,7 +671,7 @@
 
     <!-- Bounties -->
     <section class="panel bounties" data-card="bounties" class:off={off("bounties")}>
-      {@render head("bounty", null, "Bounties", null, "")}
+      {@render head("bounty", null, "Bounties", null, "", "home.bounties")}
       {#if live.syndicates == null && !bountyTables}
         <p class="dim">{liveNote}</p>
       {:else if openBounties}
@@ -687,7 +692,7 @@
     <!-- Events -->
     {#if events.length}
       <section class="panel events" data-card="events" class:off={off("events")}>
-        {@render head(null, "event", "Events", null, "")}
+        {@render head(null, "event", "Events", null, "", "home.events")}
         <ul class="ev">
           {#each events as e (e.id)}
             <li>
@@ -704,7 +709,7 @@
     <!-- Worth doing today -->
     <!-- Folded, each task is its heading line (what and how long); open, its missions, offers and challenges. -->
     <section class="panel today" class:open={openToday} use:fresh={openToday} data-card="today" class:off={off("today")} class:full={alone("today")} style:grid-row={rowSpan("today")}>
-      {@render head("nightwave", null, "Worth doing today", null, "")}
+      {@render head("nightwave", null, "Worth doing today", null, "", "home.today")}
       <p class="dim small chorecount" title="Tick each one once it's done: the game doesn't say. Every tick clears itself at that chore's own reset (daily for the Sortie, Monday 00:00 UTC for the weeklies)">{choresDone} of {chores.length} done · tick each when it's done</p>
       <div class="tgrid">
         {#if day.circuit}
@@ -804,7 +809,7 @@
 
     <!-- Foundry -->
     <section class="panel foundry" class:off={off("foundry")} class:half={orphan("foundry")} class:lone={lone("foundry")} style:--n={share("foundry")} data-card="foundry">
-      {@render head("foundry", null, "Foundry", null, "")}
+      {@render head("foundry", null, "Foundry", null, "", "home.foundry")}
       {#if builds.length}
         <ul class="fb">
           {#each builds as b (b.key)}
@@ -832,7 +837,7 @@
 
     <!-- Wishlist -->
     <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")} class:lone={lone("wishes")} style:--n={share("wishes")} data-card="wishes">
-      {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist")}
+      {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist", "home.wishes")}
       {#if wishes.length}
         <ul class="fb">
           {#each wishes.slice(0, 4) as w (w.c.unique)}
@@ -852,7 +857,7 @@
 
     <!-- Cheap buys -->
     <section class="panel deals" class:off={off("deals")} class:half={orphan("deals")} class:lone={lone("deals")} style:--n={share("deals")} data-card="deals">
-      {@render head("platinum", null, "Cheap buys", null, "")}
+      {@render head("platinum", null, "Cheap buys", null, "", "home.deals")}
       {#if mkt.deals.length}
         <ul class="dl">
           {#each mkt.deals.slice(0, 6) as d (d.key)}
@@ -885,7 +890,7 @@
     </section>
 
     <section class="panel mastery" data-card="mastery" class:off={off("mastery")} class:full={alone("mastery")} style:grid-row={rowSpan("mastery")}>
-      {@render head("mastery", null, "Easiest mastery next", "mastery", "Mastery")}
+      {@render head("mastery", null, "Easiest mastery next", "mastery", "Mastery", "home.mastery")}
       {#if toLevel.length}
         <button class="levelrow" onclick={() => go("mastery")} title="Things you own that aren't at max rank yet">
           <GameIcon name="mastery" size={26} />
@@ -907,7 +912,7 @@
 
     <!-- Baro -->
     <section class="panel baro" class:off={off("baro")} class:half={orphan("baro")} class:lone={lone("baro")} style:--n={share("baro")} data-card="baro">
-      {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts?best=Ducats", "Spares for ducats")}
+      {@render head("baro", null, "Baro Ki’Teer", console ? null : "parts?best=Ducats", "Spares for ducats", "home.baro")}
       {#if !baro}
         <p class="dim">{liveWaiting || liveError ? liveNote : "Baro's schedule isn't in the worldstate right now."}</p>
       {:else}
@@ -949,7 +954,7 @@
 
     <!-- Varzia -->
     <section class="panel varzia" class:off={off("varzia")} class:half={orphan("varzia")} class:lone={lone("varzia")} style:--n={share("varzia")} data-card="varzia" class:slim={!!live.resurgence && !varzia.length && !console}>
-      {@render head("varzia", null, "Varzia: Prime Resurgence", console ? null : "relics?vault=resurgence", "Her relics")}
+      {@render head("varzia", null, "Varzia: Prime Resurgence", console ? null : "relics?vault=resurgence", "Her relics", "home.varzia")}
       {#if !live.resurgence}
         <p class="dim">{liveWaiting || liveError ? liveNote : "Varzia's rotation isn't in the worldstate right now."}</p>
       {:else if console}
@@ -983,7 +988,7 @@
 
 <style>
   /* Needs you: a card each, as many to a row as fit. */
-  .alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
+  .alerts { position: relative; padding-right: 2rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(24rem, 100%), 1fr)); gap: .5rem; margin-bottom: var(--step); }
   .alert { display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem .85rem; border: 1px solid var(--rule); background: var(--plate); box-shadow: inset 3px 0 0 var(--platinum-deep); min-width: 0; clip-path: var(--cut); }
   /* Dismissed, waiting out its Undo: just the collapsed line. */
   .aslot { display: grid; min-width: 0; }
@@ -1011,7 +1016,7 @@
   .fissures .waiting { min-height: 15rem; margin: 0; }
   /* The only small card left beside a tall one: as tall as what's in it, not stretched to the row. */
   .panel.lone { align-self: start; }
-  .custom { display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
+  .custom { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: .6rem 1rem; padding: .8rem 2.4rem .8rem 1rem; margin-bottom: var(--step); border: 1px solid var(--rule); background: var(--plate); }
   .custom .cards { display: flex; flex-wrap: wrap; gap: .4rem; flex: 1; }
   .panel { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem 1.1rem; min-width: 0; display: flex; flex-direction: column; gap: .8rem; }
   .market { grid-column: span 7; }
@@ -1044,7 +1049,7 @@
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
   .baro { grid-column: span 5; }
-  .world { grid-column: span 12; display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0; padding: 0; }
+  .world { position: relative; grid-column: span 12; display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: 0; padding: 0 1.9rem 0 0; }
   .clock { display: flex; gap: .6rem; align-items: center; padding: .8rem 1rem; border-left: 1px solid var(--rule); min-width: 0; }
   .clock:first-child { border-left: 0; }
   .clock > div { display: grid; gap: .2rem; min-width: 0; }
@@ -1171,6 +1176,7 @@
   .pt { display: inline-flex; align-items: center; gap: .55rem; }
   .pt .register { color: var(--platinum); font-size: 11px; }
   .ph .link { font-size: .78rem; }
+  .ph > .pt + :global(.helpmark) { margin-left: auto; }
 
   .presence { padding-bottom: .2rem; }
   .foot { margin-top: auto; }

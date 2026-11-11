@@ -4,10 +4,17 @@
 // runs out of its own box without an ellipsis. Then, at 1280×800, it walks every one of those
 // views with the keyboard: Tab until focus comes back round (at most 400 presses), and flags each
 // element focus lands on that is hidden (its own visibility, or inside something hidden) or that
-// has no accessible name (an icon-only button or link with no label, title or text). Exits 1 when
-// it finds either.
+// has no accessible name (an icon-only button or link with no label, title or text). In every
+// view it also checks the help: each part (a head bar, a tool or filter row, a table, a band of
+// figures, a labelled section; PART_HEADS and PART_BODIES below) carries a "?" (ui/HelpMark.svelte)
+// or sits under a head that does, and each "?" names a part the help list knows; the parts whose
+// walk-through is still a placeholder are listed as pending, which doesn't fail. With the help
+// open on Orders and Sell spares it checks the dialog at every size too. Exits 1 when it finds
+// any of these.
 //
-//   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800]
+//   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
+//
+// --coverage: only the help check, at 1280×800 and 1920×1080 (where the Watching column shows).
 //
 // Headless Chromium, so it runs without a display server. It uses Playwright's Chromium if it's
 // installed (`npx playwright install chromium` puts it in Playwright's own cache) and stops with
@@ -31,6 +38,7 @@ const arg = (name) => {
 const port = arg("--port") ?? "1432";
 if (!/^[0-9]{2,5}$/.test(port)) throw new Error(`not a port: ${port}`);
 const out = arg("--out") ? resolve(arg("--out")) : null;
+const coverageOnly = process.argv.includes("--coverage");
 const url = `http://localhost:${port}/`;
 
 /** The app's minimum window (src-tauri/tauri.conf.json), the Steam Deck, a common laptop, 1080p, 1440p. */
@@ -40,7 +48,7 @@ const SIZES = [
   { w: 1366, h: 768 },
   { w: 1920, h: 1080 },
   { w: 2560, h: 1440 },
-].filter((s) => !arg("--only") || arg("--only") === `${s.w}x${s.h}`);
+].filter((s) => (!arg("--only") || arg("--only") === `${s.w}x${s.h}`) && (!coverageOnly || s.w === 1280 || s.w === 1920));
 
 /**
  * Clipping that is meant to be there, by a selector the clipped element or its clipping box
@@ -135,6 +143,74 @@ function findClipping(deliberate) {
   return found;
 }
 
+/**
+ * The shapes a part takes, for the help check. A head (a list plate's head bar, a section heading
+ * on a page or in a panel, a tool or filter row) must hold its own "?"; a body (a table, the band
+ * of figures under a title, a labelled section, anything marked data-part) is covered by a "?"
+ * inside it or in the head just above it.
+ */
+const PART_HEADS = [".plate-head", ".page h2.register", ".page h3.register.lead", ".page .bar", ".page .tools", ".sheet section > h3.register", "aside.side section > h3.register"];
+const PART_BODIES = ["table", ".band", "section[aria-label]", "[data-part]"];
+/** Groups inside a part that its own "?" covers: they repeat, and aren't parts of their own. */
+const PART_OF = [{ selector: ".dayblock", why: "the notifications' day groups: one list, under the panel's own \"?\"" }];
+
+/** Runs in the page: the parts drawn now without a "?", the "?"s whose walk-through is a placeholder, and any naming no part. */
+function coverage({ heads, bodies, inside }) {
+  const drawn = (el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width <= 1 || r.height <= 1) return false;
+    const cs = getComputedStyle(el);
+    return cs.visibility === "visible" && cs.display !== "none" && !el.closest("[inert], [hidden], [aria-hidden='true'], .zone") && !(inside && el.closest(inside));
+  };
+  const describe = (el) => {
+    const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 2).join(".") : "";
+    const label = el.getAttribute("aria-label") || (el.textContent ?? "").trim();
+    return `${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${label ? ` "${label.replace(/\s+/g, " ").slice(0, 40)}"` : ""}`;
+  };
+  const head = heads.join(", ");
+  const marked = (el) => !!el?.querySelector?.("[data-help]");
+  const isHead = (el) => !!el?.matches?.(head);
+  // A head carries its "?", or its row does, at the right end (a heading beside the row's buttons).
+  const headOk = (el) => marked(el) || !!el.parentElement?.querySelector(":scope > [data-help]");
+  // A body sits under a head with a "?": the head just before it, or the first child of a box it
+  // is in (a section and its heading), a few levels up at most.
+  const underHead = (el) => {
+    for (let n = el, i = 0; n && i < 5 && !n.matches(".pane, .page-inner, .sheet, aside.side, [role=dialog]"); n = n.parentElement, i++) {
+      // A heading row (a heading with a note or the "?" beside it) counts as the head it starts with.
+      for (let s = n.previousElementSibling, j = 0; s && j < 3; s = s.previousElementSibling, j++) {
+        if (isHead(s)) return headOk(s);
+        if (isHead(s.firstElementChild)) return headOk(s.firstElementChild);
+      }
+      const first = n.parentElement?.firstElementChild;
+      if (first && first !== n && isHead(first) && headOk(first)) return true;
+      if (n !== el && n.matches("[data-part]") && marked(n)) return true;
+      // A "?" in the corner of a box covers what the box holds (the band's figures, the signature strip).
+      if (n.parentElement?.querySelector(":scope > [data-help].corner")) return true;
+    }
+    return false;
+  };
+  // With a dialog or panel open, only what is in it can be reached: the one on top is checked, and
+  // it is a part itself. Otherwise the whole window, the sidebar's foot included.
+  const modals = [...document.querySelectorAll("[aria-modal='true']")].filter((m) => drawn(m) && !m.closest(".zone"));
+  const root = modals.length ? modals[modals.length - 1] : document;
+  const missing = [];
+  if (root !== document && !marked(root)) missing.push(`the open ${describe(root).slice(0, 60)} has no "?"`);
+  if (root === document) for (const el of document.querySelectorAll(".rail .foot")) if (drawn(el) && !marked(el)) missing.push("the sidebar's foot");
+  for (const el of root.querySelectorAll(head)) if (drawn(el) && !headOk(el)) missing.push(describe(el));
+  for (const el of root.querySelectorAll(bodies.join(", "))) {
+    if (!drawn(el) || el.closest("td") || el.matches(head)) continue;
+    if (marked(el) || underHead(el)) continue;
+    missing.push(describe(el));
+  }
+  const marks = [...root.querySelectorAll("[data-help]")].filter(drawn);
+  return {
+    missing,
+    pending: marks.filter((m) => m.hasAttribute("data-pending")).map((m) => m.dataset.help),
+    unknown: marks.filter((m) => m.hasAttribute("data-unknown")).map((m) => m.dataset.help),
+    count: marks.length,
+  };
+}
+
 const answers = async () => {
   try {
     return (await fetch(url)).ok;
@@ -176,6 +252,10 @@ async function open(size, { firstRun = false, noInventory = false } = {}) {
     try {
       const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");
       s.newsSeen = "9999";
+      // Every page in the sidebar, the three it leaves out to start with (Planner, Browse market,
+      // Stats) too, so each is checked.
+      s.pagesHidden = [];
+      s.simplified = 2;
       // Settings that exist count as asked unless they say otherwise (backend.ts).
       s.fullModeAsked = !first;
       localStorage.setItem("orbiter-settings", JSON.stringify(s));
@@ -233,14 +313,28 @@ function focusNow() {
 }
 
 const findings = [];
+const helpMissing = [];
+const helpUnknown = [];
+const helpPending = new Map();
+let helpMarks = 0;
 const keyFindings = [];
 const keyNotes = [];
 /** How many elements focus landed on in each view, so a walk that reached nothing shows. */
 const keyStops = [];
 const shots = [];
+async function helpCheck(p, size, view) {
+  const c = await p.evaluate(coverage, { heads: PART_HEADS, bodies: PART_BODIES, inside: PART_OF.map((x) => x.selector).join(", ") });
+  for (const element of c.missing) helpMissing.push({ size: `${size.w}×${size.h}`, view, element });
+  for (const part of c.unknown) helpUnknown.push({ size: `${size.w}×${size.h}`, view, part });
+  for (const part of c.pending) helpPending.set(part, helpPending.get(part) ?? view);
+  helpMarks += c.count;
+}
+
 async function check(p, size, view) {
   await p.mouse.move(size.w - 5, size.h - 5);
   await pause(p, 500);
+  await helpCheck(p, size, view);
+  if (coverageOnly) return;
   const found = await p.evaluate(findClipping, DELIBERATE.map(({ selector, why }) => ({ selector, why })));
   for (const f of found) findings.push({ size: `${size.w}×${size.h}`, view, ...f });
   if (work) {
@@ -354,6 +448,47 @@ async function walk(size, look, { settingsOnce = false } = {}) {
     await pause(p, 400);
   }
   if (!formShown) console.error("  no list button on Inventory opened a listing form: not checked");
+  // An item's sheet, from Inventory's first card that has one.
+  const cards = p.locator(".pane.shown article.card[role='button']");
+  let sheetShown = false;
+  for (let i = 0, n = Math.min(await cards.count(), 12); i < n && !sheetShown; i++) {
+    await cards.nth(i).click();
+    await pause(p, 1500);
+    if (await p.locator(".sheet[role=dialog]").count()) {
+      sheetShown = true;
+      await look(p, size, "Item sheet");
+    }
+    await p.keyboard.press("Escape");
+    await pause(p, 400);
+  }
+  if (!sheetShown) console.error("  no card on Inventory opened an item sheet: not checked");
+  // The buy order form, from Browse market's first Buy order (the order book isn't read: every
+  // request to warframe.market is stopped, so the form says so and leaves the price to you).
+  await p.locator("button.nav", { hasText: "Browse market" }).first().click();
+  await pause(p, 2500);
+  const buy = p.locator(".pane.shown button", { hasText: /^Buy order$/ }).first();
+  if (await buy.count()) {
+    await buy.evaluate((b) => b.click());
+    await pause(p, 1500);
+    await look(p, size, "Buy dialog");
+    await p.keyboard.press("Escape");
+    await pause(p, 400);
+  } else console.error("  no Buy order button on Browse market: the buy form not checked");
+  // The help itself, open over Orders and Sell spares: its first "?" on each.
+  for (const label of ["Orders", "Sell spares"]) {
+    await p.locator("button.nav", { hasText: label }).first().click();
+    await pause(p, 2500);
+    const mark = p.locator(".pane.shown [data-help]").first();
+    if (!(await mark.count())) {
+      console.error(`  no "?" on ${label}: the help not checked there`);
+      continue;
+    }
+    await mark.evaluate((b) => b.click());
+    await pause(p, 800);
+    await look(p, size, `Help over ${label}`);
+    await p.keyboard.press("Escape");
+    await pause(p, 400);
+  }
   await p.close();
   // The first-run question, and TennoScope's setup steps before anything is read.
   const first = await open(size, { firstRun: true });
@@ -391,7 +526,7 @@ try {
     await walk(size, check);
   }
   // The keyboard, on its own walk so the clipping checks above see the views as before.
-  const keys = SIZES.some((s) => s.w === KEYS_SIZE.w && s.h === KEYS_SIZE.h);
+  const keys = !coverageOnly && SIZES.some((s) => s.w === KEYS_SIZE.w && s.h === KEYS_SIZE.h);
   if (keys) {
     console.log(`keyboard, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
     await walk(KEYS_SIZE, tabThrough, { settingsOnce: true });
@@ -400,6 +535,7 @@ try {
     mkdirSync(out, { recursive: true });
     for (const size of SIZES) {
       const mine = shots.filter((s) => s.size === size);
+      if (!mine.length) continue;
       const sheet = join(out, `sweep-${size.w}x${size.h}.png`);
       const tiles = mine.flatMap((s) => ["-label", s.view, s.png]);
       execFileSync("magick", ["montage", "-background", "#222", "-fill", "#ddd", "-pointsize", "18", ...tiles, "-tile", "4x", "-geometry", `${Math.round(size.w / 3)}x${Math.round(size.h / 3)}+6+6`, sheet]);
@@ -418,7 +554,18 @@ try {
     const unique = new Set(keyFindings.map((f) => `${f.element}|${f.reason}`)).size;
     console.log(`${keyFindings.length} keyboard findings (${unique} distinct element and reason)`);
   }
-  if (bugs.length || keyFindings.length) process.exitCode = 1;
+  // The help: every part with its "?", every "?" naming a part the list knows.
+  const missingSeen = new Set();
+  for (const f of helpMissing) {
+    const k = `${f.view}|${f.element}`;
+    if (missingSeen.has(k)) continue;
+    missingSeen.add(k);
+    console.log(`NO HELP ${f.size} ${f.view}: ${f.element}`);
+  }
+  for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
+  for (const [part, view] of [...helpPending].sort()) console.log(`pending ${part} (${view})`);
+  console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
+  if (bugs.length || keyFindings.length || missingSeen.size || helpUnknown.length) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;

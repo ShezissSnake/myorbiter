@@ -7,6 +7,7 @@
   import { pageById, type PageId } from "./pages";
   import Chip from "./ui/Chip.svelte";
   import Sheet from "./ui/Sheet.svelte";
+  import HelpMark from "./ui/HelpMark.svelte";
   import Switch from "./ui/Switch.svelte";
   import Seg from "./ui/Seg.svelte";
   import GameIcon from "./ui/GameIcon.svelte";
@@ -149,7 +150,7 @@
   }
 </script>
 
-<Sheet bind:open title="Notifications" kicker="MyOrbiter">
+<Sheet bind:open title="Notifications" kicker="MyOrbiter" help="notices">
   <div class="top">
     <Seg bind:value={view} options={[{ v: "recent", label: "Recent", title: "What MyOrbiter told you, newest first" }, { v: "choose", label: "Choose", title: "What MyOrbiter tells you about" }]} />
     {#if view === "recent" && settings.game.notices.length}
@@ -244,11 +245,12 @@
           {#if discordStatus.failed}<span class="small warn-text">The last notification didn't reach Discord ({discordStatus.failed}, {new Date(discordStatus.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}). If the webhook was deleted, paste a new one.</span>{/if}
         {/if}
       </div>
+      <HelpMark part="notices.how" corner />
     </section>
     {#each groups as grp (grp.g)}
       <section class="grp">
         <header>
-          <h3 class="register">{grp.g}</h3>
+          <h3 class="register">{grp.g}<HelpMark part="notices.kinds" /></h3>
           <span class="dim small">{note(grp.g)}</span>
           <button class="link quiet" title={allOn(grp.kinds) ? `Turn off every kind under ${grp.g}` : `Turn on every kind under ${grp.g}`} onclick={() => setAll(grp.kinds, !allOn(grp.kinds))}>{allOn(grp.kinds) ? "All off" : "All on"}</button>
         </header>
@@ -302,7 +304,8 @@
   .grp { display: grid; gap: .9rem; padding: 1.1rem 0; border-bottom: 1px solid var(--rule); }
   .grp header { display: flex; align-items: baseline; gap: .7rem; flex-wrap: wrap; }
   .grp header .link { margin-left: auto; }
-  .grp h3 { margin: 0; }
+  .grp h3 { margin: 0; display: flex; align-items: center; gap: .5rem; }
+  .how { position: relative; padding-right: 2rem; }
   .nowrap { white-space: nowrap; }
   .discord { display: grid; gap: .45rem; padding-top: .8rem; border-top: 1px solid var(--rule); }
   .discord p { margin: 0; }

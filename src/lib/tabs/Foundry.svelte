@@ -14,6 +14,7 @@
   import { until } from "../core/traders";
   import Thumb from "../ui/Thumb.svelte";
   import PageHead from "../ui/PageHead.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import Stat from "../ui/Stat.svelte";
   import Seg from "../ui/Seg.svelte";
   import Browse from "../ui/Browse.svelte";
@@ -185,7 +186,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Foundry" brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
+  <PageHead title="Foundry" help={{ band: "foundry.band", hero: "foundry.codex" }} brief="Everything you can master, part by part." blurb="Everything you can master, with the parts you hold (gold: in hand). Click one for its stats, drops and prices.">
     {#snippet band()}
       <Stat label="Mastered" note={`Of all ${all.length.toLocaleString("en")}, every category`}><GameIcon name="mastery" size={30} /><Count value={mastered} /><span class="of">/{all.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Every category · level these"><Count value={ownedOnly} /></Stat>
@@ -197,6 +198,7 @@
 
   {#if builds.length}
     <!-- The foundry itself: what's building and what's ready to claim, soonest first. -->
+    <div class="qbox">
     <ul class="queue" aria-label="In your foundry" data-card="queue">
       {#each builds as b (b.key)}
         {@const o = opensOf(b.name)}
@@ -212,18 +214,22 @@
         </li>
       {/each}
     </ul>
+    <HelpMark part="foundry.queue" corner />
+    </div>
   {/if}
 
   <div class="bar">
     <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name or kind" title="Looks through every category, by name or kind (Kitgun, MOA, Zaw)" />
     <Seg label="Show" bind:value={show} options={[{ v: "all", label: "All", title: "Everything in this group" }, { v: "todo", label: "Not mastered", title: "What you still have to master" }, { v: "owned", label: "Owned", title: "What you have built (mastered or not)" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, ...(favs.size || show === "fav" ? [{ v: "fav" as const, label: `★ Wishlist ${favs.size}`, title: "What you starred, from every category (star a card to add it)" }] : [])]} />
+    <HelpMark part="foundry.filters" />
   </div>
 
   <Browse id="foundry" rows={shown} {columns} key={(c) => c.unique} bind:sort {card} title={(c) => c.name} onopen={(c) => details.open(c.unique)} min="19rem" clear={filtered ? clear : null} empty="Nothing here." />
 </div></div>
 
 <style>
-  .queue { list-style: none; margin: 0 0 var(--step); padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
+  .qbox { position: relative; margin: 0 0 var(--step); padding-right: 34px; }
+  .queue { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .5rem; }
   .qb { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: .5rem; padding: .3rem .7rem .3rem .35rem; border: 1px solid var(--rule); background: var(--plate); cursor: pointer; font-size: .84rem; }
   .qb.tag-like { cursor: default; }
   /* Pressed (all: unset drops the buttons' own): it sinks a pixel. */

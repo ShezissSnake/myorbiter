@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "./HelpMark.svelte";
   import { scrim } from "./scrim";
   // The "Post a buy order" form, over whatever page you're on: for a part or item you're after,
   // priced one over the best buyer in game and never up to the cheapest seller.
@@ -93,7 +94,7 @@
   <div class="scrim" use:scrim in:shade|global out:shade|global onclick={close}>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
-      <div class="register head">Post a buy order</div>
+      <div class="register head"><span>Post a buy order</span><HelpMark part="buy" /></div>
       {#if !d}
         <p class="err">{mkt.buyError}</p>
         <div class="row end"><button onclick={close}>Close</button></div>
@@ -151,7 +152,7 @@
 <style>
   .scrim { position: fixed; inset: 0; z-index: 50; background: rgb(6 7 9 / 72%); display: grid; place-items: center; padding: 1rem; }
   .dialog { clip-path: var(--cut); width: min(32rem, 100%); background: var(--plate); border: 1px solid var(--rule-bright); padding: 1.3rem 1.5rem 1.1rem; display: grid; gap: .9rem; box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%); }
-  .head { color: var(--gold); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--gold); }
   .fields { display: flex; flex-wrap: wrap; gap: .8rem; }
   .fields label { display: grid; gap: .3rem; }
   .fields input { width: 6.5rem; text-align: right; }

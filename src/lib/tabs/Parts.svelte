@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import PTick from "../ui/PTick.svelte";
@@ -234,7 +235,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
+  <PageHead help={{ band: "parts.band", hero: "parts.showcase" }} title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet hero()}
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No prime parts yet: they turn up here from your relics once MyOrbiter has read your inventory (press Sync)." />
     {/snippet}
@@ -262,6 +263,7 @@
       />
       <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "All", title: "Farmable and vaulted alike" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }]} />
     </Fold>
+    <HelpMark part="parts.filters" />
   </div>
 
   <Browse id="parts" bind:opened {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
@@ -285,7 +287,7 @@
   <!-- Baro week: parts that turn platinum into ducats cheapest, beyond the ones you hold. -->
   <section class="dbuy" id="ducat-buys">
     <header>
-      <h2 class="register lead">Ducats for less</h2>
+      <h2 class="register lead">Ducats for less<HelpMark part="parts.ducats-for-less" /></h2>
       <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
     </header>
     <table class="dt">

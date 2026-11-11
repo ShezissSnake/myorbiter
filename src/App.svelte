@@ -119,6 +119,9 @@
   import { updates } from "./lib/updates.svelte";
   import { cameFrom, CHANNEL_LABEL } from "./lib/core/updates";
   import TourBar from "./lib/ui/TourBar.svelte";
+  import HelpDialog from "./lib/ui/HelpDialog.svelte";
+  import HelpMark from "./lib/ui/HelpMark.svelte";
+  import { help } from "./lib/help/help.svelte";
   import { tourGate, tourStop } from "./lib/tour.svelte";
   import { NEWEST, newsSince } from "./lib/whatsNew";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
@@ -185,6 +188,13 @@
   const sideShown = $derived.by(() => wideEnough && settings.side.on && settings.tab !== "home");
   /** The « tab that brings the column back, while it's off: a narrow column of its own, beside the page's scrollbar rather than over it. */
   const sideTab = $derived.by(() => wideEnough && !!model && !settings.side.on);
+
+  // Another page chosen (the sidebar, a shortcut, a link): the help over the page closes, and the
+  // focus goes where the new page puts it, not back to the "?".
+  $effect(() => {
+    void settings.tab;
+    untrack(() => help.close(false));
+  });
 
   // Show details (Settings, and the switch by each page's title): marks <html> for the shared
   // components' styles, and lets PageHead's switch change the setting.
@@ -2833,6 +2843,8 @@
              spare at 800 px), so there it's in Settings, the Guide and Shift+F1. -->
         {#if compact || !(ts.status && !noTennoScope)}<button class="tool" data-card="report-bug-rail" aria-label="Report a bug" aria-expanded={bugReport.open} title="Report a bug: say what went wrong, then open it as an issue on GitHub or copy it. MyOrbiter sends nothing itself (Shift+F1)" onclick={() => bugReport.show()}><Icon name="bug" size={14} /></button>{/if}
         <button class="tool" aria-label="Settings" aria-expanded={showSettings} title="Settings (Ctrl+,)" onclick={() => (showSettings = true)}><Icon name="settings" size={14} /></button>
+        <!-- The foot's "?": what the state lines and these tools are. -->
+        <HelpMark part="rail.foot" />
       </div>
     </div>
   </aside>
@@ -3038,6 +3050,9 @@
 <!-- The bottom right corner: a link that couldn't open, above a newer build on offer. -->
 <div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /><UpdateNotice onsettings={() => goTo("settings#updates")} /></div>
 {#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
+<!-- The help a part's "?" opens: over the content area, the sidebar left as it is. Over the dialogs
+     and panels too, since their parts have a "?" of their own. -->
+<HelpDialog go={(t: string) => goTo(t)} />
 {#if firstRun}<FirstRun onanswer={firstRun} />{/if}
 {#if bugReport.open}<BugReport page={pageById[settings.tab as PageId]?.label ?? settings.tab} tennoscope={reportTennoscope} fullMode={reportFullMode} names={reportNames} />{/if}
 <TennoscopeSheet bind:open={showTennoscope} synced={model ? ago(model.observedAt, tick) : "not yet"} job={syncJob} onsync={refreshAll} {windowMode} bind:opaqueOverlay={settings.tennoscope.opaqueOverlay} />
@@ -3182,6 +3197,8 @@
   .syncerr { margin: 0; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
   .compact .syncerr { display: none; }
   .tools { display: flex; gap: .4rem; }
+  /* The foot's "?", as tall as the tools beside it. */
+  .tools :global(.helpmark) { height: 32px; width: 32px; margin-left: 0; }
   .tool { display: inline-flex; align-items: center; justify-content: center; gap: .5rem; padding-left: .6rem; padding-right: .6rem; }
   /* The page that's open (Guide): marked as Home is, a white edge and a neutral tint. */
   .tool.on { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }

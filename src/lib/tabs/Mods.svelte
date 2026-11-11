@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
   import Fold from "../ui/Fold.svelte";
@@ -171,7 +172,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
+  <PageHead help={{ band: "mods.band", hero: "mods.showcase" }} title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet hero()}
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing worth selling: your dearest mods" : "Your most valuable spare mods"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No mods read yet: press Sync while Warframe is running, and your spares go on display here." />
     {/snippet}
@@ -192,6 +193,7 @@
     <Chip bind:on={tradableOnly} label="Tradable" title="Only mods you can sell or trade (not Flawed ones, and the like)" />
     <Chip bind:on={sellingOnly} label="Sold daily" title="Only mods that sell at least once a day on warframe.market" />
   </Fold>
+  <HelpMark part="mods.filters" />
   </div>
 
   <Browse id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={foldHidden ? "No spare copies of tradable mods that sell daily." : "No spare mod copies: your best copy and one to give away are kept."} />

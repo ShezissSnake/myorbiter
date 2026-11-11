@@ -12,6 +12,7 @@
   import P from "./P.svelte";
   import GameIcon from "./GameIcon.svelte";
   import NoMatch from "./NoMatch.svelte";
+  import HelpMark from "./HelpMark.svelte";
   import { inView, progressive } from "../progress.svelte";
 
   let { model, rows, wished, onwish, clear = null }: { model: Model; rows: MasteryRow[]; wished: Set<string>; onwish: (unique: string) => void; clear?: (() => void) | null } = $props();
@@ -41,6 +42,7 @@
 <div class="bar">
   <Seg label="Order" bind:value={order} options={[{ v: "plat", label: "Least plat", title: "Cheapest first: the least you can spend for each item" }, { v: "perK", label: "Plat per mastery", title: "Least platinum per 1,000 mastery points first: the most mastery for your platinum" }]} />
   <span class="dim small">Prices are warframe.market's daily median, or the in-game Market's platinum price when that's cheaper. Prime sets count only the parts you're missing.</span>
+  <HelpMark part="mastery.plat-order" />
 </div>
 
 {#if !list.length}

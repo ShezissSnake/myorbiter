@@ -1,4 +1,5 @@
 <script lang="ts">
+  import HelpMark from "../ui/HelpMark.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import Count from "../ui/Count.svelte";
@@ -260,7 +261,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Sets" brief="Sets to sell, almost done, or saving up." blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
+  <PageHead help={{ band: "sets.band", hero: "sets.showcase" }} title="Sets" brief="Sets to sell, almost done, or saving up." blurb="Complete sets to sell (prime, and the others warframe.market trades whole), the ones almost done, and the ones your loose parts wait for.">
     {#snippet hero()}
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest complete sets" : "Your most valuable sets to sell"} note={shelf.mode === "held" ? "Kept to build · click one for the set" : "Sets to sell × set price · click one for the set"} empty="No complete sets yet: a set goes on display here once you hold every part of it." />
     {/snippet}
@@ -285,6 +286,7 @@
     <Chip bind:on={keepOne} label="Keep one to build" title="Hold back the sets still to build: one of anything you have neither built nor mastered, and as many as an unbuilt weapon made from it takes (Akvasto Prime takes two Vasto Primes)" />
   {/if}
   <input type="search" aria-label="Filter sets by name" title="Shows only what matches what you type" placeholder="Filter sets…" bind:value={query} />
+  <HelpMark part="sets.filters" />
   </div>
 
   <Browse

@@ -19,6 +19,7 @@
   import Chip from "../ui/Chip.svelte";
   import Seg from "../ui/Seg.svelte";
   import Stat from "../ui/Stat.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import { eraTint, matches, type Column } from "../ui/table";
   import Owned from "../ui/Owned.svelte";
@@ -225,7 +226,7 @@
 {/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Relics" brief="Your relics and what one crack is worth." blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more.">
+  <PageHead title="Relics" brief="Your relics and what one crack is worth." blurb="Your relics, and what one crack of each is worth: each reward at its price, or its ducats at your rate (Prime parts) when that's more." help={{ band: "relics.band", hero: "relics.plate" }}>
     {#snippet band()}
       {@const filtered = rows.length !== all.length}
       <Stat label="Relics" note={filtered ? "Matching the filters" : unknown.length ? `All refinements, with ${unknown.reduce((n, u) => n + u.total, 0)} not in the relic list` : "Across all refinements"}>
@@ -239,6 +240,7 @@
   <div class="era-head">
     <h2 class="register">Eras</h2>
     <span class="dim small">{fissures.length ? "Pick an era to see the relics you can crack in its fissures right now. Hover for the missions." : feed ? "No fissures are open right now (the feed may be catching up); pick an era to filter." : "Live fissures are unavailable (api.warframestat.us didn't answer); pick an era to filter."}</span>
+    <HelpMark part="relics.eras" />
   </div>
   <section class="eras" aria-label="Eras">
     <button class="era all" class:on={era === "all"} aria-pressed={era === "all"} onclick={() => (era = "all")}>
@@ -284,11 +286,13 @@
   <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
   <Seg label="Squad" bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" aria-label="Filter relics by name or reward" title="Shows only what matches what you type" placeholder="Relic or reward…" bind:value={query} />
+  <HelpMark part="relics.filters" />
   </div>
 
   <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics read yet: press Sync while Warframe is running, and yours go on display here." />
   {#if unknown.length}
     <div class="unknown">
+      <HelpMark part="relics.unknown" corner />
       <div class="register">Not in the relic data yet</div>
       <p class="small">
         {unknown.reduce((n, u) => n + u.total, 0)} of your relics aren't in the drop tables or TennoScope's relic list yet, so their rewards
@@ -307,6 +311,7 @@
   .farm .register { font-size: 11px; color: var(--gold-dim); margin-right: .3rem; }
   .era-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem 1rem; margin-top: var(--step); }
   .era-head h2 { margin: 0; }
+  .era-head > :global(.helpmark) { margin-left: auto; align-self: center; }
   .eras { display: grid; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); gap: .5rem; padding: .7rem 0 0; }
   /* Six eras: one row, or three by two, never five and a stray. */
   :global(html[data-room~="lt1100"]) .eras { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -356,7 +361,7 @@
   .rar-Uncommon { color: var(--rarity-uncommon); }
   .rar-Common { color: var(--rarity-common); }
   .right { text-align: right; }
-  .unknown { margin-top: var(--step); padding: 1rem 1.2rem; border: 1px solid var(--rule); background: var(--well); box-shadow: inset 3px 0 0 var(--gold-dim); display: grid; gap: .45rem; }
+  .unknown { position: relative; margin-top: var(--step); padding: 1rem 2.6rem 1rem 1.2rem; border: 1px solid var(--rule); background: var(--well); box-shadow: inset 3px 0 0 var(--gold-dim); display: grid; gap: .45rem; }
   .unknown .register { color: var(--gold); }
   .unknown p { margin: 0; }
   .unknown .names { color: var(--platinum-dim, var(--platinum)); line-height: 1.7; }

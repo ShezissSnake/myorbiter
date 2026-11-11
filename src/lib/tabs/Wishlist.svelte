@@ -10,6 +10,7 @@
   import { placeName } from "../core/describe";
   import { until } from "../core/traders";
   import PageHead from "../ui/PageHead.svelte";
+  import HelpMark from "../ui/HelpMark.svelte";
   import Stat from "../ui/Stat.svelte";
   import Art from "../ui/Art.svelte";
   import PartChip from "../ui/PartChip.svelte";
@@ -195,7 +196,7 @@
 {#snippet codex()}<CodexRings {rings} {marks} jumps onpick={pickRing} all={{ onpick: () => (items.length ? jump(null) : go?.("foundry?show=todo")), action: items.length ? "Click to go to the first thing you starred" : "Nothing starred yet: click to pick from everything you haven't mastered, on Foundry" }} action={(r) => (marks[r.group] ? `Click to go to the first one you starred` : `Nothing starred here: click to pick from the ${r.label.toLowerCase()} you haven't mastered, on Foundry`)} line={items.length ? nextLine : "Click a category to pick from what you haven't mastered in it, on Foundry"} />{/snippet}
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Wishlist" brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
+  <PageHead title="Wishlist" help={{ band: "wishlist.band", hero: "wishlist.codex" }} brief="What you starred, and how to get each part." blurb="What you've starred, and the quickest way to each missing part: a relic you hold, where to farm one, or what it costs." band={items.length ? band : undefined} hero={codex} />
 
   <div class="bar">
     <input list="wish-names" placeholder="Add something to your wishlist…" bind:value={adding} onfocus={() => (namesWanted = true)} onkeydown={(e) => e.key === "Enter" && add()} aria-label="Item to add" />
@@ -203,6 +204,7 @@
     <IconButton icon="plus" tone="gold" label="Add to your wishlist" disabled={!pick || already} onclick={add} />
     {#if adding && !pick}<span class="dim small">Pick a warframe, weapon or companion from the list.</span>
     {:else if already}<span class="dim small">Already on your wishlist.</span>{/if}
+    <HelpMark part="wishlist.add" />
   </div>
 
   {#if crackCards.length}
@@ -216,6 +218,7 @@
           </ul>
         </div>
       {/each}
+      <HelpMark part="wishlist.crack-now" corner />
     </section>
   {/if}
 
@@ -317,7 +320,7 @@
   .buycell { display: inline-grid; justify-items: end; gap: .15rem; max-width: 100%; }
   .buyo { font-size: 11px; white-space: nowrap; padding: 0; }
   .bar input[list] { min-width: 22rem; }
-  .now { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
+  .now { position: relative; padding-right: 34px; align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .8rem; margin: 0 0 var(--step); }
   /* Each era a plate washed in its relic's colour (app.css, .era-wash), as on Home's fissure board. */
   .era { border: 1px solid color-mix(in srgb, var(--tint) 22%, var(--rule)); padding: .7rem .9rem; display: grid; gap: .5rem; clip-path: var(--cut); }
   .eh { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }

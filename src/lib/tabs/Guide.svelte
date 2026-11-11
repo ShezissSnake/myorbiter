@@ -19,6 +19,7 @@
   import { arrive } from "../motion";
   import { bugReport } from "../bugReport.svelte";
   import { PRIVACY_PAGE } from "../core/links";
+  import { takeIntent } from "../intent.svelte";
 
   // console: the short guide, for the pages a console or phone player has. platform: where they play.
   // hidden: the pages Settings → Pages keeps out of the sidebar. expanded: every step written out
@@ -43,6 +44,12 @@
   const listed = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}` : xs[0]);
   // Each page in a line: its first clause, the rest on "more".
   let openSteps = $state<Record<string, boolean>>({});
+  // "More in the Guide", from a part's help: that page's entry opens whole (guide?open=<page>).
+  $effect(() => {
+    const want = takeIntent("guide");
+    if (!want?.open) return;
+    for (const r of ROUTINES) for (const [tab, label, , planner] of r.steps) if (tab === want.open || (planner && `${tab}-${planner}` === want.open)) openSteps[`${r.title}|${label}`] = true;
+  });
   const brief = (t: string | string[]) => {
     const s = Array.isArray(t) ? t[0] : t;
     const cut = s.search(/[.:;(]/);
@@ -207,7 +214,7 @@
           {#each r.steps as [tab, label, text, planner] (label)}
             {@const key = `${r.title}|${label}`}
             <!-- One line each, the page's name taking you there; the whole of it a click away. -->
-            <li><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if expanded || openSteps[key]}{#if Array.isArray(text)}<ul class="sub" in:arrive={{ y: 0 }}>{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span in:arrive={{ y: 0 }}><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
+            <li data-card={planner ? `guide-${tab}-${planner}` : `guide-${tab}`}><button class="link" onclick={() => { if (planner) plannerMode = planner; go(tab); }} title="Open {label}">{label}</button>{#if expanded || openSteps[key]}{#if Array.isArray(text)}<ul class="sub" in:arrive={{ y: 0 }}>{#each text as t (t)}<li><Rich text={t} {go} /></li>{/each}</ul>{:else}<span in:arrive={{ y: 0 }}><Rich {text} {go} /></span>{/if}{:else}<span><Rich text={brief(text)} {go} /></span>{/if} <button class="more" aria-expanded={!!openSteps[key]} title={openSteps[key] ? "Less" : "Everything about it"} onclick={() => (openSteps[key] = !openSteps[key])}>{openSteps[key] ? "less" : "more"}</button></li>
           {/each}
         </ol>
       </article>

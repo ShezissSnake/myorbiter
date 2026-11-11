@@ -3,6 +3,7 @@
   // with its rank (empty: max). Names are matched as the paste reads them, the copy you hold
   // preferred; a name MyOrbiter can't place shows suggestions to pick. Archon shards and the Helminth
   // for warframes.
+  import HelpMark from "../HelpMark.svelte";
   import { tick } from "svelte";
   import { scrim } from "../scrim";
   import type { Model } from "../../core/model";
@@ -166,7 +167,7 @@
 <div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="dialog" role="dialog" aria-modal="true" aria-label="{copy ? 'Edit a copy' : 'Edit the build'} for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
-    <div class="register head">{copy ? "Edit a copy" : "Edit"} · {item.name}</div>
+    <div class="register head"><span>{copy ? "Edit a copy" : "Edit"} · {item.name}</span><HelpMark part="builds.editor" /></div>
     <div class="cols">
       <div class="slots">
         <label class="field t"><span class="register">Title</span><input bind:this={first} bind:value={title} placeholder="Optional" title="A name for it" /></label>
@@ -221,7 +222,7 @@
 <style>
   .scrim { position: fixed; inset: 0; z-index: 50; background: rgb(6 7 9 / 72%); display: grid; place-items: center; padding: 1rem; }
   .dialog { clip-path: var(--cut); width: min(64rem, 100%); max-height: calc(100vh - 2rem); overflow: auto; background: var(--plate); border: 1px solid var(--rule-bright); padding: 1.2rem 1.4rem 1.1rem; display: grid; gap: .8rem; box-shadow: 0 1.5rem 4rem rgb(0 0 0 / 50%); }
-  .head { color: var(--sec); }
+  .head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; color: var(--sec); }
   .cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 1.2rem; align-items: start; }
   .pv { position: sticky; top: 0; display: grid; gap: .5rem; }
   .slots { display: grid; gap: .35rem; }
