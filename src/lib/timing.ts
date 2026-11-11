@@ -177,6 +177,7 @@ export class Recorder {
   private startPage = "";
   private startSettled: number | null = null;
   private startCapped = false;
+  private startNotDrawn = false;
 
   private actions: Action[] = [];
   private slowest: Action[] = [];
@@ -371,12 +372,12 @@ export class Recorder {
       if (a) {
         a.firstChange ??= t;
         a.lastChange = t;
-        paintAfter(a);
+        paintAfter(a, () => a.lastChange);
       }
       const w = this.startWatch;
       if (w) {
         w.quietSince = t;
-        paintAfter(w);
+        paintAfter(w, () => w.quietSince);
       }
     }));
     this.observer.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
@@ -457,8 +458,10 @@ export class Recorder {
   private watchStart() {
     if (this.startWatch || this.startSettled != null) return;
     const t0 = this.modelShown ?? now();
-    this.startWatch = { quietSince: now(), t0, lastPaint: 0, paintAsked: false };
+    const w0 = (this.startWatch = { quietSince: now(), t0, lastPaint: 0, paintAsked: false });
     this.observe();
+    // The data is in the DOM but not yet on screen: with no change after it, settled is this paint.
+    paintAfter(w0, () => w0.quietSince);
     const check = () => this.self(() => {
       const w = this.startWatch;
       if (!w || !this.on) return;
@@ -466,6 +469,8 @@ export class Recorder {
       const quiet = t - w.quietSince >= 1000 && !w.paintAsked;
       if (quiet || t - w.t0 >= 20_000) {
         this.startCapped = !quiet;
+        // No frame came at all: the window wasn't drawn (hidden or covered), not still changing.
+        this.startNotDrawn = !quiet && w.lastPaint === 0;
         this.startWatch = null;
         this.unobserve();
         // The paint after the last change (with no change since the data came in: then).
@@ -601,6 +606,7 @@ export class Recorder {
         modelShown: this.modelShown,
         settled: this.startSettled,
         capped: this.startCapped,
+        notDrawn: this.startNotDrawn,
         page: this.startPage,
       },
       actions: this.actions,
@@ -621,13 +627,20 @@ export class Recorder {
 }
 
 /** Asks for the paint after a DOM change, once per frame: `lastPaint` is set just after it. */
-function paintAfter(w: { lastPaint: number; paintAsked: boolean }) {
+/** `changedAt` gives the latest change: one made after the frame was drawn waits for the next. */
+function paintAfter(w: { lastPaint: number; paintAsked: boolean }, changedAt: () => number) {
   if (w.paintAsked || typeof requestAnimationFrame !== "function") return;
   w.paintAsked = true;
-  requestAnimationFrame(() => postAfter(() => {
-    w.paintAsked = false;
-    w.lastPaint = now();
-  }));
+  const ask = () =>
+    requestAnimationFrame(() => {
+      const drawn = now();
+      postAfter(() => {
+        if (changedAt() > drawn) return void ask();
+        w.paintAsked = false;
+        w.lastPaint = now();
+      });
+    });
+  ask();
 }
 
 /** Posts a message from inside an animation frame: it runs just after that frame was drawn. */
@@ -675,7 +688,7 @@ export function buildReport(rec: Recorder, env: TimingEnv | null, extra: { windo
   const ff = fromProc(st.firstFrame);
   line(`  first paint: ${ff ?? "–"} from process start${st.firstFrame != null ? ` (${r(st.firstFrame)} after the page began loading)` : ""}`);
   if (st.modelShown != null) line(`  data in and drawn on ${st.page || "the first page"}: ${fromProc(st.modelShown) ?? "–"} from process start (${r(st.modelShown)} after the page began loading)`);
-  if (st.settled != null) line(`  ${st.page || "first page"} settled${st.capped ? " (still changing at 20 s)" : ""}: ${fromProc(st.settled) ?? "–"} from process start (${r(st.settled)} after the page began loading)`);
+  if (st.settled != null) line(`  ${st.page || "first page"} settled${st.notDrawn ? " (no frame drawn in 20 s: the window was hidden or covered)" : st.capped ? " (still changing at 20 s)" : ""}: ${fromProc(st.settled) ?? "–"} from process start (${r(st.settled)} after the page began loading)`);
   else line(`  first page settled: ${d.fromStart ? "not yet" : "not recorded (switched on after start; on at the next start, it is)"}`);
   line();
 

@@ -201,20 +201,32 @@ fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
 /// Keeps the `KEEP` newest reports (their names sort by time).
 fn prune(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
-    let mut names: Vec<String> = entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with(PREFIX) && n.ends_with(".txt")).collect();
-    // By time, then by the "-2", "-3" of a second report in the same second.
-    names.sort_by_key(|n| {
-        let base = n.trim_end_matches(".txt");
-        let stamp_len = PREFIX.len() + "2026-11-02-212820".len();
-        let (stamp, more) = base.split_at(stamp_len.min(base.len()));
-        (stamp.to_owned(), more.trim_start_matches('-').parse::<u32>().unwrap_or(1))
-    });
+    let mut names: Vec<((String, u32), String)> = entries.flatten().filter_map(|e| {
+        let n = e.file_name().to_string_lossy().into_owned();
+        report_key(&n).map(|k| (k, n))
+    }).collect();
+    names.sort();
     let extra = names.len().saturating_sub(KEEP);
-    for n in &names[..extra] {
+    for (_, n) in &names[..extra] {
         let _ = std::fs::remove_file(dir.join(n));
     }
 }
 
+/// A report's name as this saves it (`timings-2026-11-02-212820.txt`, or `…-212820-2.txt` for a
+/// second one in the same second) as its time and number; anything else in the folder is None.
+fn report_key(name: &str) -> Option<(String, u32)> {
+    let base = name.strip_prefix(PREFIX)?.strip_suffix(".txt")?;
+    let stamp = base.get(..17)?;
+    let ok = stamp.bytes().enumerate().all(|(i, b)| if matches!(i, 4 | 7 | 10) { b == b'-' } else { b.is_ascii_digit() });
+    if !ok {
+        return None;
+    }
+    let n = match &base[17..] {
+        "" => 1,
+        more => more.strip_prefix('-').filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))?.parse().ok()?,
+    };
+    Some((stamp.to_owned(), n))
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +237,25 @@ mod tests {
         assert_eq!(pretty_name("PRETTY_NAME='A<b>c'\n").as_deref(), Some("Abc"));
         assert_eq!(pretty_name("NAME=x\n"), None);
         assert_eq!(pretty_name(&format!("PRETTY_NAME={}", "x".repeat(200))).map(|s| s.len()), Some(60));
+    }
+
+    #[test]
+    fn only_its_own_reports_are_pruned() {
+        assert_eq!(report_key("timings-2026-11-02-212820.txt"), Some(("2026-11-02-212820".into(), 1)));
+        assert_eq!(report_key("timings-2026-11-02-212820-10.txt"), Some(("2026-11-02-212820".into(), 10)));
+        assert!(report_key("timings-2026-11-02-212820-2.txt") < report_key("timings-2026-11-02-212820-10.txt"));
+        for other in ["timings-1999.txt", "timings-ñotes-for-later-x.txt", "timings-2026-11-02-212820-.txt", "timings-2026-11-02-21282x.txt", "myorbiter.log", "timings-2026-11-02-212820.txt.bak"] {
+            assert_eq!(report_key(other), None, "{other}");
+        }
+        let dir = std::env::temp_dir().join(format!("myorbiter-timing-prune-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("timings-1999.txt"), "a player's own").unwrap();
+        std::fs::write(dir.join("timings-ñotes-for-later-x.txt"), "a player's own").unwrap();
+        for i in 0..12u64 {
+            save_in(&dir, "r", 1_762_000_000 + i).unwrap();
+        }
+        assert!(dir.join("timings-1999.txt").exists() && dir.join("timings-ñotes-for-later-x.txt").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
