@@ -23,7 +23,7 @@
   import { links, openUrl } from "./links.svelte";
   import Opening from "./ui/Opening.svelte";
   import { updates } from "./updates.svelte";
-  import { CHANNELS, CHANNEL_LABEL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import { CHANNELS, CHANNEL_LABEL, REPO_URL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
 
   let {
@@ -54,6 +54,10 @@
       pulse(el);
     }, 260);
   });
+
+  // How MyOrbiter is made, under its version. The repository's own root isn't among the sites the
+  // app may open (core/links.ts), so the words link its front page, the README on main.
+  const SOURCE_PAGE = `${REPO_URL}/blob/main/README.md`;
 
   // Updates: this copy's version and channel, and what the chosen channel offers.
   const info = $derived(updates.info);
@@ -322,6 +326,7 @@
   <section id="settings-updates" data-card="updates">
     <h3 class="register">Updates<HelpMark part="settings.updates" /></h3>
     <p class="ver"><img class="wordmark" src={wordmark} alt="This is MyOrbiter" height="28" /> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
+    <p class="hint">MyOrbiter is written largely by AI (Claude, by Anthropic), directed by its maintainer, who decides what is built and what is released. <button type="button" class="link" title="Open MyOrbiter's source on GitHub (its README) in your browser" aria-busy={links.isOpening(SOURCE_PAGE)} onclick={() => openUrl(SOURCE_PAGE)}><Opening url={SOURCE_PAGE}>The code is open for anyone to read</Opening></button>.</p>
     {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
