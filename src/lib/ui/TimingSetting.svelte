@@ -48,7 +48,7 @@
 
 <div class="timing">
   <Switch bind:on label="Record timings">
-    For when MyOrbiter feels slow: it notes how long each click, key and page switch takes to show, slow frames and pauses, and how long the app's own work takes. Numbers only, never an item's or a player's name or a price. A summary goes into the log each minute; nothing is sent anywhere.
+    For when MyOrbiter feels slow: it notes how long each click, key and page switch takes to show, slow frames and pauses, and how long the app's own work takes. Numbers only, never an item's or a player's name or a price. A summary goes into the log each minute; nothing is sent anywhere. While it's on, the window keeps drawing frames to time them, a small cost of its own.
   </Switch>
   {#if on}
     <div class="row">

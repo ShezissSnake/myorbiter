@@ -53,8 +53,8 @@ test("off, the hooks record nothing and ticks only run", () => {
 
 test("the report: slowest actions, stalls, frames, commands, sizes; no name, price or path", async () => {
   const restore = fakeWindow();
+  const rec = new Recorder();
   try {
-    const rec = new Recorder();
     const lines: string[] = [];
     rec.enable({ page: () => "orders", sizes: () => ({ "inventory entries": 861, listings: 12, "pages mounted": 19 }), gameRunning: () => false, log: (l) => lines.push(l) });
     assert.equal(rec.on, true);
@@ -82,6 +82,45 @@ test("the report: slowest actions, stalls, frames, commands, sizes; no name, pri
     rec.disable();
     assert.equal(rec.on, false);
   } finally {
+    rec.disable();
+    restore();
+  }
+});
+
+test("settled is the paint after the last change, not the end of the quiet wait", async () => {
+  const restore = fakeWindow();
+  const g = globalThis as Record<string, unknown>;
+  // Frames on demand, and a MutationObserver the test calls itself.
+  let frames: (() => void)[] = [];
+  g.requestAnimationFrame = (f: () => void) => (frames.push(f), frames.length);
+  const flush = async () => {
+    const f = frames;
+    frames = [];
+    for (const x of f) x();
+    await new Promise((r) => setTimeout(r, 5));
+  };
+  let changed: ((recs: unknown[]) => void) | null = null;
+  g.MutationObserver = class { constructor(cb: (recs: unknown[]) => void) { changed = cb; } observe() {} disconnect() { changed = null; } };
+  g.Element = class {};
+  const rec = new Recorder();
+  try {
+    rec.enable({ page: () => "orders", sizes: () => ({}), gameRunning: () => null, log: () => {} });
+    const t0 = performance.now();
+    (rec as unknown as { begin(t: number, how: string, c: string): void }).begin(t0, "click", "button");
+    await flush(); // the next paint
+    changed!([{ target: null }]);
+    await new Promise((r) => setTimeout(r, 40));
+    await flush(); // the paint after the change, about 45 ms in
+    const paintedAt = performance.now() - t0;
+    await new Promise((r) => setTimeout(r, 600)); // quiet, then settled
+    const [a] = rec.data().actions;
+    assert.ok(a, "kept");
+    assert.ok(a.settled <= paintedAt + 1 && a.settled >= 40, `settled ${a.settled}, painted at ${paintedAt}`);
+    assert.equal(a.capped, false);
+  } finally {
+    rec.disable();
+    delete g.MutationObserver;
+    delete g.Element;
     restore();
   }
 });

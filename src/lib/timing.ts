@@ -4,8 +4,9 @@
 //
 // - an action (a click or a key that changes what is shown, a page switch): ms from the event to
 //   the next painted frame (a requestAnimationFrame, then a posted message, which runs just after
-//   that frame is drawn), and to the paint after the last DOM change (settled: no change for
-//   QUIET ms, at most CAP ms). Only the page's id and the kind of control are kept;
+//   that frame is drawn), and to the paint after the last DOM change (settled; it counts as
+//   settled once nothing changed for QUIET ms, which isn't in the figure; at most CAP ms). Only
+//   the page's id and the kind of control are kept;
 // - frames: the time between animation frames while the window is visible and focused, those over
 //   50 ms and over 100 ms counted per minute, during an action and at rest apart;
 // - stalls: a timer every BEAT ms that came more than 100 ms late, with the store tick that was
@@ -192,7 +193,8 @@ export class Recorder {
   private ended: [string, number, number][] = [];
 
   // The action being timed, if one is.
-  private open: { t0: number; how: string; page: string; control: string; paint: number | null; firstChange: number | null; lastChange: number; ticks: Set<string>; stall: number; pageEvent: boolean } | null = null;
+  // `lastPaint`: the paint after its latest DOM change (one frame asked for at a time).
+  private open: { t0: number; how: string; page: string; control: string; paint: number | null; firstChange: number | null; lastChange: number; lastPaint: number; paintAsked: boolean; ticks: Set<string>; stall: number } | null = null;
   private observer: MutationObserver | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private beatTimer: ReturnType<typeof setTimeout> | undefined;
@@ -201,7 +203,9 @@ export class Recorder {
   private lastFrame = 0;
   private minuteTimer: ReturnType<typeof setInterval> | undefined;
   private lastSummary = { actions: 0, stalls: 0, frames: { a50: 0, a100: 0, r50: 0, r100: 0 } };
-  private startWatch: { quietSince: number; t0: number } | null = null;
+  private startWatch: { quietSince: number; t0: number; lastPaint: number; paintAsked: boolean } | null = null;
+  /** Frame counts since switched on (the minutes keep only the last ten hours). */
+  private totals = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
 
   /** At start, before anything else draws: marks the first frame (one callback, recorder on or off). */
   noteStart() {
@@ -262,6 +266,7 @@ export class Recorder {
     this.stalls = [];
     this.stallCount = 0;
     this.minutes.clear();
+    this.totals = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
     this.commands.clear();
     this.own.clear();
     this.selfMax = this.selfTotal = 0;
@@ -324,8 +329,7 @@ export class Recorder {
   pageChanged() {
     if (!this.on || !this.ctx) return;
     this.self(() => {
-      if (this.open) this.open.pageEvent = true;
-      else this.begin(now(), "page switch", "page", this.ctx!.page());
+      if (!this.open) this.begin(now(), "page switch", "page", this.ctx!.page());
     });
   }
 
@@ -345,7 +349,7 @@ export class Recorder {
     if (!this.ctx) return;
     if (this.open) this.finish(t0, true);
     const page0 = page ?? this.ctx.page();
-    const a = (this.open = { t0, how, page: page0, control, paint: null as number | null, firstChange: null as number | null, lastChange: 0, ticks: new Set(this.ticks.keys()), stall: 0, pageEvent: how === "page switch" });
+    const a = (this.open = { t0, how, page: page0, control, paint: null as number | null, firstChange: null as number | null, lastChange: 0, lastPaint: 0, paintAsked: false, ticks: new Set(this.ticks.keys()), stall: 0 });
     // The next frame after the handlers ran.
     requestAnimationFrame(() => postAfter(() => {
       if (this.open === a && a.paint == null) a.paint = now();
@@ -363,11 +367,17 @@ export class Recorder {
       // isn't what's shown. Only its first and last records are looked at: a sync brings 1500.
       if (hidden(recs[0]) && hidden(recs[recs.length - 1])) return;
       const t = now();
-      if (this.open) {
-        this.open.firstChange ??= t;
-        this.open.lastChange = t;
+      const a = this.open;
+      if (a) {
+        a.firstChange ??= t;
+        a.lastChange = t;
+        paintAfter(a);
       }
-      if (this.startWatch) this.startWatch.quietSince = t;
+      const w = this.startWatch;
+      if (w) {
+        w.quietSince = t;
+        paintAfter(w);
+      }
     }));
     this.observer.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
   }
@@ -387,12 +397,16 @@ export class Recorder {
       this.unobserve();
       return;
     }
-    if (changed && a.paint != null && t - Math.max(a.lastChange, a.t0) >= QUIET) return this.finish(t, false);
+    if (changed && a.paint != null && t - Math.max(a.lastChange, a.t0) >= QUIET && !a.paintAsked) return this.finish(t, false);
     if (t - a.t0 >= CAP) return this.finish(t, false, true);
     this.settleTimer = setTimeout(this.settle, 100);
   });
 
-  /** Ends the open action: settled at the paint after its last change (now, if cut short by another). */
+  /**
+   * Ends the open action: settled at the paint after its last change (not when the quiet wait
+   * ended). Cut short by the next action or the cap, it is marked unsettled unless that paint had
+   * already come.
+   */
   private finish(t: number, cut: boolean, capped = false) {
     const a = this.open;
     if (!a || !this.ctx) return;
@@ -402,7 +416,12 @@ export class Recorder {
     const changed = a.firstChange != null || to !== a.page;
     this.unobserve();
     if (!changed) return;
-    const store = (settledAt: number) => {
+    // The paint after the last change, if it came; with no DOM change (a switch to a page already
+    // drawn as it was), the first paint.
+    const painted = a.firstChange == null ? a.paint : a.lastPaint && a.lastPaint >= a.lastChange && !a.paintAsked ? a.lastPaint : null;
+    const unsettled = painted == null && (cut || capped);
+    const settledAt = painted ?? t;
+    {
       const switched = to !== a.page;
       const rec: Action = {
         at: a.t0 - this.since,
@@ -412,14 +431,12 @@ export class Recorder {
         control: a.control,
         paint: (a.paint ?? settledAt) - a.t0,
         settled: settledAt - a.t0,
-        capped: capped || cut,
+        capped: unsettled,
         stall: a.stall,
         ticks: [...a.ticks],
       };
-      this.self(() => this.keep(rec));
-    };
-    if (cut || capped || typeof requestAnimationFrame !== "function") store(t);
-    else requestAnimationFrame(() => postAfter(() => store(now())));
+      this.keep(rec);
+    }
   }
 
   private keep(a: Action) {
@@ -440,20 +457,19 @@ export class Recorder {
   private watchStart() {
     if (this.startWatch || this.startSettled != null) return;
     const t0 = this.modelShown ?? now();
-    this.startWatch = { quietSince: now(), t0 };
+    this.startWatch = { quietSince: now(), t0, lastPaint: 0, paintAsked: false };
     this.observe();
     const check = () => this.self(() => {
       const w = this.startWatch;
       if (!w || !this.on) return;
       const t = now();
-      if (t - w.quietSince >= 1000 || t - w.t0 >= 20_000) {
-        this.startCapped = t - w.t0 >= 20_000;
-        const last = w.quietSince;
+      const quiet = t - w.quietSince >= 1000 && !w.paintAsked;
+      if (quiet || t - w.t0 >= 20_000) {
+        this.startCapped = !quiet;
         this.startWatch = null;
         this.unobserve();
-        // The paint after the last change.
-        if (this.startCapped) this.startSettled = t;
-        else requestAnimationFrame(() => postAfter(() => (this.startSettled = Math.max(last, now()))));
+        // The paint after the last change (with no change since the data came in: then).
+        this.startSettled = quiet ? (w.lastPaint >= w.quietSince ? w.lastPaint : w.t0) : t;
         return;
       }
       setTimeout(check, 200);
@@ -512,12 +528,14 @@ export class Recorder {
       if (this.lastFrame) {
         const d = ts - this.lastFrame;
         const m = this.minute(now());
-        if (d >= NOT_DRAWN) m.notDrawn++;
+        const tt = this.totals;
+        if (d >= NOT_DRAWN) (m.notDrawn++, tt.notDrawn++);
         else {
           m.frames++;
+          tt.frames++;
           const act = !!this.open;
-          if (d > 50) act ? m.actionOver50++ : m.restOver50++;
-          if (d > 100) act ? m.actionOver100++ : m.restOver100++;
+          if (d > 50) act ? (m.actionOver50++, tt.a50++) : (m.restOver50++, tt.r50++);
+          if (d > 100) act ? (m.actionOver100++, tt.a100++) : (m.restOver100++, tt.r100++);
         }
       }
       this.lastFrame = ts;
@@ -562,16 +580,7 @@ export class Recorder {
     return n;
   }
   private frameTotals() {
-    const f = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
-    for (const m of this.minutes.values()) {
-      f.a50 += m.actionOver50;
-      f.a100 += m.actionOver100;
-      f.r50 += m.restOver50;
-      f.r100 += m.restOver100;
-      f.frames += m.frames;
-      f.notDrawn += m.notDrawn;
-    }
-    return f;
+    return { ...this.totals };
   }
 
   /** The plain-text report: numbers, the system, sizes. Never a name, a price or a path. */
@@ -609,6 +618,16 @@ export class Recorder {
       gameRunning: ctx?.gameRunning() ?? null,
     };
   }
+}
+
+/** Asks for the paint after a DOM change, once per frame: `lastPaint` is set just after it. */
+function paintAfter(w: { lastPaint: number; paintAsked: boolean }) {
+  if (w.paintAsked || typeof requestAnimationFrame !== "function") return;
+  w.paintAsked = true;
+  requestAnimationFrame(() => postAfter(() => {
+    w.paintAsked = false;
+    w.lastPaint = now();
+  }));
 }
 
 /** Posts a message from inside an animation frame: it runs just after that frame was drawn. */
@@ -666,7 +685,7 @@ export function buildReport(rec: Recorder, env: TimingEnv | null, extra: { windo
     const what = a.to ? `${a.page} → ${a.to}, ${a.how}, ${a.control}` : `${a.page}: ${a.how}, ${a.control}`;
     line(`  ${pad(i + 1, 2)}. ${pad(r(a.paint), 5)} / ${pad(r(a.settled), 5)}${a.capped ? "+" : " "} ${what}${a.stall ? ` · stall ${r(a.stall)}` : ""}${a.ticks.length ? ` · during ${a.ticks.join(" + ")}` : ""} · at ${clock(a.at)}`);
   });
-  line("  (+: still changing when cut off, at 3 s or by the next action)");
+  line("  (+: not settled yet when cut off, at 3 s or by the next action)");
   line();
 
   line("Actions by kind: count, median paint, median settled, longest settled (ms)");

@@ -162,36 +162,53 @@ pub fn timing_save_report(text: String) -> Result<String, String> {
 }
 
 fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
-    let mut text = crate::applog::redact(text);
-    if text.len() > MAX_BYTES {
-        let mut cut = MAX_BYTES;
-        while !text.is_char_boundary(cut) {
-            cut -= 1;
-        }
-        text.truncate(cut);
+    // Cut first, so redacting never works through more than the cap.
+    let mut cut = text.len().min(MAX_BYTES);
+    while !text.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    let was_cut = cut < text.len();
+    let mut text = crate::applog::redact(&text[..cut]);
+    if was_cut {
         text.push_str("\n(cut here: too long)\n");
     }
-    // "[2026-11-02][21:28:20]" → "2026-11-02-212820".
+    // "[2026-11-02][21:28:20]" → "2026-11-02-212820"; a second report in the same second gets
+    // "-2", "-3"…: never written over.
     let stamp: String = crate::applog::stamp(secs).replace("][", "-").chars().filter(|c| c.is_ascii_digit() || *c == '-').collect();
-    let name = format!("{PREFIX}{stamp}.txt");
     let mut options = std::fs::OpenOptions::new();
-    options.create(true).write(true).truncate(true);
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
     use std::io::Write;
-    options.open(dir.join(&name))?.write_all(text.as_bytes())?;
-    prune(dir);
-    Ok(name)
+    for n in 1..100 {
+        let name = if n == 1 { format!("{PREFIX}{stamp}.txt") } else { format!("{PREFIX}{stamp}-{n}.txt") };
+        match options.open(dir.join(&name)) {
+            Ok(mut f) => {
+                f.write_all(text.as_bytes())?;
+                prune(dir);
+                return Ok(name);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::other("too many reports this second"))
 }
 
 /// Keeps the `KEEP` newest reports (their names sort by time).
 fn prune(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     let mut names: Vec<String> = entries.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with(PREFIX) && n.ends_with(".txt")).collect();
-    names.sort();
+    // By time, then by the "-2", "-3" of a second report in the same second.
+    names.sort_by_key(|n| {
+        let base = n.trim_end_matches(".txt");
+        let stamp_len = PREFIX.len() + "2026-11-02-212820".len();
+        let (stamp, more) = base.split_at(stamp_len.min(base.len()));
+        (stamp.to_owned(), more.trim_start_matches('-').parse::<u32>().unwrap_or(1))
+    });
     let extra = names.len().saturating_sub(KEEP);
     for n in &names[..extra] {
         let _ = std::fs::remove_file(dir.join(n));
@@ -238,6 +255,15 @@ mod tests {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(std::fs::metadata(dir.join(&names[10])).unwrap().permissions().mode() & 0o777, 0o600);
         }
+        let a = save_in(&dir, "first", 1_762_050_000).unwrap();
+        let b = save_in(&dir, "second", 1_762_050_000).unwrap();
+        assert_ne!(a, b, "the same second gets another name");
+        assert!(b.ends_with("-2.txt"), "{b}");
+        // The ten newest stay: the report a moment later outlives the one before it.
+        let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert!(left.contains(&a) && left.contains(&b), "{left:?}");
+        assert_eq!(std::fs::read_to_string(dir.join(&a)).unwrap(), "first");
         let long = save_in(&dir, &"é".repeat(MAX_BYTES), 1_762_100_000).unwrap();
         assert!(std::fs::read_to_string(dir.join(long)).unwrap().ends_with("(cut here: too long)\n"));
         let _ = std::fs::remove_dir_all(&dir);

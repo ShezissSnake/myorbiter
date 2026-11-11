@@ -347,9 +347,15 @@ pub fn frames_line() -> String {
         Mode::SharedMemory => "shared memory (the NVIDIA default)".to_owned(),
         Mode::DmaBuf => "DMA-BUF (the experimental switch)".to_owned(),
         Mode::Compat => "none: painted on the CPU (compatibility rendering)".to_owned(),
-        Mode::Yours => format!("set by WebKit variables ({})", c.yours.join(" ")),
+        // Their names only: the values are whatever was typed into them.
+        Mode::Yours => format!("set by WebKit variables ({})", names_only(&c.yours)),
     };
     format!("{how}, {}{}", if c.wayland { "Wayland" } else { "X11" }, if c.why == Why::DmaBufFailed { ", the DMA-BUF try closed early last start" } else { "" })
+}
+
+/// `NAME=value` entries as their names only.
+fn names_only(vars: &[String]) -> String {
+    vars.iter().map(|v| v.split('=').next().unwrap_or("")).collect::<Vec<_>>().join(" ")
 }
 
 /// Settings › Logs (NVIDIA only, experimental): DMA-BUF frames from the next start, or back to
@@ -445,6 +451,12 @@ mod tests {
         let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert!(dmabuf_off_in(a(&["--no-dmabuf"])));
         assert!(!dmabuf_off_in(a(&["--no-compat-rendering"])));
+    }
+
+    #[test]
+    fn the_timing_report_names_your_variables_without_their_values() {
+        let v = vec!["WEBKIT_DISABLE_COMPOSITING_MODE=1".to_owned(), "WEBKIT_FORCE_DMABUF_RENDERER=anything at all".to_owned()];
+        assert_eq!(names_only(&v), "WEBKIT_DISABLE_COMPOSITING_MODE WEBKIT_FORCE_DMABUF_RENDERER");
     }
 
     #[test]
