@@ -90,7 +90,7 @@ TennoScope should read your inventory: **Full mode**, off unless you turn it on 
 fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party
 programs and leaves using them at your own risk: Full mode could put your account at risk. MyOrbiter
 only reads, and only sends your login session to Digital Extremes and the names of reward items
-read from memory to warframe.market, for their prices. ([Digital Extremes' forum
+read from the screen to warframe.market, for their prices. ([Digital Extremes' forum
 post](https://forums.warframe.com/topic/1383123/).)
 
 Without Full mode, TennoScope reads only the game's log and the reward screen (Overlay mode), and

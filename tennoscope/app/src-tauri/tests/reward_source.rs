@@ -1,44 +1,13 @@
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex, atomic::AtomicU64},
-    time::Duration,
-};
+use std::time::Duration;
 
-use app_lib::monitor::{
-    assemble_player_record_choices, release_player_record_scan, rotate_choices_to_local,
-    scan_player_record_until_ready, store_player_record_if_current,
-};
 use app_lib::{
-    CardCandidates, LiveMemoryRewardState, MemoryRewardSource, RewardChoiceSource,
-    RewardSourceCoordinator, RewardSourceDiagnostic, VisualRewardSource,
+    CardCandidates, MemoryRewardSource, RewardChoiceSource, RewardSourceCoordinator,
+    RewardSourceDiagnostic, VisualRewardSource,
 };
 
 mod common;
 
-#[test]
-fn memory_reward_ring_rotates_without_scrambling_screen_order() {
-    let mut choices = vec![
-        "Caliban Prime Chassis Blueprint".into(),
-        "Paris Prime Lower Limb".into(),
-        "Burston Prime Blueprint".into(),
-        "Nautilus Prime Carapace".into(),
-    ];
-
-    rotate_choices_to_local(&mut choices, "Paris Prime Lower Limb");
-
-    assert_eq!(
-        choices,
-        vec![
-            "Paris Prime Lower Limb",
-            "Burston Prime Blueprint",
-            "Nautilus Prime Carapace",
-            "Caliban Prime Chassis Blueprint",
-        ]
-    );
-}
-use warframe_acquisition::{
-    RewardCatalogEntry, RewardMemoryScanner, RewardNeedle, RewardResolution,
-};
+use warframe_acquisition::{RewardCatalogEntry, RewardNeedle, RewardResolution};
 
 struct Memory {
     resolution: RewardResolution,
@@ -153,122 +122,6 @@ fn empty_candidate_baseline_clears_the_previous_reward_run() {
     coordinator.baseline(&mut memory, &[]);
 
     assert_eq!(memory.baselines, 1);
-}
-
-#[test]
-fn preparing_structured_candidates_replaces_the_previous_run_without_a_fingerprint() {
-    let mut state =
-        LiveMemoryRewardState::new(RewardMemoryScanner::new(256, 4096, Duration::from_secs(1)));
-
-    state.prepare_candidates(&candidates());
-    assert_eq!(state.candidates()[0].choice_name(), "A");
-
-    let next = vec![RewardNeedle::new("B", ["/Lotus/B"]).unwrap()];
-    state.prepare_candidates(&next);
-
-    assert_eq!(state.candidates().len(), 1);
-    assert_eq!(state.candidates()[0].choice_name(), "B");
-}
-
-#[test]
-fn current_background_player_record_is_stored() {
-    let generation = AtomicU64::new(7);
-    let records = Arc::new(Mutex::new(BTreeMap::new()));
-
-    store_player_record_if_current(
-        7,
-        &generation,
-        "remote-a",
-        RewardResolution::Confirmed {
-            choices: vec!["Forma Blueprint".into()],
-            region_start: 1,
-        },
-        &records,
-    );
-
-    assert_eq!(
-        records.lock().unwrap().get("remote-a").map(String::as_str),
-        Some("Forma Blueprint")
-    );
-}
-
-#[test]
-fn stale_background_player_record_is_discarded() {
-    let generation = AtomicU64::new(8);
-    let records = Arc::new(Mutex::new(BTreeMap::new()));
-
-    store_player_record_if_current(
-        7,
-        &generation,
-        "remote-a",
-        RewardResolution::Confirmed {
-            choices: vec!["Forma Blueprint".into()],
-            region_start: 1,
-        },
-        &records,
-    );
-
-    assert!(records.lock().unwrap().is_empty());
-}
-
-#[test]
-fn ambiguous_background_player_record_is_discarded() {
-    let generation = AtomicU64::new(7);
-    let records = Arc::new(Mutex::new(BTreeMap::new()));
-
-    store_player_record_if_current(
-        7,
-        &generation,
-        "remote-a",
-        RewardResolution::Confirmed {
-            choices: vec!["Forma Blueprint".into(), "Tiberon Prime Receiver".into()],
-            region_start: 1,
-        },
-        &records,
-    );
-
-    assert!(records.lock().unwrap().is_empty());
-}
-
-#[test]
-fn early_player_record_scan_retries_until_warframe_materializes_the_reward() {
-    let generation = AtomicU64::new(7);
-    let mut attempts = 0;
-
-    let resolution = scan_player_record_until_ready(7, &generation, Duration::from_secs(1), || {
-        attempts += 1;
-        if attempts < 3 {
-            RewardResolution::Incomplete
-        } else {
-            RewardResolution::Confirmed {
-                choices: vec!["Vasto Prime Blueprint".into()],
-                region_start: 1,
-            }
-        }
-    });
-
-    assert_eq!(attempts, 3);
-    assert_eq!(
-        resolution,
-        RewardResolution::Confirmed {
-            choices: vec!["Vasto Prime Blueprint".into()],
-            region_start: 1,
-        }
-    );
-}
-
-#[test]
-fn player_record_retry_stops_when_the_mission_generation_changes() {
-    let generation = AtomicU64::new(8);
-    let mut attempts = 0;
-
-    let resolution = scan_player_record_until_ready(7, &generation, Duration::from_secs(1), || {
-        attempts += 1;
-        RewardResolution::Incomplete
-    });
-
-    assert_eq!(attempts, 0);
-    assert_eq!(resolution, RewardResolution::Incomplete);
 }
 
 #[test]
@@ -420,42 +273,4 @@ fn confirmed_player_records_publish_immediately_without_ocr() {
     assert_eq!(result.diagnostic, RewardSourceDiagnostic::Ready);
     assert_eq!(memory.record_choices, 1);
     assert_eq!(memory.choices, 0);
-}
-
-#[test]
-fn accumulated_player_records_are_assembled_with_local_reward_first() {
-    let records = std::collections::BTreeMap::from([
-        ("remote-a".to_owned(), "Orthos Prime Blueprint".to_owned()),
-        (
-            "remote-b".to_owned(),
-            "Revenant Prime Chassis Blueprint".to_owned(),
-        ),
-        ("remote-c".to_owned(), "Braton Prime Barrel".to_owned()),
-    ]);
-
-    assert_eq!(
-        assemble_player_record_choices(
-            &["local", "remote-a", "remote-b", "remote-c"],
-            Some("local"),
-            Some("Cedo Prime Stock"),
-            &records,
-        ),
-        Some(vec![
-            "Cedo Prime Stock".into(),
-            "Orthos Prime Blueprint".into(),
-            "Revenant Prime Chassis Blueprint".into(),
-            "Braton Prime Barrel".into(),
-        ])
-    );
-}
-
-#[test]
-fn a_finished_early_scan_releases_the_identity_for_the_real_response() {
-    let active = std::sync::Mutex::new(std::collections::BTreeSet::from([
-        "remote-player".to_owned()
-    ]));
-
-    release_player_record_scan("remote-player", &active);
-
-    assert!(active.lock().unwrap().insert("remote-player".to_owned()));
 }

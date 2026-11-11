@@ -213,8 +213,7 @@ On Windows this section does not apply: TennoScope opens the game with
 configuration.
 
 On Linux, TennoScope reads `/proc/<pid>/maps` and `/proc/<pid>/mem` of your own game
-process, and resets the soft-dirty page bits through `/proc/<pid>/clear_refs` so a poll
-only rescans the pages the game wrote. On most distributions this works out of the box,
+process. On most distributions this works out of the box,
 with nothing to configure: the kernel lets a process inspect others running as the same
 user. The exception is a distribution that ships Yama in restricted mode, Ubuntu being
 the common one:

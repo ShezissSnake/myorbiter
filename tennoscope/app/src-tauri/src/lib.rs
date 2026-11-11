@@ -78,8 +78,7 @@ pub use reward_recognition::{
     RewardRecognition,
 };
 pub use reward_source::{
-    BoundMemoryRewardSource, CardCandidates, LiveMemoryRewardState, MemoryRewardSource,
-    RewardChoiceSet, RewardChoiceSource, RewardSourceCoordinator, RewardSourceDiagnostic,
+    CardCandidates, MemoryRewardSource, RewardChoiceSet, RewardChoiceSource, RewardSourceCoordinator, RewardSourceDiagnostic,
     RewardSourceResult, VisualRewardSource,
 };
 
