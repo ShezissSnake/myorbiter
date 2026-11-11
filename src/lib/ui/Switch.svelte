@@ -3,10 +3,12 @@
   import type { Snippet } from "svelte";
 
   // `title`: a tooltip for the whole line; `disabled`: shown, not changeable (its section is off).
-  let { on = $bindable(), label, title, disabled = false, children }: { on: boolean; label: string; title?: string; disabled?: boolean; children?: Snippet } = $props();
+  // `name`: the switch's own name ("settings.auto-trades"), as `data-switch`, so the help's pictures
+  // and the sweep find it by name rather than by where it sits; the sweep lists a switch without one.
+  let { on = $bindable(), label, name, title, disabled = false, children }: { on: boolean; label: string; name: string; title?: string; disabled?: boolean; children?: Snippet } = $props();
 </script>
 
-<label class="row" class:disabled {title}>
+<label class="row" class:disabled {title} data-switch={name}>
   <span class="text">
     <span class="label">{label}</span>
     {#if children}<span class="note">{@render children()}</span>{/if}

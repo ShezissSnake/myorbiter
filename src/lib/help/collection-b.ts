@@ -157,14 +157,18 @@ const RIVENS: Walkthrough = {
       lines: [
         "Each roll graded within its range: S the top, B the middle, F the bottom.",
         "Check prices: the cheapest for the weapon, similar ones' asks, and MyOrbiter's Estimate.",
+        "One up on warframe.market shows its buyout; Sell on another starts at the Estimate.",
         "While you cycle one, both rolls show side by side, with which to keep.",
-        "They show here once TennoScope reads your inventory, in Full mode.",
       ],
       shot: {
-        // The invented account has no rivens of its own: the picture is the place they go.
+        // The invented account's two best rolls: the Soma riven it has up for sale, and the Hek one.
         open: "rivens",
-        part: ".pane.shown section.panel.note",
-        marks: [{ at: ".pane.shown section.panel.note", is: "outline" }],
+        part: ".pane.shown .cards article.riven:nth-child(-n+2)",
+        marks: [
+          { at: ".pane.shown .cards article.riven:nth-child(1) .grade.big", is: "n", n: 1, from: "corner" },
+          { at: ".pane.shown .cards article.riven:nth-child(2) footer button[aria-label='Check prices']", is: "n", n: 2, from: "corner" },
+          { at: ".pane.shown .cards article.riven:nth-child(1) .selling.on", is: "n", n: 3, from: "corner" },
+        ],
       },
     },
     {

@@ -393,6 +393,87 @@ for (const base of new Set(relics.map((r) => r.name.replace(/ \S+$/, "")))) {
   rate(`${base} Relic`, 0.5, vaulted ? 6 : 20);
 }
 
+// ------------------------------------------------------------------ rivens
+
+// The riven types' stat tables, as the data crate carries them (each stat's base value, label and
+// name syllables): what the app reads a riven's fingerprint with.
+const randomized = read("Mods").filter((m) => m.uniqueName.includes("/Randomized/"));
+const rivenTypes = randomized.filter((m) => /\/Randomized\/(Lotus\w+|PlayerMeleeWeapon)RandomModRare$/.test(m.uniqueName) && Array.isArray(m.upgradeEntries));
+for (const m of rivenTypes) {
+  const rivenStats = m.upgradeEntries.filter((e) => e.upgradeValues?.[0]).map((e) => ({ tag: e.tag, value: e.upgradeValues[0].value, locTag: e.upgradeValues[0].locTag ?? null, prefix: e.prefixTag ?? null, suffix: e.suffixTag ?? null }));
+  catalog.push({ ...pickFields(m, ITEM_FIELDS), rivenStats });
+}
+const rivenTable = (type) => catalog.find((c) => c.uniqueName.endsWith(`/${type}`))?.rivenStats ?? [];
+// Veiled: two rifle rivens and a melee one, their challenges still to do.
+for (const [type, name, n] of [["RawRifleRandomMod", "Rifle Riven Mod", 2], ["RawMeleeRandomMod", "Melee Riven Mod", 1]]) {
+  const path = `/Lotus/Upgrades/Mods/Randomized/${type}`;
+  row(path, name, "mod", n, { image_name: randomized.find((m) => m.uniqueName === path)?.imageName ?? null });
+}
+// Unveiled, as TennoScope reads them (the game's fingerprint: rolls from 0 to 0x3fffffff), on
+// weapons of four kinds. The Soma one is up for sale on warframe.market (its auction below); the
+// rest are not, so their Sell starts at the Estimate once Check prices has run.
+const ROLL = 0x3fffffff;
+const at = (q) => Math.round(q * ROLL);
+const DEMO_RIVENS = [
+  { weapon: "Soma", type: "LotusRifleRandomModRare", lvl: 8, lvlReq: 12, rerolls: 7, pol: "AP_ATTACK", buffs: [["WeaponCritChanceMod", 0.91], ["WeaponCritDamageMod", 0.74], ["WeaponFireIterationsMod", 0.62]], curses: [["WeaponZoomFovMod", 0.35]], sale: { buyout: 480, starting: 400 } },
+  { weapon: "Lex", type: "LotusPistolRandomModRare", lvl: 8, lvlReq: 9, rerolls: 2, pol: "AP_TACTIC", buffs: [["WeaponCritChanceMod", 0.58], ["WeaponStunChanceMod", 0.41]], curses: [["WeaponRecoilReductionMod", 0.7]] },
+  { weapon: "Nikana", type: "PlayerMeleeWeaponRandomModRare", lvl: 0, lvlReq: 14, rerolls: 0, pol: "AP_DEFENSE", buffs: [["WeaponMeleeDamageMod", 0.83], ["WeaponMeleeRangeIncMod", 0.27], ["WeaponCritChanceMod", 0.66]], curses: [] },
+  { weapon: "Hek", type: "LotusShotgunRandomModRare", lvl: 4, lvlReq: 10, rerolls: 15, pol: "AP_ATTACK", buffs: [["WeaponFireIterationsMod", 0.47], ["WeaponToxinDamageMod", 0.88]], curses: [["WeaponAmmoMaxMod", 0.52]] },
+].map((d) => ({ ...d, id: hex(`riven:${d.weapon}`), compat: gearByName.get(d.weapon)?.uniqueName }));
+for (const d of DEMO_RIVENS) if (!d.compat || !rivenTable(d.type).length) throw new Error(`demo riven: no ${d.compat ? `stat table for ${d.type}` : `weapon ${d.weapon}`}`);
+// warframe.market's names for the stats, from the app's own list (core/builds/riven.ts), and how it
+// writes their values: percentages as 93.8, faction damage as a multiplier, plain amounts as they are.
+const marketStat = new Map();
+for (const m of readFileSync(resolve("src/lib/core/builds/riven.ts"), "utf8").matchAll(/^\s*"?([\w/]+)"?: S\("[^"]*", ([^)]*)\)/gm)) for (const t of m[2].matchAll(/"(\w+)"/g)) marketStat.set(t[1], m[1]);
+const PLAIN_STAT = /MeleeComboInitialBonus|ComboDuration|MeleeRangeInc|PunctureDepth|MeleeParryAngle/;
+const statUnit = (tag) => (/FactionDamage/.test(tag) ? "multiply" : PLAIN_STAT.test(tag) ? null : "percent");
+// A stat's value and the riven's name, worked out as core/rivens.ts does (statValue, rivenName).
+const BUFF_ATTEN = [0, 1, 0.66000003, 0.5, 0.40000001, 0.34999999];
+const CURSE_BY_BUFFS = [0, 1, 0.33000001, 0.5, 1.25, 1.5];
+function rivenStatValue(def, roll, buff, nBuffs, nCurses, rank) {
+  const base = 10 * 1.5 * 1.2 * (rank + 1);
+  const f = buff ? base * 1.25 ** nCurses * BUFF_ATTEN[Math.min(nBuffs, 5)] : -base * CURSE_BY_BUFFS[Math.min(nBuffs, 5)] * BUFF_ATTEN[Math.min(nCurses, 5)];
+  return def.value * f * (0.9 + 0.2 * roll);
+}
+function rivenNameOf(table, buffs) {
+  const syl = (tag) => table.find((d) => d.tag === tag);
+  const sorted = [...buffs].sort((a, b) => b.Value - a.Value || (syl(a.Tag)?.value ?? 0) - (syl(b.Tag)?.value ?? 0));
+  const parts = sorted.map((b, i) => (i === sorted.length - 1 ? (syl(b.Tag)?.suffix ?? "") : (syl(b.Tag)?.prefix ?? "")));
+  const word = parts.length > 1 ? `${parts.slice(0, -1).join("-")}${parts.at(-1)}` : parts[0];
+  return word.charAt(0).toUpperCase() + word.slice(1);
+}
+const rivensRead = DEMO_RIVENS.map((d) => ({
+  type: `/Lotus/Upgrades/Mods/Randomized/${d.type}`,
+  id: d.id,
+  fp: { compat: d.compat, lim: 0, lvlReq: d.lvlReq, lvl: d.lvl, rerolls: d.rerolls, pol: d.pol, buffs: d.buffs.map(([Tag, q]) => ({ Tag, Value: at(q) })), curses: d.curses.map(([Tag, q]) => ({ Tag, Value: at(q) })) },
+}));
+
+// The Soma riven's auction on warframe.market, as the profile's auctions list gives it.
+const myAuctions = DEMO_RIVENS.filter((d) => d.sale).map((d) => {
+  const raw = rivensRead.find((x) => x.id === d.id).fp;
+  const table = rivenTable(d.type);
+  const n = [raw.buffs.length, raw.curses.length];
+  const attributes = [...raw.buffs.map((b) => [b, true]), ...raw.curses.map((b) => [b, false])].map(([b, buff]) => {
+    const v = rivenStatValue(table.find((x) => x.tag === b.Tag), b.Value / ROLL, buff, n[0], n[1], d.lvl);
+    const unit = statUnit(b.Tag);
+    return { url_name: marketStat.get(b.Tag), positive: buff, value: unit === "percent" ? Math.round(v * 1000) / 10 : unit === "multiply" ? Math.round((1 + v) * 100) / 100 : Math.round(v * 100) / 100 };
+  });
+  return {
+    id: hex(`auction:${d.weapon}`),
+    item: { type: "riven", weapon_url_name: slugOf(d.weapon), name: rivenNameOf(table, raw.buffs).toLowerCase(), attributes, re_rolls: d.rerolls, mastery_level: d.lvlReq, mod_rank: d.lvl, polarity: { AP_ATTACK: "madurai", AP_DEFENSE: "vazarin", AP_TACTIC: "naramon" }[d.pol] },
+    starting_price: d.sale.starting,
+    buyout_price: d.sale.buyout,
+    top_bid: null,
+    closed: false,
+    visible: true,
+    private: false,
+    note: "",
+    minimal_reputation: 0,
+    created: iso(DEMO_NOW - 2 * DAY),
+    updated: iso(DEMO_NOW - 2 * DAY),
+  };
+});
+
 const bundle = {
   observed_at: NOW_S - 4 * 60,
   inventory,
@@ -493,6 +574,8 @@ for (const [name, , , rank] of LISTED) {
 const market = {
   account: { linked: true, backing: "keyring", profile: me, error: null },
   orders,
+  // Your riven auctions (the browser dev mode's stand-in for warframe.market's profile auctions).
+  auctions: myAuctions,
 };
 
 // ------------------------------------------------------------------ TennoScope, the fissure and its reward screen
@@ -538,7 +621,7 @@ const tennoscope = {
     platinum: 1240,
     credits: 8_412_350,
     endo: 182_400,
-    rivens: null,
+    rivens: rivensRead,
     imprints: null,
     gear: null,
     consumed_suits: null,
@@ -657,9 +740,9 @@ const rivenMeta = {
   weapons: rivenWeapons,
   attributes: statNames.map((slug) => ({
     slug,
-    gameRef: "",
+    gameRef: [...marketStat].find(([, s]) => s === slug)?.[0] ?? "",
     name: slug.replace(/_\/_/g, " / ").replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-    unit: null,
+    unit: [...marketStat].some(([, s]) => s === slug) ? statUnit([...marketStat].find(([, s]) => s === slug)[0]) : null,
     positiveOnly: !rivenModel.negs.includes(slug),
     negativeOnly: !rivenModel.stats.includes(slug),
     exclusiveTo: null,
@@ -805,6 +888,31 @@ for (const name of [...traded].sort()) {
   if (!books[it.slug]) books[it.slug] = bookFor(it, prices[name] ?? 5, it.maxRank, rSpares);
 }
 
+// Rivens other players list: what every riven search answers in the browser dev mode, whatever
+// the weapon (enough of them for the Estimate, which needs five priced, and the stat hints, eight).
+const rListings = seeded("riven-listings");
+const LISTED_STATS = ["critical_chance", "critical_damage", "multishot", "base_damage_/_melee_damage", "status_chance", "toxin_damage", "fire_rate_/_attack_speed", "electric_damage"];
+const LISTED_CURSES = ["zoom", "recoil", "ammo_maximum", "impact_damage", null];
+const rivenListings = Array.from({ length: 12 }, (_, i) => {
+  const picked = [...LISTED_STATS].sort(() => rListings() - 0.5).slice(0, int(rListings, 2, 3));
+  const curse = pick(rListings, LISTED_CURSES);
+  const price = [35, 60, 85, 120, 150, 220, 300, 380, 450, 600, 850, 1200][i];
+  return {
+    id: hex(`riven-listing:${i}`),
+    price,
+    starting: Math.round(price * 0.8),
+    name: pick(rListings, ["visi-critacron", "crita-satitis", "acri-visitron", "toxi-hexacan", "sati-critaata", "vexi-tempican"]),
+    rank: pick(rListings, [0, 8, 8]),
+    rerolls: int(rListings, 0, 30),
+    mr: int(rListings, 8, 16),
+    polarity: pick(rListings, ["madurai", "vazarin", "naramon"]),
+    attributes: [...picked.map((u) => ({ url_name: u, value: Math.round((60 + rListings() * 120) * 10) / 10, positive: true })), ...(curse ? [{ url_name: curse, value: -Math.round((20 + rListings() * 50) * 10) / 10, positive: false }] : [])],
+    seller: PLAYERS[(i * 5) % PLAYERS.length],
+    status: pick(rListings, ["ingame", "online", "online"]),
+    updated: iso(DEMO_NOW - int(rListings, 1, 20) * DAY),
+  };
+});
+
 // ------------------------------------------------------------------ write
 
 mkdirSync(outDir, { recursive: true });
@@ -820,7 +928,7 @@ const files = {
   "dev-books.json": books,
   "dev-relic-data.json": relicData,
   "dev-rivens.json": rivenMeta,
-  "dev-auctions.json": [],
+  "dev-auctions.json": rivenListings,
   // Served as /dev-history-<slug>.json, one item each (vite.config.ts).
   "dev-history.json": priceHistory,
   "meta.json": { now: DEMO_NOW, note: "Times in the dev-*.json files are written as if it were this moment (Unix ms); the dev server moves them to the real time when it serves them." },

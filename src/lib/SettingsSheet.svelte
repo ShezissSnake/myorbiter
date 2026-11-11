@@ -156,7 +156,7 @@
 <Sheet bind:open keep title="Settings" kicker="MyOrbiter" help="settings">
   <section>
     <div class="hmark"><h3 class="register">Platform</h3><HelpMark part="settings.platform" /></div>
-    <label class="field">
+    <label class="field" data-field="settings.platform">
       <span class="register">Where you play</span>
       <select value={settings.market.platform} onchange={(e) => { settings.market.platform = e.currentTarget.value as Platform; settings.market.relicPrices = {}; }}>
         {#each Object.entries(PLATFORM_LABEL) as [v, label] (v)}<option value={v}>{label}</option>{/each}
@@ -167,14 +167,14 @@
 
   <section>
     <div class="hmark"><h3 class="register">Pages</h3><HelpMark part="settings.pages" /></div>
-    <label class="field">
+    <label class="field" data-field="settings.start-page">
       <span class="register">Open on</span>
       <select bind:value={settings.startPage}>
         <option value="last">The page you left it on</option>
         {#each shown as p (p.id)}<option value={p.id}>{p.label}</option>{/each}
       </select>
     </label>
-    <Switch bind:on={settings.details} label="Show details">
+    <Switch name="settings.details" bind:on={settings.details} label="Show details">
       The sentence under every figure, each page's full description and every table column. Off, pages keep to the essentials and the rest is on hover. “Details on every page”, under a page's Details, is the same switch.
     </Switch>
     <p class="hint">The sidebar as it shows: untick a page to take it out (it still opens from links on other pages, and nothing on it is lost); the arrows move a page within its section, or a whole section. Ctrl+1…9 follow this order. Home stays first and the Guide stays by the gear. What Home itself shows is under the gear on Home.</p>
@@ -205,7 +205,7 @@
   {#if !onConsole}
   <section>
     <div class="hmark"><h3 class="register">TennoScope</h3><HelpMark part="settings.tennoscope" /></div>
-    <Switch bind:on={settings.tennoscope.launch} label="Start TennoScope with MyOrbiter">
+    <Switch name="settings.tennoscope-launch" bind:on={settings.tennoscope.launch} label="Start TennoScope with MyOrbiter">
       In the background, with no window of its own, and closed again when you close MyOrbiter. A TennoScope you start yourself is left alone.
     </Switch>
     <FullMode kind="switch" />
@@ -223,12 +223,12 @@
 
   <section>
     <div class="hmark"><h3 class="register">Where things are</h3><HelpMark part="settings.where-things-are" /></div>
-    <label class="field">
+    <label class="field" data-field="settings.data-dir">
       <span class="register">TennoScope's data folder</span>
       <input class="path" bind:value={dataDir} title={dataDir || undefined} placeholder={defaultDir ? `Default: ${defaultDir}` : "TennoScope's default"} spellcheck="false" />
       <span class="hint">Read only. Empty uses TennoScope's default.</span>
     </label>
-    <label class="field">
+    <label class="field" data-field="settings.ee-log">
       <span class="register">Warframe's EE.log</span>
       <input class="path" bind:value={eeLog} title={eeLog || undefined} placeholder={eeFound ? `Found: ${eeFound}` : onWindows ? "Found in %LOCALAPPDATA%\\Warframe" : "Found in your Steam libraries"} spellcheck="false" />
       <span class="hint">Read only, never written. Empty finds it {onWindows ? "in %LOCALAPPDATA%\\Warframe" : "in your Steam libraries (under the Proton prefix)"}.</span>
@@ -237,7 +237,7 @@
 
   <section>
     <div class="hmark"><h3 class="register">Fissures</h3><HelpMark part="settings.fissures" /></div>
-    <Switch bind:on={settings.jumpToPick} label="Show Current fissure when the reward screen opens">
+    <Switch name="settings.jump-to-pick" bind:on={settings.jumpToPick} label="Show Current fissure when the reward screen opens">
       MyOrbiter switches to the reward pick by itself, so it's on screen when you need it.
     </Switch>
     <h4 class="sub">How MyOrbiter picks a reward</h4>
@@ -248,7 +248,7 @@
   <section>
     <div class="hmark"><h3 class="register">Overlays</h3><HelpMark part="settings.overlays" /></div>
     <p class="hint">What TennoScope draws over the game. MyOrbiter keeps reading the reward screen with an overlay off, so its pick still shows on Current fissure.</p>
-    <Switch bind:on={settings.overlay.reward} label="Fissure reward screen">
+    <Switch name="settings.overlay-reward" bind:on={settings.overlay.reward} label="Fissure reward screen">
       Under each reward card: what it's worth and whether to take it.
     </Switch>
     {#if settings.overlay.reward}
@@ -261,17 +261,17 @@
         <Chip bind:on={settings.overlay.show.pick} label="MyOrbiter's pick" title="Each card's score, and the card to take outlined in gold" />
       </div>
     {/if}
-    <Switch bind:on={settings.overlay.riven} label="Cycling a riven">
+    <Switch name="settings.overlay-riven" bind:on={settings.overlay.riven} label="Cycling a riven">
       When MyOrbiter reads a riven waiting for keep-or-take (Sync at the cycle screen, or the riven key below): both rolls graded side by side, and which to keep.
     </Switch>
     {#if settings.overlay.riven}
-      <label class="field">
+      <label class="field" data-field="settings.riven-key">
         <span class="register">Riven key</span>
         <input type="text" placeholder="None (e.g. Ctrl+Shift+R or F9)" value={settings.overlay.rivenKey} onchange={(e) => (settings.overlay.rivenKey = e.currentTarget.value.trim())} aria-label="Riven key" />
       </label>
       <p class="dim small">Pressed in game at the cycle screen, TennoScope reads your inventory (it needs Full mode) and the two rolls show over the game a few seconds later, no switching windows. On Linux it works while the game has focus; a key another app holds can't be had.{#if rivenKeyError}{" "}<span class="err">Couldn't set it: {rivenKeyError}</span>{/if}</p>
     {/if}
-    <Switch bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
+    <Switch name="settings.overlay-kiosk" bind:on={settings.overlay.kiosk} label="Baro's Ducat Kiosk">
       On each Prime part in the kiosk: its plat, or how many more you need while its item isn't mastered.
     </Switch>
   </section>
@@ -281,23 +281,23 @@
   <section id="settings-trades">
     <div class="hmark"><h3 class="register">Trades</h3><HelpMark part="settings.trades" /></div>
     <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
-    <Switch bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
+    <Switch name="settings.auto-reprice" bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
       Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
       more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
       It never goes under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.
     </Switch>
-    <label class="field">
+    <label class="field" data-field="settings.rep-text">
       <span class="register">+rep message</span>
       <input bind:value={settings.market.repText} maxlength="300" placeholder=":)" />
       <span class="hint">What goes with +rep on a trade partner's warframe.market profile (reputation there is a positive review, one per player).</span>
     </label>
-    {#if !onConsole}<Switch bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">{AUTO_REP_LINE}</Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.market.autoTrades} label="Mark sales sold from the game">{AUTO_TRADES_LINE}</Switch>{/if}
-    {#if !onConsole}<Switch bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
+    {#if !onConsole}<Switch name="settings.auto-rep" bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">{AUTO_REP_LINE}</Switch>{/if}
+    {#if !onConsole}<Switch name="settings.auto-trades" bind:on={settings.market.autoTrades} label="Mark sales sold from the game">{AUTO_TRADES_LINE}</Switch>{/if}
+    {#if !onConsole}<Switch name="settings.hide-last-copies" bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
       When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below unless it sold; a later whisper doesn't make the wait longer.
     </Switch>
-    {#if settings.market.lastCopy.optIn}<label class="field minutes">
+    {#if settings.market.lastCopy.optIn}<label class="field minutes" data-field="settings.last-copy-minutes">
       <span class="register">Hidden for</span>
       <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes</span></span>
     </label>{/if}{/if}
@@ -312,7 +312,7 @@
 
   <section>
     <div class="hmark"><h3 class="register">Builds</h3><HelpMark part="settings.builds" /></div>
-    <Switch bind:on={settings.buildsFromNox} label={NOX_SETTING.label}>
+    <Switch name="settings.builds-from-nox" bind:on={settings.buildsFromNox} label={NOX_SETTING.label}>
       {NOX_SETTING.help} Off: Builds lists none, and its Nox's Frame link still opens the site in your browser.
     </Switch>
   </section>
