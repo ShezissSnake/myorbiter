@@ -303,6 +303,14 @@ const CATEGORY_NOW: Record<string, string> = { "/Lotus/Weapons/Tenno/Archwing/Me
 const DUCATS_NOW: Record<string, number> = { "Nami Skyla Prime Blade": 65 };
 
 /**
+ * Items WFCD files under a stand-in picture, by name, with their own picture in WFCD's image set.
+ * Forma is filed under GenericComponent.png, the generic component picture, in which the Forma is
+ * drawn squeezed to about three fifths of its width; WFCD's Forma.png shows it as it is (a Forma
+ * Blueprint and a "2X Forma Blueprint" stack show it too, through imageOf).
+ */
+const OWN_PICTURE: Record<string, string> = { Forma: "Forma.png" };
+
+/**
  * Catalog entries marked masterable that give no mastery of their own: Sirius & Orion's second son
  * (the pair counts once, under Sirius & Orion), and the second Grimoire the game keeps for the
  * Doppelganger (only the Tenno one counts). Left in, they'd sit on Mastery as never finished.
@@ -673,7 +681,7 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
   // A prime's main blueprint is filed under the generic blueprint picture, which the image set
   // doesn't have: show the item it builds instead.
   const own = (name: string) => {
-    const f = heldImage.get(name) ?? cat.imageByName.get(name) ?? rel.imageByBase.get(name);
+    const f = OWN_PICTURE[name] ?? heldImage.get(name) ?? cat.imageByName.get(name) ?? rel.imageByBase.get(name);
     return f && f !== "blueprint.png" ? f : undefined;
   };
   const imageOf = (name: string): string | null => {
