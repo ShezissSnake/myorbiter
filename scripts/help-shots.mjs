@@ -5,7 +5,12 @@
 // src/lib/help/pictures.json recording each one's definition hash, size and bytes. A selector that
 // matches nothing stops the run. Run through scripts/screenshots.mjs:
 //
-//   npm run screenshots -- --only help [--id orders]
+//   npm run screenshots -- --only help [--id orders] [--check]
+//
+// --check takes no pictures and writes nothing: it opens every page's picture as it would, runs its
+// steps, and lists every part or mark whose selector matches nothing (and every part that runs past
+// the window), then exits 1 if there was any. A step that matches nothing stops that picture's
+// check there, so it is the one miss listed for that picture.
 //
 // Pictures are taken at twice the window's pixels and kept at most MAX_W pixels wide, at the
 // highest WebP quality that keeps them under MAX_BYTES.
@@ -20,29 +25,51 @@ const MAX_W = 1200;
 const MAX_BYTES = 60 * 1024;
 const PAD = 16;
 
-/** Takes the pictures (all, or one walk-through's with `id`) and rewrites the manifest. */
-export async function takeHelp(browser, url, root, work, id = null) {
+/** Takes the pictures (all, or one walk-through's with `id`) and rewrites the manifest; with `check`, only looks for every selector. */
+export async function takeHelp(browser, url, root, work, id = null, check = false) {
   const out = join(root, "public/help");
   const manifestFile = join(root, "src/lib/help/pictures.json");
-  mkdirSync(out, { recursive: true });
+  if (!check) mkdirSync(out, { recursive: true });
   const manifest = existsSync(manifestFile) ? JSON.parse(readFileSync(manifestFile, "utf8")) : {};
   const all = pictures();
-  const todo = all.filter((x) => !id || x.wt.id === id);
-  if (id && !todo.length) throw new Error(`no walk-through ${id} with pictures`);
+  // --id takes one walk-through or several, comma-separated.
+  const ids = id ? id.split(",") : null;
+  const todo = all.filter((x) => !ids || ids.includes(x.wt.id));
+  for (const one of ids ?? []) if (!all.some((x) => x.wt.id === one)) throw new Error(`no walk-through ${one} with pictures`);
+  /** The manifest as it stands, written after every picture so a run that stops keeps what it took. */
+  const save = () => {
+    const sorted = Object.fromEntries(Object.keys(manifest).sort().map((k) => [k, manifest[k]]));
+    writeFileSync(manifestFile, `${JSON.stringify(sorted, null, 2)}\n`);
+    return sorted;
+  };
 
-  // One window per size, reused while the size stays the same.
+  const misses = [];
+  // One window per walk-through and size, so nothing one walk-through opened or picked is left
+  // over in another's pictures; a start-up dialog gets a window of its own, opened as that start is.
   let p = null;
   let size = "";
   for (const x of todo) {
     const [w, h] = x.shot.size ?? [1280, 800];
-    if (`${w}x${h}` !== size) {
+    const want = `${x.wt.id} ${w}x${h}${x.shot.startup ? ` ${x.shot.startup}` : ""}`;
+    if (want !== size || x.shot.startup) {
       await p?.close();
-      p = await openApp(browser, url, w, h);
-      size = `${w}x${h}`;
+      p = await openApp(browser, url, w, h, x.shot.startup);
+      size = want;
     }
     const where = `${x.wt.id}, page ${x.i + 1}`;
+    if (check) {
+      try {
+        await reach(p, x.shot, where);
+        for (const miss of await missing(p, x.shot)) misses.push(`${where}: ${miss}`);
+      } catch (e) {
+        misses.push(e.message);
+      }
+      console.log(`checked ${where}`);
+      continue;
+    }
     await reach(p, x.shot, where);
     const clip = await mark(p, x.shot, where);
+    if (clip.width <= 0 || clip.height <= 0) throw new Error(`${where}: the part isn't in the window (scrolled away, or under something)`);
     const png = join(work, `${x.file}.png`);
     await p.screenshot({ path: png, clip });
     await p.evaluate(() => document.getElementById("help-shot-marks")?.remove());
@@ -51,30 +78,37 @@ export async function takeHelp(browser, url, root, work, id = null) {
     // The size it is shown at, in CSS pixels: the file holds twice as many (fewer past MAX_W).
     manifest[x.file] = { hash: x.hash, w: Math.round(clip.width), h: Math.round(clip.height), bytes };
     console.log(`public/help/${x.file}  ${Math.round(bytes / 1024)} KB`);
+    save();
   }
   await p?.close();
+  if (check) {
+    for (const m of misses) console.log(`MISSING ${m}`);
+    console.log(`${todo.length} pictures checked, ${misses.length} selectors match nothing`);
+    if (misses.length) process.exitCode = 1;
+    return;
+  }
 
   // Pictures no page has any more go, from the folder and the manifest.
   const wanted = new Set(all.map((x) => x.file));
   for (const f of readdirSync(out)) if (f.endsWith(".webp") && !wanted.has(f)) rmSync(join(out, f));
   for (const f of Object.keys(manifest)) if (!wanted.has(f)) delete manifest[f];
-  const sorted = Object.fromEntries(Object.keys(manifest).sort().map((k) => [k, manifest[k]]));
-  writeFileSync(manifestFile, `${JSON.stringify(sorted, null, 2)}\n`);
+  const sorted = save();
   const total = Object.values(sorted).reduce((n, m) => n + m.bytes, 0);
   console.log(`${Object.keys(sorted).length} pictures, ${Math.round(total / 1024)} KB in all`);
 }
 
-async function openApp(browser, url, w, h) {
+async function openApp(browser, url, w, h, startup = null) {
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
   await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
   p.on("pageerror", (e) => console.error(`help: ${e.message}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the
   // Full mode question seen, calm motion so nothing is caught half-way.
-  await p.addInitScript(() => {
+  // A start-up dialog's window: the Full mode question not asked yet.
+  await p.addInitScript(({ asked }) => {
     try {
       const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");
       s.newsSeen = "9999";
-      s.fullModeAsked = true;
+      s.fullModeAsked = asked;
       s.pagesHidden = [];
       s.simplified = 2;
       // The demo account has sold nothing yet, so Sales would show only its empty state: a few
@@ -99,15 +133,21 @@ async function openApp(browser, url, w, h) {
         ];
         s.market.sales = sold.map(([item, rank, quantity, platinum, median, ago]) => ({ at: now - ago * day - 3_600_000 * (ago % 7), item, rank, quantity, platinum, median }));
       }
+      // Nothing starred either: two primes the account hasn't got, so Wishlist has something to show.
+      if (!Array.isArray(s.favourites) || !s.favourites.length) s.favourites = ["/Lotus/Powersuits/Saryn/SarynPrime", "/Lotus/Powersuits/Runner/GaussPrime"];
+      // Builds read no other site's builds while the pictures are taken.
+      s.buildsFromNox = false;
       localStorage.setItem("orbiter-settings", JSON.stringify(s));
     } catch {}
-  });
+  }, { asked: startup !== "first-run" });
   await p.emulateMedia({ reducedMotion: "reduce" });
   // The first load compiles the app: slow on a busy machine.
   await p.goto(url, { timeout: 180_000 });
   await p.waitForTimeout(8000);
   await p.addStyleTag({ content: ".toasts { display: none !important; }" });
-  const notNow = p.getByRole("button", { name: /not now/i }).first();
+  if (startup) return p;
+  // A question that opened over the page (never Home's own Start here card, which has a Not now too).
+  const notNow = p.locator("[aria-modal='true'] button", { hasText: /not now/i }).first();
   if (await notNow.count()) {
     await notNow.click();
     await p.waitForTimeout(800);
@@ -117,6 +157,13 @@ async function openApp(browser, url, w, h) {
 
 /** Opens the shot's page fresh (closing whatever is open) and runs its steps. */
 async function reach(p, shot, where) {
+  // A start-up dialog is open already, in its own window: wait past the first-run question's
+  // moment of not taking clicks, and touch nothing.
+  if (shot.startup) {
+    await p.waitForTimeout(1500);
+    await p.mouse.move(2, 2);
+    return;
+  }
   for (let i = 0; i < 3 && (await p.locator("[aria-modal='true']").count()); i++) {
     await p.keyboard.press("Escape");
     await p.waitForTimeout(400);
@@ -158,6 +205,29 @@ async function reach(p, shot, where) {
   await p.waitForTimeout(400);
 }
 
+/** The shot's part and marks that match nothing on the page as it is, and a part that runs past the window. */
+async function missing(p, shot) {
+  await p.waitForFunction((q) => !!document.querySelector(q), shot.part, { timeout: 15_000 }).catch(() => {});
+  return p.evaluate(({ part, marks }) => {
+    const out = [];
+    const has = (q) => {
+      try {
+        return !!document.querySelector(q);
+      } catch {
+        return false;
+      }
+    };
+    if (!has(part)) out.push(`no part at ${part}`);
+    else {
+      const rs = [...document.querySelectorAll(part)].map((e) => e.getBoundingClientRect());
+      const h = Math.max(...rs.map((r) => r.bottom)) - Math.min(...rs.map((r) => r.top));
+      if (h > innerHeight) out.push(`the part is ${Math.round(h)} px tall, past the window`);
+    }
+    for (const m of marks) if (!has(m.at)) out.push(`no mark target at ${m.at}`);
+    return out;
+  }, { part: shot.part, marks: shot.marks });
+}
+
 /** Draws the marks over the window and returns the piece to crop, in CSS pixels. */
 async function mark(p, shot, where) {
   // The part and the marks are plain CSS, found the way the page finds them (:has(> …) included).
@@ -165,7 +235,20 @@ async function mark(p, shot, where) {
   // A page can draw a moment after it opens (its figures worked out first).
   await p.waitForFunction((q) => !!document.querySelector(q), shot.part, { timeout: 30_000 }).catch(() => {});
   if (!(await found(shot.part))) throw new Error(`${where}: no part at ${shot.part}`);
-  await p.evaluate((q) => document.querySelector(q).scrollIntoView({ block: "center", inline: "nearest" }), shot.part);
+  // The part's first piece in the middle of the window; when the whole part then runs past the
+  // window's edge, its top near the window's top instead. At once: the page's own smooth scroll
+  // would still be on its way when the picture is taken.
+  await p.evaluate((q) => {
+    const els = [...document.querySelectorAll(q)];
+    els[0].scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    const rs = els.map((e) => e.getBoundingClientRect());
+    const top = Math.min(...rs.map((r) => r.top));
+    const bottom = Math.max(...rs.map((r) => r.bottom));
+    if (top >= 8 && bottom <= innerHeight - 8) return;
+    let sc = els[0].parentElement;
+    while (sc && !(sc.scrollHeight > sc.clientHeight && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
+    (sc ?? document.scrollingElement).scrollBy({ top: top - 40, behavior: "instant" });
+  }, shot.part);
   await p.waitForTimeout(500);
   for (const m of shot.marks) {
     await p.waitForFunction((q) => !!document.querySelector(q), m.at, { timeout: 15_000 }).catch(() => {});

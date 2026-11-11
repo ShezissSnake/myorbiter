@@ -287,7 +287,7 @@
   <!-- Baro week: parts that turn platinum into ducats cheapest, beyond the ones you hold. -->
   <section class="dbuy" id="ducat-buys">
     <header>
-      <h2 class="register lead">Ducats for less<HelpMark part="parts.ducats-for-less" /></h2>
+      <div class="hmark"><h2 class="register lead">Ducats for less</h2><HelpMark part="parts.ducats-for-less" /></div>
       <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
     </header>
     <table class="dt">

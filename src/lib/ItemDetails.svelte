@@ -207,7 +207,7 @@
 
     {#if row && !row.unobtainable}
       <section class="how">
-        <h3 class="register lead">How to get it<HelpMark part="item-sheet.how" /></h3>
+        <div class="hmark"><h3 class="register lead">How to get it</h3><HelpMark part="item-sheet.how" /></div>
         <div class="howrow"><Effort acq={row.acq} /><p class="prose">{row.acq.how}{#if row.acq.players}<span class="players">{row.acq.players}</span>{/if}</p></div>
         {#if wish && wish.missing.length && ((wish.odds != null && wish.odds > 0) || wish.buyCost != null)}
           {@const odds = wish.odds != null && wish.odds > 0 ? wish.odds : null}
@@ -221,7 +221,7 @@
 
     {#if c.parts.length}
       <section>
-        <h3 class="register lead">Built from{#if c.partBuilt} <span class="built" title="You hold the {familyOf(item.uniqueName)?.part ?? 'part'} already, or it's in a build: its blueprint and resources are spent">Built ✓</span>{:else if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}<HelpMark part="item-sheet.built-from" /></h3>
+        <div class="hmark"><h3 class="register lead">Built from{#if c.partBuilt} <span class="built" title="You hold the {familyOf(item.uniqueName)?.part ?? 'part'} already, or it's in a build: its blueprint and resources are spent">Built ✓</span>{:else if item.buildPrice} <span class="dim cost"><GameIcon name="credits" size={13} /> {item.buildPrice.toLocaleString("en")} · {days(item.buildTime)}</span>{/if}</h3><HelpMark part="item-sheet.built-from" /></div>
         <ul class="bom">
           {#each c.parts as p (p.name)}
             {@const w = where(p)}
@@ -260,7 +260,7 @@
 
     {#if plan && plan.resources.length}
       <section class="plan">
-        <h3 class="register lead">What building it takes now <span class="tier t-{plan.tier}" title={TIER_TIP[plan.tier]}>{TIER_LABEL[plan.tier]}</span>{#if plan.credits} <span class="dim cost"><GameIcon name="credits" size={13} /> {plan.credits.toLocaleString("en")}</span>{/if}<HelpMark part="item-sheet.plan" /></h3>
+        <div class="hmark"><h3 class="register lead">What building it takes now <span class="tier t-{plan.tier}" title={TIER_TIP[plan.tier]}>{TIER_LABEL[plan.tier]}</span>{#if plan.credits} <span class="dim cost"><GameIcon name="credits" size={13} /> {plan.credits.toLocaleString("en")}</span>{/if}</h3><HelpMark part="item-sheet.plan" /></div>
         {#if plan.parts.some((p) => p.state === "blueprint" || p.state === "missing")}
           <ul class="steps">
             {#each plan.parts.filter((p) => p.state !== "built") as p (p.label)}
@@ -286,7 +286,7 @@
 
     {#if isFrame}
       <section>
-        <h3 class="register lead">Base stats<HelpMark part="item-sheet.base-stats" /></h3>
+        <div class="hmark"><h3 class="register lead">Base stats</h3><HelpMark part="item-sheet.base-stats" /></div>
         <div class="stats">
           <div><span class="register">Health</span><b>{num(item.health, 0)}</b></div>
           <div><span class="register">Shield</span><b>{num(item.shield, 0)}</b></div>
@@ -311,7 +311,7 @@
       </section>
     {:else if isWeapon}
       <section>
-        <h3 class="register lead">Stats<HelpMark part="item-sheet.stats" /></h3>
+        <div class="hmark"><h3 class="register lead">Stats</h3><HelpMark part="item-sheet.stats" /></div>
         <div class="stats">
           <div><span class="register">Damage</span><b>{num(item.totalDamage, 1)}</b></div>
           <div><span class="register">Critical</span><b>{pct(item.criticalChance)} <span class="dim">×{num(item.criticalMultiplier, 1)}</span></b></div>
@@ -351,7 +351,9 @@
   .cell.buy .register { color: var(--verdigris); }
   .cell.sell .register { color: var(--gold); }
   h3 { margin: 0 0 .7rem; display: flex; align-items: center; gap: .6rem; }
-  h3 > :global(.helpmark) { margin-left: auto; }
+  .hmark { margin: 0 0 .7rem; gap: .6rem; }
+  .hmark > h3 { margin: 0; }
+  .hmark > :global(.helpmark) { margin-left: auto; }
   /* The part's already built: said once, in the heading, rather than "Missing" down the list. */
   .built { margin-left: .4rem; color: var(--verdigris); letter-spacing: .1em; }
   .cost { display: inline-flex; align-items: center; gap: .3rem; letter-spacing: .06em; text-transform: none; font-family: var(--face-text); font-size: .78rem; }

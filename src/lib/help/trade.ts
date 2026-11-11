@@ -5,7 +5,7 @@
 // Remove, a dialog's send button); Check prices and Plan the changes only read.
 
 import type { Walkthrough } from "./types";
-import { guideOf } from "./pending";
+import { guideOf } from "./guide";
 
 /** The element whose own "?" is `part`'s: a part's head bar or box. */
 const holder = (part: string) => `.pane.shown :has(> [data-help="${part}"])`;
@@ -253,7 +253,8 @@ const SALES: Walkthrough = {
         part: ".pane.shown .loghead",
         marks: [
           { at: ".pane.shown .loghead h2", is: "n", n: 1, from: "corner" },
-          { at: ".pane.shown .loghead .import", is: "n", n: 2, from: "corner" },
+          // The Import button, not its row: the row starts where the heading does.
+          { at: ".pane.shown .loghead .import button.pb.text", is: "n", n: 2, from: "corner" },
           { at: ".pane.shown .loghead form.addsale", is: "n", n: 3, from: "corner" },
         ],
       },

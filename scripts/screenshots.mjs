@@ -3,11 +3,12 @@
 // them, in site/shots/large/), taken from the invented account (`npm run dev:demo`, demo/), never
 // from public/dev-*.json.
 //
-//   npm run screenshots [-- --port 1431] [-- --only site|docs|help] [-- --id <walk-through>]
+//   npm run screenshots [-- --port 1431] [-- --only site|docs|help] [-- --id <walk-through>] [-- --check]
 //
 // `--only help` takes the help's pictures instead (scripts/help-shots.mjs: public/help/ and
 // src/lib/help/pictures.json), all of them or one walk-through's with --id. It runs under tsx (the
-// npm script does), since the help list is TypeScript.
+// npm script does), since the help list is TypeScript. With --check it takes no pictures and only
+// lists the help's selectors that match nothing.
 //
 // It installs Playwright's Chromium if it isn't there yet (`playwright install chromium`, into
 // Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
@@ -138,7 +139,7 @@ try {
   browser = await chromium.launch();
   if (only === "help") {
     const { takeHelp } = await import("./help-shots.mjs");
-    await takeHelp(browser, url, root, work, helpId);
+    await takeHelp(browser, url, root, work, helpId, process.argv.includes("--check"));
   }
   for (const [kind, { w, h, out, pages, large }] of Object.entries(SIZES)) {
     if (only && kind !== only) continue;

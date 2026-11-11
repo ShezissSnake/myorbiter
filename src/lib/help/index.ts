@@ -1,14 +1,20 @@
 // The help list and its lookups: which walk-through a part's "?" opens, and at which page.
 
 import type { HelpPage, Shot, Walkthrough } from "./types";
-import { TRADE } from "./trade";
+import { HOME } from "./home";
 import { FISSURES } from "./fissures";
-import { PENDING } from "./pending";
+import { PROGRESS } from "./progress";
+import { COLLECTION } from "./collection";
+import { COLLECTION_B } from "./collection-b";
+import { TRADE } from "./trade";
+import { STATS } from "./stats";
+import { SETTINGS } from "./settings";
+import { PANELS } from "./panels";
 
 export type { HelpPage, Mark, Shot, Step, Walkthrough } from "./types";
 
-/** Every walk-through, written ones first. */
-export const WALKTHROUGHS: Walkthrough[] = [...TRADE, ...FISSURES, ...PENDING];
+/** Every walk-through, in the sidebar's order, then the panels every page has. */
+export const WALKTHROUGHS: Walkthrough[] = [...HOME, ...FISSURES, ...PROGRESS, ...COLLECTION, ...COLLECTION_B, ...TRADE, ...STATS, ...SETTINGS, ...PANELS];
 
 export const walkthroughById: Record<string, Walkthrough> = Object.fromEntries(WALKTHROUGHS.map((w) => [w.id, w]));
 

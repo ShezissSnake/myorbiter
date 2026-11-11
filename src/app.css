@@ -390,6 +390,13 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 .plate-head > .helpmark { margin-right: -6px; }
 .plate-head::after, .page h2.register::after, .page h3.register.lead::after { order: 8; }
 .page :is(h2.register, h3.register.lead) > .helpmark { margin-left: .2rem; }
+/* A heading's own "?" sits beside it, not inside it (a screen reader would read it as part of the
+   heading's name), in a row drawn as the heading was: the heading takes the room, at least the
+   "?"'s height, and the "?" follows at its end. A heading's margins go on the row (.hmark). */
+.hmark { display: flex; align-items: center; min-width: 0; }
+.hmark > :is(h2, h3) { flex: 1 1 auto; min-width: 0; min-height: 24px; }
+.page .hmark:has(> :is(h2.register, h3.register.lead)) { gap: .6rem; }
+.page .hmark > :is(h2.register, h3.register.lead) + .helpmark { margin-left: .2rem; }
 /* In a tool or filter row: the last thing on the row, at its right end. */
 .bar > .helpmark, .tools > .helpmark { margin-left: auto; }
 .bar :is(button.helpmark), .tools :is(button.helpmark) { height: 24px; }

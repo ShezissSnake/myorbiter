@@ -746,7 +746,7 @@
   {/if}
 
   <section class="finder">
-    <h2 class="register lead">Find a riven<HelpMark part="rivens.finder" /></h2>
+    <div class="hmark"><h2 class="register lead">Find a riven</h2><HelpMark part="rivens.finder" /></div>
     {#if !meta}
       <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
@@ -897,6 +897,8 @@
   .g-Cp, .g-C, .g-Cm, .g-F { color: var(--oxblood); }
   .finder { margin-top: var(--course); }
   .finder h2 { margin: 0 0 .8rem; }
+  .finder .hmark { margin: 0 0 .8rem; }
+  .finder .hmark > h2 { margin: 0; }
   /* Four even columns, so the second row lines up under the first. */
   .form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .5rem; align-items: center; }
   .form > input, .form > select { width: 100%; min-height: 36px; }

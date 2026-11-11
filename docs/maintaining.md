@@ -289,8 +289,14 @@ npm run screenshots -- --only help --id orders
 ```
 
 The script stops on a selector that matches nothing, keeps each picture under 60 KB, and removes
-pictures no page has any more. The demo has no sales, so the Sales pictures add a few invented
-ones in the throwaway browser.
+pictures no page has any more. After changing many pages, `--check` first lists every selector that
+matches nothing in one run, without taking or writing any picture:
+
+```fish
+npm run screenshots -- --only help --check
+```
+
+The demo has no sales, so the Sales pictures add a few invented ones in the throwaway browser.
 
 ## AI and automation
 
