@@ -171,7 +171,7 @@ test("a '?' opens its walk-through at the page about its part; arrows browse wit
 test("the dialog keeps the focus inside, closes on the shade and on a page change, and never blurs through backdrop-filter", () => {
   const dialog = read("src/lib/ui/HelpDialog.svelte");
   assert.match(dialog, /role="dialog" aria-modal="true"/);
-  assert.match(dialog, /use:trap=\{\{ onescape: \(\) => help\.close\(\) \}\}/, "focus kept inside, Esc closes");
+  assert.match(dialog, /use:trap=\{\{ onescape: \(\) => help\.close\(\), restore: false \}\}/, "focus kept inside, Esc closes, and only the help puts the focus back (not on a page change)");
   assert.match(dialog, /class="shade"[^>]*onclick=\{\(\) => help\.close\(\)\}/, "a click on the shade closes");
   assert.match(dialog, /\{#if pic && file\}/, "the picture loads only for the page shown");
   const css = read("src/app.css");

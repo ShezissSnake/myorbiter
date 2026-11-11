@@ -2,7 +2,8 @@
   // The help, over the page: a walk-through of a few pages, each a marked picture of a piece of the
   // screen and a few words. It sits centred over the content area (the sidebar stays as it is),
   // taking most of it (up to 960 by 640, a margin all round; a small area it fills), with the area
-  // darkened behind it by a flat shade and the page behind put out of focus by a still blur.
+  // darkened behind it by a flat shade (the page behind is marked .helpblur, for a still blur that
+  // app.css leaves off until it's measured).
   // Browsed with the arrows, the dots or the arrow keys; Esc, Close or a click on the shade closes it
   // and the keyboard goes back to the "?" that opened it. Opens over --settle, opacity and transform
   // only; the shade only fades. A picture is loaded only while its page is shown.
@@ -52,11 +53,16 @@
   });
   /** A small area: the help fills it rather than leaving a margin. */
   const fill = $derived(area.w < 720 || area.h < 520);
-  /** Picture beside the words on a wide box, under them on a narrow one. */
-  const beside = $derived(area.w >= 900);
+  /**
+   * Picture beside the words on a wide box, under them on a narrow one. A picture over three times
+   * as wide as it is tall (a tool row, a strip of figures) goes above the words on a wide box too:
+   * beside them it would shrink to half its size.
+   */
+  const strip = $derived(!!pic && pic.w > pic.h * 3);
+  const beside = $derived(area.w >= 900 && !strip);
 
-  // The page behind out of focus while the help is open: one class on the page shown, on and off
-  // in one step (motion.md rule 4: the blur itself never animates).
+  // The page behind marked while the help is open: one class on the page shown, on and off in one
+  // step (motion.md rule 4: a blur on it would never animate). app.css gives it no style for now.
   $effect(() => {
     if (!wt) return;
     const pane = document.querySelector<HTMLElement>("#main .pane.shown");
@@ -93,7 +99,7 @@
   <div class="zone" data-section={section} style:left="{area.x}px" style:top="{area.y}px" style:width="{area.w}px" style:height="{area.h}px">
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="shade" use:scrim onclick={() => help.close()} in:fade|global={{ dir: "in" }} out:fade|global={{ dir: "out" }}></div>
-    <div class="box" class:fill class:beside role="dialog" aria-modal="true" aria-labelledby="help-title-{uid}" tabindex="-1" onkeydown={onkey} use:trap={{ onescape: () => help.close() }} in:settle|global={{ dir: "in" }} out:settle|global={{ dir: "out" }}>
+    <div class="box" class:fill class:beside role="dialog" aria-modal="true" aria-labelledby="help-title-{uid}" tabindex="-1" onkeydown={onkey} use:trap={{ onescape: () => help.close(), restore: false }} in:settle|global={{ dir: "in" }} out:settle|global={{ dir: "out" }}>
       <header>
         <div class="titles">
           <span class="register kicker">{kicker}</span>
@@ -101,7 +107,7 @@
         </div>
         <button type="button" class="ib close" aria-label="Close the help" title="Close (Esc)" onclick={() => help.close()}><Icon name="close" size={12} stroke={1.5} /></button>
       </header>
-      <div class="body" class:nopic={!page.shot}>
+      <div class="body" class:nopic={!page.shot} class:strip>
         {#if page.shot}
           <figure class="picwell">
             {#if pic && file}
@@ -159,6 +165,9 @@
   .close { --ib: 32px; }
   .body { min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; gap: 16px; padding: 16px 24px; overflow: auto; }
   .beside .body { grid-template-rows: minmax(0, 1fr); grid-template-columns: minmax(0, 1fr) minmax(240px, 300px); gap: 24px; }
+  /* A strip is short whatever the box: its well is as tall as it, and the words follow. */
+  .body.strip { grid-template-rows: auto auto; align-content: start; }
+  .body.strip figure { min-height: 0; }
   .body.nopic { grid-template-rows: auto; grid-template-columns: minmax(0, 1fr); align-content: start; }
   /* A flex box, so the picture's max-height resolves against the well's height and never runs past it. */
   figure { margin: 0; min-height: 160px; display: flex; align-items: center; justify-content: center; padding: 12px; overflow: hidden; }

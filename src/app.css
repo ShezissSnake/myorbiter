@@ -393,9 +393,10 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
 /* In a tool or filter row: the last thing on the row, at its right end. */
 .bar > .helpmark, .tools > .helpmark { margin-left: auto; }
 .bar :is(button.helpmark), .tools :is(button.helpmark) { height: 24px; }
-/* While the help is open, the page behind it is out of focus (HelpDialog): a still blur, put on
-   and taken off in one step, never animated (motion.md rule 4). */
-.pane.helpblur { filter: blur(3px); }
+/* While the help is open, the page behind it carries .helpblur (HelpDialog). A still blur on it,
+   `.pane.helpblur { filter: blur(3px); }`, is off until the perf harness shows it costs little
+   (scripts/perf/scenarios.mjs, helpBlur against helpFlat): the flat shade alone for now. If it
+   goes on, it goes on and off in one step, never animated (motion.md rule 4). */
 
 /* ---------------------------------------------------------------- page layout */
 

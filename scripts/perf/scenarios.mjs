@@ -264,13 +264,14 @@ SCENARIOS.syncDebug = {
 
 /**
  * The help over a page (ui/HelpDialog.svelte): the click on the page's first "?" to the dialog's
- * paint, the page updating behind it (a Sync), 10 s open, and Esc. `helpBlur` keeps the still
- * blur on the page behind; `helpFlat` turns it off, the shade alone, to compare.
+ * paint, the page updating behind it (a Sync), 10 s open, and Esc. `helpFlat` is the help as it
+ * ships, the shade alone; `helpBlur` puts a still blur on the page behind (the rule app.css leaves
+ * off until this shows it costs little), to compare.
  */
 const helpOver = (flat) => ({
   syncReload: true,
   async run(s) {
-    if (flat) await s.eval(`(() => { const st = document.createElement('style'); st.textContent = '.pane.helpblur { filter: none !important; }'; document.head.append(st); return 0; })()`);
+    if (!flat) await s.eval(`(() => { const st = document.createElement('style'); st.textContent = '.pane.helpblur { filter: blur(3px); }'; document.head.append(st); return 0; })()`);
     const out = {};
     for (const label of ["Orders", "Mastery"]) {
       await s.measure(nav(label));
