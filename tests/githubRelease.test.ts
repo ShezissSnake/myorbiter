@@ -32,7 +32,7 @@ test("only the sign job has the signing key, and it runs the checked-out signer 
   const sign = job("sign");
   assert.equal(sign.split("\n").filter((l) => /secrets\.TAURI_SIGNING/.test(l)).length, holders);
   assert.match(sign, /^ {4}environment: release-signing$/m);
-  assert.match(sign, /^ {4}if: >-\n {6}\$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main'$/m);
+  assert.match(sign, /^ {4}if: >-\n {6}\$\{\{ !cancelled\(\) && \(github\.ref == 'refs\/heads\/main' \|\| !inputs\.experimental\)$/m);
   // Its checkout is the signer, the manifest script and the public key: nothing to build or install.
   assert.match(sign, /sparse-checkout: \|\n {12}scripts\/updater-sign\.mjs\n {12}scripts\/updater-manifest\.mjs\n {12}src-tauri\/tauri\.conf\.json\n/);
   assert.match(sign, /persist-credentials: false/);
@@ -76,6 +76,15 @@ test("the jobs that write releases check out nothing, and channel moves share on
   assert.match(job("main-only"), /if: inputs\.task != 'release' && github\.ref != 'refs\/heads\/main'[\s\S]*exit 1/);
   // Nothing deletes a release or a tag.
   assert.doesNotMatch(wf, /gh release delete|--cleanup-tag|git push[^\n]*--delete|git\/refs\/tags/);
+});
+
+test("off main a build is published only with experimental unticked, and then never moves Experimental", () => {
+  assert.match(wf, /^ {6}experimental:\n {8}description: [^\n]+\n {8}type: boolean\n {8}default: true$/m);
+  assert.match(job("publish"), /^ {4}if: >-\n {6}\$\{\{ !cancelled\(\) && \(github\.ref == 'refs\/heads\/main' \|\| !inputs\.experimental\)$/m);
+  assert.match(job("publish"), /- name: Publish to Experimental\n {8}if: env\.COMPLETE == 'true' && inputs\.experimental\n/);
+  // Promote and the website still run on main only, whatever the input says.
+  assert.match(job("promote-check"), /^ {4}if: inputs\.task == 'promote' && github\.ref == 'refs\/heads\/main'$/m);
+  assert.match(job("site"), /^ {4}if: >-\n {6}\$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main'$/m);
 });
 
 test("the first build made on GitHub is the same number everywhere", () => {

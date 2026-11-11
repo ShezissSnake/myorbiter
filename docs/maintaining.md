@@ -74,7 +74,10 @@ from* is the branch the run works on: `main` for anything published. The form's 
   the Windows installer, as build *n* (*Build numbers*). On `main` it then signs, publishes the
   pre-release `build-<n>`, puts the build on Experimental when it has both systems and is signed
   (never moving the channel back to an older build), and rebuilds the website. On any other branch
-  it stops after the builds: the downloads are the run's artifacts, for 3 days.
+  it stops after the builds: the downloads are the run's artifacts, for 3 days. With
+  *experimental* unticked it signs and publishes `build-<n>` from whatever branch the run is on
+  and leaves Experimental as it is (and, off `main`, doesn't rebuild the website): the build
+  reaches Beta or Stable only by a promote run (*A fix for Beta*, below).
 - *task* **promote**, with *build* (the *n* of `build-<n>`) and *channel* **beta** or **stable**,
   moves that build up: its `latest.json` is checked (version, both systems, every download on its
   own release, every signature against the public key in `tauri.conf.json`) and copied to the
@@ -84,7 +87,8 @@ from* is the branch the run works on: `main` for anything published. The form's 
 - *task* **pages** rebuilds the website alone: when a release or promotion stopped before its
   *Build and check the site* job, or that job failed.
 
-*build* and *channel* are read only by promote; *windows* only by release.
+*build* and *channel* are read only by promote; *windows* and *experimental* only by release.
+Leave *experimental* ticked (the default) for every release except a fix for Beta.
 
 Each channel is a release named after it (`stable`, `beta`, `experimental`), holding only that
 channel's `latest.json`; the builds' files stay on their own `build-<n>` releases, which the
@@ -97,6 +101,39 @@ that ends as cancelled is run again with **Re-run failed jobs**.
 
 Nothing deletes a release, a tag or a branch. GitHub keeps a public repository's releases without a
 storage quota, so the Experimental builds GitLab pruned (to stay within its 10 GiB) all stay.
+
+## A fix for Beta while `main` carries other work
+
+When `main` holds work that must not reach Beta yet (the TennoScope absorb), a fix reaches Beta
+from a branch cut at Beta's build, without becoming Experimental's build:
+
+1. **Find Beta's commit:** the `commit` field of
+   `https://github.com/ShezissSnake/myorbiter/releases/download/beta/latest.json` (or the commit
+   its `build-<n>` release was made at).
+2. **(maintainer) Make the branch** `beta-fix/<name>` at that commit and push it to `origin`.
+   A run reads the workflow from the branch it runs on: if that commit predates the *experimental*
+   input, cherry-pick the commit that added it to `.github/workflows/release.yml` first, or the
+   run never signs. Sessions push only `work/*` branches, so a fix prepared in a session goes into
+   `beta-fix/<name>` by a pull request into that branch.
+3. **The fix** on `beta-fix/<name>`, tested as for `main` (`npm test`, `npm run check -- --threshold
+   error`, `cargo test` in `src-tauri/`). A fix that `main` needs too goes into `main` by its own
+   pull request.
+4. **Release run:** Run workflow, *Use workflow from* `beta-fix/<name>`, *task* `release`,
+   *windows* ticked, ***experimental* unticked**. *Sign the updater downloads* fails unless
+   `release-signing` allows the branch (*The signing key's environment*, below). It publishes the
+   signed `build-<n>`, with release notes from the commits since Beta's build (the last 15
+   subjects if Beta has no `latest.json` yet); Experimental and the website stay as they are.
+5. **Promote run on `main`:** *task* `promote`, *build* that *n*, *channel* `beta`. The fix's
+   number is higher than every earlier build, so Beta copies see it as an update and Experimental
+   copies never see it.
+6. **A release run on `main` straight away** (*experimental* ticked). Until Experimental holds a
+   build numbered above the fix, a copy on Experimental that switches to Beta is offered the fix,
+   which lacks what `main` carries, as a newer version. This run may also go before step 5, once
+   step 4's run has started (so its number is higher): then that moment never comes.
+
+**The updater key must not change until the absorb has reached Beta.** The promote run checks the
+fix's signatures against the public key in `main`'s `tauri.conf.json`, while the fix is signed and
+checked against its own branch's copy, and copies on Beta trust only the key they were built with.
 
 ## Build numbers
 
@@ -138,7 +175,8 @@ build, is never offered.
 ## The signing key's environment
 
 The updater's signing key and its password are read by one job only: *Sign the updater downloads*
-in `release.yml`, on `main`, which builds and installs nothing. They are the `release-signing`
+in `release.yml`, on `main` (or on a fix branch with *experimental* unticked), which builds and
+installs nothing. They are the `release-signing`
 environment's two secrets, `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`,
 set up before the move to GitLab; the names are the ones the workflow reads. Every step is the
 maintainer's own:
@@ -147,7 +185,10 @@ maintainer's own:
       under *Environment secrets*, and Settings → Secrets and variables → Actions → *Repository
       secrets* lists neither (a repository copy would reach every job).
 - [ ] **Main only:** in the environment, Deployment branches and tags → **Selected branches and
-      tags** → the rule `main`.
+      tags** → the rule `main`. For a fix for Beta (above), add the branch rule `beta-fix/*`;
+      without it a release run on such a branch fails at *Sign the updater downloads*. Any code
+      on a branch the rule allows can be signed, so add it only while a fix is under way and
+      remove it after, or protect `beta-fix/*` as `main` is (*Branches and tags*).
 - [ ] **Optionally, approval:** **Required reviewers** → the maintainer. Every release then stops
       at *Sign the updater downloads* until approved on the run's page (Review deployments), within
       3 days while the build artifacts exist. Leave "Prevent self-review" off.
