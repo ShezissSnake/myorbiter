@@ -205,7 +205,8 @@
     <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
     {#if tools}{@render tools()}{/if}
   </div>
-  <HelpMark part={helpList} />
+  <!-- One "?" for the row: with the page's filters in it, theirs (at the end, after the count and the switch) opens the walk-through that covers the list too. -->
+  {#if !filters}<HelpMark part={helpList} />{/if}
 </div>
 
 {#snippet firstCell(r: T)}
@@ -246,6 +247,8 @@
   .tools.bar { margin-top: var(--step); }
   /* The "?" follows what's before it (the page's own beside its filters); the count and the switch are what go to the right. */
   .tools > :global(.helpmark) { margin-left: 0; }
+  .tools.bar > :global(.helpmark) { order: 10; }
+  .tools.bar > .end { order: 5; }
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
   .end { display: flex; align-items: center; gap: .6rem .8rem; margin-left: auto; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
