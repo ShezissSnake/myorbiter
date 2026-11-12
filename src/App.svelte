@@ -123,7 +123,8 @@
   import HelpMark from "./lib/ui/HelpMark.svelte";
   import { help } from "./lib/help/help.svelte";
   import { tourGate, tourStop } from "./lib/tour.svelte";
-  import { NEWEST, newsSince } from "./lib/whatsNew";
+  import { NEWEST } from "./lib/whatsNew";
+  import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
@@ -380,14 +381,7 @@
   let showNews = $state(false);
   /** Ctrl+K: find anything by name (ui/Lookup.svelte). */
   let showLookup = $state(false);
-  let newsChecked = false;
-  $effect(() => {
-    // Read first: settingsReady isn't reactive, the loaded settings are.
-    const seen = settings.newsSeen;
-    if (!settingsReady || newsChecked) return;
-    newsChecked = true;
-    if (newsSince(seen).length) showNews = true;
-  });
+  const news = whatsNewOnce(() => settings.newsSeen, () => (showNews = true));
   let defaultDir = $state("");
   let stamp = 0;
   let mission = $state.raw<MissionState | null>(null);
@@ -2555,6 +2549,8 @@
           ts.answer(access);
         }
       }
+      // What's New, if there's an update not seen: after the first start's question, not over it.
+      news.ready();
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
       await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.

@@ -83,7 +83,7 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   await p?.close();
   if (check) {
     for (const m of misses) console.log(`MISSING ${m}`);
-    console.log(`${todo.length} pictures checked, ${misses.length} selectors match nothing`);
+    console.log(`${todo.length} pictures checked, ${misses.length} misses (a selector that matches nothing, or finds a switch or field by its place)`);
     if (misses.length) process.exitCode = 1;
     return;
   }
@@ -226,6 +226,16 @@ async function missing(p, shot) {
       if (h > innerHeight) out.push(`the part is ${Math.round(h)} px tall, past the window`);
     }
     for (const m of marks) if (!has(m.at)) out.push(`no mark target at ${m.at}`);
+    // A switch or a Settings field is found by its name (data-switch, data-field), never by its
+    // place: one picked as "the third label" lands on its neighbour after a reorder.
+    const named = (q, el) => {
+      const sw = el.closest("[data-switch]");
+      if (sw && !q.includes(`[data-switch="${sw.dataset.switch}"]`)) out.push(`${q} finds the switch "${sw.dataset.switch}" by its place: name it`);
+      const f = el.closest("[data-field]");
+      if (f && !q.includes(`[data-field="${f.dataset.field}"]`)) out.push(`${q} finds the field "${f.dataset.field}" by its place: name it`);
+    };
+    for (const m of marks) if (has(m.at)) named(m.at, document.querySelector(m.at));
+    if (has(part)) for (const q of part.split(/,(?![^()]*\))/)) if (has(q)) for (const el of document.querySelectorAll(q)) named(q.trim(), el);
     return out;
   }, { part: shot.part, marks: shot.marks });
 }

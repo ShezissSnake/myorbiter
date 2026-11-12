@@ -34,7 +34,7 @@
   <section>
     <h3 class="register">Display</h3>
     <div title="Draws the window without the graphics card: for a window that stays blank, flickers or crashes on this computer. Scrolling and animations are slower with it on. Applies the next time MyOrbiter starts.">
-      <Switch bind:on={() => rs?.next ?? false, (v) => set(v)} label="Compatibility rendering (if the window is blank or flickers)">
+      <Switch name="settings.compat-rendering" bind:on={() => rs?.next ?? false, (v) => set(v)} label="Compatibility rendering (if the window is blank or flickers)">
         Draws the window on the processor instead of the graphics card: slower scrolling and animations, but it shows where the faster way doesn't. Applies the next time MyOrbiter starts.
       </Switch>
     </div>

@@ -1598,8 +1598,8 @@ export const market = {
     inTauri
       ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
       : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app")))),
-  /** Your riven auctions (raw; see parseMyAuctions). */
-  myAuctions: (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : Promise.resolve([])),
+  /** Your riven auctions (raw; see parseMyAuctions). In the browser dev mode, /dev-market.json's `auctions`, or none. */
+  myAuctions: async (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : ((await devMarket()) as { auctions?: unknown } | null)?.auctions ?? []),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>
     inTauri ? invoke("market_create_auction", { auction }) : needApp(),
   updateAuction: (id: string, change: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string }): Promise<unknown> =>

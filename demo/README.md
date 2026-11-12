@@ -21,7 +21,10 @@ as synced a few minutes ago and the fissure's reward screen is on (read again on
 What the account is: mastery rank 22, about 390 items mastered, spare prime sets and parts, a few
 dozen relics, mods with duplicates, arcanes, twelve listings on warframe.market (some above the
 cheapest seller, so Check prices has something to reprice), a fissure with four relics and its
-reward screen, and two builds in the foundry.
+reward screen, and two builds in the foundry. Rivens: three veiled, and four unveiled (Soma, Lex,
+Nikana, Hek) with invented rolls, the Soma one up for sale on warframe.market (`auctions` in
+`dev-market.json`, which the browser dev mode reads as your riven auctions); `dev-auctions.json` is
+twelve invented riven listings that answer every riven search, enough for the Estimate.
 
 It also holds the situations `tests/sparesPlan.test.ts` checks Sell spares against (the last block
 of `scripts/demo-data.mjs`, with a random generator of its own so nothing else moves): Requiem mods
