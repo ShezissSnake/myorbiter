@@ -51,6 +51,7 @@
   import { details } from "../details.svelte";
   import { bountyBoards, type BountyTable } from "../core/board";
   import { scoreCards } from "../core/pick";
+  import { homeCardsChosen } from "../core/homeCards";
   import FissureBoard from "../ui/FissureBoard.svelte";
   import BountyBoard from "../ui/BountyBoard.svelte";
   import { describe } from "../core/describe";
@@ -400,7 +401,7 @@
     { label: "Set your rates", why: "what a ducat is worth to you, and the smallest sale worth a trade", hint: "Prime parts → Your rates", done: settings.advice.platPerDucat !== defaultAdvice().platPerDucat || settings.advice.minPlat !== defaultAdvice().minPlat, go: () => go("parts") },
     { label: "Star what you're after", why: "Wishlist shows the relics for each missing part", hint: "The ☆ on any card in Foundry or Mastery", done: settings.favourites.length > 0, go: () => go("foundry") },
     { label: "Add a fissure alert", why: "a notification when a fissure you want opens", hint: "Fissures now → Add alert", done: settings.fissureRules.length > 0, go: () => go("home#addalert") },
-    { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ at the head's right", done: settings.homeHidden.length > 0, go: () => (customising = true) },
+    { label: "Choose Home's cards", why: "hide what you don't use", hint: "The ⚙ at the head's right", done: homeCardsChosen(settings), go: () => (customising = true) },
   ]);
 
   // ---------------------------------------------------------------- what Home shows (Customise)
@@ -424,6 +425,11 @@
   const NEEDS_INVENTORY = new Set(["ready", "foundry", "wishes", "deals", "mastery"]);
   const cards = $derived(console ? CARDS.filter((c) => !NEEDS_INVENTORY.has(c.key)).map((c) => ({ ...c, hint: c.consoleHint ?? c.hint })) : CARDS);
   let customising = $state(false);
+  // Closing the panel after looking at it is a choice too, even if every card stays shown.
+  function toggleCustomise() {
+    if (customising) settings.homeChosen = true;
+    customising = !customising;
+  }
   const hidden = $derived(new Set(settings.homeHidden));
   // A card a notification opened shows even if you hid it, until you leave Home.
   const off = (key: string) => key !== reveal && (hidden.has(key) || (console && NEEDS_INVENTORY.has(key)));
@@ -431,7 +437,10 @@
   // the chip itself turns at once. Under reduced motion, or a card off screen, it's just done.
   const fading = new Map<string, Animation>();
   function toggleCard(key: string, on: boolean) {
-    const set = () => (settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key]);
+    const set = () => {
+      settings.homeHidden = on ? settings.homeHidden.filter((k) => k !== key) : [...settings.homeHidden, key];
+      settings.homeChosen = true;
+    };
     fading.get(key)?.cancel();
     fading.delete(key);
     const card = () => document.querySelector<HTMLElement>(`.home [data-card="${key}"]`);
@@ -490,7 +499,7 @@
        world's state is; Customise is the head's action. -->
   <PageHead title="Home">
     {#snippet lede()}{new Date(now).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })}{#if liveAt != null}<span class="upd" class:old={!!liveError || !liveRead} title={`Fissures, the clocks, bounties, Baro, Varzia, the Sortie, events and the rest come from ${live.fromGame ? "the game's own worldstate (api.warframestat.us isn't answering)" : "api.warframestat.us"}, read every 5 minutes.${!liveRead && !liveError ? " This is the read kept from last time, until the first read since start comes in; each thing in it goes when it ends." : ""}${liveError ? " The last read failed, so this is what was read before; each thing in it goes when it ends." : ""}`}>{` · Updated ${liveError || !liveRead ? checkedWhen(liveAt, now) : new Date(liveAt).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}`}</span>{/if}{/snippet}
-    {#snippet action()}<IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={() => (customising = !customising)} />{/snippet}
+    {#snippet action()}<IconButton icon="settings" tone="quiet" label="Customise Home" title="Choose what Home shows" aria-expanded={customising} onclick={toggleCustomise} />{/snippet}
   </PageHead>
 
   {#if startSteps.some((x) => !x.done) && !settings.startDone && !console}
@@ -511,7 +520,7 @@
       <div class="cards">
         {#each cards as c (c.key)}<Chip on={!hidden.has(c.key)} label={c.label} title={`${c.hint}. Click to ${hidden.has(c.key) ? "show" : "hide"} it.`} onchange={(on: boolean) => toggleCard(c.key, on)} />{/each}
       </div>
-      {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => (settings.homeHidden = [])}>Show everything</button>{/if}
+      {#if cards.some((c) => hidden.has(c.key))}<button class="link" onclick={() => { settings.homeHidden = []; settings.homeChosen = true; }}>Show everything</button>{/if}
       <HelpMark part="home.customise" corner />
     </section></div></div>
   {/if}
@@ -1244,9 +1253,10 @@
   .vz .sn .small { white-space: normal; }
   .vz li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 16px; gap: .6rem; align-items: center; }
   .tag.gold { color: var(--gold); border-color: var(--gold-dim); }
-  .bsum { list-style: none; margin: .4rem 0 0; padding: 0; display: grid; gap: .3rem; }
-  .bsum li { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
-  .bsum li b { min-width: 6.5rem; font-weight: 600; color: var(--platinum-dim); }
+  /* One tile a place, as many across as the panel has room for (three, then two, then one). */
+  .bsum { list-style: none; margin: .6rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .5rem; }
+  .bsum li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; column-gap: .6rem; row-gap: .15rem; min-width: 0; padding: .55rem .8rem .6rem; background: var(--well); border: 1px solid var(--rule); }
+  .bsum li b { grid-column: 1 / -1; font-weight: 600; color: var(--platinum-dim); font-size: .8rem; }
   .bsum li span:not(.dim) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fold { display: block; margin: .6rem 0 0; }
   .today:not(.open) .tblock > :not(.th) { display: none; }

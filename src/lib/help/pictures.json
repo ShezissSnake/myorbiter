@@ -8,20 +8,20 @@
   "arcanes-2.webp": {
     "hash": "f9c5cd608c661fb4",
     "w": 1007,
-    "h": 158,
-    "bytes": 7566
+    "h": 200,
+    "bytes": 9374
   },
   "arcanes-3.webp": {
     "hash": "98c525683f1b4fec",
-    "w": 997,
-    "h": 327,
-    "bytes": 26488
+    "w": 989,
+    "h": 369,
+    "bytes": 30096
   },
   "arcanes-4.webp": {
     "hash": "ef9a919984af037d",
     "w": 989,
-    "h": 380,
-    "bytes": 32894
+    "h": 422,
+    "bytes": 35598
   },
   "arcanes-5.webp": {
     "hash": "e82879aafc75af6e",
@@ -32,20 +32,20 @@
   "browse-1.webp": {
     "hash": "c99fe30185dbf9fd",
     "w": 1006,
-    "h": 147,
-    "bytes": 8592
+    "h": 189,
+    "bytes": 11100
   },
   "browse-2.webp": {
     "hash": "455de1aa89935d5e",
     "w": 989,
-    "h": 121,
-    "bytes": 7506
+    "h": 162,
+    "bytes": 10864
   },
   "browse-3.webp": {
     "hash": "d40e1831476fc3b5",
     "w": 944,
     "h": 800,
-    "bytes": 28052
+    "bytes": 28050
   },
   "build-edit-1.webp": {
     "hash": "d427b6304a24101c",
@@ -122,14 +122,14 @@
   "foundry-3.webp": {
     "hash": "83f6ba3c235f1030",
     "w": 997,
-    "h": 96,
-    "bytes": 5088
+    "h": 138,
+    "bytes": 7170
   },
   "foundry-4.webp": {
     "hash": "5bc3dd37925928bb",
     "w": 993,
-    "h": 335,
-    "bytes": 27330
+    "h": 368,
+    "bytes": 30498
   },
   "home-1.webp": {
     "hash": "f2a69b53b08c8237",
@@ -147,7 +147,7 @@
     "hash": "f146c30403d031f0",
     "w": 1007,
     "h": 114,
-    "bytes": 5822
+    "bytes": 6574
   },
   "home-4.webp": {
     "hash": "829bdc62896ec0b6",
@@ -195,31 +195,31 @@
     "hash": "00a35adc2c30c0b8",
     "w": 1006,
     "h": 223,
-    "bytes": 15442
+    "bytes": 16242
   },
   "home-world-2.webp": {
     "hash": "d6646528662089fc",
     "w": 967,
-    "h": 228,
-    "bytes": 17834
+    "h": 200,
+    "bytes": 15780
   },
   "home-world-3.webp": {
     "hash": "b95aa8b866eafb34",
     "w": 949,
-    "h": 89,
-    "bytes": 4860
+    "h": 90,
+    "bytes": 4682
   },
   "home-world-4.webp": {
     "hash": "ef9a7ec1b0d0308d",
     "w": 989,
-    "h": 494,
-    "bytes": 27226
+    "h": 488,
+    "bytes": 27554
   },
   "home-world-5.webp": {
     "hash": "ee0fc7aabc2e37fe",
     "w": 607,
     "h": 465,
-    "bytes": 57488
+    "bytes": 57876
   },
   "inventory-1.webp": {
     "hash": "a6aa9326a8b95852",
@@ -237,19 +237,19 @@
     "hash": "33491ba550790879",
     "w": 997,
     "h": 137,
-    "bytes": 6192
+    "bytes": 8718
   },
   "inventory-4.webp": {
     "hash": "8e4fbe4ba5c1dd0f",
     "w": 989,
-    "h": 374,
-    "bytes": 27766
+    "h": 416,
+    "bytes": 31974
   },
   "inventory-5.webp": {
     "hash": "1fac9600096cdc84",
     "w": 944,
     "h": 800,
-    "bytes": 18482
+    "bytes": 18404
   },
   "item-sheet-1.webp": {
     "hash": "4508a7df24cd0b5b",
@@ -290,14 +290,14 @@
   "mastery-2.webp": {
     "hash": "37d0773339087b8f",
     "w": 1007,
-    "h": 158,
-    "bytes": 7868
+    "h": 200,
+    "bytes": 9832
   },
   "mastery-3.webp": {
     "hash": "5824d5325f45c01e",
     "w": 993,
-    "h": 329,
-    "bytes": 24272
+    "h": 371,
+    "bytes": 28736
   },
   "mastery-4.webp": {
     "hash": "299685fe11e5d37a",
@@ -338,20 +338,20 @@
   "mods-2.webp": {
     "hash": "a60afb4a431599e6",
     "w": 989,
-    "h": 96,
-    "bytes": 5950
+    "h": 137,
+    "bytes": 8120
   },
   "mods-3.webp": {
     "hash": "54745b14be61f478",
     "w": 989,
-    "h": 366,
-    "bytes": 35290
+    "h": 408,
+    "bytes": 40084
   },
   "mods-4.webp": {
     "hash": "a9cf9794e1e62ab8",
     "w": 944,
     "h": 800,
-    "bytes": 30518
+    "bytes": 30528
   },
   "notices-1.webp": {
     "hash": "75ef0c45f3a55b49",
@@ -411,31 +411,31 @@
     "hash": "c9365feb7026c3d7",
     "w": 1006,
     "h": 434,
-    "bytes": 41940
+    "bytes": 41946
   },
   "parts-2.webp": {
     "hash": "b32cb7fe12423d22",
     "w": 989,
-    "h": 95,
-    "bytes": 5860
+    "h": 137,
+    "bytes": 8660
   },
   "parts-3.webp": {
     "hash": "016f97dfe358ceb3",
     "w": 989,
-    "h": 341,
-    "bytes": 28412
+    "h": 383,
+    "bytes": 32430
   },
   "parts-4.webp": {
     "hash": "c1046bbd07434941",
     "w": 944,
     "h": 800,
-    "bytes": 19046
+    "bytes": 18998
   },
   "parts-5.webp": {
     "hash": "c80f28883301409c",
     "w": 989,
     "h": 240,
-    "bytes": 23564
+    "bytes": 23844
   },
   "planner-1.webp": {
     "hash": "1cd741af71d96b13",
@@ -483,19 +483,19 @@
     "hash": "3483602d39efc6c9",
     "w": 989,
     "h": 133,
-    "bytes": 5914
+    "bytes": 5932
   },
   "relics-3.webp": {
     "hash": "171f9e9f4e4ad99b",
     "w": 989,
     "h": 137,
-    "bytes": 6846
+    "bytes": 8852
   },
   "relics-4.webp": {
     "hash": "a4c13a30b617f454",
     "w": 505,
     "h": 226,
-    "bytes": 18014
+    "bytes": 18682
   },
   "rivens-1.webp": {
     "hash": "818be40d511b2979",
@@ -507,13 +507,13 @@
     "hash": "a923a31d0537ed81",
     "w": 992,
     "h": 463,
-    "bytes": 35500
+    "bytes": 35336
   },
   "rivens-3.webp": {
     "hash": "4783c4533267c9d7",
     "w": 1007,
-    "h": 197,
-    "bytes": 14350
+    "h": 196,
+    "bytes": 14458
   },
   "sales-1.webp": {
     "hash": "c0274fb5b54a5ce1",
@@ -549,19 +549,19 @@
     "hash": "feb38ca1870d3855",
     "w": 1007,
     "h": 158,
-    "bytes": 7192
+    "bytes": 8886
   },
   "sets-3.webp": {
     "hash": "2820c5b767053c73",
     "w": 989,
     "h": 574,
-    "bytes": 49682
+    "bytes": 52336
   },
   "sets-4.webp": {
     "hash": "11da73845cd67928",
     "w": 1006,
-    "h": 585,
-    "bytes": 38528
+    "h": 524,
+    "bytes": 38504
   },
   "settings-1.webp": {
     "hash": "d8360405c8dfb011",

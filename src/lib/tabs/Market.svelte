@@ -159,7 +159,7 @@
     {#snippet hero()}<Ticker id="browse" label="The market, live" items={tape} />{/snippet}
   </PageHead>
 
-  <div class="bar">
+  {#snippet filters()}
     <input type="search" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} aria-label="Filter items by name" />
     <select bind:value={category} aria-label="Category" class="kinds" title="Only one kind of item, by warframe.market's own tags">
       <option value="all">All kinds ({count("all").toLocaleString("en")})</option>
@@ -186,7 +186,7 @@
     </label>
     </Fold>
     <HelpMark part="browse.filters" />
-  </div>
+  {/snippet}
 
   {#if !mkt.items.length}
     {#if loadError}
@@ -195,7 +195,7 @@
       <p class="dim">Loading warframe.market's item list…</p>
     {/if}
   {:else}
-    <Browse id="market-browse" help={{ list: "browse.list", sheet: "browse.sheet" }} {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
+    <Browse {filters} id="market-browse" help={{ list: "browse.list", sheet: "browse.sheet" }} {rows} {columns} key={(r) => r.slug} bind:sort {detail} {card} title={(r) => r.name} min="16rem" clear={filtered ? clear : null} />
     {#if slowHidden}<p class="dim small more">{slowHidden.toLocaleString("en")} more sold too rarely for a steady price: theirs may not be real. <button class="link" onclick={() => (weekly = false)}>Show them</button></p>{/if}
   {/if}
 </div></div>

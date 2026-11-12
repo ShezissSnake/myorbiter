@@ -36,6 +36,8 @@
     tint,
     clear = null,
     tools,
+    filters,
+    fixed = false,
     count,
     opened = $bindable(null),
     help,
@@ -65,6 +67,10 @@
     clear?: (() => void) | null;
     /** The page's own buttons, at the right end of the sort row (Rivens' Check prices). */
     tools?: Snippet;
+    /** The page's filter controls: drawn at the left of the same row as the sort, count and layout switch, which wrap onto a second row only when the width runs out. */
+    filters?: Snippet;
+    /** The table's columns keep their widths for any rows (Table.svelte, `fixed`). */
+    fixed?: boolean;
     /** The count's words, when "N items" would mislead (Sets: copies against kinds of set). */
     count?: (n: number) => string;
     /** The row whose details panel is open: the page can open one itself (the showcase above it). */
@@ -182,7 +188,8 @@
   const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
 </script>
 
-<div class="tools">
+<div class="tools" class:bar={!!filters}>
+  {#if filters}{@render filters()}{/if}
   {#if layout === "cards" && sortable.length}
     <label class="sort">
       <span class="register">Sort</span>
@@ -192,10 +199,12 @@
       <IconButton icon="sort-desc" class={sort.desc ? "sortdir" : "sortdir asc"} label={sort.desc ? "Highest first" : "Lowest first"} title={`${sort.desc ? "Highest first" : "Lowest first"}: click to reverse`} onclick={() => (sort = { ...sort, desc: !sort.desc })} />
     </label>
   {/if}
-  <span class="grow"></span>
-  <span class="dim small nowrap"><Count value={view.length} format={(n) => (count ? count(Math.round(n)) : `${Math.round(n).toLocaleString("en")} ${Math.round(n) === 1 ? "item" : "items"}`)} /></span>
-  <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
-  {#if tools}{@render tools()}{/if}
+  <!-- The count and the switch stay together: they go to the next row as a pair, or not at all. -->
+  <div class="end">
+    <span class="dim small nowrap"><Count value={view.length} format={(n) => (count ? count(Math.round(n)) : `${Math.round(n).toLocaleString("en")} ${Math.round(n) === 1 ? "item" : "items"}`)} /></span>
+    <Seg bind:value={layout} onchange={remember} options={[{ v: "cards", label: "Cards", icon: "cards", title: "Show them as cards" }, { v: "list", label: "Table", icon: "rows", title: "Show them as a table you can sort by any column" }]} />
+    {#if tools}{@render tools()}{/if}
+  </div>
   <HelpMark part={helpList} />
 </div>
 
@@ -205,7 +214,7 @@
 {/snippet}
 
 {#if drawnList}
-  <div class="list swap" class:off={layout !== "list"} use:rowOpener use:fresh={layout === "list"} in:arrive={{ y: 0 }}><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} /></div>
+  <div class="list swap" class:off={layout !== "list"} use:rowOpener use:fresh={layout === "list"} in:arrive={{ y: 0 }}><Table rows={listRows} columns={listColumns} {key} bind:sort={() => listSort, (v) => (sort = v)} {detail} {empty} {clear} {limit} {tint} {fixed} /></div>
 {/if}
 {#if drawnCards}
   <div class="cards swap" class:off={layout !== "cards"} bind:this={grid} use:cardView.watch use:fresh={layout === "cards"} in:arrive={{ y: 0 }}>
@@ -234,7 +243,11 @@
     .off { display: block; content-visibility: hidden; }
   }
   /* The sort row: a plate, as the filter row above it is. */
+  .tools.bar { margin-top: var(--step); }
+  /* The "?" follows what's before it (the page's own beside its filters); the count and the switch are what go to the right. */
+  .tools > :global(.helpmark) { margin-left: 0; }
   .tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem .8rem; margin: 0 0 .8rem; padding: .6rem; background: var(--plate); border: 1px solid var(--rule); }
+  .end { display: flex; align-items: center; gap: .6rem .8rem; margin-left: auto; }
   .sort { display: inline-flex; align-items: center; gap: .5rem; }
   /* Highest or lowest first: one icon that turns over (QUICK) rather than swapping for another. */
   .sort :global(.sortdir svg) { transition: transform var(--quick) var(--out); }

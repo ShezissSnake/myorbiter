@@ -225,6 +225,8 @@ export interface Settings {
   details: boolean;
   /** Home's Start here card put away (it also goes once every step is done). */
   startDone: boolean;
+  /** The player has chosen Home's cards at least once (any choice, every card shown included): "Choose Home's cards" counts as done (core/homeCards.ts). */
+  homeChosen: boolean;
   /** Home's chores ticked off by hand: chore → the reset the tick was for (core/chores.ts). */
   chores: Record<string, number>;
   /** The sidebar's order, when you changed it (Settings → Pages): page ids. */
@@ -473,6 +475,7 @@ export const defaultSettings = (): Settings => ({
   details: false,
   chores: {},
   startDone: false,
+  homeChosen: false,
   pageOrder: [],
   startPage: "last",
   tab: "home",
@@ -908,6 +911,7 @@ export async function loadSettings(): Promise<Settings> {
     homeFissuresOnly: raw?.homeFissuresOnly === true,
     details: raw?.details === true,
     startDone: raw?.startDone === true,
+    homeChosen: raw?.homeChosen === true,
     chores: raw?.chores && typeof raw.chores === "object" && !Array.isArray(raw.chores) ? Object.fromEntries(Object.entries(raw.chores).filter(([, v]) => typeof v === "number" && v > Date.now())) as Record<string, number> : {},
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
