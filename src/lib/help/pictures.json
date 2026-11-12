@@ -51,13 +51,13 @@
     "hash": "d427b6304a24101c",
     "w": 864,
     "h": 914,
-    "bytes": 50598
+    "bytes": 50686
   },
   "build-edit-2.webp": {
     "hash": "cef671c86bd45db4",
     "w": 1056,
     "h": 1000,
-    "bytes": 35604
+    "bytes": 35708
   },
   "builds-1.webp": {
     "hash": "55d758a6e25934b2",
@@ -153,13 +153,13 @@
     "hash": "f146c30403d031f0",
     "w": 1007,
     "h": 114,
-    "bytes": 6574
+    "bytes": 6526
   },
   "home-4.webp": {
     "hash": "829bdc62896ec0b6",
     "w": 584,
     "h": 328,
-    "bytes": 19476
+    "bytes": 19604
   },
   "home-5.webp": {
     "hash": "269a0a8b8090bec7",
@@ -171,61 +171,61 @@
     "hash": "e8497a562a78bcca",
     "w": 422,
     "h": 433,
-    "bytes": 31950
+    "bytes": 31878
   },
   "home-collection-2.webp": {
     "hash": "412f12929429d41e",
     "w": 422,
-    "h": 180,
-    "bytes": 13154
+    "h": 217,
+    "bytes": 18994
   },
   "home-collection-3.webp": {
     "hash": "93803ab0d7fa7d34",
     "w": 589,
     "h": 251,
-    "bytes": 24144
+    "bytes": 24178
   },
   "home-collection-4.webp": {
     "hash": "ffd02fe1146011a5",
     "w": 400,
-    "h": 170,
-    "bytes": 13192
+    "h": 169,
+    "bytes": 13624
   },
   "home-collection-5.webp": {
     "hash": "7e71193752bb4b3b",
     "w": 400,
     "h": 310,
-    "bytes": 29662
+    "bytes": 29650
   },
   "home-world-1.webp": {
     "hash": "00a35adc2c30c0b8",
     "w": 1006,
     "h": 223,
-    "bytes": 16242
+    "bytes": 15080
   },
   "home-world-2.webp": {
     "hash": "d6646528662089fc",
     "w": 967,
     "h": 200,
-    "bytes": 15780
+    "bytes": 14922
   },
   "home-world-3.webp": {
     "hash": "b95aa8b866eafb34",
     "w": 949,
-    "h": 90,
-    "bytes": 4682
+    "h": 89,
+    "bytes": 4860
   },
   "home-world-4.webp": {
     "hash": "ef9a7ec1b0d0308d",
     "w": 989,
     "h": 488,
-    "bytes": 27554
+    "bytes": 27462
   },
   "home-world-5.webp": {
     "hash": "ee0fc7aabc2e37fe",
     "w": 607,
-    "h": 465,
-    "bytes": 57876
+    "h": 464,
+    "bytes": 55964
   },
   "inventory-1.webp": {
     "hash": "a6aa9326a8b95852",
@@ -308,14 +308,14 @@
   "mastery-4.webp": {
     "hash": "299685fe11e5d37a",
     "w": 989,
-    "h": 360,
-    "bytes": 31990
+    "h": 407,
+    "bytes": 34018
   },
   "mission-1.webp": {
     "hash": "5b6a1fe539b7f301",
     "w": 971,
     "h": 445,
-    "bytes": 44004
+    "bytes": 44040
   },
   "mission-2.webp": {
     "hash": "b9d15f50cbe42ac4",
@@ -327,13 +327,13 @@
     "hash": "bd657efd7f074701",
     "w": 989,
     "h": 373,
-    "bytes": 30142
+    "bytes": 30254
   },
   "mission-4.webp": {
     "hash": "4be04d1a6365f32e",
     "w": 989,
     "h": 241,
-    "bytes": 14904
+    "bytes": 14914
   },
   "mods-1.webp": {
     "hash": "2edfb8660584a7f2",
@@ -417,7 +417,7 @@
     "hash": "c9365feb7026c3d7",
     "w": 1006,
     "h": 434,
-    "bytes": 41932
+    "bytes": 42084
   },
   "parts-2.webp": {
     "hash": "b32cb7fe12423d22",
@@ -441,7 +441,7 @@
     "hash": "c80f28883301409c",
     "w": 989,
     "h": 240,
-    "bytes": 23810
+    "bytes": 24068
   },
   "planner-1.webp": {
     "hash": "1cd741af71d96b13",
@@ -489,7 +489,7 @@
     "hash": "3483602d39efc6c9",
     "w": 989,
     "h": 133,
-    "bytes": 5846
+    "bytes": 5874
   },
   "relics-3.webp": {
     "hash": "171f9e9f4e4ad99b",
@@ -765,6 +765,6 @@
     "hash": "2c6e29912b50df05",
     "w": 989,
     "h": 571,
-    "bytes": 52064
+    "bytes": 52086
   }
 }

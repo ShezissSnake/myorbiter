@@ -288,7 +288,7 @@
   <section class="dbuy" id="ducat-buys">
     <header>
       <div class="hmark"><h2 class="register lead">Ducats for less</h2><HelpMark part="parts.ducats-for-less" /></div>
-      <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at or above your rate (above), about {Math.round(10 / advice.platPerDucat) / 10} ducats a platinum; the exact rate decides, not the rounded figures shown.</span>
+      <span class="dim small" title="Gold is judged against your exact rate, not the rounded figures shown">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at or above your rate, about {Math.round(10 / advice.platPerDucat) / 10} ducats a platinum.</span>
     </header>
     <table class="dt">
       <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r" title="How many sell a day on warframe.market">Sold/day</th><th></th></tr></thead>
