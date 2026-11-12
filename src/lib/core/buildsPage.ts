@@ -514,7 +514,7 @@ export function listedAt(date: string | null | undefined): number | null {
  */
 export function copyLine(a: { stale: boolean; error?: string; fetchedAt: number }): string | null {
   if (!a.stale && !a.error) return null;
-  return `Showing a copy from ${dayOf(a.fetchedAt)}${a.error ? `: Nox's Frame didn't answer (${a.error.replace(/^Error:\s*/, "")})` : ""}`;
+  return `Showing a copy from ${dayOf(a.fetchedAt)}${a.error ? `: couldn't read Nox's Frame again (${a.error.replace(/^Error:\s*/, "")})` : ""}`;
 }
 
 /** The saved build that came from this page (by its address), if any. */

@@ -320,6 +320,30 @@ pub fn read_list(html: &str) -> Vec<Value> {
     out
 }
 
+/// What an item's list page has to show for MyOrbiter to read it: at least one build card (what
+/// `read_list` looks for: a `href="/builds/<id>-<slug>"` link holding an `<h3>` title), or, with
+/// none, the page's own data (the Next.js flight `flight` reads) naming the item asked for, as
+/// the site's list pages carry the address they answer. A page with neither (a consent or error
+/// page served as 200, markup MyOrbiter no longer knows) can't be told from "nobody has posted
+/// one", so it is an error, and not kept.
+pub const UNREADABLE_LIST: &str = "the page didn't look like a list of builds; Nox's Frame may have changed it";
+
+/// An item's builds from its list page (`read_list`), or an error when the page isn't one
+/// MyOrbiter can read (see `UNREADABLE_LIST`).
+pub fn read_item_list(html: &str, item: &str) -> Result<Vec<Value>, String> {
+    let list = read_list(html);
+    if !list.is_empty() {
+        return Ok(list);
+    }
+    let data = flight(html);
+    let named = !data.is_empty() && [item.to_string(), item.replace('/', "%2F"), item.replace('/', "%2f")].iter().any(|n| data.contains(n.as_str()));
+    if named {
+        Ok(list)
+    } else {
+        Err(UNREADABLE_LIST.into())
+    }
+}
+
 /// The build code on a build page: a `code` prop, given inline or as a text row (`$a5` pointing
 /// at `a5:T<hex length>,NFB1:…`).
 pub fn code_in(flight: &str) -> Option<String> {
@@ -519,7 +543,10 @@ pub fn item_builds(cache_dir: &Path, item: &str, refresh: bool) -> Result<Value,
         return Err("not an item MyOrbiter looks up".into());
     }
     let path = cache_file(&cache_dir.join("noxsframe"), "list", item);
-    cached_or_fetch(&path, refresh, false, || get_page(&list_url(item)).map(|html| Value::Array(read_list(&html))))
+    cached_or_fetch(&path, refresh, false, || {
+        let html = get_page(&list_url(item))?;
+        read_item_list(&html, item).map(Value::Array).inspect_err(|e| log::warn!(target: "myorbiter::noxsframe", "the list for {item}: {e}"))
+    })
 }
 
 /// One build (see `read_build`).
@@ -643,6 +670,45 @@ mod tests {
         assert_eq!(list[1]["title"], "Kuva Nukor - Starkes Allrounder Build");
         assert_eq!(list[1]["tags"], json!(["All-round", "Endurance", "Farming"]));
         assert_eq!(list[3]["url"], "https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build");
+    }
+
+    /// A list page MyOrbiter can't read is an error, never "nobody has posted a build", and isn't
+    /// kept; a list page that really lists none still reads as none. The stand-ins are written by
+    /// hand, not saved from the site (no page with no builds was saved): `list-none.html` carries
+    /// the site's page data naming the item, as its list pages do, and no card.
+    #[test]
+    fn a_list_page_that_cant_be_read_is_an_error_and_not_kept() {
+        const NONE: &str = include_str!("../../tests/fixtures/noxsframe/list-none.html");
+        const NOT_A_LIST: &str = include_str!("../../tests/fixtures/noxsframe/list-not-a-list.html");
+        const OTHER: &str = include_str!("../../tests/fixtures/noxsframe/list-other-page.html");
+        let item = "/Lotus/Powersuits/Example/ExampleFrame";
+        assert_eq!(read_item_list(LIST, "/Lotus/Powersuits/Ember/EmberPrime").map(|l| l.len()), Ok(4), "cards: read whatever item");
+        assert_eq!(read_item_list(NONE, item), Ok(vec![]), "the list page for this item, with none posted");
+        assert_eq!(read_item_list(NONE, "/Lotus/Powersuits/Example/OtherFrame"), Err(UNREADABLE_LIST.into()), "another item's page");
+        for (page, what) in [(NOT_A_LIST, "a consent page"), (OTHER, "another page of the site"), ("", "nothing"), ("<html><body><main></main></body></html>", "an empty main")] {
+            assert_eq!(read_item_list(page, item), Err(UNREADABLE_LIST.into()), "{what}");
+        }
+        // Not kept: the next open asks again; a copy kept from before is shown, said to be old.
+        let dir = std::env::temp_dir().join(format!("myorbiter-nox-unreadable-{}", std::process::id()));
+        let path = cache_file(&dir, "list", item);
+        let fetches = std::cell::Cell::new(0);
+        let fetch = |page: &'static str| {
+            let fetches = &fetches;
+            move || {
+                fetches.set(fetches.get() + 1);
+                read_item_list(page, item).map(Value::Array)
+            }
+        };
+        assert_eq!(cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)), Err(UNREADABLE_LIST.into()));
+        assert!(read_cache(&path).is_none(), "nothing kept");
+        assert!(cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)).is_err());
+        assert_eq!(fetches.get(), 2, "asked again");
+        let none = cached_or_fetch(&path, false, false, fetch(NONE)).unwrap();
+        assert_eq!(none["data"], json!([]), "really none: kept as none");
+        write_cache(&path, now_ms() - 8 * 86_400_000, &json!([{ "path": "kept" }]));
+        let old = cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)).unwrap();
+        assert_eq!((old["stale"].as_bool(), old["error"].as_str(), old["data"][0]["path"].as_str()), (Some(true), Some(UNREADABLE_LIST), Some("kept")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -811,6 +877,7 @@ mod fuzz {
             let url = b["url"].as_str().unwrap_or("");
             assert!(url.starts_with("https://www.noxsframe.com/builds/") || url.starts_with(&build_url("")), "{label}: {url}");
         }
+        let _ = read_item_list(html, "/Lotus/Powersuits/Harlequin/MiragePrime");
         let f = flight(html);
         if let Some(code) = code_in(&f) {
             let _ = decode_code(&code);
