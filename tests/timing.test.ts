@@ -2,7 +2,7 @@
 // report made of numbers, the page's id and the kind of control, never what was typed or named.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { Recorder, keyKind, type Action } from "../src/lib/timing";
+import { Recorder, keyKind, sheetBuilt, type Action } from "../src/lib/timing";
 
 const key = (k: string, mods: Partial<Record<"ctrlKey" | "metaKey" | "altKey", boolean>> = {}) => keyKind({ key: k, ctrlKey: false, metaKey: false, altKey: false, ...mods });
 
@@ -158,8 +158,8 @@ test("Settings and an item's card: opened and closed, to the first frame with th
   const sheet = (title: string, inert: boolean) => ({ inert, closest: () => null, getAttribute: (n: string) => (n === "aria-label" ? title : n === "role" ? "dialog" : null) });
   const settings = sheet("Settings", true);
   const card = sheet("Example Prime Blueprint", false);
-  let sheets: object[] = [settings];
-  (globalThis as unknown as { document: Record<string, unknown> }).document.getElementsByClassName = () => new Proxy({}, { get: (_, k) => (k === "length" ? sheets.length : sheets[Number(k)]) });
+  const built = sheetBuilt(settings as unknown as Element);
+  let cardBuilt: { destroy(): void } | null = null;
   const rec = new Recorder();
   try {
     rec.enable({ page: () => "inventory", sizes: () => ({}), gameRunning: () => null, log: () => {} });
@@ -175,17 +175,21 @@ test("Settings and an item's card: opened and closed, to the first frame with th
     };
     await step(() => (settings.inert = false));
     await step(() => (settings.inert = true));
-    await step(() => (sheets = [settings, card]));
+    await step(() => (cardBuilt = sheetBuilt(card as unknown as Element)));
     await step(() => (card.inert = true)); // sliding off
+    await step(() => (card.inert = false));
+    await step(() => (cardBuilt as { destroy(): void } | null)?.destroy()); // gone at once, as with reduced motion
     const d = rec.data();
     for (const p of d.panels) {
-      assert.equal(p.n, 1, p.key);
+      assert.equal(p.n, p.key.startsWith("item's card") ? 2 : 1, p.key);
       assert.ok(p.frame && p.frame.median >= 20 && p.frame.median < 200, `${p.key} ${JSON.stringify(p.frame)}`);
     }
     const text = rec.report(null, { window: "1600×1000", scale: 1 });
-    assert.match(text, /item's card opened\s+1 × · first frame/);
+    assert.match(text, /item's card opened\s+2 × · first frame/);
     assert.doesNotMatch(text, /Example|Blueprint/);
   } finally {
+    built.destroy();
+    (cardBuilt as { destroy(): void } | null)?.destroy();
     rec.disable();
     ff.restore();
     restore();

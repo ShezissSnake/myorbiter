@@ -202,14 +202,18 @@ function scrollPlace(el: Element | null): string {
  * fixed title is looked at, and nothing of it is kept). One sliding off, or kept built but
  * closed, is inert: gone for the player.
  */
-let sheets: ArrayLike<Element> | null = null;
+const sheets = new Set<Element>();
+/**
+ * Each sliding panel (Sheet.svelte) is put here while it's built, so finding them costs nothing:
+ * a live `getElementsByClassName` list walks the whole page again after every DOM change.
+ */
+export function sheetBuilt(el: Element) {
+  sheets.add(el);
+  return { destroy: () => void sheets.delete(el) };
+}
 function panelsShown(): number {
-  if (typeof document === "undefined" || typeof document.getElementsByClassName !== "function") return 0;
-  // A live list of the few sheets: no walk of the whole page on each DOM change.
-  sheets ??= document.getElementsByClassName("sheet");
   let bits = 0;
-  for (let i = 0; i < sheets.length; i++) {
-    const el = sheets[i];
+  for (const el of sheets) {
     if (el.getAttribute("role") !== "dialog" || (el as HTMLElement).inert) continue;
     // A card left open on a page no longer shown isn't on screen.
     const pane = el.closest(".pane");
