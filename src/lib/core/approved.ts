@@ -14,7 +14,7 @@ export const AUTO_FLOOR_SHARE = 0.7;
  */
 const limits = (how: string) =>
   `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved (${how}; it stops there and says so) ` +
-  "and never more than halves one (that waits for you to press Reprice). It never goes under your floors or your minimum price, and it raises a listing that sits under them up to them";
+  `and never more than halves one (that waits for you to press Reprice). It never goes under your floors or your minimum price, and it raises a listing that sits under them up to them, within the hour and day limits (a listing already at or under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, with your floors below that, stays put until you press Reprice)`;
 export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice or applying a Sell spares plan");
 /** The same for a console, where there is no Sell spares. */
 export const AUTO_LIMITS_CONSOLE = limits("listing it, typing it or pressing Reprice");

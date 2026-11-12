@@ -286,7 +286,7 @@ const SETTINGS_TRADES: Walkthrough = {
       title: "Automatic repricing",
       lines: [
         "Off until you turn it on; also Apply automatically on Orders.",
-        "It follows the second-cheapest seller online or in game, not lone bait.",
+        "It follows the second-cheapest seller online or in game, not a lone bait listing.",
         "A gap over 2p and 5% moves it; once an hour, six a day per listing.",
         `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, never more than halved; floors hold.`,
       ],
@@ -300,7 +300,7 @@ const SETTINGS_TRADES: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: "Unattended, a price never goes under 70% of the one you last set or approved, nor under your floors, and is never more than halved.",
+    text: `Unattended, a price never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved, nor under your floors, and is never more than halved.`,
   },
   covers: { "settings.trades": 3, "settings.selling": 2 },
 };
@@ -367,7 +367,7 @@ const NOTICES: Walkthrough = {
         part: `${N} section.how > .testrow, ${N} section.how > .discord`,
         marks: [
           { at: `${N} section.how .testrow button.stamp`, is: "n", n: 1, from: "corner" },
-          { at: `${N} section.how .discord input`, is: "n", n: 2, from: "corner" },
+          { at: `${N} section.how .discord input`, is: "n", n: 2, from: "bottom" },
         ],
       },
     },
