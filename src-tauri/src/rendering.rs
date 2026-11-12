@@ -270,7 +270,7 @@ pub fn started() {
         Why::DmaBufFailed => ", back to shared memory because the last start, with DMA-BUF frames, closed within a minute; the DMA-BUF switch is off again",
     };
     let session = if c.wayland { "Wayland" } else { "X11" };
-    let vars = if c.mode == Mode::Yours { c.yours.join(" ") } else { c.set.join(" ") };
+    let vars = vars_line(c);
     log::info!(target: "myorbiter::rendering", "{what}{why} ({session}{}{}{})", if c.nvidia { ", NVIDIA driver" } else { "" }, if vars.is_empty() { "" } else { "; " }, vars);
     match (c.flag, &c.flag_error) {
         (Some(on), None) => log::info!(target: "myorbiter::rendering", "compatibility rendering {} for the starts after this one ({})", if on { "saved" } else { "cleared" }, if on { FLAG_ON } else { FLAG_OFF }),
@@ -351,6 +351,12 @@ pub fn frames_line() -> String {
         Mode::Yours => format!("set by WebKit variables ({})", names_only(&c.yours)),
     };
     format!("{how}, {}{}", if c.wayland { "Wayland" } else { "X11" }, if c.why == Why::DmaBufFailed { ", the DMA-BUF try closed early last start" } else { "" })
+}
+
+/// The variables named in the log's rendering line: the ones MyOrbiter set, with their values
+/// (its own constants); the player's own, by name only (their values are whatever was typed).
+fn vars_line(c: &Choice) -> String {
+    if c.mode == Mode::Yours { names_only(&c.yours) } else { c.set.join(" ") }
 }
 
 /// `NAME=value` entries as their names only.
@@ -457,6 +463,25 @@ mod tests {
     fn the_timing_report_names_your_variables_without_their_values() {
         let v = vec!["WEBKIT_DISABLE_COMPOSITING_MODE=1".to_owned(), "WEBKIT_FORCE_DMABUF_RENDERER=anything at all".to_owned()];
         assert_eq!(names_only(&v), "WEBKIT_DISABLE_COMPOSITING_MODE WEBKIT_FORCE_DMABUF_RENDERER");
+    }
+
+    #[test]
+    fn the_log_names_your_variables_without_their_values() {
+        let c = |mode, yours: &[&str], set: &[&str]| Choice {
+            mode,
+            why: Why::None,
+            nvidia: true,
+            wayland: true,
+            set: set.iter().map(|s| s.to_string()).collect(),
+            yours: yours.iter().map(|s| s.to_string()).collect(),
+            flag: None,
+            flag_error: None,
+        };
+        let line = vars_line(&c(Mode::Yours, &["WEBKIT_DISABLE_COMPOSITING_MODE=1", "WEBKIT_FORCE_DMABUF_RENDERER=/home/user/secret"], &[]));
+        assert_eq!(line, "WEBKIT_DISABLE_COMPOSITING_MODE WEBKIT_FORCE_DMABUF_RENDERER");
+        // What MyOrbiter set itself is its own constants, kept with their values.
+        let line = vars_line(&c(Mode::SharedMemory, &[], &["WEBKIT_FORCE_DMABUF_RENDERER=1", "WEBKIT_DMABUF_RENDERER_FORCE_SHM=1"]));
+        assert_eq!(line, "WEBKIT_FORCE_DMABUF_RENDERER=1 WEBKIT_DMABUF_RENDERER_FORCE_SHM=1");
     }
 
     #[test]
