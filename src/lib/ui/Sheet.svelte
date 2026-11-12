@@ -6,6 +6,7 @@
   import type { Snippet } from "svelte";
   import { fly } from "svelte/transition";
   import { trap } from "./trap";
+  import { sheetBuilt } from "../timing";
   import { moving, ms, out, SETTLE, shade } from "../motion";
   import Kind from "./Kind.svelte";
   // Opening slides in over SETTLE; closing slides off in 100 ms, as a dialog closes (nobody waits
@@ -61,12 +62,12 @@
 {/if}
 {#if !keep}
   {#if open}
-    <div class="sheet" class:wide role="dialog" in:fly|global={{ x: 40, opacity: 0, duration: ms(SETTLE), easing: out }} out:fly|global={{ x: 32, opacity: 0, duration: ms(100), easing: out }} aria-modal="true" aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false) }}>
+    <div class="sheet" class:wide role="dialog" in:fly|global={{ x: 40, opacity: 0, duration: ms(SETTLE), easing: out }} out:fly|global={{ x: 32, opacity: 0, duration: ms(100), easing: out }} aria-modal="true" aria-label={title} tabindex="-1" use:sheetBuilt use:trap={{ onescape: () => (open = false) }}>
       {@render panel()}
     </div>
   {/if}
 {:else if seen}
-  <div class="sheet keep" class:wide class:on={open} class:settled role="dialog" inert={!open} aria-modal={open ? "true" : undefined} aria-label={title} tabindex="-1" use:trap={{ onescape: () => (open = false), active: open }}>
+  <div class="sheet keep" class:wide class:on={open} class:settled role="dialog" inert={!open} aria-modal={open ? "true" : undefined} aria-label={title} tabindex="-1" use:sheetBuilt use:trap={{ onescape: () => (open = false), active: open }}>
     {@render panel()}
   </div>
 {/if}

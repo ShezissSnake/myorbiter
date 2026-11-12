@@ -287,3 +287,80 @@ const helpOver = (flat) => ({
 });
 SCENARIOS.helpBlur = helpOver(false);
 SCENARIOS.helpFlat = helpOver(true);
+
+/**
+ * Scrolls the shown page's longest list (the page itself or the tallest scrollable box in it) down
+ * and back up as a wheel would, 120 px every frame for about `ms` each way; resolves with the
+ * list's length in screens (0: nothing on the page scrolls).
+ */
+const scrollList = (ms) => `new Promise((done) => {
+  const pane = document.querySelector('.pane.shown');
+  const all = pane ? [pane, ...pane.querySelectorAll('*')] : [];
+  const el = all.filter((e) => e.scrollHeight > e.clientHeight + 200 && /auto|scroll/.test(getComputedStyle(e).overflowY))
+    .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+  if (!el) return done(0);
+  const screens = el.scrollHeight / el.clientHeight;
+  const end = performance.now() + ${ms};
+  let dir = 120;
+  const step = () => {
+    el.scrollBy(0, dir);
+    if (dir > 0 && (performance.now() > end || el.scrollTop + el.clientHeight >= el.scrollHeight - 1)) dir = -120;
+    if (dir < 0 && el.scrollTop <= 0) return setTimeout(() => done(Math.round(screens * 10) / 10), 400);
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+})`;
+
+/**
+ * Record timings (src/lib/timing.ts) on, and `PERF_TOUR_MS` (5 minutes) of going through every
+ * page as a player would: each rail page, Home, a Sync each lap; and each lap the three a player
+ * feels most: a long list scrolled (Inventory, Mods, Orders), an item's card opened and closed
+ * (Inventory), Settings opened and closed. Then Settings › Logs › Copy timing report, and the
+ * report as the app wrote it.
+ */
+SCENARIOS.tour = {
+  runs: 1,
+  record: true,
+  syncReload: true,
+  async run(s) {
+    const until = Date.now() + Number(process.env.PERF_TOUR_MS ?? 300_000);
+    // Settings is in the sidebar's More menu: the menu opened first, then Settings timed.
+    const more = `document.querySelector('.rail .foot button.more').click()`;
+    const openSettings = async () => {
+      await s.measure(more, { quiet: 300 });
+      return s.measure(`document.querySelector(".moremenu [data-item='Settings']").click()`, { quiet: 600 });
+    };
+    const esc = `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`;
+    let laps = 0;
+    const scrolled = {};
+    const cards = [];
+    while (Date.now() < until) {
+      for (const l of [...PAGES, "Home"]) {
+        await s.measure(nav(l), { quiet: 400, max: 4000 });
+        if (Date.now() >= until) break;
+      }
+      await s.measure(`document.querySelector('.rail .foot button.sync').click()`, { quiet: 1200 });
+      for (const l of ["Inventory", "Mods", "Orders"]) {
+        await s.measure(nav(l), { quiet: 400, max: 4000 });
+        scrolled[l] = await s.evalAsync(scrollList(1500));
+      }
+      // An item's card, from Inventory's cards: the first few that open one, opened and closed.
+      await s.measure(nav("Inventory"), { quiet: 400, max: 4000 });
+      for (let i = 0, shown = 0; i < 8 && shown < 3; i++) {
+        const opened = await s.measure(`document.querySelectorAll('.pane.shown article.card[role="button"]')[${i}]?.click()`, { quiet: 500 });
+        if (!(await s.eval(`!!document.querySelector('.sheet[role=dialog]:not(.keep):not([inert])')`))) continue;
+        shown++;
+        cards.push(opened);
+        await s.measure(esc, { quiet: 500 });
+      }
+      await openSettings();
+      await s.measure(esc, { quiet: 600 });
+      laps++;
+    }
+    await openSettings();
+    await s.measure(`[...document.querySelectorAll('.sheet button')].find(b => b.textContent.trim() === 'Copy timing report').click()`, { quiet: 600 });
+    await new Promise((r) => setTimeout(r, 1000));
+    const report = await s.eval(`document.querySelector('textarea[aria-label="Timing report"]')?.value ?? null`);
+    return { laps, scrolled, cards: cards.length, report };
+  },
+};

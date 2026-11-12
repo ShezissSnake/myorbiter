@@ -16,6 +16,7 @@ mod recipes;
 mod relicdata;
 mod updates;
 mod rendering;
+mod timing;
 mod datamove;
 
 use myorbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
@@ -1388,6 +1389,8 @@ fn fit_first_window(app: &tauri::App) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // For Record timings: when the process got going, if the system can't say when it started.
+    timing::mark_run_start();
     // Before anything opens the app's folders: the ones under the old identifier are copied over once.
     datamove::run();
     #[cfg(target_os = "linux")]
@@ -1572,7 +1575,10 @@ pub fn run() {
             updates::updates_check,
             updates::updates_install,
             rendering::rendering_state,
-            rendering::set_compat_rendering
+            rendering::set_compat_rendering,
+            rendering::set_dmabuf_rendering,
+            timing::timing_env,
+            timing::timing_save_report
         ])
         .build(updates::context(tauri::generate_context!()))
         .expect("error while starting MyOrbiter")

@@ -12,6 +12,12 @@
 //!   buffer sharing. `WEBKIT_FORCE_DMABUF_RENDERER=1` is needed as well: Debian and Ubuntu build
 //!   WebKitGTK (the one the AppImage carries) with a patch that turns the renderer off on NVIDIA,
 //!   and that variable is the patch's way past it.
+//! - **Accelerated, DMA-BUF frames on NVIDIA** (Settings › Logs, experimental, off unless chosen): the
+//!   NVIDIA driver with WebKit's own DMA-BUF hand-over, to compare against shared memory on the
+//!   player's own machine. Only `WEBKIT_FORCE_DMABUF_RENDERER=1`, for the Debian and Ubuntu patch.
+//!   It is the path that crashes or paints blank on some NVIDIA setups (above): a try that closes
+//!   within a minute is dropped by the next start, which goes back to shared memory and says so.
+//!   `--no-dmabuf` drops it from a terminal, for a window that stays blank without closing.
 //! - **Compatibility** (the Settings switch, or `--compat-rendering` once): no compositing and no
 //!   DMA-BUF, every frame painted on the CPU. Slower, but it draws where nothing else does.
 //! - **Your own**: any of WebKit's variables already set in the environment wins; MyOrbiter then sets
@@ -38,6 +44,8 @@ pub const WEBKIT_VARS: [&str; 5] = [
 /// The start flags: on saves compatibility rendering for every start after, off clears it.
 pub const FLAG_ON: &str = "--compat-rendering";
 pub const FLAG_OFF: &str = "--no-compat-rendering";
+/// The start flag that drops the experimental DMA-BUF try.
+pub const DMABUF_OFF: &str = "--no-dmabuf";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -45,6 +53,8 @@ pub enum Mode {
     Accelerated,
     /// Accelerated, frames through shared memory (the NVIDIA driver).
     SharedMemory,
+    /// Accelerated, frames through DMA-BUF on the NVIDIA driver: the experimental switch.
+    DmaBuf,
     Compat,
     /// WebKit variables you set yourself.
     Yours,
@@ -54,6 +64,7 @@ pub enum Mode {
 pub fn vars_for(mode: Mode) -> &'static [(&'static str, &'static str)] {
     match mode {
         Mode::SharedMemory => &[("WEBKIT_FORCE_DMABUF_RENDERER", "1"), ("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1")],
+        Mode::DmaBuf => &[("WEBKIT_FORCE_DMABUF_RENDERER", "1")],
         Mode::Compat => &[("WEBKIT_DISABLE_DMABUF_RENDERER", "1"), ("WEBKIT_DISABLE_COMPOSITING_MODE", "1")],
         Mode::Accelerated | Mode::Yours => &[],
     }
@@ -69,20 +80,35 @@ pub enum Why {
     Chosen,
     /// Switched on by MyOrbiter: the start before closed early in accelerated mode.
     AfterCrash,
+    /// Not compatibility: the DMA-BUF try (NVIDIA) closed early, so it was dropped and this start
+    /// is back on shared memory.
+    DmaBufFailed,
 }
 
-/// The mode for this start, from what's saved and what this machine is.
-pub fn decide(yours: bool, saved: Why, trial_left: bool, nvidia: bool) -> (Mode, Why) {
+/// The mode for this start, from what's saved and what this machine is. `dmabuf`: the
+/// experimental DMA-BUF try is saved (it counts only with the NVIDIA driver).
+pub fn decide(yours: bool, saved: Why, trial_left: bool, nvidia: bool, dmabuf: bool) -> (Mode, Why) {
     if yours {
         return (Mode::Yours, Why::None);
     }
     if saved != Why::None {
         return (Mode::Compat, saved);
     }
+    let dmabuf = dmabuf && nvidia;
     if trial_left {
-        return (Mode::Compat, Why::AfterCrash);
+        // The start that closed early was the DMA-BUF try: back to shared memory, not to the CPU.
+        return if dmabuf { (Mode::SharedMemory, Why::DmaBufFailed) } else { (Mode::Compat, Why::AfterCrash) };
     }
-    (if nvidia { Mode::SharedMemory } else { Mode::Accelerated }, Why::None)
+    match (nvidia, dmabuf) {
+        (true, true) => (Mode::DmaBuf, Why::None),
+        (true, false) => (Mode::SharedMemory, Why::None),
+        _ => (Mode::Accelerated, Why::None),
+    }
+}
+
+/// Whether the start flags drop the DMA-BUF try (`--no-dmabuf`).
+pub fn dmabuf_off_in(args: impl IntoIterator<Item = String>) -> bool {
+    args.into_iter().any(|a| a == DMABUF_OFF)
 }
 
 /// What a start flag asks for: Some(true) to save compatibility rendering, Some(false) to clear it.
@@ -100,6 +126,23 @@ pub fn flag_in(args: impl IntoIterator<Item = String>) -> Option<bool> {
 
 const SAVED: &str = "rendering";
 const TRIAL: &str = "rendering-trial";
+/// The experimental DMA-BUF try on NVIDIA, saved for the next starts (present: on).
+const DMABUF: &str = "rendering-dmabuf";
+
+fn read_dmabuf(dir: &std::path::Path) -> bool {
+    dir.join(DMABUF).is_file()
+}
+
+fn write_dmabuf(dir: &std::path::Path, on: bool) -> std::io::Result<()> {
+    if on {
+        std::fs::create_dir_all(dir)?;
+        return std::fs::write(dir.join(DMABUF), "dmabuf\n");
+    }
+    match std::fs::remove_file(dir.join(DMABUF)) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
 
 /// The app's config folder (what Tauri's `app_config_dir` gives), worked out before Tauri starts.
 fn config_dir() -> Option<PathBuf> {
@@ -131,6 +174,8 @@ fn write_saved(dir: &std::path::Path, why: Why) -> std::io::Result<()> {
         },
         Why::Chosen => std::fs::write(dir.join(SAVED), "compat\n"),
         Why::AfterCrash => std::fs::write(dir.join(SAVED), "compat-after-crash\n"),
+        // Never saved as compatibility: the DMA-BUF file is what's removed for it.
+        Why::DmaBufFailed => Ok(()),
     }
 }
 
@@ -177,15 +222,22 @@ pub fn apply() -> Vec<&'static str> {
     }
     let yours: Vec<String> = WEBKIT_VARS.iter().filter_map(|k| std::env::var(k).ok().map(|v| format!("{k}={v}"))).collect();
     let saved = dir.as_deref().map(read_saved).unwrap_or(Why::None);
+    if let (true, Some(dir)) = (dmabuf_off_in(std::env::args().skip(1)), dir.as_deref()) {
+        let _ = write_dmabuf(dir, false);
+    }
+    let dmabuf = dir.as_deref().is_some_and(read_dmabuf);
     // A marker left by a MyOrbiter that is still running (a second start while the first is in its
     // first minute, which single-instance then closes) isn't an early close.
     let trial_left = dir.as_deref().is_some_and(|d| trial_is_crash(std::fs::read_to_string(d.join(TRIAL)).ok().as_deref(), running_myorbiter));
-    let (mode, why) = decide(!yours.is_empty(), saved, trial_left, nvidia);
+    let (mode, why) = decide(!yours.is_empty(), saved, trial_left, nvidia, dmabuf);
     if let Some(dir) = dir.as_deref() {
         if why == Why::AfterCrash && saved == Why::None {
             let _ = write_saved(dir, Why::AfterCrash);
         }
-        if !matches!(mode, Mode::Accelerated | Mode::SharedMemory) {
+        if why == Why::DmaBufFailed {
+            let _ = write_dmabuf(dir, false);
+        }
+        if !matches!(mode, Mode::Accelerated | Mode::SharedMemory | Mode::DmaBuf) {
             let _ = std::fs::remove_file(dir.join(TRIAL));
         }
     }
@@ -207,6 +259,7 @@ pub fn started() {
     let what = match c.mode {
         Mode::Accelerated => "accelerated (GPU compositing)",
         Mode::SharedMemory => "accelerated (GPU compositing, frames through shared memory for the NVIDIA driver)",
+        Mode::DmaBuf => "accelerated (GPU compositing, frames through DMA-BUF on the NVIDIA driver: the experimental switch in Settings › Logs)",
         Mode::Compat => "compatibility (no compositing, painted on the CPU)",
         Mode::Yours => "your own WebKit settings",
     };
@@ -214,6 +267,7 @@ pub fn started() {
         Why::None => "",
         Why::Chosen => ", as saved in Settings or by --compat-rendering",
         Why::AfterCrash => ", switched on because the last accelerated start closed within a minute; turn it off in Settings › Display to try again",
+        Why::DmaBufFailed => ", back to shared memory because the last start, with DMA-BUF frames, closed within a minute; the DMA-BUF switch is off again",
     };
     let session = if c.wayland { "Wayland" } else { "X11" };
     let vars = if c.mode == Mode::Yours { c.yours.join(" ") } else { c.set.join(" ") };
@@ -225,7 +279,7 @@ pub fn started() {
     }
     // Not in a development build: `tauri dev` kills the app to restart it after every rebuild,
     // which would read as a crash.
-    if matches!(c.mode, Mode::Accelerated | Mode::SharedMemory) && !cfg!(debug_assertions) {
+    if matches!(c.mode, Mode::Accelerated | Mode::SharedMemory | Mode::DmaBuf) && !cfg!(debug_assertions) {
         // Left here, not before the window: a second MyOrbiter started while one runs exits before
         // this point (single-instance), and must not leave a marker behind.
         if let Some(dir) = config_dir() {
@@ -271,12 +325,47 @@ pub struct State {
     now: Option<Choice>,
     /// Compatibility rendering saved for the next start.
     next: bool,
+    /// The DMA-BUF try (NVIDIA) saved for the next start.
+    dmabuf: bool,
 }
 
 #[tauri::command(async)]
 pub fn rendering_state() -> State {
-    let next = config_dir().map(|d| read_saved(&d) != Why::None).unwrap_or(false);
-    State { linux: cfg!(target_os = "linux"), now: CHOICE.get().cloned(), next }
+    let dir = config_dir();
+    let next = dir.as_deref().map(|d| read_saved(d) != Why::None).unwrap_or(false);
+    let dmabuf = dir.as_deref().is_some_and(read_dmabuf);
+    State { linux: cfg!(target_os = "linux"), now: CHOICE.get().cloned(), next, dmabuf }
+}
+
+/// How this start hands its finished frames to the window, in a few words, for the timing report.
+pub fn frames_line() -> String {
+    let Some(c) = CHOICE.get() else {
+        return if cfg!(target_os = "linux") { "unknown".into() } else { "the system's web view".into() };
+    };
+    let how = match c.mode {
+        Mode::Accelerated => "DMA-BUF (WebKit's own choice)".to_owned(),
+        Mode::SharedMemory => "shared memory (the NVIDIA default)".to_owned(),
+        Mode::DmaBuf => "DMA-BUF (the experimental switch)".to_owned(),
+        Mode::Compat => "none: painted on the CPU (compatibility rendering)".to_owned(),
+        // Their names only: the values are whatever was typed into them.
+        Mode::Yours => format!("set by WebKit variables ({})", names_only(&c.yours)),
+    };
+    format!("{how}, {}{}", if c.wayland { "Wayland" } else { "X11" }, if c.why == Why::DmaBufFailed { ", the DMA-BUF try closed early last start" } else { "" })
+}
+
+/// `NAME=value` entries as their names only.
+fn names_only(vars: &[String]) -> String {
+    vars.iter().map(|v| v.split('=').next().unwrap_or("")).collect::<Vec<_>>().join(" ")
+}
+
+/// Settings › Logs (NVIDIA only, experimental): DMA-BUF frames from the next start, or back to
+/// shared memory.
+#[tauri::command(async)]
+pub fn set_dmabuf_rendering(on: bool) -> Result<(), String> {
+    let dir = config_dir().ok_or("Only on Linux")?;
+    write_dmabuf(&dir, on).map_err(|e| e.to_string())?;
+    log::info!(target: "myorbiter::rendering", "DMA-BUF frames (experimental) {} from the next start (Settings)", if on { "on" } else { "off" });
+    Ok(())
 }
 
 /// The Settings switch: compatibility rendering from the next start on, or off again.
@@ -295,7 +384,7 @@ mod tests {
 
     #[test]
     fn nvidia_keeps_compositing_and_drops_only_dmabuf_buffers() {
-        assert_eq!(decide(false, Why::None, false, true), (Mode::SharedMemory, Why::None));
+        assert_eq!(decide(false, Why::None, false, true, false), (Mode::SharedMemory, Why::None));
         let vars = vars_for(Mode::SharedMemory);
         assert!(vars.contains(&("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1")));
         assert!(vars.contains(&("WEBKIT_FORCE_DMABUF_RENDERER", "1")));
@@ -305,21 +394,23 @@ mod tests {
 
     #[test]
     fn other_gpus_get_webkits_own_choice() {
-        assert_eq!(decide(false, Why::None, false, false), (Mode::Accelerated, Why::None));
+        assert_eq!(decide(false, Why::None, false, false, false), (Mode::Accelerated, Why::None));
         assert!(vars_for(Mode::Accelerated).is_empty());
     }
 
     #[test]
     fn your_variables_win_over_everything() {
-        assert_eq!(decide(true, Why::Chosen, true, true).0, Mode::Yours);
+        assert_eq!(decide(true, Why::Chosen, true, true, true).0, Mode::Yours);
         assert!(vars_for(Mode::Yours).is_empty());
     }
 
     #[test]
     fn compatibility_when_saved_or_after_an_early_close() {
-        assert_eq!(decide(false, Why::Chosen, false, true), (Mode::Compat, Why::Chosen));
-        assert_eq!(decide(false, Why::None, true, false), (Mode::Compat, Why::AfterCrash));
-        assert_eq!(decide(false, Why::AfterCrash, false, false), (Mode::Compat, Why::AfterCrash));
+        assert_eq!(decide(false, Why::Chosen, false, true, false), (Mode::Compat, Why::Chosen));
+        assert_eq!(decide(false, Why::None, true, false, false), (Mode::Compat, Why::AfterCrash));
+        assert_eq!(decide(false, Why::AfterCrash, false, false, false), (Mode::Compat, Why::AfterCrash));
+        // Saved compatibility wins over the DMA-BUF try.
+        assert_eq!(decide(false, Why::Chosen, false, true, true), (Mode::Compat, Why::Chosen));
         let vars = vars_for(Mode::Compat);
         assert!(vars.contains(&("WEBKIT_DISABLE_COMPOSITING_MODE", "1")));
         assert!(vars.contains(&("WEBKIT_DISABLE_DMABUF_RENDERER", "1")));
@@ -343,6 +434,41 @@ mod tests {
         assert!(!running_myorbiter(u32::MAX), "no such process");
         // A process with another name (the shell running the tests' parent, or init) isn't MyOrbiter.
         assert!(!running_myorbiter(1));
+    }
+
+    #[test]
+    fn dmabuf_try_only_with_nvidia_and_dropped_after_an_early_close() {
+        assert_eq!(decide(false, Why::None, false, true, true), (Mode::DmaBuf, Why::None));
+        // Other drivers already get DMA-BUF from WebKit: the switch changes nothing there.
+        assert_eq!(decide(false, Why::None, false, false, true), (Mode::Accelerated, Why::None));
+        // The try closed early: back to shared memory, not to compatibility rendering.
+        assert_eq!(decide(false, Why::None, true, true, true), (Mode::SharedMemory, Why::DmaBufFailed));
+        // Without the try, an early close still means compatibility.
+        assert_eq!(decide(false, Why::None, true, true, false), (Mode::Compat, Why::AfterCrash));
+        let vars = vars_for(Mode::DmaBuf);
+        assert_eq!(vars, &[("WEBKIT_FORCE_DMABUF_RENDERER", "1")]);
+        assert!(!vars.iter().any(|(k, _)| *k == "WEBKIT_DMABUF_RENDERER_FORCE_SHM" || k.starts_with("WEBKIT_DISABLE")));
+        let a = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        assert!(dmabuf_off_in(a(&["--no-dmabuf"])));
+        assert!(!dmabuf_off_in(a(&["--no-compat-rendering"])));
+    }
+
+    #[test]
+    fn the_timing_report_names_your_variables_without_their_values() {
+        let v = vec!["WEBKIT_DISABLE_COMPOSITING_MODE=1".to_owned(), "WEBKIT_FORCE_DMABUF_RENDERER=anything at all".to_owned()];
+        assert_eq!(names_only(&v), "WEBKIT_DISABLE_COMPOSITING_MODE WEBKIT_FORCE_DMABUF_RENDERER");
+    }
+
+    #[test]
+    fn dmabuf_choice_round_trips() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-dmabuf-{}", std::process::id()));
+        assert!(!read_dmabuf(&dir));
+        write_dmabuf(&dir, true).unwrap();
+        assert!(read_dmabuf(&dir));
+        write_dmabuf(&dir, false).unwrap();
+        assert!(!read_dmabuf(&dir));
+        write_dmabuf(&dir, false).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

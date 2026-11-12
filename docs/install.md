@@ -75,7 +75,9 @@ From then on it draws without the graphics card, slower but everywhere, until yo
 *Compatibility rendering* in Settings → *Display* (or start once with `--no-compat-rendering`).
 If an accelerated start closes within its first minute, the next start switches to compatibility
 rendering by itself. With NVIDIA's driver, MyOrbiter keeps the graphics card but passes frames
-through shared memory.
+through shared memory. An experimental switch in Settings → *Logs* passes them as DMA-BUF instead
+from the next start, to compare the two with *Record timings*; a start that closes within a minute
+turns it off again, and a window that stays blank needs one start with `--no-dmabuf`.
 
 WebKit's own variables (`WEBKIT_DISABLE_COMPOSITING_MODE`, `WEBKIT_FORCE_COMPOSITING_MODE`,
 `WEBKIT_DISABLE_DMABUF_RENDERER`, `WEBKIT_DMABUF_RENDERER_FORCE_SHM`,

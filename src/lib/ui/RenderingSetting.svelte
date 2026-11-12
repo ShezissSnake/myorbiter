@@ -12,6 +12,7 @@
   const NOW: Record<string, string> = {
     accelerated: "accelerated, on the graphics card",
     sharedMemory: "accelerated, on the graphics card (frames passed through shared memory for the NVIDIA driver)",
+    dmaBuf: "accelerated, on the graphics card (frames passed as DMA-BUF: the experimental switch under Logs)",
     compat: "compatibility rendering",
     yours: "set by your own WebKit variables",
   };

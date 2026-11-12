@@ -1,0 +1,951 @@
+// Record timings (Settings › Logs; off unless switched on): where the app is slow on the player's
+// own machine, with their own account, the game running or not. It reuses scripts/perf/probe.js's
+// ways of measuring in WebKit, which has no long-task observer:
+//
+// - an action (a click or a key that changes what is shown, a page switch): ms from the event to
+//   the next painted frame (a requestAnimationFrame, then a posted message, which runs just after
+//   that frame is drawn), and to the paint after the last DOM change (settled; it counts as
+//   settled once nothing changed for QUIET ms, which isn't in the figure; at most CAP ms). Only
+//   the page's id and the kind of control are kept;
+// - frames: the time between animation frames while the window is visible and focused, those over
+//   50 ms and over 100 ms counted per minute, during an action and at rest apart;
+// - stalls: a timer every BEAT ms that came more than 100 ms late, with the store tick that was
+//   running (a sync, a market poll, the mission poll, the overlay's files);
+// - backend commands: count, median and longest round trip, by command name;
+// - start-up: process start to first paint, and to the first page settled;
+// - the three things a player feels most, each on its own lines: Settings and an item's card
+//   (the panel with its details) opened and closed, from the click or key to the first frame drawn
+//   with the panel shown or gone, and to settled; and scrolling, the frames drawn while a list
+//   scrolls (from its first scroll event to SCROLL_END ms after its last), per page and list.
+//
+// Never an item's, a player's or a file's name, a price or a balance: no text, label, title, value or
+// id of any element is read, only its tag and role; keys are kept as a kind ("typing", "Enter").
+// Nothing leaves the machine: a one-minute summary goes to the app's log, and the report to the
+// clipboard and the log folder when the player asks for it. Off, every hook returns at once.
+//
+// The recorder times its own callbacks (`self` in the report), so its cost is in the report too.
+
+/** A minute's summary line for the log (backend's logLine), set by the app. */
+type Logger = (line: string) => void;
+
+export interface TimingContext {
+  /** The page shown (its id: "orders", "mastery"). */
+  page: () => string;
+  /** Sizes only: inventory entries, listings, pages mounted. */
+  sizes: () => Record<string, number | null>;
+  /** Whether the game runs, as TennoScope last said (null: unknown). */
+  gameRunning: () => boolean | null;
+  log: Logger;
+}
+
+/** What the backend says about where the report is taken (timing.rs); null in a browser. */
+export interface TimingEnv {
+  version: string;
+  os: string;
+  arch: string;
+  engine: string | null;
+  frames: string;
+  gpu: string | null;
+  processStart: number | null;
+  runStart: number | null;
+}
+
+const QUIET = 300;
+const CAP = 3000;
+/** No DOM change this long after a click: it changed nothing shown, and isn't kept. */
+const NO_CHANGE = 1000;
+const BEAT = 25;
+const STALL = 100;
+/** A timer this late is a suspend or a throttled hidden window, not a stall. */
+const ASLEEP = 30_000;
+/** A gap between frames this long is a window that wasn't drawn (covered, minimised), not a frame. */
+const NOT_DRAWN = 2000;
+const ACTIONS_KEPT = 500;
+const SLOWEST_KEPT = 20;
+const STALLS_KEPT = 300;
+const SAMPLES_KEPT = 200;
+/** A scroll counts as over this long after its last scroll event. */
+const SCROLL_END = 300;
+/** Frame gaps kept per scroll, at most (a long scroll at 60 fps is 33 s of them). */
+const SCROLL_GAPS = 2000;
+/** The watched panels, as bits of panelsShown(): Settings, an item's card. */
+const PANEL_NAMES: [number, string][] = [[1, "Settings"], [2, "item's card"]];
+
+export interface Action {
+  /** ms since the recorder was switched on. */
+  at: number;
+  /** "click", "key: typing", "page switch". */
+  how: string;
+  /** The page shown when it started, and after (a switch). */
+  page: string;
+  to: string | null;
+  /** The kind of control and where it is: "button in sidebar". */
+  control: string;
+  paint: number;
+  settled: number;
+  capped: boolean;
+  /** The longest stall while it ran (0: none over STALL). */
+  stall: number;
+  ticks: string[];
+  /** A watched panel it opened or closed ("Settings opened"). */
+  panel?: string;
+}
+interface Stall {
+  at: number;
+  ms: number;
+  ticks: string[];
+  focused: boolean;
+  inAction: boolean;
+}
+interface Minute {
+  frames: number;
+  actionOver50: number;
+  actionOver100: number;
+  restOver50: number;
+  restOver100: number;
+  notDrawn: number;
+}
+interface PanelStats {
+  n: number;
+  frame: Samples;
+  settled: Samples;
+  /** Changes whose frame didn't come before the action was cut off. */
+  unframed: number;
+  /** Changes cut off before they settled (not in `settled`). */
+  unsettled: number;
+}
+interface ScrollStats {
+  sessions: number;
+  frames: number;
+  over50: number;
+  over100: number;
+  max: number;
+  gaps: Samples;
+  /** The list's length in screens (its scroll height over its height), the longest seen. */
+  screens: number;
+}
+class Samples {
+  n = 0;
+  fails = 0;
+  max = 0;
+  ring: number[] = [];
+  add(ms: number) {
+    this.n++;
+    if (ms > this.max) this.max = ms;
+    if (this.ring.length < SAMPLES_KEPT) this.ring.push(ms);
+    else this.ring[this.n % SAMPLES_KEPT] = ms;
+  }
+  median() {
+    return median(this.ring);
+  }
+}
+
+const median = (xs: number[]) => {
+  if (!xs.length) return 0;
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2;
+};
+const now = () => performance.now();
+const r = (x: number) => Math.round(x);
+
+/** The kind of a control, from its tag and role only. */
+const ROLES = new Set(["button", "switch", "checkbox", "radio", "tab", "menuitem", "option", "link", "slider", "combobox", "row", "gridcell", "treeitem"]);
+const INPUTS: Record<string, string> = { checkbox: "checkbox", radio: "radio", range: "slider", number: "number field", search: "search field", text: "text field", "": "text field" };
+/** Panels whose title is a fixed word, never an item's name. */
+const PANELS = new Set(["Settings", "Notifications", "TennoScope"]);
+export function controlOf(target: EventTarget | null): string {
+  const el = target instanceof Element ? target : null;
+  const c = el?.closest("button, a, input, select, textarea, summary, [role], [tabindex]") ?? null;
+  let kind = "page";
+  if (c) {
+    const role = c.getAttribute("role");
+    const tag = c.tagName.toLowerCase();
+    if (role && ROLES.has(role)) kind = role;
+    else if (tag === "button" || tag === "summary") kind = tag === "summary" ? "fold" : "button";
+    else if (tag === "a") kind = "link";
+    else if (tag === "select") kind = "list";
+    else if (tag === "textarea") kind = "text field";
+    else if (tag === "input") kind = INPUTS[(c.getAttribute("type") ?? "").toLowerCase()] ?? "field";
+    else kind = "control";
+  }
+  const where = placeOf(el ?? c);
+  return where ? `${kind} in ${where}` : kind;
+}
+
+/** Where an element sits: the sidebar, a panel (a fixed panel's title only), a dialog, a table. */
+function placeOf(at: Element | null): string {
+  if (!at) return "";
+  if (at.closest(".rail")) return "sidebar";
+  const sheet = at.closest(".sheet");
+  if (sheet) {
+    const t = sheet.getAttribute("aria-label") ?? "";
+    return PANELS.has(t) ? `${t} panel` : "item's card";
+  }
+  if (at.closest("[role=dialog], dialog")) return "dialog";
+  if (at.closest("thead")) return "table header";
+  if (at.closest("tr, [role=row]")) return "table row";
+  return "";
+}
+
+/** What scrolled: the page itself, a list inside it, or a list in the sidebar, a panel, a dialog. */
+function scrollPlace(el: Element | null): string {
+  if (!el || el === document.documentElement || el === document.body) return "window";
+  const where = placeOf(el);
+  if (where) return `list in ${where}`;
+  if (el.classList.contains("pane") || el.parentElement?.classList.contains("pane")) return "page";
+  return el.closest(".pane") ? "list in the page" : "window";
+}
+
+/**
+ * The watched panels shown, as bits (PANEL_NAMES): Settings, and an item's card, which is any
+ * other sliding panel than the fixed ones (its title is the item's name: only that it isn't a
+ * fixed title is looked at, and nothing of it is kept). One sliding off, or kept built but
+ * closed, is inert: gone for the player.
+ */
+const sheets = new Set<Element>();
+/**
+ * Each sliding panel (Sheet.svelte) is put here while it's built, so finding them costs nothing:
+ * a live `getElementsByClassName` list walks the whole page again after every DOM change.
+ */
+export function sheetBuilt(el: Element) {
+  sheets.add(el);
+  return { destroy: () => void sheets.delete(el) };
+}
+function panelsShown(): number {
+  let bits = 0;
+  for (const el of sheets) {
+    if (el.getAttribute("role") !== "dialog" || (el as HTMLElement).inert) continue;
+    // A card left open on a page no longer shown isn't on screen.
+    const pane = el.closest(".pane");
+    if (pane && !pane.classList.contains("shown")) continue;
+    const t = el.getAttribute("aria-label") ?? "";
+    if (t === "Settings") bits |= 1;
+    else if (!PANELS.has(t)) bits |= 2;
+  }
+  return bits;
+}
+
+/** A key as a kind: never the character typed (a digit in a price field is the price). */
+export function keyKind(e: Pick<KeyboardEvent, "key" | "ctrlKey" | "metaKey" | "altKey">): string {
+  if (e.ctrlKey || e.metaKey || e.altKey) return "shortcut";
+  const k = e.key;
+  if (k === "Enter" || k === "Escape" || k === "Tab") return k;
+  if (k === " ") return "Space";
+  if (k.startsWith("Arrow") || k === "PageUp" || k === "PageDown" || k === "Home" || k === "End") return "navigation";
+  if (k === "Backspace" || k === "Delete") return "erase";
+  if (/^F\d{1,2}$/.test(k)) return k;
+  if (k.length === 1) return "typing";
+  return "other";
+}
+
+export class Recorder {
+  on = false;
+  private ctx: TimingContext | null = null;
+  private since = 0;
+  private sinceWall = 0;
+  private fromStart = false;
+  // Start-up marks (performance.now()), kept even while off: three numbers.
+  private firstFrame: number | null = null;
+  private modelShown: number | null = null;
+  private startPage = "";
+  private startSettled: number | null = null;
+  private startCapped = false;
+  private startNotDrawn = false;
+
+  private actions: Action[] = [];
+  private slowest: Action[] = [];
+  private byKind = new Map<string, Samples & { paints: number[] }>();
+  private panels = new Map<string, PanelStats>();
+  private scrolls = new Map<string, ScrollStats>();
+  /** The scroll going on: its frame gaps so far. */
+  private scrolling: { key: string; last: number; events: number; gaps: number[]; el: Element | null } | null = null;
+  private stalls: Stall[] = [];
+  private stallCount = 0;
+  private minutes = new Map<number, Minute>();
+  private commands = new Map<string, Samples>();
+  private own = new Map<string, Samples>();
+  private selfMax = 0;
+  private selfTotal = 0;
+  private ticks = new Map<string, number>();
+  /** Ticks that ended lately, for a stall noticed after its tick was over: [name, start, end]. */
+  private ended: [string, number, number][] = [];
+
+  // The action being timed, if one is.
+  // `lastPaint`: the paint after its latest DOM change (one frame asked for at a time).
+  // `panels0`: the watched panels shown when it began; `panelAt`, `panelKeys`: when that changed,
+  // and how; `pw`: the paint after that change.
+  private open: { t0: number; how: string; page: string; control: string; paint: number | null; firstChange: number | null; lastChange: number; lastPaint: number; paintAsked: boolean; ticks: Set<string>; stall: number; panels0: number; panelAt: number | null; panelKeys: string[]; pw: { lastPaint: number; paintAsked: boolean } } | null = null;
+  private observer: MutationObserver | null = null;
+  private settleTimer: ReturnType<typeof setTimeout> | undefined;
+  private beatTimer: ReturnType<typeof setTimeout> | undefined;
+  private lastBeat = 0;
+  private raf = 0;
+  private lastFrame = 0;
+  private minuteTimer: ReturnType<typeof setInterval> | undefined;
+  private lastSummary = { actions: 0, stalls: 0, frames: { a50: 0, a100: 0, r50: 0, r100: 0 } };
+  private startWatch: { quietSince: number; t0: number; lastPaint: number; paintAsked: boolean; framed?: boolean } | null = null;
+  /** Frame counts since switched on (the minutes keep only the last ten hours). */
+  private totals = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
+
+  /** At start, before anything else draws: marks the first frame (one callback, recorder on or off). */
+  noteStart() {
+    if (typeof requestAnimationFrame !== "function" || this.firstFrame != null) return;
+    requestAnimationFrame(() => postAfter(() => (this.firstFrame ??= now())));
+  }
+
+  /** The first page's data is in and drawn: start-up's last stage is that page settling. */
+  noteModelShown(page: string) {
+    if (this.modelShown != null) return;
+    this.modelShown = now();
+    this.startPage = page;
+    if (this.on) this.watchStart();
+  }
+
+  /** Switched on (Settings, or at start with the setting saved on). */
+  enable(ctx: TimingContext) {
+    this.ctx = ctx;
+    if (this.on || typeof window === "undefined") return;
+    this.on = true;
+    this.since = now();
+    this.sinceWall = Date.now();
+    this.fromStart = this.modelShown == null;
+    this.reset();
+    window.addEventListener("click", this.onClick, { capture: true, passive: true });
+    window.addEventListener("keydown", this.onKey, { capture: true, passive: true });
+    window.addEventListener("scroll", this.onScroll, { capture: true, passive: true });
+    document.addEventListener("visibilitychange", this.onVisible);
+    window.addEventListener("focus", this.onVisible);
+    this.lastBeat = now();
+    this.beatTimer = setTimeout(this.beat, BEAT);
+    this.startFrames();
+    this.minuteTimer = setInterval(this.summary, 60_000);
+    if (this.modelShown != null && this.startSettled == null && this.fromStart) this.watchStart();
+  }
+
+  disable() {
+    if (!this.on) return;
+    this.on = false;
+    window.removeEventListener("click", this.onClick, { capture: true });
+    window.removeEventListener("keydown", this.onKey, { capture: true });
+    window.removeEventListener("scroll", this.onScroll, { capture: true });
+    document.removeEventListener("visibilitychange", this.onVisible);
+    window.removeEventListener("focus", this.onVisible);
+    clearTimeout(this.beatTimer);
+    clearTimeout(this.settleTimer);
+    clearInterval(this.minuteTimer);
+    cancelAnimationFrame(this.raf);
+    this.raf = 0;
+    this.observer?.disconnect();
+    this.observer = null;
+    this.open = null;
+    this.startWatch = null;
+    this.scrolling = null;
+  }
+
+  private reset() {
+    this.actions = [];
+    this.slowest = [];
+    this.byKind.clear();
+    this.panels.clear();
+    this.scrolls.clear();
+    this.scrolling = null;
+    this.stalls = [];
+    this.stallCount = 0;
+    this.minutes.clear();
+    this.totals = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
+    this.commands.clear();
+    this.own.clear();
+    this.selfMax = this.selfTotal = 0;
+    this.lastSummary = { actions: 0, stalls: 0, frames: { a50: 0, a100: 0, r50: 0, r100: 0 } };
+  }
+
+  /** Times the recorder's own work. */
+  private self<T>(f: () => T): T {
+    const t = now();
+    try {
+      return f();
+    } finally {
+      const d = now() - t;
+      this.selfTotal += d;
+      if (d > this.selfMax) this.selfMax = d;
+    }
+  }
+
+  /**
+   * A store tick (a sync, a market poll, the mission poll, the overlay's files): named while it
+   * runs, so a stall can say what was running. Off, it only calls `f`.
+   */
+  tick<T>(name: string, f: () => T): T {
+    if (!this.on) return f();
+    const t0 = now();
+    this.ticks.set(name, (this.ticks.get(name) ?? 0) + 1);
+    if (this.open) this.open.ticks.add(name);
+    const end = () => {
+      const n = (this.ticks.get(name) ?? 1) - 1;
+      if (n <= 0) this.ticks.delete(name);
+      else this.ticks.set(name, n);
+      this.ended.push([name, t0, now()]);
+      if (this.ended.length > 50) this.ended.splice(0, this.ended.length - 50);
+    };
+    let out: T;
+    try {
+      out = f();
+    } catch (e) {
+      end();
+      throw e;
+    }
+    if (out instanceof Promise) return out.finally(end) as T;
+    end();
+    return out;
+  }
+
+  /** A backend command's round trip (backend.ts's invoke). */
+  command(name: string, ms: number, ok: boolean, own: boolean) {
+    if (!this.on) return;
+    this.self(() => {
+      const map = own ? this.own : this.commands;
+      let s = map.get(name);
+      if (!s) map.set(name, (s = new Samples()));
+      s.add(ms);
+      if (!ok) s.fails++;
+    });
+  }
+
+  /** The page shown changed: a switch with no click before it (a link, a shortcut, a notice) is an action of its own. */
+  pageChanged() {
+    if (!this.on || !this.ctx) return;
+    this.self(() => {
+      if (!this.open) this.begin(now(), "page switch", "page", this.ctx!.page());
+    });
+  }
+
+  private onClick = (e: MouseEvent) => this.self(() => this.begin(now(), "click", controlOf(e.target)));
+  private onKey = (e: KeyboardEvent) => {
+    // A modifier on its own changes nothing.
+    if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
+    this.self(() => this.begin(now(), `key: ${keyKind(e)}`, controlOf(e.target)));
+  };
+  /** A scroll event (scroll events don't bubble: this listens in the capture phase). */
+  private onScroll = (e: Event) => this.self(() => {
+    const t = now();
+    const s = this.scrolling;
+    if (s) {
+      s.last = t;
+      s.events++;
+      return;
+    }
+    // Frames are timed only in a focused window (a wheel over an unfocused one gets none).
+    if (!this.focused()) return;
+    const el = e.target instanceof Element ? e.target : null;
+    this.scrolling = { key: `${this.ctx?.page() ?? "?"} · ${scrollPlace(el)}`, last: t, events: 1, gaps: [], el };
+    this.startFrames();
+  });
+  /** The scroll is over: its frames into the stats (one lone event, a jump to the top, isn't a scroll). */
+  private endScroll() {
+    const s = this.scrolling;
+    this.scrolling = null;
+    if (!s || s.events < 2 || !s.gaps.length) return;
+    // Its length, read once the scroll is over (not in the scroll event, ahead of the list's own
+    // handlers, where it could cost a second layout).
+    const el = s.el ?? (typeof document !== "undefined" ? document.documentElement : null);
+    const screens = el && el.clientHeight ? el.scrollHeight / el.clientHeight : 0;
+    let st = this.scrolls.get(s.key);
+    if (!st) this.scrolls.set(s.key, (st = { sessions: 0, frames: 0, over50: 0, over100: 0, max: 0, gaps: new Samples(), screens: 0 }));
+    st.sessions++;
+    st.screens = Math.max(st.screens, screens);
+    for (const d of s.gaps) {
+      st.frames++;
+      if (d > 50) st.over50++;
+      if (d > 100) st.over100++;
+      if (d > st.max) st.max = d;
+      st.gaps.add(d);
+    }
+  }
+
+  private onVisible = () => this.self(() => {
+    this.lastBeat = now();
+    this.lastFrame = 0;
+    this.startFrames();
+  });
+
+  private begin(t0: number, how: string, control: string, page?: string) {
+    if (!this.ctx) return;
+    if (this.open) this.finish(t0, true);
+    const page0 = page ?? this.ctx.page();
+    const a = (this.open = { t0, how, page: page0, control, paint: null as number | null, firstChange: null as number | null, lastChange: 0, lastPaint: 0, paintAsked: false, ticks: new Set(this.ticks.keys()), stall: 0, panels0: panelsShown(), panelAt: null as number | null, panelKeys: [] as string[], pw: { lastPaint: 0, paintAsked: false } });
+    // The next frame after the handlers ran.
+    requestAnimationFrame(() => postAfter(() => {
+      if (this.open === a && a.paint == null) a.paint = now();
+    }));
+    this.observe();
+    clearTimeout(this.settleTimer);
+    this.settleTimer = setTimeout(this.settle, 100);
+  }
+
+  /** DOM changes, only while an action or the start-up is being timed: when, not what. */
+  private observe() {
+    if (this.observer) return;
+    this.observer = new MutationObserver((recs) => this.self(() => {
+      // A batch wholly inside a hidden page (the background warm-up, a hidden page catching up)
+      // isn't what's shown. Only its first and last records are looked at: a sync brings 1500.
+      const t = now();
+      const a = this.open;
+      // A panel shown or gone, looked at in every batch: one sheet's change can come amid a
+      // hidden page's.
+      let panel = false;
+      if (a && a.panelAt == null) {
+        const bits = panelsShown();
+        if (bits !== a.panels0) {
+          panel = true;
+          a.panelAt = t;
+          for (const [b, name] of PANEL_NAMES) if ((bits ^ a.panels0) & b) a.panelKeys.push(`${name} ${bits & b ? "opened" : "closed"}`);
+          paintAfter(a.pw, () => t);
+        }
+      }
+      if (!panel && hidden(recs[0]) && hidden(recs[recs.length - 1])) return;
+      if (a) {
+        a.firstChange ??= t;
+        a.lastChange = t;
+        paintAfter(a, () => a.lastChange);
+      }
+      const w = this.startWatch;
+      if (w) {
+        w.quietSince = t;
+        paintAfter(w, () => w.quietSince);
+      }
+    }));
+    this.observer.observe(document.body, { subtree: true, childList: true, attributes: true, characterData: true });
+  }
+  private unobserve() {
+    if (this.open || this.startWatch) return;
+    this.observer?.disconnect();
+    this.observer = null;
+  }
+
+  private settle = () => this.self(() => {
+    const a = this.open;
+    if (!a) return;
+    const t = now();
+    const changed = a.firstChange != null || (this.ctx && this.ctx.page() !== a.page);
+    if (!changed && t - a.t0 >= NO_CHANGE) {
+      this.open = null;
+      this.unobserve();
+      return;
+    }
+    if (changed && a.paint != null && t - Math.max(a.lastChange, a.t0) >= QUIET && !a.paintAsked) return this.finish(t, false);
+    if (t - a.t0 >= CAP) return this.finish(t, false, true);
+    this.settleTimer = setTimeout(this.settle, 100);
+  });
+
+  /**
+   * Ends the open action: settled at the paint after its last change (not when the quiet wait
+   * ended). Cut short by the next action or the cap, it is marked unsettled unless that paint had
+   * already come.
+   */
+  private finish(t: number, cut: boolean, capped = false) {
+    const a = this.open;
+    if (!a || !this.ctx) return;
+    this.open = null;
+    clearTimeout(this.settleTimer);
+    const to = this.ctx.page();
+    const changed = a.firstChange != null || to !== a.page;
+    this.unobserve();
+    if (!changed) return;
+    // The paint after the last change, if it came; with no DOM change (a switch to a page already
+    // drawn as it was), the first paint.
+    const painted = a.firstChange == null ? a.paint : a.lastPaint && a.lastPaint >= a.lastChange && !a.paintAsked ? a.lastPaint : null;
+    const unsettled = painted == null && (cut || capped);
+    const settledAt = painted ?? t;
+    {
+      const switched = to !== a.page;
+      const rec: Action = {
+        at: a.t0 - this.since,
+        how: switched && a.how !== "page switch" ? `page switch (${a.how})` : a.how,
+        page: a.page,
+        to: switched ? to : null,
+        control: a.control,
+        paint: (a.paint ?? settledAt) - a.t0,
+        settled: settledAt - a.t0,
+        capped: unsettled,
+        stall: a.stall,
+        ticks: [...a.ticks],
+      };
+      if (a.panelKeys.length) rec.panel = a.panelKeys.join(", ");
+      this.keep(rec);
+      // A watched panel shown or gone: the first frame after that, and settled.
+      if (a.panelAt != null) {
+        const framed = a.pw.lastPaint >= a.panelAt && !a.pw.paintAsked ? a.pw.lastPaint - a.t0 : null;
+        for (const k of a.panelKeys) {
+          let p = this.panels.get(k);
+          if (!p) this.panels.set(k, (p = { n: 0, frame: new Samples(), settled: new Samples(), unframed: 0, unsettled: 0 }));
+          p.n++;
+          if (framed == null) p.unframed++;
+          else p.frame.add(framed);
+          if (rec.capped) p.unsettled++;
+          else p.settled.add(rec.settled);
+        }
+      }
+    }
+  }
+
+  private keep(a: Action) {
+    this.actions.push(a);
+    if (this.actions.length > ACTIONS_KEPT) this.actions.splice(0, this.actions.length - ACTIONS_KEPT);
+    this.slowest.push(a);
+    this.slowest.sort((x, y) => y.settled - x.settled);
+    if (this.slowest.length > SLOWEST_KEPT) this.slowest.length = SLOWEST_KEPT;
+    const key = actionKey(a);
+    let s = this.byKind.get(key);
+    if (!s) this.byKind.set(key, (s = Object.assign(new Samples(), { paints: [] as number[] })));
+    s.add(a.settled);
+    if (s.paints.length < SAMPLES_KEPT) s.paints.push(a.paint);
+    else s.paints[s.n % SAMPLES_KEPT] = a.paint;
+  }
+
+  /** The first page after start: settled once nothing on it changed for a second (at most 20 s). */
+  private watchStart() {
+    if (this.startWatch || this.startSettled != null) return;
+    const t0 = this.modelShown ?? now();
+    const w0 = (this.startWatch = { quietSince: now(), t0, lastPaint: 0, paintAsked: false });
+    this.observe();
+    // The data is in the DOM but not yet on screen: with no change after it, settled is this paint.
+    paintAfter(w0, () => w0.quietSince);
+    const check = () => this.self(() => {
+      const w = this.startWatch;
+      if (!w || !this.on) return;
+      const t = now();
+      const quiet = t - w.quietSince >= 1000 && !w.paintAsked;
+      if (quiet || t - w.t0 >= 20_000) {
+        this.startCapped = !quiet;
+        // No frame came at all: the window wasn't drawn (hidden or covered), not still changing.
+        this.startNotDrawn = !quiet && !w.framed;
+        this.startWatch = null;
+        this.unobserve();
+        // The paint after the last change (with no change since the data came in: then).
+        this.startSettled = quiet ? (w.lastPaint >= w.quietSince ? w.lastPaint : w.t0) : t;
+        return;
+      }
+      setTimeout(check, 200);
+    });
+    setTimeout(check, 200);
+  }
+
+  private visible() {
+    return document.visibilityState === "visible";
+  }
+  private focused() {
+    return this.visible() && document.hasFocus();
+  }
+
+  /** The heartbeat: a timer every BEAT ms; one that comes more than STALL ms late was held up. */
+  private beat = () => {
+    if (!this.on) return;
+    this.self(() => {
+      const t = now();
+      const late = t - this.lastBeat - BEAT;
+      if (late > STALL && late < ASLEEP && this.visible()) {
+        const from = this.lastBeat;
+        const names = new Set(this.ticks.keys());
+        for (const [n, s, e] of this.ended) if (e >= from && s <= t) names.add(n);
+        if (this.open) this.open.stall = Math.max(this.open.stall, late);
+        this.stallCount++;
+        const st: Stall = { at: from - this.since, ms: late, ticks: [...names], focused: this.focused(), inAction: !!this.open };
+        this.stalls.push(st);
+        if (this.stalls.length > STALLS_KEPT) {
+          // Keep the longest.
+          this.stalls.sort((x, y) => y.ms - x.ms);
+          this.stalls.length = STALLS_KEPT;
+        }
+      }
+      this.lastBeat = t;
+      this.beatTimer = setTimeout(this.beat, BEAT);
+    });
+  };
+
+  /** Frames, while the window is visible and focused (a covered window gets no frames on Wayland). */
+  private startFrames() {
+    if (!this.on || this.raf || typeof requestAnimationFrame !== "function") return;
+    this.lastFrame = 0;
+    this.raf = requestAnimationFrame(this.frame);
+  }
+  private frame = (ts: number) => {
+    this.raf = 0;
+    if (!this.on) return;
+    this.self(() => {
+      if (!this.focused()) {
+        // Paused until the window is shown or focused again (onVisible starts it).
+        if (this.scrolling) this.endScroll();
+        this.lastFrame = 0;
+        if (this.visible()) this.raf = requestAnimationFrame(this.frame);
+        return;
+      }
+      // A scroll is over SCROLL_END ms after its last event: this frame isn't part of it.
+      if (this.scrolling && now() - this.scrolling.last > SCROLL_END) this.endScroll();
+      if (this.lastFrame) {
+        const d = ts - this.lastFrame;
+        const m = this.minute(now());
+        const tt = this.totals;
+        if (d >= NOT_DRAWN) (m.notDrawn++, tt.notDrawn++);
+        else {
+          m.frames++;
+          tt.frames++;
+          const act = !!this.open;
+          if (d > 50) act ? (m.actionOver50++, tt.a50++) : (m.restOver50++, tt.r50++);
+          if (d > 100) act ? (m.actionOver100++, tt.a100++) : (m.restOver100++, tt.r100++);
+          const sc = this.scrolling;
+          if (sc && sc.gaps.length < SCROLL_GAPS) sc.gaps.push(d);
+        }
+      }
+      this.lastFrame = ts;
+      this.raf = requestAnimationFrame(this.frame);
+    });
+  };
+  private minute(t: number): Minute {
+    const i = Math.floor((t - this.since) / 60_000);
+    let m = this.minutes.get(i);
+    if (!m) {
+      this.minutes.set(i, (m = { frames: 0, actionOver50: 0, actionOver100: 0, restOver50: 0, restOver100: 0, notDrawn: 0 }));
+      // At most ten hours of minutes.
+      if (this.minutes.size > 600) this.minutes.delete(Math.min(...this.minutes.keys()));
+    }
+    return m;
+  }
+
+  /** Each minute, one line in the log: what changed since the last. */
+  private summary = () => this.self(() => {
+    if (!this.on || !this.ctx) return;
+    const f = this.frameTotals();
+    const last = this.lastSummary;
+    const acts = this.actions.slice(Math.max(0, this.actions.length - (this.actionCount - last.actions)));
+    const worst = acts.reduce<Action | null>((w, a) => (!w || a.settled > w.settled ? a : w), null);
+    const newStalls = this.stallCount - last.stalls;
+    const recent = this.stalls.filter((s) => s.at >= now() - this.since - 60_000);
+    const longest = recent.reduce<Stall | null>((w, s) => (!w || s.ms > w.ms ? s : w), null);
+    const cmds = [...this.commands.entries()].sort((a, b) => b[1].max - a[1].max).slice(0, 3).map(([n, s]) => `${n} ${r(s.max)}`).join(", ");
+    const parts = [
+      `actions ${acts.length}${acts.length ? ` (paint median ${r(median(acts.map((a) => a.paint)))} ms, settled median ${r(median(acts.map((a) => a.settled)))} ms${worst ? `, slowest ${actionKey(worst)} ${r(worst.settled)} ms` : ""})` : ""}`,
+      `frames over 50/100 ms: in actions ${f.a50 - last.frames.a50}/${f.a100 - last.frames.a100}, at rest ${f.r50 - last.frames.r50}/${f.r100 - last.frames.r100}`,
+      `stalls ${newStalls}${longest ? ` (longest ${r(longest.ms)} ms${longest.ticks.length ? ` during ${longest.ticks.join(" + ")}` : ""})` : ""}`,
+      this.panelLine(),
+      this.scrollLine(),
+      cmds ? `slowest commands so far ${cmds} ms` : "",
+      `recorder's longest callback ${this.selfMax.toFixed(1)} ms`,
+    ].filter(Boolean);
+    this.lastSummary = { actions: this.actionCount, stalls: this.stallCount, frames: f };
+    this.ctx.log(`timings, last minute: ${parts.join("; ")}`);
+  });
+  /** Since switched on: the median first frame of each panel change seen. */
+  private panelLine() {
+    const parts = [...this.panels].filter(([, p]) => p.frame.n).map(([k, p]) => `${k} ${r(p.frame.median())}`);
+    return parts.length ? `panels, median ms to the first frame: ${parts.join(", ")}` : "";
+  }
+  private scrollLine() {
+    let n = 0, max = 0, o50 = 0;
+    for (const s of this.scrolls.values()) (n += s.sessions, (max = Math.max(max, s.max)), (o50 += s.over50));
+    return n ? `scrolling: ${n} scrolls, ${o50} frames over 50 ms, longest frame ${r(max)} ms` : "";
+  }
+  private get actionCount() {
+    let n = 0;
+    for (const s of this.byKind.values()) n += s.n;
+    return n;
+  }
+  private frameTotals() {
+    return { ...this.totals };
+  }
+
+  /** The plain-text report: numbers, the system, sizes. Never a name, a price or a path. */
+  report(env: TimingEnv | null, extra: { window: string; scale: number }): string {
+    return this.self(() => buildReport(this, env, extra));
+  }
+
+  /** What the report is built from (for buildReport and the tests). */
+  data() {
+    const ctx = this.ctx;
+    return {
+      on: this.on,
+      sinceWall: this.sinceWall,
+      lasted: this.on ? now() - this.since : 0,
+      fromStart: this.fromStart,
+      start: {
+        firstFrame: this.firstFrame,
+        modelShown: this.modelShown,
+        settled: this.startSettled,
+        capped: this.startCapped,
+        notDrawn: this.startNotDrawn,
+        page: this.startPage,
+      },
+      actions: this.actions,
+      actionCount: this.actionCount,
+      slowest: this.slowest,
+      byKind: [...this.byKind.entries()].map(([k, s]) => ({ key: k, n: s.n, paint: median(s.paints), settled: s.median(), max: s.max })),
+      panels: PANEL_NAMES.flatMap(([, name]) => ["opened", "closed"].map((how) => {
+        const k = `${name} ${how}`;
+        const p = this.panels.get(k);
+        return { key: k, n: p?.n ?? 0, unframed: p?.unframed ?? 0, unsettled: p?.unsettled ?? 0, frame: p?.frame.n ? { median: p.frame.median(), max: p.frame.max } : null, settled: p?.settled.n ? { median: p.settled.median(), max: p.settled.max } : null };
+      })),
+      scrolls: [...this.scrolls.entries()].map(([k, s]) => ({ key: k, sessions: s.sessions, frames: s.frames, over50: s.over50, over100: s.over100, median: s.gaps.median(), max: s.max, screens: s.screens })),
+      stalls: this.stalls,
+      stallCount: this.stallCount,
+      minutes: [...this.minutes.entries()].sort((a, b) => a[0] - b[0]),
+      frames: this.frameTotals(),
+      commands: [...this.commands.entries()].map(([n, s]) => ({ name: n, n: s.n, fails: s.fails, median: s.median(), max: s.max })),
+      own: [...this.own.entries()].map(([n, s]) => ({ name: n, n: s.n, median: s.median(), max: s.max })),
+      self: { max: this.selfMax, total: this.selfTotal },
+      sizes: ctx?.sizes() ?? {},
+      gameRunning: ctx?.gameRunning() ?? null,
+    };
+  }
+}
+
+/** Asks for the paint after a DOM change, once per frame: `lastPaint` is set just after it. */
+/** `changedAt` gives the latest change: one made after the frame was drawn waits for the next. */
+function paintAfter(w: { lastPaint: number; paintAsked: boolean; framed?: boolean }, changedAt: () => number) {
+  if (w.paintAsked || typeof requestAnimationFrame !== "function") return;
+  w.paintAsked = true;
+  const ask = () =>
+    requestAnimationFrame(() => {
+      w.framed = true;
+      const drawn = now();
+      postAfter(() => {
+        if (changedAt() > drawn) return void ask();
+        w.paintAsked = false;
+        w.lastPaint = now();
+      });
+    });
+  ask();
+}
+
+/** Posts a message from inside an animation frame: it runs just after that frame was drawn. The
+ *  port is closed once it has answered, so no channel outlives its message. */
+function postAfter(f: () => void) {
+  const c = new MessageChannel();
+  c.port1.onmessage = () => {
+    c.port1.close();
+    f();
+  };
+  c.port2.postMessage(0);
+}
+
+function hidden(rec: MutationRecord | undefined): boolean {
+  const n = rec?.target;
+  const el = n instanceof Element ? n : (n?.parentElement ?? null);
+  const pane = el?.closest(".pane");
+  return !!pane && !pane.classList.contains("shown");
+}
+
+const actionKey = (a: Action) => (a.to ? `${a.page} → ${a.to} · ${a.control}` : `${a.page} · ${a.how} · ${a.control}`);
+
+const pad = (s: string | number, n: number) => String(s).padStart(n);
+const clock = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+const utc = (ms: number) => new Date(ms).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+
+export function buildReport(rec: Recorder, env: TimingEnv | null, extra: { window: string; scale: number }): string {
+  const d = rec.data();
+  const out: string[] = [];
+  const line = (s = "") => out.push(s);
+  line("MyOrbiter timing report");
+  line(`Recorded from ${utc(d.sinceWall)} for ${clock(d.lasted)} (min:s)${d.fromStart ? ", on since the app started" : ", switched on after the app started"}.`);
+  line(`Version ${env?.version ?? "browser build"} · ${env?.os ?? "unknown system"} ${env?.arch ?? ""} · ${env?.engine ?? engineFromAgent()}`.replace(/\s+·/g, " ·"));
+  line(`Frames handed over: ${env?.frames ?? "the browser's own"} · graphics: ${env?.gpu ?? "unknown"}`);
+  line(`Window ${extra.window} at scale ${extra.scale} · game running: ${d.gameRunning == null ? "unknown" : d.gameRunning ? "yes" : "no"}`);
+  const sizes = Object.entries(d.sizes).map(([k, v]) => `${v ?? "?"} ${k}`).join(", ");
+  if (sizes) line(`Sizes: ${sizes}`);
+  line();
+
+  line("Start-up (ms)");
+  const st = d.start;
+  const origin = performance.timeOrigin;
+  const proc = env?.processStart ?? env?.runStart ?? null;
+  const fromProc = (t: number | null) => (t == null || proc == null || !origin ? null : r(origin + t - proc));
+  if (proc == null) line("  process start: not known here (the desktop app gives it)");
+  const ff = fromProc(st.firstFrame);
+  line(`  first paint: ${ff ?? "–"} from process start${st.firstFrame != null ? ` (${r(st.firstFrame)} after the page began loading)` : ""}`);
+  if (st.modelShown != null) line(`  data in and drawn on ${st.page || "the first page"}: ${fromProc(st.modelShown) ?? "–"} from process start (${r(st.modelShown)} after the page began loading)`);
+  if (st.settled != null) line(`  ${st.page || "first page"} settled${st.notDrawn ? " (no frame drawn in 20 s: the window was hidden or covered)" : st.capped ? " (still changing at 20 s)" : ""}: ${fromProc(st.settled) ?? "–"} from process start (${r(st.settled)} after the page began loading)`);
+  else line(`  first page settled: ${d.fromStart ? "not yet" : "not recorded (switched on after start; on at the next start, it is)"}`);
+  line();
+
+  line("Panels: times, ms to the first frame drawn with it shown or gone (median / longest), to settled (median / longest)");
+  for (const p of d.panels) {
+    if (!p.n) {
+      line(`  ${p.key.padEnd(20)} not yet`);
+      continue;
+    }
+    const fr = p.frame ? `${pad(r(p.frame.median), 5)} / ${pad(r(p.frame.max), 5)}` : `    – /     –`;
+    const se = p.settled ? `${pad(r(p.settled.median), 5)} / ${pad(r(p.settled.max), 5)}` : `    – /     –`;
+    const cut = [p.unframed ? `${p.unframed} cut off before their frame` : "", p.unsettled ? `${p.unsettled} before settling` : ""].filter(Boolean).join(", ");
+    line(`  ${p.key.padEnd(20)} ${pad(p.n, 4)} × · first frame ${fr} · settled ${se}${cut ? ` · ${cut}` : ""}`);
+  }
+  line();
+
+  line("Scrolling: per page and list, scrolls, frames, frame median / longest (ms), frames over 50 / 100 ms, list length in screens");
+  const scrolls = [...d.scrolls].sort((a, b) => b.max - a.max).slice(0, 20);
+  if (!scrolls.length) line("  none yet");
+  for (const s of scrolls) line(`  ${s.key.padEnd(34)} ${pad(s.sessions, 4)} × ${pad(s.frames, 6)} frames · ${pad(s.median.toFixed(1), 5)} / ${pad(r(s.max), 5)} · over 50/100: ${s.over50} / ${s.over100}${s.screens ? ` · ${s.screens.toFixed(1)} screens` : ""}`);
+  if (d.scrolls.length > scrolls.length) line(`  … ${d.scrolls.length - scrolls.length} more`);
+  line();
+
+  line(`Slowest ${Math.min(10, d.slowest.length)} actions (of ${d.actionCount}): ms to the next paint / to settled`);
+  if (!d.slowest.length) line("  none yet");
+  d.slowest.slice(0, 10).forEach((a, i) => {
+    const what = a.to ? `${a.page} → ${a.to}, ${a.how}, ${a.control}` : `${a.page}: ${a.how}, ${a.control}`;
+    line(`  ${pad(i + 1, 2)}. ${pad(r(a.paint), 5)} / ${pad(r(a.settled), 5)}${a.capped ? "+" : " "} ${what}${a.panel ? ` · ${a.panel}` : ""}${a.stall ? ` · stall ${r(a.stall)}` : ""}${a.ticks.length ? ` · during ${a.ticks.join(" + ")}` : ""} · at ${clock(a.at)}`);
+  });
+  line("  (+: not settled yet when cut off, at 3 s or by the next action)");
+  line();
+
+  line("Actions by kind: count, median paint, median settled, longest settled (ms)");
+  const kinds = [...d.byKind].sort((a, b) => b.max - a.max).slice(0, 40);
+  for (const k of kinds) line(`  ${pad(k.n, 4)} ${pad(r(k.paint), 5)} ${pad(r(k.settled), 6)} ${pad(r(k.max), 6)}  ${k.key}`);
+  if (d.byKind.length > kinds.length) line(`  … ${d.byKind.length - kinds.length} more kinds`);
+  line();
+
+  const f = d.frames;
+  line("Frames over 50 ms / over 100 ms (window visible and focused)");
+  line(`  in actions: ${f.a50} / ${f.a100} · at rest: ${f.r50} / ${f.r100} · of ${f.frames} frames${f.notDrawn ? ` · ${f.notDrawn} gaps over 2 s not counted (window not drawn)` : ""}`);
+  line("  minute  frames  action>50 action>100  rest>50 rest>100");
+  const mins = d.minutes.slice(-60);
+  if (d.minutes.length > mins.length) line(`  (the last 60 of ${d.minutes.length} minutes)`);
+  for (const [i, m] of mins) line(`  ${pad(i + 1, 6)} ${pad(m.frames, 7)} ${pad(m.actionOver50, 10)} ${pad(m.actionOver100, 10)} ${pad(m.restOver50, 8)} ${pad(m.restOver100, 8)}`);
+  line();
+
+  line(`Stalls over ${STALL} ms on the main thread: ${d.stallCount}${d.stallCount ? `, longest ${r(Math.max(...d.stalls.map((s) => s.ms)))} ms` : ""}`);
+  const byTick = new Map<string, { n: number; ms: number }>();
+  for (const s of d.stalls) {
+    const k = s.ticks.length ? s.ticks.join(" + ") : "no store tick";
+    const e = byTick.get(k) ?? { n: 0, ms: 0 };
+    e.n++;
+    e.ms = Math.max(e.ms, s.ms);
+    byTick.set(k, e);
+  }
+  for (const [k, e] of [...byTick].sort((a, b) => b[1].n - a[1].n)) line(`  ${pad(e.n, 4)} × during ${k} (longest ${r(e.ms)} ms)`);
+  const top = [...d.stalls].sort((a, b) => b.ms - a.ms).slice(0, 20);
+  if (top.length) line("  longest:");
+  for (const s of top) line(`  ${pad(r(s.ms), 6)} ms at ${clock(s.at)}${s.ticks.length ? ` during ${s.ticks.join(" + ")}` : ""}${s.inAction ? " · in an action" : ""}${s.focused ? "" : " · window not focused"}`);
+  line();
+
+  line("Backend commands: count, failed, median, longest round trip (ms)");
+  const cmds = [...d.commands].sort((a, b) => b.max - a.max);
+  if (!cmds.length) line(env ? "  none yet" : "  none: only the desktop app has them");
+  for (const c of cmds) line(`  ${pad(c.n, 6)} ${pad(c.fails, 4)} ${pad(c.median.toFixed(1), 7)} ${pad(r(c.max), 6)}  ${c.name}`);
+  line();
+
+  line("The recorder itself");
+  line(`  longest callback ${d.self.max.toFixed(2)} ms, ${r(d.self.total)} ms in all over ${clock(d.lasted)}`);
+  for (const c of d.own) line(`  ${c.name}: ${c.n} × (median ${c.median.toFixed(1)}, longest ${r(c.max)} ms)`);
+  return out.join("\n") + "\n";
+}
+
+/** In a browser: the engine as its user agent names it (the desktop app asks WebKitGTK itself). */
+function engineFromAgent(): string {
+  const ua = typeof navigator === "undefined" ? "" : navigator.userAgent;
+  const m = /(Edg|Chrome|Firefox|Version)\/([\d.]+)/.exec(ua);
+  const wk = /AppleWebKit\/([\d.]+)/.exec(ua);
+  return m ? `${m[1] === "Version" ? "WebKit" : m[1]} ${m[2]}` : wk ? `AppleWebKit ${wk[1]}` : "unknown engine";
+}
+
+
+export const timing = new Recorder();

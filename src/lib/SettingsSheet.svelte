@@ -25,6 +25,7 @@
   import { updates } from "./updates.svelte";
   import { CHANNELS, CHANNEL_LABEL, REPO_URL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
+  import TimingSetting from "./ui/TimingSetting.svelte";
 
   let {
     open = $bindable(),
@@ -364,6 +365,7 @@
       </div>
       {#if f.myorbiter}<p class="hint path-note">{f.myorbiter}</p>{/if}
     {/if}
+    <TimingSetting bind:on={settings.recordTimings} />
   </section>
 
   <section id="settings-report">

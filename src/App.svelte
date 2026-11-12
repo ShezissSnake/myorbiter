@@ -156,6 +156,7 @@
   import { parseTarget, setIntent } from "./lib/intent.svelte";
   import { withoutNeverSell } from "./lib/core/sparesRules";
   import { ts } from "./lib/tennoscopeStore.svelte";
+  import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
@@ -223,6 +224,34 @@
       navTo = null;
       settings.tab = id;
     });
+  }
+  // Record timings (Settings › Logs, lib/timing.ts): on and off with the setting. It's told the
+  // page's id, sizes (never names) and whether the game runs; every page switch is an action.
+  $effect(() => {
+    if (settings.recordTimings)
+      untrack(() =>
+        timing.enable({
+          page: () => settings.tab,
+          sizes: timingSizes,
+          gameRunning: () => (ts.report ? !!ts.report.game_running : null),
+          log: (line) => (onDesktop ? logLine("info", "timings", line) : console.info(line)),
+        }),
+      );
+    else timing.disable();
+  });
+  $effect(() => {
+    void settings.tab;
+    untrack(() => timing.pageChanged());
+  });
+  $effect(() => {
+    if (model) untrack(() => timing.noteModelShown(settings.tab));
+  });
+  const onDesktop = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+  /** Sizes for the timing report: how many, never which. */
+  function timingSizes() {
+    let entries = 0;
+    if (model) for (const rows of model.inventoryByBase.values()) entries += rows.length;
+    return { "inventory entries": model ? entries : null, listings: mkt.orders.length, "pages mounted": Object.values(visited).filter(Boolean).length };
   }
   // Pages stay mounted once opened, so filters, sorting and scroll survive switching tabs.
   let visited = $state<Record<string, boolean>>({});
@@ -363,7 +392,9 @@
   /** TennoScope says the game isn't running: the game log and the reward screen are read less often. */
   const gameIdle = () => ts.report?.game_running === false;
   let lastMissionPoll = 0;
-  async function pollMission() {
+  /** The mission poll, named for Record timings (lib/timing.ts) while it runs. */
+  const pollMission = () => timing.tick("mission poll", pollMissionNow);
+  async function pollMissionNow() {
     // A console player's game isn't on this computer: no log to follow.
     if (onConsole) {
       mission = null;
@@ -559,7 +590,9 @@
   const freshCards = $derived(screenCards && screenCards.cards.length && clock - screenCards.at < CARDS_FRESH_MS ? screenCards : null);
   let cardsPolling = false;
   let lastCardsPoll = 0;
-  async function pollCards() {
+  /** The overlay's files: the reward screen's cards (named for Record timings while it runs). */
+  const pollCards = () => timing.tick("overlay files", pollCardsNow);
+  async function pollCardsNow() {
     clock = Date.now();
     if (cardsPolling || (gameIdle() && clock - lastCardsPoll < 5_000)) return;
     lastCardsPoll = clock;
@@ -2000,7 +2033,8 @@
     });
   });
   /** Screens from TennoScope's own log that MyOrbiter didn't see live: history, and while it was closed. */
-  async function importScreens() {
+  const importScreens = () => timing.tick("overlay files", importScreensNow);
+  async function importScreensNow() {
     try {
       const logged = await rewardScreens(settings.dataDir);
       const next = mergeLogged(settings.game.relicRuns, logged);
@@ -2308,7 +2342,11 @@
   /** How long a sync's read waits for its worldstate read to land with it (ms). */
   const WORLD_WITH_READ_MS = 400;
   /** `take`: what else lands with the read, asked for just before it lands (a sync's worldstate). */
-  async function reload(take?: () => Promise<Live | null>) {
+  /** A sync: TennoScope's data read again and the model rebuilt (named for Record timings while it runs). */
+  function reload(take?: () => Promise<Live | null>) {
+    return timing.tick("sync", () => reloadNow(take));
+  }
+  async function reloadNow(take?: () => Promise<Live | null>) {
     loading = true;
     try {
       // The stamp first: if TennoScope writes while the bundle loads, the next check sees a newer
@@ -2569,7 +2607,7 @@
         const every = backoff(document.hidden ? 120_000 : 30_000, orderFailures, 10 * 60_000);
         if (mkt.linked && !mkt.busy && Date.now() - lastOrders > every - 1000) {
           lastOrders = Date.now();
-          mkt.refresh().then(
+          timing.tick("market poll", () => mkt.refresh()).then(
             () => (orderFailures = 0),
             () => orderFailures++,
           );
@@ -2577,7 +2615,8 @@
         // Check (and, with Apply automatically, send) on your timer.
         if (!model || !(s.auto || s.autoCheck) || !mkt.linked || mkt.busy) return;
         if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
-        mkt.reprice(model, s, s.auto, true);
+        const m = model;
+        void timing.tick("market poll", () => mkt.reprice(m, s, s.auto, true));
       }, 15_000);
       // Signed in but warframe.market was unreachable (offline start, outage): try again each minute.
       // And the website's chat, each minute while signed in.
