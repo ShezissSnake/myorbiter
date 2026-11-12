@@ -288,7 +288,7 @@ const SETTINGS_TRADES: Walkthrough = {
         "Off until you turn it on; also Apply automatically on Orders.",
         "It follows the second-cheapest seller online or in game, not a lone bait listing.",
         "A gap over 2p and 5% moves it; once an hour, six a day per listing.",
-        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, never more than halved; floors hold.`,
+        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved in MyOrbiter, never more than halved.`,
       ],
       shot: {
         open: "settings",
@@ -300,7 +300,7 @@ const SETTINGS_TRADES: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: `Unattended, a price never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved, nor under your floors, and is never more than halved.`,
+    text: `Unattended, a price never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter, nor under your floors, and is never more than halved.`,
   },
   covers: { "settings.trades": 3, "settings.selling": 2 },
 };

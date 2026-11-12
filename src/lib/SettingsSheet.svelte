@@ -15,7 +15,7 @@
   import { NOX_SETTING } from "./core/builds/noxsframe";
   import { BAND_WORDS, DRIFT, GREY_AREA, every } from "./core/drift";
   import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "./core/automation";
-  import { AUTO_LIMITS } from "./core/approved";
+  import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "./core/approved";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
@@ -288,7 +288,7 @@
       Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
       more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
-      {AUTO_LIMITS}. {GREY_AREA}.
+      {onConsole ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.
     </Switch>
     <label class="field" data-field="settings.rep-text">
       <span class="register">+rep message</span>

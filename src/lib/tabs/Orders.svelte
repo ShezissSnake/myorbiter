@@ -15,7 +15,7 @@
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { DRIFT_RULES, GREY_AREA } from "../core/drift";
   import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "../core/automation";
-  import { AUTO_LIMITS } from "../core/approved";
+  import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -866,12 +866,12 @@
           <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
           {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
           <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-          <Chip bind:on={settings.auto} label="Apply automatically" title={`Automatic repricing: also send new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} />
+          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, without asking. The rules are written below" onchange={(on) => { if (on) settings.autoCheck = true; }} />
           <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
             {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
           </select>
         </div>
-        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}. {AUTO_LIMITS}. {GREY_AREA}.</p>
+        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}. {console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.</p>
         <!-- The other automatic actions, the same switches and lines as Settings, Trades. -->
         {#if !console}
           <div class="grp autos">
