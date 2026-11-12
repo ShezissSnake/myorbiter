@@ -20,6 +20,11 @@ const REWARD_CLOSED: &str = "Relic reward screen shut down";
 const MISSION_NAME: &str = "ThemedSquadOverlay.lua: Mission name: ";
 const GETS_REWARD: &str = " gets reward ";
 const SESSION_CLOCK: &str = "Sys [Diag]: Current time: ";
+/// Signs that the player is signed in, this session: the game syncing the inventory (it does after
+/// the sign-in, and again after each mission; TennoScope reads the inventory on the same line), and
+/// the sign-in itself. The engine's own lines are English whatever the game's language, but either
+/// sign is enough, matched in any case, so one written differently still leaves the other.
+const SIGNED_IN: [&str; 2] = ["inventory sync done", "sys [info]: logged in "];
 /// A private chat opening: someone whispered you (or you them), e.g. after a warframe.market
 /// "Hi! I want to buy…". `F` marks a private tab.
 const CHAT_TAB: &str = "ChatRedux::AddTab: Adding tab with channel name: F";
@@ -95,6 +100,9 @@ pub struct MissionState {
     pub rewards_given: Vec<String>,
     /// Engine uptime (seconds) of the last line that changed this state.
     pub last_event: Option<f64>,
+    /// Engine uptime (seconds) at the first sign this session that the player is signed in
+    /// (`SIGNED_IN`); None while the game is at its login screen, or the log hasn't said yet.
+    pub signed_in: Option<f64>,
     /// Unix seconds the session's log started, from its `[UTC: ...]` clock.
     pub session_start: Option<i64>,
     /// This session's missions, oldest first.
@@ -108,6 +116,12 @@ pub struct MissionState {
     trade_text: Option<(f64, String)>,
     #[serde(skip)]
     trade_pending: Option<Trade>,
+}
+
+/// Whether `line` says the player is signed in (`SIGNED_IN`).
+fn signed_in(line: &str) -> bool {
+    let lower = line.to_ascii_lowercase();
+    SIGNED_IN.iter().any(|sign| lower.contains(sign))
 }
 
 impl MissionState {
@@ -177,6 +191,8 @@ impl MissionState {
                     }
                 }
             }
+        } else if self.signed_in.is_none() && signed_in(line) {
+            self.signed_in = Some(uptime.unwrap_or(0.0));
         } else if line.contains(REWARD_OPEN) {
             if !self.reward_screen_open {
                 if let Some(entry) = self.history.last_mut() {
@@ -542,7 +558,12 @@ pub fn find_ee_log() -> Option<PathBuf> {
 /// Steam Deck's SD card included: it's one of the libraries Steam lists).
 #[cfg(not(any(windows, target_os = "macos")))]
 pub fn find_ee_log() -> Option<PathBuf> {
-    let home = PathBuf::from(std::env::var_os("HOME")?);
+    find_ee_log_under(&PathBuf::from(std::env::var_os("HOME")?))
+}
+
+/// `find_ee_log` for the home folder `home`.
+#[cfg(not(any(windows, target_os = "macos")))]
+fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
     let steam_roots = [
         home.join(".local/share/Steam"),
         home.join(".steam/steam"),
@@ -618,6 +639,80 @@ and will receive from Buyer1\u{E000} the following:\n\
         assert_eq!(t.platinum_offered, 0);
         assert_eq!(t.uptime, 3127.384);
         assert_eq!(t.at, Some(1_791_918_527 + 3127));
+    }
+
+    /// Step 3 of the first start asks whether the player is signed in. Made-up logs, each the way
+    /// the game writes them: the sign written before MyOrbiter began watching still counts (the
+    /// follower's first read goes through the whole log), a log written in bursts, two signs or one,
+    /// either in another case, and a restart that starts over at the login screen.
+    #[test]
+    fn the_log_says_when_the_player_is_signed_in() {
+        let open = "0.107 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026 [UTC: Tue Oct 13 19:08:47 2026]";
+        let mut s = MissionState::default();
+        s.observe(open);
+        s.observe("12.3 Sys [Info]: Main menu loaded");
+        assert_eq!(s.signed_in, None, "at the login screen");
+        s.observe("40.5 Sys [Info]: Logged in ExamplePlayer (0123456789abcdef01234567)");
+        assert_eq!(s.signed_in, Some(40.5));
+        s.observe("45.0 Net [Info]: Inventory sync done");
+        assert_eq!(s.signed_in, Some(40.5), "the first sign stays");
+        // Only the inventory sync, in another case: still signed in.
+        let mut s = MissionState::default();
+        s.observe(open);
+        s.observe("51.2 Net [Info]: INVENTORY SYNC DONE (3183 items)");
+        assert_eq!(s.signed_in, Some(51.2));
+        // A restart: a new session at the login screen again.
+        s.observe(open);
+        assert_eq!(s.signed_in, None);
+        // A line about something else that mentions logging isn't a sign.
+        s.observe("60.0 Script [Info]: Dialog.lua: Logged out of chat");
+        assert_eq!(s.signed_in, None);
+    }
+
+    #[test]
+    fn a_sign_in_written_before_watching_began_and_one_written_late_both_count() {
+        let (dir, path) = temp_log("signin");
+        // The game was up and signed in before MyOrbiter started: the whole log is there at once.
+        std::fs::write(&path, format!("{PREAMBLE}0.107 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026\r\n30.0 Sys [Info]: Logged in ExamplePlayer (x)\r\n")).unwrap();
+        let mut f = LogFollower::default();
+        assert_eq!(f.poll(&path).unwrap().signed_in, Some(30.0));
+        // A log written late and in bursts, a line cut in two between reads.
+        let (dir2, path2) = temp_log("signin-late");
+        std::fs::write(&path2, format!("{PREAMBLE}0.107 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026\r\n")).unwrap();
+        let mut f = LogFollower::default();
+        assert_eq!(f.poll(&path2).unwrap().signed_in, None);
+        let mut file = std::fs::OpenOptions::new().append(true).open(&path2).unwrap();
+        use std::io::Write;
+        write!(file, "88.0 Net [Info]: Inventory sy").unwrap();
+        file.flush().unwrap();
+        let _ = f.poll(&path2);
+        write!(file, "nc done\r\n").unwrap();
+        file.flush().unwrap();
+        assert_eq!(f.poll(&path2).unwrap().signed_in, Some(88.0), "a line written in two goes is read whole");
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&dir2).ok();
+    }
+
+    /// Under Proton, with a second Steam library holding another install: the log written last is
+    /// the one followed (the install being played), in a made-up home folder.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn under_proton_the_newest_of_two_installs_logs_is_followed() {
+        let home = std::env::temp_dir().join(format!("myorbiter-home-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
+        let steam = home.join(".local/share/Steam");
+        let other = home.join("Games/SteamLibrary");
+        std::fs::create_dir_all(steam.join(tail).parent().unwrap()).unwrap();
+        std::fs::create_dir_all(other.join(tail).parent().unwrap()).unwrap();
+        assert_eq!(find_ee_log_under(&home), None, "no log yet");
+        std::fs::write(steam.join("steamapps/libraryfolders.vdf"), format!("\"libraryfolders\"\n{{\n\t\"1\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n", other.display())).unwrap();
+        std::fs::write(steam.join(tail), "old").unwrap();
+        let older = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        std::fs::File::options().write(true).open(steam.join(tail)).unwrap().set_modified(older).unwrap();
+        std::fs::write(other.join(tail), "new").unwrap();
+        assert_eq!(find_ee_log_under(&home), Some(other.join(tail)));
+        std::fs::remove_dir_all(&home).ok();
     }
 
     #[test]

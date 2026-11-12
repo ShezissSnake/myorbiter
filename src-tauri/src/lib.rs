@@ -132,10 +132,57 @@ fn default_data_dir() -> Option<String> {
 #[tauri::command]
 async fn load_collection(dir: Option<String>) -> Result<myorbiter_data::Collection, String> {
     let dir = data_dir(dir)?;
-    tauri::async_runtime::spawn_blocking(move || myorbiter_data::load_collection(&dir))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(move || {
+        let read = myorbiter_data::load_collection_with(&dir, relics_fallback().as_deref());
+        log_pickup(&read);
+        read
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
+}
+
+/// MyOrbiter's relic tables as it hands them to TennoScope (bridge.rs): what the relic pages read
+/// when TennoScope hasn't written a relic table of its own, as it doesn't while it has these.
+fn relics_fallback() -> Option<PathBuf> {
+    bridge::runtime_dir().map(|d| d.join(bridge::RELICS_FILE))
+}
+
+/// The last pick-up's line, so the log has one per change, not one per reload of the same read.
+static LAST_PICKUP: Mutex<String> = Mutex::new(String::new());
+
+/// What a pick-up of TennoScope's data took in, or why it took nothing, in MyOrbiter's log.
+fn log_pickup(read: &Result<myorbiter_data::Collection, myorbiter_data::DataError>) {
+    let (warn, line) = pickup_line(read);
+    let mut last = LAST_PICKUP.lock().unwrap_or_else(|e| e.into_inner());
+    if *last == line {
+        return;
+    }
+    if warn {
+        log::warn!(target: "myorbiter::inventory", "{line}");
+    } else {
+        log::info!(target: "myorbiter::inventory", "{line}");
+    }
+    *last = line;
+}
+
+/// The line `log_pickup` writes, and whether it's a warning: a file that isn't there yet is a
+/// start that hasn't got that far; a file that can't be read is something wrong.
+fn pickup_line(read: &Result<myorbiter_data::Collection, myorbiter_data::DataError>) -> (bool, String) {
+    use myorbiter_data::DataError as E;
+    match read {
+        Ok(c) if c.inventory.is_empty() && c.observed_at.is_none() => (false, "TennoScope's data is there, with no inventory read yet".into()),
+        Ok(c) => (
+            false,
+            format!(
+                "picked up TennoScope's inventory: {} entries, read {}",
+                c.inventory.len(),
+                c.observed_at.map_or_else(|| "at an unknown time".to_string(), |t| applog::stamp(t.max(0) as u64))
+            ),
+        ),
+        Err(e @ (E::MissingDir(_) | E::MissingFile(_))) => (false, format!("no inventory picked up: {e}")),
+        Err(e) => (true, format!("no inventory picked up: {e}")),
+    }
 }
 
 /// The slimmed item catalog and relic table (about 6 MB of JSON, from ~80 MB of files), which the
@@ -143,7 +190,7 @@ async fn load_collection(dir: Option<String>) -> Result<myorbiter_data::Collecti
 #[tauri::command]
 async fn load_catalogs(dir: Option<String>) -> Result<myorbiter_data::Catalogs, String> {
     let dir = data_dir(dir)?;
-    tauri::async_runtime::spawn_blocking(move || myorbiter_data::load_catalogs(&dir))
+    tauri::async_runtime::spawn_blocking(move || myorbiter_data::load_catalogs_with(&dir, relics_fallback().as_deref()))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())
@@ -167,7 +214,9 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
         .max(stamp("tennoscope.sqlite3-wal"))
         .max(stamp("collection-prices.json"))
         .max(stamp("catalog/catalog-generation.json"))
-        .max(stamp("catalog/relic-generation.json")))
+        .max(stamp("catalog/relic-generation.json"))
+        // MyOrbiter's own relic tables stand in for TennoScope's (`relics_fallback`): new ones are a change too.
+        .max(relics_fallback().and_then(|f| fs::metadata(f).and_then(|m| m.modified()).ok()).and_then(|t| t.duration_since(UNIX_EPOCH).ok()).map_or(0, |d| d.as_millis() as u64)))
 }
 
 /// One HTTP client for the whole app: connections (and TLS sessions) are kept and reused, and
@@ -1665,6 +1714,19 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn every_pick_up_of_tennoscope_s_data_says_what_it_took_in_or_why_not() {
+        use myorbiter_data::{Collection, DataError};
+        let none = Collection { observed_at: None, inventory: vec![], prices: serde_json::Value::Null, catalog_rev: None };
+        assert_eq!(pickup_line(&Ok(none)), (false, "TennoScope's data is there, with no inventory read yet".to_string()));
+        let missing = pickup_line(&Err(DataError::MissingFile(PathBuf::from("/data/catalog/catalog-generation.json"))));
+        assert!(!missing.0 && missing.1.starts_with("no inventory picked up: not found at"), "{missing:?}");
+        let broken = pickup_line(&Err(DataError::Io { path: PathBuf::from("/data/tennoscope.sqlite3"), source: std::io::Error::other("locked") }));
+        assert!(broken.0, "a file that can't be read is a warning: {broken:?}");
+        let read = Collection { observed_at: Some(1_793_654_900), inventory: vec![], prices: serde_json::Value::Null, catalog_rev: None };
+        assert_eq!(pickup_line(&Ok(read)).1, "picked up TennoScope's inventory: 0 entries, read [2026-11-02][21:28:20]");
+    }
 
     /// The page names a log folder; it can't name a path. Only the two names pass, and TennoScope's
     /// folder comes from the saved settings, never from the page.

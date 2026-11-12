@@ -21,6 +21,7 @@ import { gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf 
 import type { GearCopy } from "./core/notNeeded";
 import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
+import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
 import type { SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
@@ -586,6 +587,8 @@ let devCatalogs: { tag: string; catalog: Bundle["catalog"]; relics: Bundle["reli
 
 export async function loadBundle(dataDir: string): Promise<Bundle> {
   if (inTauri) return tauriBundle(dataDir);
+  const stand = demoStandIn();
+  if (stand) throw new Error(standInLoadError(stand));
   // The browser dev mode reads the whole bundle from one file. While the file is the same, its
   // catalogs stay the objects read last, as the desktop app keeps them across syncs (bundleLoader):
   // what's worked out from them alone is then kept too (model.ts), here as there.
@@ -1201,8 +1204,34 @@ export const presence = {
   },
 };
 
+/** Browser dev mode: a stand-in for TennoScope (core/standIn.ts), when the demo browser picked one. */
+function demoStandIn(): StandIn | null {
+  if (inTauri) return null;
+  try {
+    const k = localStorage.getItem(STAND_IN_KEY);
+    return isStandIn(k) ? k : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Browser dev mode: Stable and Beta with no build yet, Experimental with this one (the help picture of an empty channel). */
+const demoEmptyChannel = () => {
+  try {
+    return !inTauri && localStorage.getItem(EMPTY_CHANNEL_KEY) === "1";
+  } catch {
+    return false;
+  }
+};
+const EMPTY_DEMO = {
+  info: { version: "0.2.130+build.4", install: { how: "appImage", path: "/opt/MyOrbiter.AppImage" } } as UpdateInfo,
+  check: (c: Channel): UpdateCheck => (c === "experimental" ? { state: "current", version: "0.2.130+build.4" } : { state: "empty", system: false }),
+};
+
 /** Browser dev mode: public/dev-tennoscope.json fakes a running TennoScope. */
 const devTennoscope = async (): Promise<TennoscopeStatus | null> => {
+  const stand = demoStandIn();
+  if (stand) return standInStatus(stand, Date.now());
   const res = await fetch("/dev-tennoscope.json").catch(() => null);
   if (!(res?.ok && res.headers.get("content-type")?.includes("json"))) return null;
   const s = (await res.json()) as TennoscopeStatus;
@@ -1228,8 +1257,8 @@ export type UpdateCheck =
  * restart after. In the browser (development) nothing updates.
  */
 export const updater = {
-  info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve({ version: "0.1.0", install: { how: "dev" } })),
-  check: (channel: Channel): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", { channel }) : Promise.resolve({ state: "off" })),
+  info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.info : { version: "0.1.0", install: { how: "dev" } })),
+  check: (channel: Channel): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", { channel }) : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.check(channel) : { state: "off" })),
   /** Downloads and installs `version` from `channel`; `older` only for an explicit switch to an older build. */
   async install(channel: Channel, version: string, older: boolean, onProgress: (done: number, total: number | null) => void): Promise<void> {
     if (!inTauri) throw new Error("updates aren't available in dev builds");
@@ -1473,7 +1502,9 @@ export async function tennoscopeOpaqueOverlay(on: boolean): Promise<void> {
 export async function missionState(eeLog: string): Promise<MissionState | null> {
   if (inTauri) return invoke<MissionState | null>("mission_state", { path: eeLog || null });
   const res = await fetch("/dev-mission.json").catch(() => null);
-  return res?.ok ? res.json() : null;
+  const m: MissionState | null = res?.ok ? await res.json() : null;
+  const stand = demoStandIn();
+  return m && stand ? { ...m, signed_in: standInSignedIn(stand) ? 1 : null } : m;
 }
 
 // Item artwork goes through MyOrbiter's local cache, its own "img" protocol. Windows' webview

@@ -1,9 +1,9 @@
 <script lang="ts">
   // The first start's one question, asked before TennoScope starts at all: may it read the game's
   // memory (Full mode), or only the reward screen (Overlay)? Full mode's warning is the same words
-  // as beside every other switch that turns it on. There's no closing it without an answer (no Esc,
-  // no click outside): either answer is a click, and either is changed later in Settings,
-  // TennoScope.
+  // as beside every other switch that turns it on. There's no closing it without an answer: a click
+  // outside does nothing, and Esc is the safe answer (overlay only); either is changed later in
+  // Settings, TennoScope.
   import { scrim } from "./ui/scrim";
   import HelpMark from "./ui/HelpMark.svelte";
   import { trap } from "./ui/trap";
@@ -12,6 +12,13 @@
   import type { TennoscopeAccess } from "./backend";
 
   let { onanswer }: { onanswer: (access: TennoscopeAccess) => void } = $props();
+  // Esc answers the safe way: overlay only, nothing read from the game's memory (changed any time
+  // in Settings, TennoScope). Not in its first moment either.
+  function onkey(e: KeyboardEvent) {
+    if (e.key !== "Escape" || !ready) return;
+    e.preventDefault();
+    onanswer("--access=overlay");
+  }
   // It opens by itself during start-up: a click meant for the page behind doesn't answer it.
   let ready = $state(false);
   $effect(() => {
@@ -20,6 +27,7 @@
   });
 </script>
 
+<svelte:window onkeydown={onkey} />
 <div class="scrim" use:scrim in:shade|global out:shade|global>
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="first-run-title" aria-describedby="first-run-what first-run-warning" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap>
     <header>
