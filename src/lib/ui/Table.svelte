@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
   import type { Snippet } from "svelte";
-  import { sortRows, type Column } from "./table";
+  import { fixedScale, sortRows, type Column } from "./table";
   import { nearEnd } from "./nearEnd";
   import { sideways } from "./sideways";
   import NoMatch from "./NoMatch.svelte";
@@ -16,6 +16,7 @@
     limit = 50,
     tint,
     clear = null,
+    fixed = false,
   }: {
     rows: T[];
     columns: Column<T>[];
@@ -28,6 +29,8 @@
     tint?: (r: T) => string | null;
     /** Set while a search or filter is on: an empty table then says so, with a Clear, rather than `empty`. */
     clear?: (() => void) | null;
+    /** Columns of the same widths whatever the rows hold (every column has a `width`, one `grow`s): the table doesn't re-flow when a filter changes which rows show. */
+    fixed?: boolean;
   } = $props();
 
   let open = $state<string | null>(null);
@@ -41,6 +44,7 @@
   });
 
   const sorted = $derived(sortRows(rows, columns, sort));
+  const scale = $derived(fixed ? fixedScale(columns) : null);
   // The rows in sight drawn at once, the rest a slice a frame after (lib/progress.svelte.ts): a
   // re-sort or a filter waits only for the screenful you see.
   let body = $state<HTMLElement | null>(null);
@@ -55,7 +59,7 @@
 </script>
 
 <div class="wrap" class:wide use:view.watch use:sideways={(w) => (wide = w)}>
-  <table>
+  <table class:fixed style:--fixed-scale={scale}>
     <thead>
       <tr>
         {#each columns as c (c.key)}
@@ -64,7 +68,7 @@
             class:center={c.align === "center"}
             class:sortable={c.sortable !== false}
             class:minor={c.minor} class:spare={c.spare}
-            style:width={c.width}
+            style:width={fixed && c.width ? (c.minor ? c.width : `calc(${c.width} * var(--fx, 1))`) : c.width}
             title={c.title}
             aria-sort={sort.key === c.key ? (sort.desc ? "descending" : "ascending") : undefined}
             tabindex={c.sortable !== false ? 0 : undefined}
@@ -119,6 +123,13 @@
      the header sticks to the page's top otherwise (sideways.ts). */
   .wrap.wide { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  /* Fixed: the columns keep their widths (percent of the table) for any rows, so a filter that changes
+     which rows show doesn't move them. The minor columns, when they show, are taken out of the
+     others' (--fx); headings wrap where there's little room, as they do at lt760 below. */
+  table.fixed { table-layout: fixed; min-width: 40rem; }
+  :global(html[data-details]:not([data-room~="lt1100"])) table.fixed { --fx: var(--fixed-scale); }
+  table.fixed :is(th, td) { overflow: hidden; text-overflow: ellipsis; }
+  :global(html[data-room~="lt1100"]) table.fixed th { white-space: normal; line-height: 1.35; }
   th {
     position: sticky; top: 0; z-index: 1; background: var(--plate); text-align: left;
     font-family: var(--face-register); font-weight: 500; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase;

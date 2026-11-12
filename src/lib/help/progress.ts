@@ -77,9 +77,9 @@ const MASTERY: Walkthrough = {
       ],
       shot: {
         open: "mastery",
-        part: `${holder("mastery.list")}, ${SHOWN_VIEW} .cards.swap .grid > article.card:nth-child(-n+3)`,
+        part: `${holder("mastery.filters")}, ${SHOWN_VIEW} .cards.swap .grid > article.card:nth-child(-n+3)`,
         marks: [
-          { at: `${holder("mastery.list")} select`, is: "n", n: 1, from: "corner" },
+          { at: `${holder("mastery.filters")} select`, is: "n", n: 1, from: "corner" },
           { at: `${SHOWN_VIEW} .cards.swap .grid > article.card:first-child .body`, is: "n", n: 2, from: "corner" },
           { at: `${SHOWN_VIEW} .cards.swap .grid > article.card:first-child footer`, is: "n", n: 3, from: "corner" },
           { at: `${SHOWN_VIEW} .cards.swap .grid > article.card:first-child button.star`, is: "n", n: 4, from: "corner" },
@@ -167,9 +167,9 @@ const FOUNDRY: Walkthrough = {
       ],
       shot: {
         open: "foundry",
-        part: `${holder("foundry.list")}, .pane.shown .cards.swap .grid > article.card:nth-child(-n+3)`,
+        part: `${holder("foundry.filters")}, .pane.shown .cards.swap .grid > article.card:nth-child(-n+3)`,
         marks: [
-          { at: `${holder("foundry.list")} select`, is: "n", n: 1, from: "corner" },
+          { at: `${holder("foundry.filters")} select`, is: "n", n: 1, from: "corner" },
           { at: ".pane.shown .cards.swap .grid > article.card:first-child .chips", is: "n", n: 2, from: "corner" },
           { at: ".pane.shown .cards.swap .grid > article.card:first-child footer", is: "n", n: 3, from: "corner" },
           { at: ".pane.shown .cards.swap .grid > article.card:first-child button.star", is: "n", n: 4, from: "corner" },

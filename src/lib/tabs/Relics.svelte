@@ -125,20 +125,20 @@
   const rareOf = (r: RelicRow) => r.rewards.find((x) => x.rarity === "Rare")?.name;
 
   const columns: Column<RelicRow>[] = $derived([
-    { key: "base", label: "Relic", value: (r) => r.base, sortValue: (r) => {
+    { key: "base", width: "15%", label: "Relic", value: (r) => r.base, sortValue: (r) => {
       // "Axi A22" → era order, then letter, then the number padded: A2 < A10 < A22 < B1.
       const [, letter = "", num = "0"] = r.base.split(" ")[1]?.match(/^([A-Za-z]*)(\d*)$/) ?? [];
       return `${ERAS.indexOf(r.era as (typeof ERAS)[number])}${letter}${num.padStart(3, "0")}`;
     }, defaultDesc: false, cell: baseCell },
-    { key: "owned", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
-    { key: "vault", label: "Vault", value: (r) => (r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"), cell: vaultCell, defaultDesc: false },
-    { key: "need", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered, and you don't have yet" },
-    { key: "evI", label: squad === 1 ? "Intact" : "Intact ×4", value: evI, align: "right", cell: evICell, title: squad === 1 ? "Average platinum from one crack of the intact relic" : "Average platinum of the best of four intact cracks (a radshare where everyone brings this relic)" },
-    { key: "evR", label: squad === 1 ? "Radiant" : "Radiant ×4", value: evR, align: "right", cell: evRCell, title: squad === 1 ? "Average platinum from one crack of the radiant relic" : "Average platinum of the best of four radiant cracks" },
-    { key: "gain", label: "Radiant gain", value: gain, align: "right", cell: gainCell, title: "How much more a radiant crack is worth than an intact one, on average. Refining costs 100 Void Traces." },
-    { key: "ducats", minor: true, label: "Avg ducats", value: (r) => r.evDucatsIntact || null, align: "right", cell: ducatCell },
-    { key: "relicPrice", minor: true, label: "Sell relic", value: (r) => r.relicPrice, align: "right", cell: relicPriceCell, title: "warframe.market price of the intact relic" },
-    { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
+    { key: "owned", width: "21%", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
+    { key: "vault", width: "11%", label: "Vault", value: (r) => (r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"), cell: vaultCell, defaultDesc: false },
+    { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered, and you don't have yet" },
+    { key: "evI", width: "8%", label: squad === 1 ? "Intact" : "Intact ×4", value: evI, align: "right", cell: evICell, title: squad === 1 ? "Average platinum from one crack of the intact relic" : "Average platinum of the best of four intact cracks (a radshare where everyone brings this relic)" },
+    { key: "evR", width: "8%", label: squad === 1 ? "Radiant" : "Radiant ×4", value: evR, align: "right", cell: evRCell, title: squad === 1 ? "Average platinum from one crack of the radiant relic" : "Average platinum of the best of four radiant cracks" },
+    { key: "gain", width: "12%", label: "Radiant gain", value: gain, align: "right", cell: gainCell, title: "How much more a radiant crack is worth than an intact one, on average. Refining costs 100 Void Traces." },
+    { key: "ducats", width: "7%", minor: true, label: "Avg ducats", value: (r) => r.evDucatsIntact || null, align: "right", cell: ducatCell },
+    { key: "relicPrice", width: "7%", minor: true, label: "Sell relic", value: (r) => r.relicPrice, align: "right", cell: relicPriceCell, title: "warframe.market price of the intact relic" },
+    { key: "list", width: "6%", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ]);
 </script>
 
@@ -281,15 +281,15 @@
       </div>
     {/each}
   </section>
-  <div class="bar">
+  {#snippet filters()}
   <Seg label="Show" bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
   <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
   <Seg label="Squad" bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" aria-label="Filter relics by name or reward" title="Shows only what matches what you type" placeholder="Relic or reward…" bind:value={query} />
   <HelpMark part="relics.filters" />
-  </div>
+  {/snippet}
 
-  <Browse id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics read yet: press Sync while Warframe is running, and yours go on display here." />
+  <Browse {filters} fixed id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics read yet: press Sync while Warframe is running, and yours go on display here." />
   {#if unknown.length}
     <div class="unknown">
       <HelpMark part="relics.unknown" corner />

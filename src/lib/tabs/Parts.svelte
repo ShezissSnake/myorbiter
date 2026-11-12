@@ -247,7 +247,7 @@
   </PageHead>
 
   <!-- The filter box, what each part is best as, spares: what most visits need. The rest folds. -->
-  <div class="bar">
+  {#snippet filters()}
     <input type="search" aria-label="Filter prime parts by name" title="Shows only what matches what you type" placeholder="Filter parts…" bind:value={query} />
     <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Sell spares)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
     {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered" />{/if}
@@ -264,9 +264,9 @@
       <Seg label="Relics" bind:value={avail} options={[{ v: "all", label: "All", title: "Farmable and vaulted alike" }, { v: "vaulted", label: "Vaulted", title: "Only vaulted relics drop it: no new copies, so prices tend to rise" }, { v: "farmable", label: "Farmable", title: "A relic that drops it can still be farmed: its price may drop" }]} />
     </Fold>
     <HelpMark part="parts.filters" />
-  </div>
+  {/snippet}
 
-  <Browse id="parts" bind:opened {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
+  <Browse {filters} id="parts" bind:opened {rows} {columns} key={(r) => r.name} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty="No prime parts of mastered items.">
     {#snippet tools()}
       <!-- Not filters: how Best as weighs platinum against ducats (Sell spares uses them too), so they sit at the end of the sort row rather than wrapping alone under the filters. -->
       <Fold label="Your rates" title="What a ducat is worth to you and the smallest sale worth a trade: how Best as weighs platinum against ducats (Sell spares uses the same)">

@@ -67,11 +67,11 @@ const ARCANES: Walkthrough = {
       ],
       shot: {
         open: "arcanes",
-        part: `${holder("arcanes.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("arcanes.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${CARDS}:first-child .coll`, is: "n", n: 1, from: "left" },
           { at: `${CARDS}:first-child .prices`, is: "n", n: 2, from: "left" },
-          { at: `${holder("arcanes.list")} label.sort`, is: "n", n: 3, from: "corner" },
+          { at: `${holder("arcanes.filters")} label.sort`, is: "n", n: 3, from: "corner" },
         ],
       },
     },
@@ -86,7 +86,7 @@ const ARCANES: Walkthrough = {
       shot: {
         open: "arcanes",
         steps: [SPARES_TAB],
-        part: `${holder("arcane-spares.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("arcanes.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${CARDS}:first-child .choice > span:nth-child(1)`, is: "n", n: 1, from: "left" },
           { at: `${CARDS}:first-child .choice > span:nth-child(2)`, is: "n", n: 2, from: "right" },

@@ -218,13 +218,13 @@
     </div>
   {/if}
 
-  <div class="bar">
+  {#snippet filters()}
     <input type="search" placeholder="Filter items…" bind:value={q} aria-label="Filter items by name or kind" title="Looks through every category, by name or kind (Kitgun, MOA, Zaw)" />
     <Seg label="Show" bind:value={show} options={[{ v: "all", label: "All", title: "Everything in this group" }, { v: "todo", label: "Not mastered", title: "What you still have to master" }, { v: "owned", label: "Owned", title: "What you have built (mastered or not)" }, { v: "build", label: "Can build", title: "Every part in hand, or building now" }, ...(favs.size || show === "fav" ? [{ v: "fav" as const, label: `★ Wishlist ${favs.size}`, title: "What you starred, from every category (star a card to add it)" }] : [])]} />
     <HelpMark part="foundry.filters" />
-  </div>
+  {/snippet}
 
-  <Browse id="foundry" rows={shown} {columns} key={(c) => c.unique} bind:sort {card} title={(c) => c.name} onopen={(c) => details.open(c.unique)} min="19rem" clear={filtered ? clear : null} empty="Nothing here." />
+  <Browse {filters} id="foundry" rows={shown} {columns} key={(c) => c.unique} bind:sort {card} title={(c) => c.name} onopen={(c) => details.open(c.unique)} min="19rem" clear={filtered ? clear : null} empty="Nothing here." />
 </div></div>
 
 <style>
@@ -241,7 +241,6 @@
   .qw { color: var(--platinum-deep); font-size: .76rem; }
   .ready .qb { border-color: color-mix(in srgb, var(--verdigris) 55%, transparent); }
   .ready .qw { color: var(--verdigris); font-weight: 600; }
-  .bar { margin-top: .9rem; }
   .chips { display: flex; flex-wrap: wrap; gap: .45rem; }
   .chips { align-items: center; row-gap: .7rem; }
   .chips .res { display: inline-flex; margin-left: .15rem; padding-bottom: 4px; }
