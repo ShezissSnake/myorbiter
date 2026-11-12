@@ -96,8 +96,8 @@ From the log MyOrbiter takes:
   and count) and the platinum each way.
 
 The log's first 4 KB (which hold the game's command line, your user name and computer name) stay in
-memory to notice a new game session; they're never saved or sent. The log's location, which on both
-systems includes your user name, goes into MyOrbiter's own log (hidden in a bug report).
+memory to notice a new game session; they're never saved or sent. The log's location goes into
+MyOrbiter's own log with your home folder written `~`, so without your user name.
 
 What is kept: every trade (partner, items, platinum) in your trade history, up to 2000; the names of
 players who whispered you, up to 300; and the sale and whisper notifications, with names, in the
@@ -359,7 +359,7 @@ keyring).
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written. Its last lines leave your PC only in a bug report you paste into
+  is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, the system and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing

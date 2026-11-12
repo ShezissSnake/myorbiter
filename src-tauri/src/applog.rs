@@ -9,7 +9,8 @@
 //! What goes in: starting up, TennoScope started, stopped or failing, every warframe.market change
 //! and every request that failed (the method and path, never the sign-in), the drop tables and
 //! EE.log being read, and errors from the window. Never a token: anything shaped like one is cut
-//! out before it's written. At 2 MB the file moves to `myorbiter.1.log` (the one before that goes), so
+//! out before it's written. Never the home folder's name either: it is written `~` (`tilde`), so a
+//! log passed on to someone doesn't carry the player's user name in its paths. At 2 MB the file moves to `myorbiter.1.log` (the one before that goes), so
 //! the two stay under 4 MB; when it can't move, it starts over empty.
 
 use std::fs::{self, File, OpenOptions};
@@ -37,6 +38,8 @@ struct Logger {
 
 static LOGGER: Logger = Logger { sink: Mutex::new(None), last_ui: Mutex::new((String::new(), 0, 0)) };
 static DIR: OnceLock<PathBuf> = OnceLock::new();
+/// The home folder as the system names it, read once (`home`).
+static HOME: OnceLock<Option<String>> = OnceLock::new();
 
 /// Where the log is, once it's open.
 pub fn dir() -> Option<PathBuf> {
@@ -101,7 +104,7 @@ impl log::Log for Logger {
             return;
         }
         let area = record.target().strip_prefix("myorbiter_lib::").or_else(|| record.target().strip_prefix("myorbiter::")).unwrap_or(record.target());
-        let line = format!("{}[{area}][{}] {}\n", stamp(now()), record.level(), redact(&record.args().to_string()));
+        let line = format!("{}[{area}][{}] {}\n", stamp(now()), record.level(), private(&record.args().to_string()));
         if cfg!(debug_assertions) {
             eprint!("{line}");
         }
@@ -186,6 +189,80 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
     let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
     (yoe + era * 400 + i64::from(m <= 2), m, d)
+}
+
+/// What every line goes through before it's written, and again before it goes into a report (a
+/// line written before a rule was added is covered too): no sign-in (`redact`), no home folder's
+/// name (`tilde`).
+fn private(line: &str) -> String {
+    let line = redact(line);
+    match home() {
+        Some(h) => tilde(&line, h),
+        None => line,
+    }
+}
+
+/// The home folder: `HOME` on Linux and macOS, `USERPROFILE` on Windows. None when unset, or too
+/// short to be one (`/`, `C:\`), so nothing is replaced by mistake.
+fn home() -> Option<&'static str> {
+    HOME.get_or_init(|| {
+        let var = if cfg!(windows) { "USERPROFILE" } else { "HOME" };
+        std::env::var(var).ok().map(|h| h.trim_end_matches(['/', '\\']).to_string()).filter(|h| h.len() > 3)
+    })
+    .as_deref()
+}
+
+/// `line` with the home folder written `~`: `/home/name/.local/share/…` becomes `~/.local/share/…`,
+/// `C:\Users\Name\AppData\…` becomes `~\AppData\…`. Also the forms the same folder takes in other
+/// programs' messages: with the other kind of slash, with doubled backslashes (JSON), and, for a
+/// Linux home, as Wine and Proton write it (`Z:\home\name\…`). Only the whole folder: `/home/name`
+/// leaves `/home/names` alone. Windows paths (and Wine's) match in any case, as Windows treats them.
+pub fn tilde(line: &str, home: &str) -> String {
+    let home = home.trim_end_matches(['/', '\\']);
+    if home.len() <= 3 {
+        return line.to_string();
+    }
+    // Each form, and whether it matches in any case.
+    let mut forms: Vec<(String, bool)> = Vec::new();
+    if home.starts_with('/') {
+        forms.push((home.to_string(), false));
+        let wine = format!("Z:{}", home.replace('/', "\\"));
+        forms.push((wine.replace('\\', "\\\\"), true));
+        forms.push((wine, true));
+    } else {
+        let back = home.replace('/', "\\");
+        forms.push((back.replace('\\', "\\\\"), true));
+        forms.push((home.replace('\\', "/"), true));
+        forms.push((back, true));
+    }
+    let mut out = line.to_string();
+    for (form, any_case) in forms {
+        out = replace_folder(&out, &form, any_case);
+    }
+    out
+}
+
+/// Every `folder` in `s` that ends there (followed by a slash, a backslash, or anything that can't
+/// carry on a folder's name) becomes `~`.
+fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
+    let fold = |t: &str| if any_case { t.to_ascii_lowercase() } else { t.to_string() };
+    // ASCII lowercasing keeps every byte where it was, so positions found in `hay` hold in `s`.
+    let hay = fold(s);
+    let needle = fold(folder);
+    let mut out = String::with_capacity(s.len());
+    let mut from = 0;
+    while let Some(i) = hay[from..].find(&needle).map(|i| i + from) {
+        let end = i + needle.len();
+        let next = s[end..].chars().next();
+        let ends = next.map_or(true, |c| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '~' | '$')));
+        // Not the middle of a longer path either (`/srv/home/name`, `/home/name` inside `/x/home/name`).
+        let starts = i == 0 || !s[..i].ends_with(|c: char| c.is_alphanumeric() || matches!(c, '/' | '\\' | '-' | '_' | '.'));
+        out.push_str(&s[from..i]);
+        out.push_str(if ends && starts { "~" } else { &s[i..end] });
+        from = end;
+    }
+    out.push_str(&s[from..]);
+    out
 }
 
 /// Cuts out anything shaped like a sign-in: a JWT (three dot-separated base64 runs starting
@@ -277,7 +354,7 @@ fn tail_in(dir: &Path, lines: usize) -> Vec<String> {
         out = older;
     }
     let skip = out.len().saturating_sub(lines);
-    out.into_iter().skip(skip).map(|l| redact(&l.chars().take(2000).collect::<String>())).collect()
+    out.into_iter().skip(skip).map(|l| private(&l.chars().take(2000).collect::<String>())).collect()
 }
 
 #[cfg(test)]
@@ -303,6 +380,36 @@ mod tests {
         assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
         assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted] and sessionid=[redacted] and nonce=[redacted]");
         assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
+    }
+
+    #[test]
+    fn the_home_folder_is_written_as_a_tilde() {
+        let home = "/home/examplehome";
+        assert_eq!(tilde("found EE.log at /home/examplehome/.local/share/Steam/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log", home), "found EE.log at ~/.local/share/Steam/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log");
+        assert_eq!(tilde("started /home/examplehome/Apps/MyOrbiter.AppImage (pid 7)", home), "started ~/Apps/MyOrbiter.AppImage (pid 7)");
+        assert_eq!(tilde("folder /home/examplehome", home), "folder ~");
+        assert_eq!(tilde("(/home/examplehome/x) and \"/home/examplehome/y\"", home), "(~/x) and \"~/y\"");
+        assert_eq!(tilde("two: /home/examplehome/a /home/examplehome/b", home), "two: ~/a ~/b");
+        // Only that folder, whole.
+        assert_eq!(tilde("/home/examplehomes/a", home), "/home/examplehomes/a");
+        assert_eq!(tilde("/home/examplehome.old/a", home), "/home/examplehome.old/a");
+        assert_eq!(tilde("/srv/home/examplehome/a", home), "/srv/home/examplehome/a");
+        assert_eq!(tilde("/HOME/EXAMPLEHOME/a", home), "/HOME/EXAMPLEHOME/a", "Linux paths match in their case only");
+        // As Wine and Proton write the same folder, also inside JSON.
+        assert_eq!(tilde(r"log at Z:\home\examplehome\Games\EE.log", home), r"log at ~\Games\EE.log");
+        assert_eq!(tilde(r#"{"path":"z:\\home\\examplehome\\x"}"#, home), r#"{"path":"~\\x"}"#);
+        // Windows: any case, either slash, doubled backslashes.
+        let win = r"C:\Users\Example Player";
+        assert_eq!(tilde(r"read C:\Users\Example Player\AppData\Local\Warframe\EE.log", win), r"read ~\AppData\Local\Warframe\EE.log");
+        assert_eq!(tilde(r"read c:\users\example player\x", win), r"read ~\x");
+        assert_eq!(tilde("read C:/Users/Example Player/x", win), "read ~/x");
+        assert_eq!(tilde(r#"{"p":"C:\\Users\\Example Player\\x"}"#, win), r#"{"p":"~\\x"}"#);
+        assert_eq!(tilde(r"C:\Users\Example Players\x", win), r"C:\Users\Example Players\x");
+        // A home too short to be one replaces nothing.
+        assert_eq!(tilde("/a/b", "/"), "/a/b");
+        assert_eq!(tilde(r"C:\x", r"C:\"), r"C:\x");
+        // Nothing else changes.
+        assert_eq!(tilde("POST /v2/order: 429", home), "POST /v2/order: 429");
     }
 
     #[test]
