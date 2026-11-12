@@ -41,7 +41,7 @@
 
 <div class="bar">
   <Seg label="Order" bind:value={order} options={[{ v: "plat", label: "Least plat", title: "Cheapest first: the least you can spend for each item" }, { v: "perK", label: "Plat per mastery", title: "Least platinum per 1,000 mastery points first: the most mastery for your platinum" }]} />
-  <span class="dim small">Prices are warframe.market's daily median, or the in-game Market's platinum price when that's cheaper. Prime sets count only the parts you're missing.</span>
+  <span class="dim small">Prices are warframe.market's daily median, or the in-game Market's platinum price when that's cheaper. Prime sets count the parts you're missing, or the whole set when you hold none of its parts and the set is cheaper.</span>
   <HelpMark part="mastery.plat-order" />
 </div>
 
@@ -66,7 +66,7 @@
                 <Thumb file={model.imageOf(b.name.replace(/ Set$/, "")) ?? model.imageOf(x.row.name)} name={b.name} size={22} />
                 <span class="bn" title={b.name}>{b.name.replace(`${x.row.name} `, "")}{b.need > 1 ? ` ×${b.need}` : ""}</span>
                 <P v={b.price} dim />
-                <button class="link" title="Post a buy order for {b.name} on warframe.market: sellers whisper you, often for less" onclick={() => buy(x, b)}>Buy order</button>
+                <button class="link" title="Open the buy order form for {b.name}: nothing is posted until you confirm" onclick={() => buy(x, b)}>Buy order</button>
               </span>
             {/each}
           {/if}

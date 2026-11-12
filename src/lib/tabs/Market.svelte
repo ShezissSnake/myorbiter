@@ -118,7 +118,7 @@
 {/snippet}
 {#snippet ducatCell(r: MarketRow)}{#if r.ducats}<P v={r.ducats} d dim />{/if}{/snippet}
 {#snippet buyCell(r: MarketRow)}
-  <button class="link" title="Post a buy order on warframe.market for {r.name}: the form shows the cheapest seller and best buyer right now" onclick={(e) => { e.stopPropagation(); buy(r); }}>Buy order</button>
+  <button class="link" title="Open the buy order form for {r.name}: it shows the cheapest seller and best buyer right now, and posts nothing until you confirm" onclick={(e) => { e.stopPropagation(); buy(r); }}>Buy order</button>
 {/snippet}
 {#snippet card(r: MarketRow, open: () => void)}
   {#snippet foot()}
@@ -148,7 +148,7 @@
     {#if r.maxRank}<div class="hist"><PriceHistory name={r.name} unique={r.gameRef} rank={r.maxRank} height={130} known={r.priceMax != null} /></div>{/if}
   {/if}
   <div class="actions">
-    <button class="link" title="See the cheapest seller and best buyer now, and post a buy order" onclick={() => buy(r)}>Buy order</button>
+    <button class="link" title="Open the buy order form: the cheapest seller and best buyer now; nothing is posted until you confirm" onclick={() => buy(r)}>Buy order</button>
     <button class="link" aria-busy={links.isOpening(`https://warframe.market/items/${r.slug}`)} onclick={() => openUrl(`https://warframe.market/items/${r.slug}`)}><Opening url={`https://warframe.market/items/${r.slug}`}>warframe.market ↗</Opening></button>
     <button class="link" aria-busy={links.isOpening(wikiUrl(r.name))} onclick={() => openUrl(wikiUrl(r.name))}><Opening url={wikiUrl(r.name)}>Wiki ↗</Opening></button>
   </div>

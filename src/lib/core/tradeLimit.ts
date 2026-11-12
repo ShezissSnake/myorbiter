@@ -1,4 +1,4 @@
-// The daily trade limit: as many trades a day as your Mastery Rank (Founders get two more), every
+// The daily trade limit: as many trades a day as your Mastery Rank (extra trades from Founder status are not added), every
 // completed trade counting once whatever it carried, refreshed at 00:00 UTC. Up to 6 items go each
 // way in one trade. Counted from the trades MyOrbiter read in the game's log.
 

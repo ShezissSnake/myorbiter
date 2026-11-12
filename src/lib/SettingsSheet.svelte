@@ -15,7 +15,7 @@
   import { NOX_SETTING } from "./core/builds/noxsframe";
   import { BAND_WORDS, DRIFT, GREY_AREA, every } from "./core/drift";
   import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "./core/automation";
-  import { AUTO_FLOOR_SHARE } from "./core/approved";
+  import { AUTO_LIMITS } from "./core/approved";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
   import ProgressButton from "./ui/ProgressButton.svelte";
@@ -165,7 +165,7 @@
         {#each Object.entries(PLATFORM_LABEL) as [v, label] (v)}<option value={v}>{label}</option>{/each}
       </select>
     </label>
-    <p class="dim small">The warframe.market MyOrbiter reads and lists on. Signing in sets it from your account. Prices count sellers on other platforms too when you and they have cross-play on, since Warframe trades across platforms. On a console MyOrbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
+    <p class="dim small">The warframe.market MyOrbiter reads and lists on. Signing in sets it from your account. Prices count sellers on your platform, and on the others when you and they both have cross-play on (in game and on your warframe.market profile), since Warframe trades across platforms; Switch and the other platforms can't trade platinum with each other. On a console MyOrbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
   </section>
 
   <section>
@@ -288,7 +288,7 @@
       Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
       more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
-      It never goes under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.
+      {AUTO_LIMITS}. {GREY_AREA}.
     </Switch>
     <label class="field" data-field="settings.rep-text">
       <span class="register">+rep message</span>
@@ -302,7 +302,7 @@
     </Switch>
     {#if settings.market.lastCopy.optIn}<label class="field minutes" data-field="settings.last-copy-minutes">
       <span class="register">Hidden for</span>
-      <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes</span></span>
+      <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes: the arrows stop at 120, but a longer time typed in is kept</span></span>
     </label>{/if}{/if}
   </section>
 
@@ -384,7 +384,7 @@
 
   <section id="settings-report">
     <div class="hmark"><h3 class="register">Report a bug</h3><HelpMark part="settings.report-bug" /></div>
-    <p class="hint">Something not working? Say what happened, and MyOrbiter fills in an issue on GitHub for you to check and submit, or copies the report if you'd rather send it another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
+    <p class="hint">Something not working? Say what happened, and Open on GitHub copies the report and opens MyOrbiter's issue form there (only the version and your system are filled in) for you to paste it in, give it a title and submit; Copy report copies it to send another way. The technical details it can add (version, system, the log's last lines, with sign-ins and players' names hidden) are yours to read first. MyOrbiter never sends anything itself.</p>
     <div class="row"><button class="stamp" title="Open Report a bug (Shift+F1): nothing is posted until you press Submit new issue on GitHub" onclick={() => { open = false; bugReport.show(); }}>Report a bug</button></div>
   </section>
 

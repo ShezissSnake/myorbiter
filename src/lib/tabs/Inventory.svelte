@@ -231,7 +231,7 @@
         {#if priceOf(r) != null}<span><span class="register">Each</span><P v={priceOf(r)} dim /></span>{/if}
         <!-- One total: what the spares sell for, or with none spare, what every copy is worth. -->
         {#if sellable(r) != null}<span title="What your spare copies would bring: no more of the item than the market sells in a month, shared between its ranks or refinements (its part of Spare value; the order the cards are in)"><span class="register">Spares</span><P v={sellable(r)} /></span>
-        {:else if r.quantity > 1 && worthOf(r) != null}<span title="Every copy you hold, at the daily median: none of them spare"><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
+        {:else if r.quantity > 1 && worthOf(r) != null}<span title="Every copy you hold, at the daily median. Shown instead of Spares when none of your spare copies count toward Spare value: none are spare, or the market sells none of them"><span class="register">All</span><P v={worthOf(r)} /></span>{/if}
         {#if r.ducats}<span title="Ducats for every copy you hold: ducats each × copies"><span class="register">Ducats (all)</span><P v={r.ducats * r.quantity} d dim /></span>{/if}
       </div>
     {/if}
@@ -291,7 +291,7 @@
     {/snippet}
     {#snippet band()}
       <Stat label="Spare value" tone="gold" note="Beyond what you keep, no more of each than the market sells in a month" title={`Spare value: every copy beyond what you keep, ${filtered ? "of what the filters show" : "of every kind"}, at the daily median, no more of each item than the market sells in a month (slow sellers count only that; unranked arcanes as their share of a maxed one).${spareSplit ? ` By kind: ${spareSplit}.` : ""} Worth selling, on Prime parts, Mods and Arcanes, is the narrower figure: it leaves out what's better as ducats or Vosfor, what isn't worth a trade and mods that don't sell daily.`}><PTick v={value.spare} /></Stat>
-      <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene"><Count value={spareCopies} /></Stat>
+      <Stat label="Spare copies" note={`Of ${spareItems.size.toLocaleString("en")} items, beyond what you keep`} title="Every copy you hold beyond what you keep: what your unbuilt items take, your best copy and one to give away of each mod (five of each Requiem or Antivirus mod while a lich weapon is left to master; installed copies count as kept), one maxed arcane, one of each Captura scene"><Count value={spareCopies} /></Stat>
       <Stat label="Sell daily" note="Items with copies to spare that trade every day on warframe.market: where to start" title="Items you have copies to spare of that trade at least once a day on warframe.market (their daily statistics): the ones that sell quickly"><Count value={sellDaily} /></Stat>
       <Stat extra label="Quick-sale value" note="Everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month"><PTick v={value.easy} /></Stat>
       <Stat extra label="Market value" tone="dim" note="Every copy at the daily median, slow sellers included"><PTick v={value.market} /></Stat>
@@ -303,7 +303,7 @@
     <select bind:value={kind} aria-label="Kind" class="kinds" title="Only one kind of item">
       {#each KINDS as k (k.v)}<option value={k.v}>{k.label} ({count(k.v).toLocaleString("en")})</option>{/each}
     </select>
-    <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, two of each mod, one maxed arcane, one of each Captura scene" />
+    <Chip bind:on={spareOnly} label="Spare only" title="Only what you hold more of than you need: beyond what your unbuilt items take, your best copy and one to give away of each mod (five of each Requiem or Antivirus mod while a lich weapon is left to master; installed copies count as kept), one maxed arcane, one of each Captura scene" />
     <Fold active={(tradableOnly ? 1 : 0) + (minTrades != null ? 1 : 0) + (minEach != null ? 1 : 0)} reset={() => { tradableOnly = false; minTrades = null; minEach = null; }}>
       <Chip bind:on={tradableOnly} label="Tradable" title="Only things warframe.market trades" />
       <label class="min" title="Only what trades at least this many times a day on warframe.market (1: it actually sells). Empty: any.">

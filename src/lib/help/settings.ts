@@ -286,8 +286,8 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Off unless you turn it on; it's Apply automatically on Orders too.",
         "It follows the second-cheapest seller online or in game, never a lone bait listing.",
-        "Only a gap over 2p and over 5% of its price moves it.",
-        "At most once an hour and six times a day per listing.",
+        "A gap over 2p and 5% moves it, at most once an hour, six a day.",
+        "Never under 70% of your set or approved price, never halving one; raises to your floors.",
       ],
       shot: {
         open: "settings",
