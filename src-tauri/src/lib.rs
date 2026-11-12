@@ -224,9 +224,39 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// HTTPS_PROXY and HTTP_PROXY as they were at startup (ureq doesn't read NO_PROXY); tests, which
 /// only talk to this machine, use none. Only `request` uses it, so no request leaves without the
 /// User-Agent.
+///
+/// Redirects are never followed: none of the addresses MyOrbiter asks is meant to answer with one,
+/// and following one would send the request (and its User-Agent) to whatever host the answer
+/// names. A redirect comes back as an error with its status (`refuse_redirects`), as a 404 would,
+/// so no caller takes its empty body for the answer.
 fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).build()).clone()
+    AGENT
+        .get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).redirects(0).middleware(refuse_redirects).build())
+        .clone()
+}
+
+/// A redirect (3xx), which the agent doesn't follow, as an error. The log names the hosts only:
+/// a Discord webhook's address is a secret.
+fn refuse_redirects(request: ureq::Request, next: ureq::MiddlewareNext) -> Result<ureq::Response, ureq::Error> {
+    let resp = next.handle(request)?;
+    let code = resp.status();
+    if !(300..400).contains(&code) {
+        return Ok(resp);
+    }
+    let from = host_of(resp.get_url()).to_string();
+    let to = resp.header("location").map(host_of).filter(|h| !h.is_empty()).unwrap_or(&from).to_string();
+    log::warn!(target: "myorbiter::http", "{from} answered {code}, a redirect to {to}: not followed");
+    Err(ureq::Error::Status(code, resp))
+}
+
+/// The host (and port) of an absolute address; "" for a relative one.
+fn host_of(url: &str) -> &str {
+    let Some((_, rest)) = url.split_once("://") else { return "" };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..end];
+    // Never the user name or password an address might carry.
+    authority.rsplit_once('@').map_or(authority, |(_, h)| h)
 }
 
 /// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`.
@@ -1778,6 +1808,63 @@ mod tests {
         request("GET", &format!("{addr}/x")).call().expect("answered");
         let head = served.join().unwrap();
         assert_eq!(test_http::header(&head, "user-agent"), Some(user_agent()), "{head}");
+    }
+
+    /// A listener on 127.0.0.1 that answers `reply` to every connection for 3 s, and gives the
+    /// heads of the requests it got.
+    fn answering(reply: String) -> (u16, std::thread::JoinHandle<Vec<String>>) {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        l.set_nonblocking(true).unwrap();
+        let h = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            let end = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < end {
+                match l.accept() {
+                    Ok((mut s, _)) => {
+                        s.set_nonblocking(false).unwrap();
+                        s.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                        let mut buf = [0u8; 4096];
+                        let n = s.read(&mut buf).unwrap_or(0);
+                        seen.push(String::from_utf8_lossy(&buf[..n]).into_owned());
+                        let _ = s.write_all(reply.as_bytes());
+                    }
+                    Err(_) => std::thread::sleep(Duration::from_millis(10)),
+                }
+            }
+            seen
+        });
+        (port, h)
+    }
+
+    /// A redirect to another host (here another port) is not followed, so a request carrying
+    /// warframe.market's sign-in never reaches that host at all; it ends as an error with the
+    /// redirect's status. The same goes for one back to the same host.
+    #[test]
+    fn redirects_are_not_followed() {
+        let (b, at_b) = answering("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into());
+        let (a, at_a) = answering(format!("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{b}/elsewhere\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+        let r = request("GET", &format!("http://127.0.0.1:{a}/start")).set("Authorization", "Bearer example-token").call();
+        let ended = match r {
+            Err(ureq::Error::Status(code, _)) => Some(code),
+            _ => None,
+        };
+        let (sa, sb) = (at_a.join().unwrap(), at_b.join().unwrap());
+        assert!(sb.is_empty() && sa.len() == 1 && ended == Some(302), "A saw {sa:?}; B saw {sb:?}; the call ended {ended:?}");
+
+        let (c, at_c) = answering("HTTP/1.1 301 Moved Permanently\r\nLocation: /again\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        let r = request("GET", &format!("http://127.0.0.1:{c}/start")).call();
+        assert!(matches!(r, Err(ureq::Error::Status(301, _))));
+        assert_eq!(at_c.join().unwrap().len(), 1, "asked once, not again at /again");
+    }
+
+    #[test]
+    fn a_redirect_is_logged_by_its_hosts_only() {
+        assert_eq!(host_of("https://discord.com/api/webhooks/1/secret"), "discord.com");
+        assert_eq!(host_of("http://127.0.0.1:8080?x=1"), "127.0.0.1:8080");
+        assert_eq!(host_of("https://user:pass@example.com/x"), "example.com");
+        assert_eq!(host_of("/relative/path"), "");
     }
 
     /// Every request goes through `request` (and every warframe.market socket through
