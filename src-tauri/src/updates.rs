@@ -219,8 +219,25 @@ pub enum Check {
     Newer { version: String, notes: Option<String>, date: Option<String> },
     /// The channel's build is older than this one (a more stable channel).
     Older { version: String, notes: Option<String>, date: Option<String> },
+    /// The channel has no build yet: no manifest at any address (`system: false`), or one without
+    /// a build for this system (`system: true`). Not a failure: the page names a channel that has
+    /// one and offers the switch; nothing switches by itself.
+    Empty { system: bool },
     /// Nothing to check here (a dev build, a package, macOS): `Info.install` says why.
     Off,
+}
+
+/// Whether a failed check means the channel simply has no build (yet), rather than something that
+/// went wrong: every address answered without a manifest (a 404; the plugin can't tell a 503 from
+/// one, so a site that's down for the whole check reads the same), or the manifest has no build
+/// for this system. `Some(system)` as `Check::Empty` has it.
+fn empty_channel(e: &tauri_plugin_updater::Error) -> Option<bool> {
+    use tauri_plugin_updater::Error as E;
+    match e {
+        E::ReleaseNotFound => Some(false),
+        E::TargetNotFound(_) | E::TargetsNotFound(_) => Some(true),
+        _ => None,
+    }
 }
 
 /// The update the last check found, kept so a click installs exactly what was shown.
@@ -348,6 +365,13 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             log::info!(target: "myorbiter::updates", "{}: up to date ({current})", channel.name());
             *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
             Ok(Check::Current { version: current.to_string() })
+        }
+        Err(e) if empty_channel(&e).is_some() => {
+            // A channel with nothing on it yet is said once a check, plainly, not as a warning.
+            let system = empty_channel(&e) == Some(true);
+            log::info!(target: "myorbiter::updates", "{}: no build {}yet", channel.name(), if system { "for this system " } else { "on this channel " });
+            *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+            Ok(Check::Empty { system })
         }
         Err(e) => {
             // Offline, gitlab.com down, or a manifest the plugin can't read: the page says why in
@@ -628,6 +652,16 @@ mod tests {
         assert_eq!(check_failure(Channel::Beta, &E::TargetNotFound("linux-x86_64".into())), "The Beta channel has no build for this system yet");
         assert_eq!(check_failure(Channel::Stable, &E::InsecureTransportProtocol), "The update address is invalid");
         assert_eq!(check_failure(Channel::Stable, &E::UnsupportedOs), "Updates aren't offered for this system");
+    }
+
+    #[test]
+    fn a_channel_with_no_build_is_not_a_failure() {
+        use tauri_plugin_updater::Error as E;
+        assert_eq!(empty_channel(&E::ReleaseNotFound), Some(false), "no manifest anywhere: the channel is empty");
+        assert_eq!(empty_channel(&E::TargetNotFound("linux-x86_64".into())), Some(true), "a manifest with no build for this system");
+        assert_eq!(empty_channel(&E::Network("dns".into())), None, "offline is a failure");
+        assert_eq!(empty_channel(&E::InsecureTransportProtocol), None);
+        assert_eq!(serde_json::to_value(Check::Empty { system: false }).unwrap(), serde_json::json!({ "state": "empty", "system": false }));
     }
 
     #[test]

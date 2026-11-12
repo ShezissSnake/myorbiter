@@ -32,7 +32,7 @@ import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
 import { timing, type TimingEnv } from "./timing";
-import { defaultUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
+import { defaultUpdates, newInstallUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 import { meterMemoryOf } from "./core/meterMemory";
 
@@ -973,8 +973,9 @@ export async function loadSettings(): Promise<Settings> {
     buildsFromNox: raw?.buildsFromNox !== false,
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
-    // Settings from before updates: Stable, never checked.
-    updates: sanitizeUpdates(raw?.updates),
+    // Settings from before updates: Stable, never checked. A new install (no settings at all, and
+    // none that couldn't be read): the channel its build came from, once that's known (updates.svelte.ts).
+    updates: raw ? sanitizeUpdates(raw.updates) : loadFailed == null ? newInstallUpdates() : defaultUpdates(),
   };
 }
 
@@ -1219,6 +1220,7 @@ export interface UpdateInfo {
 export type UpdateCheck =
   | { state: "current"; version: string }
   | { state: "newer" | "older"; version: string; notes: string | null; date: string | null }
+  | { state: "empty"; system: boolean }
   | { state: "off" };
 
 /**

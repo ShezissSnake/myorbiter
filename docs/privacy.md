@@ -251,7 +251,11 @@ now and when you change the channel. They read the channel's `latest.json` from 
 project's releases on github.com and, only if github.com can't be reached or doesn't serve that
 channel's manifest, from its package registry on gitlab.com, with the updater's own User-Agent
 (`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
-experimental), with no version, system or id. An update downloads only when you click, from where
+experimental), with no version, system or id. When the channel you picked has no build yet, the same
+check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
+the same way, so Settings can name a channel that has one; it switches nothing. A new install starts
+on the channel its build was published to (Experimental, where every build lands first); an install
+that has saved settings keeps its channel. An update downloads only when you click, from where
 that `latest.json` points: the build's release on github.com, which hands the download to GitHub's
 file storage (`release-assets.githubusercontent.com` or `objects.githubusercontent.com`), or
 gitlab.com's package registry, which may hand it to a file storage of its choosing that wasn't

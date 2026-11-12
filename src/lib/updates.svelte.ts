@@ -8,7 +8,7 @@
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
 import { flushSettings, logLine, updater, type UpdateCheck, type UpdateInfo } from "./backend";
-import { CHANNEL_LABEL, checkDue, checkHeadline, checkLine, installChecks, installInstalls, noticeShows, SCHEDULE_TICK, START_WAIT, versionLine, type Channel, type CheckOutcome, type UpdateSettings } from "./core/updates";
+import { CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, noticeShows, SCHEDULE_TICK, settleChannel, START_WAIT, versionLine, type Channel, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
 import { afterPaint } from "./ui/soon";
@@ -70,6 +70,9 @@ export class Updates {
     void updater.info().then(
       (i) => {
         this.info = i;
+        // A new install starts on the channel its build was published to; saved settings keep theirs.
+        const u = this.get?.();
+        if (u && settleChannel(u, i.version)) logLine("info", "updates", `new install: on ${CHANNEL_LABEL[u.channel]}, the channel this build was published to`);
         if (!installChecks(i.install)) return;
         // Not before the first frame, and not while the page is busy, so the start stays as quick;
         // but not held back for long either.
@@ -186,11 +189,46 @@ export class Updates {
         this.outcome = { kind: "off", at };
         return "Not here";
       }
+      if (r.state === "empty") {
+        // Not a failure: said plainly, with the nearest channel that has a build, to switch to by
+        // a click. Nothing switches by itself.
+        const nearest = await this.nearest(channel);
+        if (this.get?.().channel !== channel) continue;
+        this.outcome = { kind: "empty", channel, system: r.system, nearest, at };
+        return `${CHANNEL_LABEL[channel]} is empty`;
+      }
       this.outcome = { kind: r.state, channel, version: r.version, at };
       if (r.state === "newer") return `${r.version} is out`;
       if (r.state === "older") return `${CHANNEL_LABEL[channel]} has ${r.version}`;
       return `Up to date · ${this.info.version}`;
     }
+  }
+
+  /**
+   * The nearest channel to `empty` that has a build (`NEAREST`), and its version; null if none
+   * answers with one. Asked only when the chosen channel turned out empty, at most once a check,
+   * from the same addresses a switch to that channel asks.
+   */
+  private async nearest(empty: Channel): Promise<{ channel: Channel; version: string } | null> {
+    for (const c of NEAREST[empty]) {
+      let r: UpdateCheck;
+      try {
+        r = await limited(updater.check(c), CHECK_LIMIT);
+      } catch {
+        return null;
+      }
+      if (r.state === "newer" || r.state === "older" || r.state === "current") return { channel: c, version: r.version };
+      if (r.state !== "empty") return null;
+    }
+    return null;
+  }
+
+  /** The empty channel's line in Settings, Updates, and the switch it offers; null otherwise. */
+  get empty(): { words: string; to: { channel: Channel; version: string } | null } | null {
+    const o = this.outcome;
+    const u = this.get?.();
+    if (!o || o.kind !== "empty" || !u || o.channel !== u.channel) return null;
+    return { words: emptyWords(o.channel, o.system), to: o.nearest };
   }
 
   /** Check now: answers on the button and in the line under it. */

@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
+import { readFileSync } from "node:fs";
+import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, NEAREST, newInstallUpdates, publishedTo, settleChannel, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
 import { openable } from "../src/lib/core/links";
 import { defaultSettings } from "../src/lib/backend";
 import { NEWS, showMeTarget } from "../src/lib/whatsNew";
@@ -17,7 +18,7 @@ test("the channel setting: Stable unless one of the three channels was saved", (
 
 test("the rest of the update settings: versions, times and where a build came from", () => {
   const s = sanitizeUpdates({ channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" } });
-  assert.deepEqual(s, { channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" } });
+  assert.deepEqual(s, { channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" }, picked: true });
   assert.equal(sanitizeUpdates({ later: "soon" }).later, "");
   assert.equal(sanitizeUpdates({ later: "0.1" }).later, "");
   assert.equal(sanitizeUpdates({ lastCheck: -5 }).lastCheck, null);
@@ -131,4 +132,50 @@ test("What's New announces updates, and its Show me opens Settings at Updates", 
   assert.deepEqual(showMeTarget("settings#updates", () => null), { label: "Settings" });
   assert.deepEqual(showMeTarget("builds#hero", (p) => (p === "builds" ? "Builds" : null)), { label: "Builds" });
   assert.equal(showMeTarget("nowhere", () => null), null);
+});
+
+test("a new install starts on the channel its build was published to; saved settings keep theirs", () => {
+  // Each kind of build: every CI build (0.2.n) lands on Experimental; a local build is published nowhere.
+  assert.equal(publishedTo("0.2.127"), "experimental");
+  assert.equal(publishedTo("0.2.1"), "experimental");
+  assert.equal(publishedTo("0.1.0"), "stable");
+  assert.equal(publishedTo("junk"), "stable");
+  const fresh = newInstallUpdates();
+  assert.equal(fresh.picked, false);
+  assert.equal(settleChannel(fresh, "0.2.127"), true);
+  assert.deepEqual(fresh, { ...defaultUpdates(), channel: "experimental", picked: true });
+  assert.equal(settleChannel(fresh, "0.2.128"), false, "once only: a later build doesn't move it");
+  const local = newInstallUpdates();
+  settleChannel(local, "0.1.0");
+  assert.equal(local.channel, "stable");
+  // Saved settings, whatever they hold, keep their channel: nobody is moved.
+  for (const saved of [undefined, {}, { channel: "stable" }, { channel: "beta", lastCheck: 1 }, { channel: "stable", picked: true }]) {
+    const u = sanitizeUpdates(saved);
+    assert.equal(settleChannel(u, "0.2.127"), false, JSON.stringify(saved));
+    assert.equal(u.channel, (saved as { channel?: string } | undefined)?.channel ?? "stable");
+  }
+  // A new install that saved before it learned its version settles at its next start.
+  const half = sanitizeUpdates({ ...newInstallUpdates() });
+  assert.equal(half.picked, false);
+  settleChannel(half, "0.2.127");
+  assert.equal(half.channel, "experimental");
+  // The default object itself stays Stable and settled (settings saved before updates).
+  assert.equal(defaultUpdates().picked, true);
+});
+
+test("a new install, as the settings load it: only when nothing was saved", () => {
+  const src = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
+  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : loadFailed == null \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before; unreadable ones aren't a new install");
+});
+
+test("an empty channel is said plainly, never as a failure, and the nearest channel comes first", () => {
+  const at = Date.UTC(2026, 10, 12, 9, 0);
+  const o = { kind: "empty" as const, channel: "stable" as const, system: false, nearest: { channel: "experimental" as const, version: "0.2.127" }, at };
+  assert.equal(checkHeadline(o, false), "Stable has no build yet");
+  assert.equal(checkLine(o, at, false, at), "Stable has no build yet, so there's nothing to update to there (checked just now).");
+  assert.equal(checkHeadline({ ...o, system: true }, false), "Stable has no build for this system yet");
+  assert.deepEqual(NEAREST.stable, ["beta", "experimental"]);
+  assert.deepEqual(NEAREST.beta, ["stable", "experimental"]);
+  assert.deepEqual(NEAREST.experimental, ["beta", "stable"]);
+  for (const c of ["stable", "beta", "experimental"] as const) assert.ok(!NEAREST[c].includes(c));
 });
