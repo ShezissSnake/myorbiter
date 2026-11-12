@@ -140,8 +140,9 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   - the in-game names of players you trade with or who whisper you (their profile and reputation),
     signed in or not;
   - your closed orders, when you press Import on Sales;
-  - warframe.market's live feed of new orders on your platform: one connection, held while
-    MyOrbiter is open.
+  - warframe.market's live feed of new orders on your platform: one connection, held while there
+    is something to watch for (up to 300 things you're after, your price alerts among them) and
+    closed once there has been nothing for 10 minutes.
 - **Signed in** (your own sign-in: an email and password used once for a token, or a pasted
   token): your profile (at start and after signing in, and every minute or more while
   warframe.market isn't answering); your orders (every 30 seconds, every 2 minutes while the window
