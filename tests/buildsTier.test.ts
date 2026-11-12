@@ -109,6 +109,42 @@ test("the aura adds capacity, twice on its polarity, and the reason says so", ()
   assert.equal(cp.formaPlan[0].polarity, "naramon");
 });
 
+test("aura on another polarity: a fifth less, and the build still counts it", () => {
+  // Corrosive Projection (2 + 5 = 7) on Rhino Prime's Madurai aura slot gives 5, not 7 and not 14.
+  const t = capacityOf(build(P.rhino, [P.vitality], { aura: { path: P.corrosiveProjection } }), item(P.rhino), CAT);
+  assert.equal(t.capacity, 35);
+  assert.deepEqual(t.slots.find((s) => s.slot === "aura"), { slot: "aura", path: P.corrosiveProjection, name: "Corrosive Projection", polarity: "madurai", drain: -5 });
+  assert.equal(t.reasons[0], "Fits in 30 with the Corrosive Projection aura: drain 6 of 35.");
+});
+
+test("the stance adds capacity on the weapon's own stance polarity: twice when it matches, a fifth less when not, as listed on none", () => {
+  // Crimson Dervish (Madurai, 2 + 3 = 5). Nikana Prime's stance slot is Madurai.
+  const nikana = item(P.nikana);
+  const matched = capacityOf(build(P.nikana, [P.pressurePoint], { stance: { path: P.crimsonDervish } }), nikana, CAT);
+  assert.equal(matched.capacity, 40);
+  assert.deepEqual(matched.slots.find((s) => s.slot === "stance"), { slot: "stance", path: P.crimsonDervish, name: "Crimson Dervish", polarity: "madurai", drain: -10 });
+  assert.equal(matched.reasons[0], "Fits in 30 with the Crimson Dervish stance on its Madurai slot: drain 5 of 40.");
+  assert.ok(!matched.reasons.some((r) => r.includes("isn't in MyOrbiter's data")));
+  const other = capacityOf(build(P.nikana, [P.pressurePoint], { stance: { path: P.crimsonDervish } }), { ...nikana, stancePolarity: "vazarin" }, CAT);
+  assert.equal(other.capacity, 34);
+  const none = capacityOf(build(P.nikana, [P.pressurePoint], { stance: { path: P.crimsonDervish } }), { ...nikana, stancePolarity: undefined }, CAT);
+  assert.equal(none.capacity, 35);
+  assert.ok(none.reasons.includes("The stance slot's own polarity isn't in MyOrbiter's data: counted as none."));
+});
+
+test("a build that fits only because of its aura or stance is not over capacity", () => {
+  // Rhino Prime without a Reactor: 34 + 7 = 41 of drain, over 30 but under 30 + 18 with Steel Charge on its Madurai slot.
+  const rhino = capacityOf(build(P.rhino, [P.vitality, P.streamline, P.primedContinuity, P.intensify, P.continuity], { aura: { path: P.steelCharge } }), item(P.rhino), CAT);
+  assert.equal(rhino.drain, 34 + 7);
+  assert.equal(rhino.tier, "low", "fits in 30 + 18 without a Reactor");
+  assert.equal(rhino.fits, true);
+  // Nikana Prime (a Madurai and a Vazarin slot): eight Pressure Points drain 34, over 30 but under 30 + 10.
+  const melee = capacityOf(build(P.nikana, [P.pressurePoint, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }, { path: P.pressurePoint, rank: 0 }], { stance: { path: P.crimsonDervish } }), item(P.nikana), CAT);
+  assert.equal(melee.drain, 5 + 6 * 4 + 5, "the max-rank one on the Madurai slot 5, six rank-0 ones on blank slots 4 each, the last on the Vazarin slot 5");
+  assert.equal(melee.tier, "low");
+  assert.equal(melee.capacity, 40);
+});
+
 test("Umbral mods take Umbra Forma on warframes, counted apart", () => {
   const t = capacityOf(build(P.rhino, [P.umbralVitality, P.umbralFiber, P.umbralIntensify, P.primedContinuity]), item(P.rhino), CAT);
   // 16 × 3 + 14 = 62 against 60: one Umbra Forma frees 8.

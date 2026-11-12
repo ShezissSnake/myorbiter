@@ -1,5 +1,6 @@
 <script lang="ts">
-  // One build: where it's from, the Arsenal's slot grid, the tier it needs and why (capacity, the
+  // One build: where it's from, the Arsenal's slot grid (with a Kuva, Tenet or Coda weapon's bonus
+  // element under it), the tier it needs and why (capacity, the
   // Forma plan), and what you're missing of it, each line with what's left to do, the Endo to rank
   // it, where to get it, and for a mod or arcane you lack its price and the cheapest seller's whisper.
   // MyOrbiter's suggestion also shows its variants, the shards and Helminth in the grid, and "With it":
@@ -8,7 +9,7 @@
   import { links, openUrl } from "../../links.svelte";
   import Opening from "../Opening.svelte";
   import type { Model } from "../../core/model";
-  import { missing, type Build, type MissingLine, type MissingReport } from "../../core/builds";
+  import { bonusElement, ELEMENT_LABEL, missing, type Build, type MissingLine, type MissingReport } from "../../core/builds";
   import type { Loadout, LoadoutPick, WeaponRiven } from "../../core/builds/suggest";
   import { ageLine, BASIS_WORD, helminthShow, rivenShort, shardSlots, sourceName, withItLines, TIER_NAME, TIER_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
   import { familyOfTag } from "./tags";
@@ -78,6 +79,12 @@
   const helminth = $derived(helminthShow(b, lo));
   const riven = $derived(extras?.riven ?? null);
   const melee = $derived(b.kind === "melee" || b.kind === "archmelee");
+  // Kuva, Tenet and Coda weapons: the bonus element that suits this build, worked out from its mods.
+  const element = $derived.by(() => {
+    const it = model.catalogByUnique.get(b.item);
+    return it ? bonusElement(b, it, model.catalogByUnique) : null;
+  });
+  const ELEMENT_TIP = "Kuva and Tenet weapons get a bonus element when they are made: the element of the Lich's or Sister's progenitor Warframe. Coda weapons come with one too. MyOrbiter works it out from this build's mods: the element the bonus can take over from one of them while they still combine the same way (combining as the wiki describes it).";
   const variants = $derived(extras?.variants ?? []);
   // "Default" (gear without variants: companions, archwings, Necramechs) says nothing as a title.
   const variantLabel = $derived.by(() => {
@@ -155,6 +162,13 @@
     <div class="gridcol">
       <ModGrid {model} build={b} tier={t} {report} why={extras?.why ?? null} {shards} {helminth} />
       {#if b.parts?.length}<p class="parts dim small">With {b.parts.map((p) => model.nameOf(p)).join(", ")}</p>{/if}
+      {#if element}
+        <p class="elem" data-card="element" title={ELEMENT_TIP}>
+          <span class="register">Bonus element</span>
+          {#if element.element}<b class="name-mark">{ELEMENT_LABEL[element.element]}</b>{:else}<span class="dim">None to suggest</span>{/if}
+          <span class="dim small">{element.why}</span>
+        </p>
+      {/if}
     </div>
 
     <div class="side">
@@ -243,7 +257,7 @@
       {#if extras?.upgrades?.length}
         <section class="ups" aria-label="Better if you get">
           <h4 class="register">Better if you get</h4>
-          <ul>{#each extras.upgrades.slice(0, 5) as u (u.name)}<li title={u.reason}><b>{u.name}</b>{#if u.replaces} <span class="dim">for {u.replaces}</span>{/if}</li>{/each}</ul>
+          <ul>{#each extras.upgrades.slice(0, 5) as u (u.name)}<li title={u.reason}><b>{u.name}</b>{#if u.replaces}{" "}<span class="dim">for {u.replaces}</span>{/if}</li>{/each}</ul>
         </section>
       {/if}
       {#if b.note}<p class="note dim small" title={b.note}>{b.note}</p>{/if}
@@ -274,6 +288,10 @@
   :global(html[data-room~="lt1100"]) .body { grid-template-columns: 1fr; }
   .gridcol { min-width: 0; }
   .parts { margin: .4rem 0 0; }
+  /* The bonus element: a register label, the element, then why on the same line when it fits. */
+  .elem { display: flex; flex-wrap: wrap; align-items: baseline; gap: .15rem .55rem; margin: .5rem 0 0; }
+  .elem .register { font-size: 11px; }
+  .elem b { font-size: .9rem; color: var(--platinum); }
   .side { display: grid; align-content: start; gap: .9rem; min-width: 0; }
 
   .tline { display: flex; align-items: baseline; gap: .55rem; flex-wrap: wrap; }
