@@ -274,3 +274,71 @@ test("a copy that doesn't update itself never asks", async (t) => {
   assert.deepEqual(calls, []);
   assert.equal(u.status(Date.now()), "Last checked not yet.");
 });
+
+test("an empty channel: said plainly, with the nearest channel that has a build, and nothing switches", async (t) => {
+  const { u, settings, calls, begin } = await setup(t, [{ state: "empty", system: false }, { state: "empty", system: false }, { state: "newer", version: "0.2.127", notes: null, date: null }]);
+  settings.channel = "stable";
+  await begin();
+  assert.equal(await u.checkNow(), true, "not a failure");
+  assert.deepEqual(calls, ["stable", "beta", "experimental"], "the nearest first, and only because Stable was empty");
+  assert.equal(u.error, null);
+  assert.equal(u.checkJob.note, "Stable is empty");
+  assert.equal(u.status(Date.now()), "Stable has no build yet, so there's nothing to update to there (checked just now).");
+  assert.deepEqual(u.empty, { words: "Stable has no build yet", to: { channel: "experimental", version: "0.2.127" } });
+  assert.equal(settings.channel, "stable", "nothing switches by itself");
+  assert.equal(u.offer, null, "and nothing is offered on a channel not chosen");
+  assert.equal(u.notice, null);
+});
+
+test("the switch an empty channel offers is a click, and asks the new channel at once", async (t) => {
+  const { u, settings, calls, begin } = await setup(t, [{ state: "empty", system: false }, { state: "current", version: "0.2.104" }, { state: "current", version: "0.2.104" }]);
+  settings.channel = "stable";
+  await begin();
+  await u.checkNow();
+  assert.deepEqual(u.empty?.to, { channel: "beta", version: "0.2.104" });
+  u.setChannel("beta");
+  await micro();
+  assert.equal(settings.channel, "beta");
+  assert.deepEqual(calls, ["stable", "beta", "beta"]);
+  assert.equal(u.empty, null);
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+});
+
+test("a channel that gets its first build later offers it at the next check", async (t) => {
+  const { u, settings, begin } = await setup(t, [{ state: "empty", system: false }, new Error("offline"), { state: "newer", version: "0.2.130", notes: null, date: null }]);
+  settings.channel = "stable";
+  await begin();
+  await u.checkNow();
+  assert.ok(u.empty, "empty, and the nearest couldn't be asked");
+  assert.equal(u.empty?.to, null);
+  await u.checkNow();
+  assert.equal(u.empty, null);
+  assert.deepEqual(u.offer, { channel: "stable", version: "0.2.130", notes: null, older: false });
+});
+
+test("a new install settles on its build's channel once the app says which build it is", async (t) => {
+  const { settings, begin } = await setup(t, []);
+  Object.assign(settings, { channel: "stable", picked: false });
+  await begin();
+  assert.equal(settings.channel, "experimental");
+  assert.equal(settings.picked, true);
+});
+
+test("saved settings keep their channel when the app says which build it is", async (t) => {
+  const { settings, begin } = await setup(t, []);
+  Object.assign(settings, { channel: "stable", picked: true });
+  await begin();
+  assert.equal(settings.channel, "stable");
+});
+
+test("a channel the player picks on a new install stays, even the one already shown, before the app says which build", async (t) => {
+  const { u, settings } = await setup(t, []);
+  // A CI build: left alone, a new install would settle on Experimental.
+  updater.info = async () => ({ version: "0.2.127", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
+  Object.assign(settings, { channel: "stable", picked: false });
+  u.start(() => settings);
+  u.setChannel("stable");
+  await micro();
+  assert.equal(settings.picked, true);
+  assert.equal(settings.channel, "stable", "the build's channel doesn't settle over the player's pick");
+});

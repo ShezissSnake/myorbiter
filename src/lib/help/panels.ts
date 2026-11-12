@@ -330,6 +330,8 @@ const INVENTORY = `.sheet[aria-label='TennoScope'] section:has([data-help="tenno
 
 /** The first start's question (FirstRun.svelte). */
 const FIRST_Q = "[role=dialog][aria-labelledby='first-run-title']";
+/** The first start's setup page (App.svelte), until TennoScope's first read is in. */
+const SETUP = "#main .notice:has(ol.steps)";
 
 const FIRST_RUN: Walkthrough = {
   id: "first-run",
@@ -342,7 +344,7 @@ const FIRST_RUN: Walkthrough = {
       lines: [
         "Not now: overlay only: TennoScope reads the game's log and reward screen, not your inventory.",
         "Read my inventory (Full mode): your items, mastery and Foundry too, from the running game.",
-        "MyOrbiter starts TennoScope only once you answer.",
+        "MyOrbiter starts TennoScope only once you answer; Esc answers Not now.",
         "Change it any time in Settings, TennoScope.",
       ],
       shot: {
@@ -372,12 +374,32 @@ const FIRST_RUN: Walkthrough = {
         ],
       },
     },
+    {
+      // Pictured with TennoScope's stand-in at the game's sign-in screen (core/standIn.ts).
+      title: "Getting set up, step by step",
+      lines: [
+        "Each step says where it is: Warframe not running, at sign-in, or signed in.",
+        "Finish later or Esc: use MyOrbiter without your inventory; automatic actions stay off.",
+        "Every wait has a limit; past it, the step says why, with Try again.",
+        "The sidebar waits meanwhile; its Game and Inventory lines say the same.",
+      ],
+      shot: {
+        open: "home",
+        startup: "first-start",
+        standIn: "signin",
+        part: SETUP,
+        marks: [
+          { at: `${SETUP} li.now .stage`, is: "n", n: 1, from: "left" },
+          { at: `${SETUP} [data-field="setup.later"]`, is: "n", n: 2, from: "bottom" },
+        ],
+      },
+    },
   ],
   good: {
     warn: true,
     text: "Full mode reads Warframe's memory. Digital Extremes leaves third-party programs at your own risk, so Full mode could put your account at risk: your call.",
   },
-  covers: { "first-run": 1 },
+  covers: { "first-run": 1, "setup.steps": 3 },
 };
 
 // ---------------------------------------------------------------- What's new

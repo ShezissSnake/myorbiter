@@ -314,6 +314,8 @@ export interface MissionState {
   reward_screen_open: boolean;
   rewards_given: string[];
   last_event: number | null;
+  /** Engine uptime at the first sign this session that the player signed in (ee_log.rs); null at the login screen. */
+  signed_in?: number | null;
   session_start: number | null;
   history: MissionEntry[];
   /** This session's trades that went through, read from the trade dialog in EE.log. */

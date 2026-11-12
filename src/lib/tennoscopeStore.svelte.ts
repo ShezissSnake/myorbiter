@@ -17,6 +17,8 @@ class TennoscopeStore {
   }
   /** A request just sent, until the next report shows its effect. */
   pending = $state<TennoscopeAsk | null>(null);
+  /** The last Full or Overlay asked for, and when (the first start's access step times it). */
+  askedAccess = $state<{ mode: "full" | "overlay"; at: number } | null>(null);
   /** Start it whenever it isn't running. */
   launch = true;
   /**
@@ -146,6 +148,7 @@ class TennoscopeStore {
       this.wanted = null;
       this.follows = 0;
     }
+    if (ask === "--access=full" || ask === "--access=overlay") this.askedAccess = { mode: ask === "--access=full" ? "full" : "overlay", at: Date.now() };
     try {
       this.pending = ask;
       await tennoscope.ask(ask);

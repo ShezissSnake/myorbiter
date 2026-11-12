@@ -111,12 +111,30 @@ fn file_state(path: &Path) -> Result<FileState, DataError> {
 
 /// One string for the state of both catalog files, e.g. `"81234567.1729800000123456789-2345678.1729800000987654321"`.
 /// A string, not a number: JavaScript numbers lose digits past 2^53.
-fn catalog_rev(catalog: FileState, relics: FileState) -> Option<String> {
+/// No relic table at all reads as `none`: one turning up later changes the revision.
+fn catalog_rev(catalog: FileState, relics: Option<FileState>) -> Option<String> {
     let part = |f: FileState| {
         let nanos = f.modified?.duration_since(SystemTime::UNIX_EPOCH).ok()?.as_nanos();
         Some(format!("{}.{nanos}", f.len))
     };
-    Some(format!("{}-{}", part(catalog)?, part(relics)?))
+    let relics = match relics {
+        Some(r) => part(r)?,
+        None => "none".to_string(),
+    };
+    Some(format!("{}-{relics}", part(catalog)?))
+}
+
+/// The relic table to read: TennoScope's own (`catalog/relic-generation.json`), or else `fallback`,
+/// the tables MyOrbiter hands TennoScope from the official drop tables (bridge.rs, the same WFCD
+/// shape). TennoScope writes its own only when it fetches the list itself, which it doesn't while
+/// MyOrbiter gives it the tables, so a new install started by MyOrbiter never has one. Neither:
+/// None, and the inventory still loads (the relic pages go without until there is one).
+pub fn relics_path(dir: &Path, fallback: Option<&Path>) -> Option<PathBuf> {
+    let own = dir.join(RELICS_FILE);
+    if own.is_file() {
+        return Some(own);
+    }
+    fallback.filter(|f| f.is_file()).map(Path::to_path_buf)
 }
 
 const CATALOG_FILE: &str = "catalog/catalog-generation.json";
@@ -186,8 +204,15 @@ fn ensure_dir(dir: &Path) -> Result<(), DataError> {
 /// The inventory and prices, and the revision of the catalog files beside them. Only stats the
 /// catalog files: reading them is [`load_catalogs`]' job.
 pub fn load_collection(dir: &Path) -> Result<Collection, DataError> {
+    load_collection_with(dir, None)
+}
+
+/// [`load_collection`], with the relic table to use when TennoScope hasn't written its own
+/// ([`relics_path`]).
+pub fn load_collection_with(dir: &Path, relics_fallback: Option<&Path>) -> Result<Collection, DataError> {
     ensure_dir(dir)?;
-    let catalog_rev = catalog_rev(file_state(&dir.join(CATALOG_FILE))?, file_state(&dir.join(RELICS_FILE))?);
+    let relics = relics_path(dir, relics_fallback).map(|p| file_state(&p)).transpose()?;
+    let catalog_rev = catalog_rev(file_state(&dir.join(CATALOG_FILE))?, relics);
     let (inventory, observed_at) = read_inventory(&dir.join("tennoscope.sqlite3"))?;
     let prices_path = dir.join("collection-prices.json");
     let prices = if prices_path.exists() {
@@ -200,9 +225,20 @@ pub fn load_collection(dir: &Path) -> Result<Collection, DataError> {
 
 /// The slimmed item catalog and relic table, read again only when their files change.
 pub fn load_catalogs(dir: &Path) -> Result<Catalogs, DataError> {
+    load_catalogs_with(dir, None)
+}
+
+/// [`load_catalogs`], with the relic table to use when TennoScope hasn't written its own.
+pub fn load_catalogs_with(dir: &Path, relics_fallback: Option<&Path>) -> Result<Catalogs, DataError> {
     ensure_dir(dir)?;
     let (catalog, catalog_state) = cached(&CATALOG, &dir.join(CATALOG_FILE), read_catalog)?;
-    let (relics, relics_state) = cached(&RELICS, &dir.join(RELICS_FILE), read_relics)?;
+    let (relics, relics_state) = match relics_path(dir, relics_fallback) {
+        Some(p) => {
+            let (r, state) = cached(&RELICS, &p, read_relics)?;
+            (r, Some(state))
+        }
+        None => (Arc::new(Vec::new()), None),
+    };
     Ok(Catalogs { rev: catalog_rev(catalog_state, relics_state), catalog, relics })
 }
 
@@ -629,6 +665,42 @@ mod tests {
         fs::remove_dir_all(&dir).ok();
     }
 
+    /// A new install that MyOrbiter started: TennoScope read the inventory and wrote its database
+    /// and item catalog, but never its own relic table (MyOrbiter gives it one). The inventory
+    /// loads all the same: with MyOrbiter's relic tables when they're there, with none otherwise.
+    #[test]
+    fn the_inventory_loads_without_tennoscope_s_own_relic_table() {
+        let dir = temp_dir("no-relics");
+        write_db(&dir);
+        fs::write(dir.join(CATALOG_FILE), r#"{"catalog": [{"uniqueName": "/A", "name": "A", "category": "Primary"}]}"#).unwrap();
+        assert!(!dir.join(RELICS_FILE).exists());
+
+        // Neither table: the inventory all the same, and no relics.
+        let light = load_collection_with(&dir, None).expect("the inventory is there");
+        assert_eq!(light.inventory.len(), 1);
+        let bare = light.catalog_rev.clone().unwrap();
+        assert!(bare.ends_with("-none"), "{bare}");
+        let cats = load_catalogs_with(&dir, None).unwrap();
+        assert!(cats.relics.is_empty());
+        assert_eq!(cats.rev.as_deref(), Some(bare.as_str()));
+
+        // MyOrbiter's tables, as bridge.rs writes them for TennoScope (a plain list).
+        let ours = dir.join("orbiter-relics.json");
+        fs::write(&ours, r#"[{"uniqueName": "/Lotus/Types/Game/Projections/T1VoidProjectionA1", "name": "Lith A1 Intact", "vaulted": false, "rewards": [{"rarity": "Rare", "chance": 2, "item": {"name": "Akstiletto Prime Barrel"}}]}]"#).unwrap();
+        let with = load_collection_with(&dir, Some(&ours)).unwrap();
+        assert_ne!(with.catalog_rev.as_deref(), Some(bare.as_str()), "a table turning up is a new revision");
+        let cats = load_catalogs_with(&dir, Some(&ours)).unwrap();
+        assert_eq!(cats.relics.len(), 1);
+        assert_eq!(cats.relics[0]["rewards"][0]["name"], "Akstiletto Prime Barrel");
+
+        // TennoScope's own wins once it writes one.
+        fs::write(dir.join(RELICS_FILE), r#"{"catalog": [{"uniqueName": "/R", "name": "Axi A1 Relic"}, {"uniqueName": "/S", "name": "Axi A2 Relic"}]}"#).unwrap();
+        assert_eq!(load_catalogs_with(&dir, Some(&ours)).unwrap().relics.len(), 2);
+        assert_eq!(relics_path(&dir, Some(&ours)), Some(dir.join(RELICS_FILE)));
+        assert_eq!(relics_path(&dir.join("nope"), Some(&dir.join("absent.json"))), None);
+        fs::remove_dir_all(&dir).ok();
+    }
+
     #[test]
     fn amp_prisms_and_infested_chambers_are_kept_as_masterable_with_their_parts() {
         let dir = temp_dir("modular");
@@ -679,8 +751,8 @@ mod tests {
     #[test]
     fn no_modification_time_means_no_revision() {
         let known = FileState { len: 3, modified: Some(SystemTime::UNIX_EPOCH + Duration::from_nanos(1_500)) };
-        assert_eq!(catalog_rev(known, known).as_deref(), Some("3.1500-3.1500"));
-        assert_eq!(catalog_rev(known, FileState { len: 3, modified: None }), None);
+        assert_eq!(catalog_rev(known, Some(known)).as_deref(), Some("3.1500-3.1500"));
+        assert_eq!(catalog_rev(known, Some(FileState { len: 3, modified: None })), None);
     }
 
     #[test]

@@ -45,7 +45,23 @@ export type CheckOutcome =
   | { kind: "older"; channel: Channel; version: string; at: number }
   | { kind: "current"; channel: Channel; version: string; at: number }
   | { kind: "failed"; channel: Channel; reason: string; at: number }
+  | { kind: "empty"; channel: Channel; system: boolean; nearest: { channel: Channel; version: string } | null; at: number }
   | { kind: "off"; at: number };
+
+/**
+ * Where to look when a channel has no build, nearest first: the channels either side, the more
+ * stable of two at the same distance first (a channel with a build there is the gentler switch).
+ */
+export const NEAREST: Record<Channel, readonly Channel[]> = {
+  stable: ["beta", "experimental"],
+  beta: ["stable", "experimental"],
+  experimental: ["beta", "stable"],
+};
+
+/** "Stable has no build yet.": an empty channel, in words. */
+export function emptyWords(channel: Channel, system: boolean): string {
+  return `${CHANNEL_LABEL[channel]} has no build ${system ? "for this system " : ""}yet`;
+}
 
 /** "19:52", in the computer's own time zone. */
 export function clockTime(at: number): string {
@@ -69,6 +85,8 @@ export function checkHeadline(outcome: CheckOutcome | null, checking: boolean): 
       return "Up to date";
     case "failed":
       return outcome.reason;
+    case "empty":
+      return emptyWords(outcome.channel, outcome.system);
     case "off":
       return "This copy of MyOrbiter doesn't check for updates";
   }
@@ -91,6 +109,8 @@ export function checkLine(outcome: CheckOutcome | null, lastCheck: number | null
       return `Up to date (checked ${ago}).`;
     case "failed":
       return `${outcome.reason} (at ${clockTime(outcome.at)}, ${ago}).`;
+    case "empty":
+      return `${emptyWords(outcome.channel, outcome.system)}, so there's nothing to update to there (checked ${ago}).`;
     case "off":
       return "This copy of MyOrbiter doesn't check for updates.";
   }
@@ -117,9 +137,39 @@ export interface UpdateSettings {
   lastCheck: number | null;
   /** The build last installed through the updater, and the channel it came from. */
   from: { version: string; channel: Channel } | null;
+  /**
+   * Whether `channel` stands: chosen in Settings, or kept from settings saved before. False only on
+   * a new install until it knows its own build: then `settleChannel` puts it on the channel that
+   * build was published to, once.
+   */
+  picked: boolean;
 }
 
-export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null });
+export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null, picked: true });
+
+/** A new install's (no settings saved yet): its channel follows its build (`settleChannel`). */
+export const newInstallUpdates = (): UpdateSettings => ({ ...defaultUpdates(), picked: false });
+
+/**
+ * The channel a build was published to. Every build the Release workflow makes lands on
+ * Experimental first; Beta and Stable get the same files later, by hand, and the files don't say
+ * which channel they were downloaded from. So a CI build (0.2.n) says Experimental, and a build
+ * made locally (0.1.0), published nowhere, says Stable, as before.
+ */
+export function publishedTo(version: string): Channel {
+  return buildNumber(version) != null ? "experimental" : "stable";
+}
+
+/**
+ * A new install's channel, once its version is known: the one its build was published to. Settings
+ * saved before (any channel, or none) are left as they are. True when it changed something.
+ */
+export function settleChannel(u: UpdateSettings, version: string): boolean {
+  if (u.picked) return false;
+  u.channel = publishedTo(version);
+  u.picked = true;
+  return true;
+}
 
 const VERSION = /^\d+\.\d+\.\d+$/;
 
@@ -132,6 +182,8 @@ export function sanitizeUpdates(raw: unknown): UpdateSettings {
     later: typeof r.later === "string" && VERSION.test(r.later) ? r.later : "",
     lastCheck: typeof r.lastCheck === "number" && Number.isFinite(r.lastCheck) && r.lastCheck > 0 ? r.lastCheck : null,
     from: from && typeof from.version === "string" && VERSION.test(from.version) && isChannel(from.channel) ? { version: from.version, channel: from.channel } : null,
+    // Saved settings keep their channel: only a new install that hasn't settled yet saves false.
+    picked: r.picked !== false,
   };
 }
 

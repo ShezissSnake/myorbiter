@@ -107,6 +107,12 @@
     "h": 275,
     "bytes": 19000
   },
+  "first-run-3.webp": {
+    "hash": "6ff5047ea1f2d93a",
+    "w": 865,
+    "h": 526,
+    "bytes": 36294
+  },
   "foundry-1.webp": {
     "hash": "ef5765ca3f98c63e",
     "w": 1007,
@@ -582,16 +588,16 @@
     "bytes": 44594
   },
   "settings-4.webp": {
-    "hash": "79b0786e59b37ada",
+    "hash": "c7c1604cf4ad6400",
     "w": 575,
-    "h": 217,
-    "bytes": 17974
+    "h": 412,
+    "bytes": 40636
   },
   "settings-5.webp": {
     "hash": "7052f027299a7a8b",
     "w": 575,
-    "h": 450,
-    "bytes": 46902
+    "h": 603,
+    "bytes": 60306
   },
   "settings-game-1.webp": {
     "hash": "b3f92d18e30786b4",

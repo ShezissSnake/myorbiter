@@ -44,18 +44,24 @@ test("nothing of TennoScope starts before the answer", () => {
   const poll = app.indexOf("tsPoll = setInterval(");
   assert.ok(hold > 0 && ask > hold && answered > ask, "held, asked, then answered");
   assert.ok(firstStart > answered && poll > firstStart, "TennoScope's first start and its 15 s check come after the question");
-  // Before the hold, nothing looks at TennoScope at all; between hold and answer, only a look.
-  assert.equal(app.slice(0, hold).match(/ts\.check\(|tennoscope\.start\(/g), null);
+  // Before the hold, nothing looks at TennoScope at all (the setup page's Try again is a click,
+  // after it); between hold and answer, only a look.
+  const act = app.indexOf("function setupAct(");
+  const actEnd = app.indexOf("\n  }\n", act);
+  assert.ok(act > 0 && actEnd > act);
+  assert.equal((app.slice(0, act) + app.slice(actEnd, hold)).match(/ts\.check\(|tennoscope\.start\(/g), null);
   assert.deepEqual(app.slice(hold, ask).match(/ts\.check\([^)]*\)/g), ["ts.check()"]);
 });
 
-test("the question shows Full mode's warning, word for word, and can't be closed without an answer", () => {
+test("the question shows Full mode's warning, word for word; Esc is the safe answer, nothing else closes it", () => {
   const dialog = src("lib/FirstRun.svelte");
   assert.match(dialog, /import \{ FULL_MODE_WARNING \} from "\.\/FullMode\.svelte"/);
   assert.match(dialog, /\{FULL_MODE_WARNING\}/);
-  assert.doesNotMatch(dialog, /onescape|onkeydown|onsubmit|onclick=\{close/, "no Esc, no key or click outside answers it");
-  // The only calls of onanswer are the two buttons, each one mode.
-  assert.deepEqual([...dialog.matchAll(/onanswer\(([^)]*)\)/g)].map((m) => m[1]).sort(), ['"--access=full"', '"--access=overlay"']);
+  assert.doesNotMatch(dialog, /onescape|onsubmit|onclick=\{close/, "no click outside or submit answers it");
+  // Esc answers overlay only (nothing read from the game's memory), and not in its first moment.
+  assert.match(dialog, /if \(e\.key !== "Escape" \|\| !ready\) return;\s*e\.preventDefault\(\);\s*onanswer\("--access=overlay"\);/);
+  // The only calls of onanswer: the two buttons, each one mode, and Esc's overlay.
+  assert.deepEqual([...dialog.matchAll(/onanswer\(([^)]*)\)/g)].map((m) => m[1]).sort(), ['"--access=full"', '"--access=overlay"', '"--access=overlay"']);
   assert.match(dialog, /disabled=\{!ready\} onclick=\{\(\) => onanswer\("--access=overlay"\)\}/);
   assert.match(dialog, /disabled=\{!ready\} onclick=\{\(\) => onanswer\("--access=full"\)\}/);
 });
@@ -136,5 +142,7 @@ test("every control that picks a mode goes through the store, so a newer choice 
   const sources = ["App.svelte", "lib/FullMode.svelte", "lib/TennoscopeSheet.svelte", "lib/SettingsSheet.svelte", "lib/FirstRun.svelte"].map((f) => [f, src(f)] as const);
   for (const [f, text] of sources) assert.ok(!/\btennoscope\.ask\(/.test(text), `${f} asks TennoScope directly`);
   assert.match(src("lib/FullMode.svelte"), /ts\.ask\(full \? "--access=full" : "--access=overlay"\)/);
-  assert.match(src("App.svelte"), /ts\.ask\("--access=overlay"\); withoutInventory\(\);[^<]*>Not now: overlay only/);
+  // The setup page's "Not now: overlay only" asks through the store, then carries on without an inventory.
+  assert.match(src("App.svelte"), /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\(\);/);
+  assert.match(src("App.svelte"), /a === "overlay" \? "Not now: overlay only"/);
 });
