@@ -18,7 +18,7 @@ export type StandIn =
   | "signin"
   /** Full mode, signed in, reading the inventory (and never done). */
   | "reading"
-  /** Read the inventory, and its data folder misses a file MyOrbiter used to need (the friend's case). */
+  /** Read the inventory, and MyOrbiter can't load it: its data folder misses a file. */
   | "unloaded";
 
 export const STAND_INS: readonly StandIn[] = ["silent", "refuses", "signin", "reading", "unloaded"];

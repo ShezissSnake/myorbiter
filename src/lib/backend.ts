@@ -870,16 +870,19 @@ function adviceOf(raw: unknown, base: AdviceSettings): AdviceSettings {
 
 export async function loadSettings(): Promise<Settings> {
   let raw: Partial<Settings> | null = null;
+  /** No settings file at all: a new install. */
+  let fresh = false;
   if (inTauri) {
     // A file briefly held by something else (an antivirus, a backup): tried a few times. Still
     // unreadable, MyOrbiter runs on defaults but never saves over the file (see flushSettings).
     for (let i = 0; ; i++) {
       try {
-        const loaded = await invoke<{ settings: Partial<Settings> | null; page: number }>("load_settings");
+        const loaded = await invoke<{ settings: Partial<Settings> | null; page: number; fresh?: boolean }>("load_settings");
         // A reply without a page token can't be saved to: taken as unreadable, so nothing is
         // saved over the file.
         if (typeof loaded?.page !== "number" || !("settings" in loaded)) throw new Error("load_settings gave an unexpected reply");
         raw = loaded.settings;
+        fresh = loaded.fresh === true;
         savePage = loaded.page;
         break;
       } catch (e) {
@@ -892,7 +895,9 @@ export async function loadSettings(): Promise<Settings> {
     }
   } else {
     try {
-      raw = JSON.parse(localStorage.getItem("orbiter-settings") ?? "null");
+      const saved = localStorage.getItem("orbiter-settings");
+      fresh = saved == null;
+      raw = JSON.parse(saved ?? "null");
     } catch {
       raw = null;
     }
@@ -976,9 +981,10 @@ export async function loadSettings(): Promise<Settings> {
     buildsFromNox: raw?.buildsFromNox !== false,
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
-    // Settings from before updates: Stable, never checked. A new install (no settings at all, and
-    // none that couldn't be read): the channel its build came from, once that's known (updates.svelte.ts).
-    updates: raw ? sanitizeUpdates(raw.updates) : loadFailed == null ? newInstallUpdates() : defaultUpdates(),
+    // Settings from before updates: Stable, never checked. A new install (no settings file at all;
+    // not a damaged one moved aside, nor one that couldn't be read): the channel its build came
+    // from, once that's known (updates.svelte.ts).
+    updates: raw ? sanitizeUpdates(raw.updates) : fresh ? newInstallUpdates() : defaultUpdates(),
   };
 }
 
@@ -1224,8 +1230,8 @@ const demoEmptyChannel = () => {
   }
 };
 const EMPTY_DEMO = {
-  info: { version: "0.2.130+build.4", install: { how: "appImage", path: "/opt/MyOrbiter.AppImage" } } as UpdateInfo,
-  check: (c: Channel): UpdateCheck => (c === "experimental" ? { state: "current", version: "0.2.130+build.4" } : { state: "empty", system: false }),
+  info: { version: "0.2.130", install: { how: "appImage", path: "/opt/MyOrbiter.AppImage" } } as UpdateInfo,
+  check: (c: Channel): UpdateCheck => (c === "experimental" ? { state: "current", version: "0.2.130" } : { state: "empty", system: false }),
 };
 
 /** Browser dev mode: public/dev-tennoscope.json fakes a running TennoScope. */

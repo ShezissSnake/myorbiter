@@ -239,7 +239,11 @@ export class Updates {
   /** A channel picked in Settings: what it offers is asked at once (a more stable one may be behind). */
   setChannel(c: Channel) {
     const u = this.get?.();
-    if (!u || u.channel === c) return;
+    if (!u) return;
+    // The player's own choice: a new install's channel never settles over it, even when it is
+    // the channel already shown.
+    u.picked = true;
+    if (u.channel === c) return;
     u.channel = c;
     this.result = null;
     this.checked = null;

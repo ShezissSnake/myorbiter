@@ -330,3 +330,15 @@ test("saved settings keep their channel when the app says which build it is", as
   await begin();
   assert.equal(settings.channel, "stable");
 });
+
+test("a channel the player picks on a new install stays, even the one already shown, before the app says which build", async (t) => {
+  const { u, settings } = await setup(t, []);
+  // A CI build: left alone, a new install would settle on Experimental.
+  updater.info = async () => ({ version: "0.2.127", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
+  Object.assign(settings, { channel: "stable", picked: false });
+  u.start(() => settings);
+  u.setChannel("stable");
+  await micro();
+  assert.equal(settings.picked, true);
+  assert.equal(settings.channel, "stable", "the build's channel doesn't settle over the player's pick");
+});

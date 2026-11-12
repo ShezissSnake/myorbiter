@@ -957,6 +957,9 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 struct LoadedSettings {
     settings: Value,
     page: u64,
+    /// There was no settings file: a new install. False for a damaged file moved aside, whose
+    /// player had settings (their update channel among them) and isn't new.
+    fresh: bool,
 }
 
 /// One token per process: the window's page calls this once as it starts (`loadSettings` in
@@ -968,19 +971,20 @@ fn load_settings(app: tauri::AppHandle) -> Result<LoadedSettings, String> {
     // Read under the save lock: a save from the page before is either on disk by now or dropped.
     let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
     let page = gate.page_loaded();
-    let settings = read_settings(&path)?;
-    Ok(LoadedSettings { settings, page })
+    let (settings, fresh) = read_settings(&path)?;
+    Ok(LoadedSettings { settings, page, fresh })
 }
 
-fn read_settings(path: &Path) -> Result<Value, String> {
+/// The settings, and whether there was no file at all.
+fn read_settings(path: &Path) -> Result<(Value, bool), String> {
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
     let bytes = match fs::read(path) {
         Ok(b) => b,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Value::Null),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((Value::Null, true)),
         Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
     };
-    Ok(match serde_json::from_slice(&bytes) {
+    Ok((match serde_json::from_slice(&bytes) {
         Ok(v) => v,
         Err(_) => {
             // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
@@ -991,7 +995,7 @@ fn read_settings(path: &Path) -> Result<Value, String> {
             rename_replacing(path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
             Value::Null
         }
-    })
+    }, false))
 }
 
 #[tauri::command(async)]

@@ -477,6 +477,18 @@
   let tsRunningSince = $state<number | null>(null);
   let gameSince = $state<number | null>(null);
   let signedInSince = $state<number | null>(null);
+  // The waits count from when the setup page comes up, not from MyOrbiter's start: time spent on
+  // the first start's question (or reading anything before) isn't TennoScope's.
+  let setupWasUp = false;
+  $effect(() => {
+    const up = setupShown && !firstRun;
+    if (up && !setupWasUp) {
+      setupSince = setupNow = Date.now();
+      tsRunningSince = ts.running ? setupSince : null;
+      gameSince = gameSince == null ? null : setupSince;
+    }
+    setupWasUp = up;
+  });
   /** The last pick-up of TennoScope's data: its error, and what it took in. */
   const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null });
   const setupSigns = $derived.by((): Signs => ({

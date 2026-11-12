@@ -257,6 +257,9 @@ fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
         let ends = next.map_or(true, |c| !(c.is_alphanumeric() || matches!(c, '-' | '_' | '.' | '~' | '$')));
         // Not the middle of a longer path either (`/srv/home/name`, `/home/name` inside `/x/home/name`).
         let starts = i == 0 || !s[..i].ends_with(|c: char| c.is_alphanumeric() || matches!(c, '/' | '\\' | '-' | '_' | '.'));
+        // A file address names the folder too: file:///home/name/…, file:///C:/Users/name/….
+        let before = s[..i].to_ascii_lowercase();
+        let starts = starts || before.ends_with("file://") || before.ends_with("file:///");
         out.push_str(&s[from..i]);
         out.push_str(if ends && starts { "~" } else { &s[i..end] });
         from = end;
@@ -394,6 +397,9 @@ mod tests {
         assert_eq!(tilde("/home/examplehomes/a", home), "/home/examplehomes/a");
         assert_eq!(tilde("/home/examplehome.old/a", home), "/home/examplehome.old/a");
         assert_eq!(tilde("/srv/home/examplehome/a", home), "/srv/home/examplehome/a");
+        // In a file address too.
+        assert_eq!(tilde("opened file:///home/examplehome/x.html", home), "opened file://~/x.html");
+        assert_eq!(tilde("opened FILE:///C:/Users/Example Player/x.html", r"C:\Users\Example Player"), "opened FILE:///~/x.html");
         assert_eq!(tilde("/HOME/EXAMPLEHOME/a", home), "/HOME/EXAMPLEHOME/a", "Linux paths match in their case only");
         // As Wine and Proton write the same folder, also inside JSON.
         assert_eq!(tilde(r"log at Z:\home\examplehome\Games\EE.log", home), r"log at ~\Games\EE.log");

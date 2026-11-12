@@ -44,7 +44,7 @@ test("a TennoScope that never starts: waiting, then stuck at the limit with why,
   const t = firstStart(signs({ status: off, runningSince: null, now: T0 + LIMITS.start }));
   assert.equal(t.stuck, true);
   assert.equal(t.stage, "TennoScope didn't start");
-  assert.match(t.reason ?? "", /wasn't running 30 s after/);
+  assert.match(t.reason ?? "", /wasn't running after 30 s/);
   assert.ok(t.actions.includes("retry"));
   // Its own failure, said at once.
   assert.equal(firstStart(signs({ status: off, runningSince: null, tsError: "Couldn't start /opt/tennoscope: no such file" })).stuck, true);
@@ -133,6 +133,9 @@ test("the system refusing the read: said plainly, with what to do", () => {
 test("read by TennoScope but not loaded by MyOrbiter: the reason is MyOrbiter's, shown and logged", () => {
   const err = "not found at ~/.local/share/io.github.deftera186.tennoscope/catalog/relic-generation.json: TennoScope hasn't written it yet";
   const s = signs({ status: full({ game_running: true, mastery_rank: 22, reader: ["ready", "Inventory synchronized from warframe-memory"] }), log: { found: true, signedIn: true }, gameSince: T0, signedInSince: T0, pickup: { error: err, entries: 0, observedAt: null } });
+  // While MyOrbiter is still picking it up, it says so, not a failure.
+  assert.equal(firstStart(s).stage, "Signed in, read by TennoScope: loading it");
+  assert.equal(firstStart(s).stuck, false);
   const x = firstStart({ ...s, now: T0 + LIMITS.read });
   assert.equal(x.stage, "Signed in, read by TennoScope, but MyOrbiter couldn't load it");
   assert.equal(x.reason, err);
@@ -158,7 +161,9 @@ test("every step has a way on without TennoScope ever answering", () => {
     signs({ status: { supported: true, running: true, binary: "x", report: report() }, asked: { mode: "full", at: T0 } }),
     signs({ status: full() }),
     signs({ status: full({ game_running: true }), gameSince: T0 }),
-    signs({ status: full({ game_running: true }), gameSince: T0, log: { found: true, signedIn: true } }),
+    // App.svelte notes when the player is first seen signed in, as the inventory step comes up.
+    signs({ status: full({ game_running: true }), gameSince: T0, signedInSince: T0, log: { found: true, signedIn: true } }),
+    signs({ status: full({ game_running: true, mastery_rank: 22 }), gameSince: T0, signedInSince: T0, log: { found: true, signedIn: true } }),
   ];
   for (const c of cases) {
     const x = firstStart({ ...c, now: T0 + 60 * 60_000 });

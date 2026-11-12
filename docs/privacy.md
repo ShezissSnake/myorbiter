@@ -255,7 +255,8 @@ experimental), with no version, system or id. When the channel you picked has no
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
 the same way, so Settings can name a channel that has one; it switches nothing. A new install starts
 on the channel its build was published to (Experimental, where every build lands first); an install
-that has saved settings keeps its channel. An update downloads only when you click, from where
+that has saved settings keeps its channel, even when that file turns out damaged and is moved
+aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
 that `latest.json` points: the build's release on github.com, which hands the download to GitHub's
 file storage (`release-assets.githubusercontent.com` or `objects.githubusercontent.com`), or
 gitlab.com's package registry, which may hand it to a file storage of its choosing that wasn't

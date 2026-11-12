@@ -119,7 +119,7 @@ export function firstStart(s: Signs): StepState {
   if (!st.running && !st.binary) return { step: "start", stage: "TennoScope wasn't found", waitingFor: null, stuck: true, reason: "MyOrbiter couldn't find TennoScope's program", todo: "Choose it in Settings, TennoScope, Program, or finish later and use MyOrbiter without your inventory.", actions: ["settings"], limit: null };
   if (!st.running) {
     const stuck = waited(s, s.since, LIMITS.start) || !!s.tsError;
-    return { step: "start", stage: stuck ? "TennoScope didn't start" : "Starting TennoScope", waitingFor: "TennoScope to start", stuck, reason: stuck ? (s.tsError ?? `it wasn't running ${LIMITS.start / 1000} s after MyOrbiter started it`) : null, todo: "Try again; if it keeps failing, its log (Settings, Logs) says why.", actions: ["retry", "settings"], limit: { since: s.since, ms: LIMITS.start } };
+    return { step: "start", stage: stuck ? "TennoScope didn't start" : "Starting TennoScope", waitingFor: "TennoScope to start", stuck, reason: stuck ? (s.tsError ?? `it still wasn't running after ${LIMITS.start / 1000} s`) : null, todo: "Try again; if it keeps failing, its log (Settings, Logs) says why.", actions: ["retry", "settings"], limit: { since: s.since, ms: LIMITS.start } };
   }
   const r = st.report;
   if (!r) {
@@ -151,11 +151,12 @@ export function firstStart(s: Signs): StepState {
   }
 
   // 4. The inventory read, and MyOrbiter picking it up.
-  const from = s.signedInSince ?? s.gameSince;
+  // From when the player was first seen signed in (App.svelte notes it as this step comes up).
+  const from = s.signedInSince ?? s.now;
   const read = r.mastery_rank != null || (r.health.game_reader?.state === "ready" && /synchroni[sz]ed/i.test(r.health.game_reader.message));
   const base = { step: "inventory" as const, limit: { since: from ?? s.since, ms: LIMITS.read } };
   if (trouble && refused(trouble.message)) return { ...base, stage: "Signed in, but the system won't let TennoScope read the game", waitingFor: null, stuck: true, reason: trouble.message, todo: s.ptraceScope ? "This system only lets a program read another one's memory if it started it. To allow it until you restart, run in a terminal: sudo sysctl kernel.yama.ptrace_scope=0. Then Try again." : "Check that TennoScope runs as the same user as the game, then Try again.", actions: ["retry"] };
-  if (read && s.pickup.error) return { ...base, stage: "Signed in, read by TennoScope, but MyOrbiter couldn't load it", waitingFor: "MyOrbiter to load what TennoScope read", stuck: waited(s, from, LIMITS.read), reason: s.pickup.error, todo: "Try again; if it stays, Report a bug: MyOrbiter's log says what was missing.", actions: ["retry"] };
+  if (read && s.pickup.error) return { ...base, stage: waited(s, from, LIMITS.read) ? "Signed in, read by TennoScope, but MyOrbiter couldn't load it" : "Signed in, read by TennoScope: loading it", waitingFor: "MyOrbiter to load what TennoScope read", stuck: waited(s, from, LIMITS.read), reason: s.pickup.error, todo: "Try again; if it stays, Report a bug: MyOrbiter's log says what was missing.", actions: ["retry"] };
   const stuck = waited(s, from, LIMITS.read) || (!!trouble && trouble.failed);
   const why = trouble ? `TennoScope: ${trouble.message}` : r.health.catalog?.state === "failed" ? `TennoScope has no item data: ${r.health.catalog.message}` : read ? "TennoScope read it, but MyOrbiter found nothing to load" : "TennoScope hasn't read it, and doesn't say why";
   return { ...base, stage: stuck ? "Signed in, but no inventory yet" : "Signed in: reading your inventory", waitingFor: "TennoScope to read your inventory", stuck, reason: stuck ? why : null, todo: stuck ? "Try again, and MyOrbiter asks TennoScope to read now." : "TennoScope reads it in a moment; this page turns into your collection by itself.", actions: ["retry"] };

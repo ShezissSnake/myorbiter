@@ -165,7 +165,13 @@ test("a new install starts on the channel its build was published to; saved sett
 
 test("a new install, as the settings load it: only when nothing was saved", () => {
   const src = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
-  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : loadFailed == null \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before; unreadable ones aren't a new install");
+  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : fresh \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before; only no file at all is a new install");
+  // No file at all, said by the desktop app (not a damaged file moved aside), or nothing in the browser's storage.
+  assert.match(src, /fresh = loaded\.fresh === true;/);
+  assert.match(src, /fresh = saved == null;/);
+  const rs = readFileSync(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
+  assert.match(rs, /NotFound => return Ok\(\(Value::Null, true\)\)/, "a missing file is fresh");
+  assert.match(rs, /Value::Null\n\s*\}\n\s*\}, false\)\)/, "a damaged file moved aside isn't");
 });
 
 test("an empty channel is said plainly, never as a failure, and the nearest channel comes first", () => {
