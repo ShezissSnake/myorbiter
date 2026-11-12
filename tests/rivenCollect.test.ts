@@ -59,8 +59,10 @@ test("collect.py waits a 429's Retry-After in full before asking again", { skip:
 });
 
 test("collect.py keeps its gap before a retry too", { skip: !python && "no python3" }, async () => {
-  const { at, out } = await times([{ status: 500 }, { status: 502 }, { status: 200 }], 0.6);
+  // Measured where the requests arrive, so with room for one that arrives late (a slow first
+  // connection): the old code's retries came 3 s apart whatever the gap, and no gap at all after a 429.
+  const { at, out } = await times([{ status: 500 }, { status: 502 }, { status: 200 }], 1);
   assert.equal(out, '{"ok": true}');
   assert.equal(at.length, 3);
-  for (let i = 1; i < at.length; i++) assert.ok(at[i] - at[i - 1] >= 0.55, `request ${i} after ${(at[i] - at[i - 1]).toFixed(2)} s`);
+  for (let i = 1; i < at.length; i++) assert.ok(at[i] - at[i - 1] >= 0.8, `request ${i} after ${(at[i] - at[i - 1]).toFixed(2)} s`);
 });

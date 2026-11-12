@@ -324,8 +324,9 @@ pub fn read_list(html: &str) -> Vec<Value> {
 /// `read_list` looks for: a `href="/builds/<id>-<slug>"` link holding an `<h3>` title), or, with
 /// none, the page's own data (the Next.js flight `flight` reads) naming the item asked for, as
 /// the site's list pages carry the address they answer. A page with neither (a consent or error
-/// page served as 200, markup MyOrbiter no longer knows) can't be told from "nobody has posted
-/// one", so it is an error, and not kept.
+/// page served as 200, another page of the site) can't be told from "nobody has posted one", so
+/// it is an error, and not kept. Not caught: the item's own list page with card markup changed
+/// past what `read_list` knows still names the item, so it reads as none.
 pub const UNREADABLE_LIST: &str = "the page didn't look like a list of builds; Nox's Frame may have changed it";
 
 /// An item's builds from its list page (`read_list`), or an error when the page isn't one
