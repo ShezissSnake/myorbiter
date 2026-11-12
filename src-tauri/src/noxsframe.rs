@@ -101,10 +101,15 @@ pub fn is_turned_away(status: u16, body: &str) -> bool {
 
 /// One public page, as text. GET only, spaced, with a timeout and a size cap.
 fn get_page(url: &str) -> Result<String, String> {
+    let waiting = |left: Duration| format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1);
     if let Some(left) = cooling() {
-        return Err(format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1));
+        return Err(waiting(left));
     }
     SPACER.turn();
+    // Again after the turn: the request before this one may have been turned away meanwhile.
+    if let Some(left) = cooling() {
+        return Err(waiting(left));
+    }
     let resp = crate::request("GET", url)
         .set("User-Agent", &user_agent())
         .set("Accept", "text/html")
@@ -559,6 +564,47 @@ mod tests {
         for w in t.windows(2) {
             assert!(w[1] - w[0] >= Duration::from_millis(55), "{:?}", w[1] - w[0]);
         }
+    }
+
+    /// A request already waiting its turn when Nox's Frame answers 429 doesn't go out after it.
+    /// Against a listener on 127.0.0.1 that answers every request with a 429, half a second late.
+    /// The only test that calls `get_page` (the cool-off it sets is process-wide, and cleared here).
+    #[test]
+    fn a_request_waiting_its_turn_does_not_go_after_a_429() {
+        use std::io::Write;
+        use std::sync::Arc;
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.set_nonblocking(true).unwrap();
+        let port = l.local_addr().unwrap().port();
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let got = seen.clone();
+        std::thread::spawn(move || {
+            let end = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < end {
+                match l.accept() {
+                    Ok((mut s, _)) => {
+                        s.set_nonblocking(false).unwrap();
+                        let mut buf = [0u8; 2048];
+                        let n = s.read(&mut buf).unwrap_or(0);
+                        got.lock().unwrap().push(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or("").to_string());
+                        std::thread::sleep(Duration::from_millis(500));
+                        let _ = s.write_all(b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    }
+                    Err(_) => std::thread::sleep(Duration::from_millis(20)),
+                }
+            }
+        });
+        let a_url = format!("http://127.0.0.1:{port}/a");
+        let b_url = format!("http://127.0.0.1:{port}/b");
+        let a = std::thread::spawn(move || get_page(&a_url));
+        // B asks while A is out, before its answer: it passes the first check and waits its turn.
+        std::thread::sleep(Duration::from_millis(200));
+        let b = std::thread::spawn(move || get_page(&b_url));
+        let (ra, rb) = (a.join().unwrap(), b.join().unwrap());
+        *COOL_UNTIL.lock().unwrap() = None;
+        let s = seen.lock().unwrap().clone();
+        assert_eq!(s.len(), 1, "requests: {s:?}; A: {ra:?}; B: {rb:?}");
+        assert!(rb.is_err_and(|e| e.contains("asked MyOrbiter to wait")));
     }
 
     #[test]
