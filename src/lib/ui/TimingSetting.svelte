@@ -47,7 +47,7 @@
 </script>
 
 <div class="timing">
-  <Switch bind:on label="Record timings">
+  <Switch name="settings.record-timings" bind:on label="Record timings">
     For when MyOrbiter feels slow: it notes how long each click, key and page switch takes to show, how long Settings and an item's card take to open and close, how smoothly lists scroll, slow frames and pauses, and how long the app's own work takes. Numbers only, never an item's or a player's name or a price. A summary goes into the log each minute; nothing is sent anywhere. While it's on, the window keeps drawing frames to time them, a small cost of its own.
   </Switch>
   {#if on}
@@ -63,7 +63,7 @@
     {/if}
   {/if}
   {#if nvidia && rs}
-    <Switch bind:on={() => rs?.dmabuf ?? false, (v) => setDmabuf(v)} label="DMA-BUF frames (experimental)">
+    <Switch name="settings.dmabuf-frames" bind:on={() => rs?.dmabuf ?? false, (v) => setDmabuf(v)} label="DMA-BUF frames (experimental)">
       From the next start, the window gets its frames as DMA-BUF buffers instead of through shared memory, to compare the two with Record timings. On some NVIDIA setups this closes the window at once or leaves it blank: a start that closes within a minute turns it off again by itself, and a window that stays blank needs one start with <code>--no-dmabuf</code>.
     </Switch>
     {#if rs.now?.mode === "dmaBuf"}<p class="hint">This start: DMA-BUF frames.</p>{/if}
