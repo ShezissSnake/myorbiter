@@ -361,7 +361,7 @@ keyring).
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
   is cut out before it's written. Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
-- Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, the system and the graphics card's maker, never a name or a price; it sends nothing.
+- Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, the system and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.
 - The window's own storage (kept by the system web view) remembers the cards or rows layout of each

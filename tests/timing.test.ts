@@ -76,6 +76,9 @@ test("the report: slowest actions, stalls, frames, commands, sizes; no name, pri
     assert.match(text, /\s2\s+0\s+6\.5\s+9\s+presence_state/);
     assert.match(text, /\s1\s+1\s+50\.0\s+50\s+market_create/);
     assert.match(text, /log_line: 1 ×/);
+    // The three a player feels most have lines of their own, recorded or not.
+    for (const k of ["Settings opened", "Settings closed", "item's card opened", "item's card closed"]) assert.match(text, new RegExp(`\\n  ${k.replace("'", ".")}\\s+not yet`));
+    assert.match(text, /\nScrolling: [^\n]*\n  none yet/);
     assert.doesNotMatch(text, /undefined|NaN|null/);
     // Nothing but numbers, fixed words, the page's id and the system.
     assert.doesNotMatch(text, /\/home\/|\\Users\\|platinum|\bp\b/);
@@ -121,6 +124,103 @@ test("settled is the paint after the last change, not the end of the quiet wait"
     rec.disable();
     delete g.MutationObserver;
     delete g.Element;
+    restore();
+  }
+});
+
+/** Frames on demand and a MutationObserver the test calls itself (as in the test above). */
+function fakeFrames() {
+  const g = globalThis as Record<string, unknown>;
+  let frames: ((ts: number) => void)[] = [];
+  g.requestAnimationFrame = (f: (ts: number) => void) => (frames.push(f), frames.length);
+  let changed: ((recs: unknown[]) => void) | null = null;
+  g.MutationObserver = class { constructor(cb: (recs: unknown[]) => void) { changed = cb; } observe() {} disconnect() { changed = null; } };
+  g.Element = class {};
+  return {
+    async flush(ts = performance.now()) {
+      const f = frames;
+      frames = [];
+      for (const x of f) x(ts);
+      await new Promise((r) => setTimeout(r, 5));
+    },
+    change: () => changed?.([{ target: null }]),
+    restore() {
+      delete g.MutationObserver;
+      delete g.Element;
+    },
+  };
+}
+
+test("Settings and an item's card: opened and closed, to the first frame with them shown or gone; the card's title isn't kept", async () => {
+  const restore = fakeWindow();
+  const ff = fakeFrames();
+  // The sliding panels in the page: Settings (kept built, inert while closed) and an item's card.
+  const sheet = (title: string, inert: boolean) => ({ inert, closest: () => null, getAttribute: (n: string) => (n === "aria-label" ? title : n === "role" ? "dialog" : null) });
+  const settings = sheet("Settings", true);
+  const card = sheet("Example Prime Blueprint", false);
+  let sheets: object[] = [settings];
+  (globalThis as unknown as { document: Record<string, unknown> }).document.getElementsByClassName = () => new Proxy({}, { get: (_, k) => (k === "length" ? sheets.length : sheets[Number(k)]) });
+  const rec = new Recorder();
+  try {
+    rec.enable({ page: () => "inventory", sizes: () => ({}), gameRunning: () => null, log: () => {} });
+    const begin = (rec as unknown as { begin(t: number, how: string, c: string): void }).begin.bind(rec);
+    const step = async (change: () => void) => {
+      begin(performance.now(), "click", "button");
+      await ff.flush();
+      change();
+      ff.change();
+      await new Promise((r) => setTimeout(r, 20));
+      await ff.flush();
+      await new Promise((r) => setTimeout(r, 500));
+    };
+    await step(() => (settings.inert = false));
+    await step(() => (settings.inert = true));
+    await step(() => (sheets = [settings, card]));
+    await step(() => (card.inert = true)); // sliding off
+    const d = rec.data();
+    for (const p of d.panels) {
+      assert.equal(p.n, 1, p.key);
+      assert.ok(p.frame && p.frame.median >= 20 && p.frame.median < 200, `${p.key} ${JSON.stringify(p.frame)}`);
+    }
+    const text = rec.report(null, { window: "1600×1000", scale: 1 });
+    assert.match(text, /item's card opened\s+1 × · first frame/);
+    assert.doesNotMatch(text, /Example|Blueprint/);
+  } finally {
+    rec.disable();
+    ff.restore();
+    restore();
+  }
+});
+
+test("scrolling: the frames drawn while a list scrolls, per page; a lone scroll event isn't a scroll", async () => {
+  const restore = fakeWindow();
+  const ff = fakeFrames();
+  const rec = new Recorder();
+  try {
+    rec.enable({ page: () => "inventory", sizes: () => ({}), gameRunning: () => null, log: () => {} });
+    const scroll = (rec as unknown as { onScroll(e: unknown): void }).onScroll;
+    const frame = async (ts: number) => ff.flush(ts);
+    await frame(1000);
+    scroll({ target: null });
+    scroll({ target: null });
+    for (const ts of [1016, 1033, 1150, 1166]) await frame(ts);
+    await new Promise((r) => setTimeout(r, 350));
+    await frame(1500); // over: no scroll event for 300 ms
+    // One lone event (a jump to the top) isn't counted.
+    scroll({ target: null });
+    await new Promise((r) => setTimeout(r, 350));
+    await frame(1520);
+    const [s, more] = rec.data().scrolls;
+    assert.equal(more, undefined);
+    assert.equal(s.key, "inventory · window");
+    assert.equal(s.sessions, 1);
+    assert.equal(s.over100, 1);
+    assert.equal(s.max, 117);
+    const text = rec.report(null, { window: "1600×1000", scale: 1 });
+    assert.match(text, /inventory · window\s+1 ×\s+\d+ frames ·\s+[\d.]+ \/\s+117 · over 50\/100: 1 \/ 1/);
+  } finally {
+    rec.disable();
+    ff.restore();
     restore();
   }
 });

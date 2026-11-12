@@ -59,7 +59,8 @@ times higher than in the app.
 - `run.mjs`: starts a host per scenario run, drives it, writes the JSON.
 - Record timings (the app's own recorder, `src/lib/timing.ts`): `PERF_RECORD=1` switches it on
   for every scenario, to compare its cost against a run without it. The `tour` scenario switches
-  it on, goes through every page, Sync and Settings for `PERF_TOUR_MS` (5 minutes), and returns
+  it on, goes through every page and Sync, and each lap a long list scrolled (Inventory, Mods,
+  Orders), an item's card and Settings opened and closed, for `PERF_TOUR_MS` (5 minutes); it returns
   the report the app wrote (Settings › Logs › Copy timing report).
 
 ## Reading the numbers

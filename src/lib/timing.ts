@@ -12,7 +12,11 @@
 // - stalls: a timer every BEAT ms that came more than 100 ms late, with the store tick that was
 //   running (a sync, a market poll, the mission poll, the overlay's files);
 // - backend commands: count, median and longest round trip, by command name;
-// - start-up: process start to first paint, and to the first page settled.
+// - start-up: process start to first paint, and to the first page settled;
+// - the three things a player feels most, each on its own lines: Settings and an item's card
+//   (the panel with its details) opened and closed, from the click or key to the first frame drawn
+//   with the panel shown or gone, and to settled; and scrolling, the frames drawn while a list
+//   scrolls (from its first scroll event to SCROLL_END ms after its last), per page and list.
 //
 // Never an item's, a player's or a file's name, a price or a balance: no text, label, title, value or
 // id of any element is read, only its tag and role; keys are kept as a kind ("typing", "Enter").
@@ -60,6 +64,12 @@ const ACTIONS_KEPT = 500;
 const SLOWEST_KEPT = 20;
 const STALLS_KEPT = 300;
 const SAMPLES_KEPT = 200;
+/** A scroll counts as over this long after its last scroll event. */
+const SCROLL_END = 300;
+/** Frame gaps kept per scroll, at most (a long scroll at 60 fps is 33 s of them). */
+const SCROLL_GAPS = 2000;
+/** The watched panels, as bits of panelsShown(): Settings, an item's card. */
+const PANEL_NAMES: [number, string][] = [[1, "Settings"], [2, "item's card"]];
 
 export interface Action {
   /** ms since the recorder was switched on. */
@@ -77,6 +87,8 @@ export interface Action {
   /** The longest stall while it ran (0: none over STALL). */
   stall: number;
   ticks: string[];
+  /** A watched panel it opened or closed ("Settings opened"). */
+  panel?: string;
 }
 interface Stall {
   at: number;
@@ -92,6 +104,25 @@ interface Minute {
   restOver50: number;
   restOver100: number;
   notDrawn: number;
+}
+interface PanelStats {
+  n: number;
+  frame: Samples;
+  settled: Samples;
+  /** Changes whose frame didn't come before the action was cut off. */
+  unframed: number;
+  /** Changes cut off before they settled (not in `settled`). */
+  unsettled: number;
+}
+interface ScrollStats {
+  sessions: number;
+  frames: number;
+  over50: number;
+  over100: number;
+  max: number;
+  gaps: Samples;
+  /** The list's length in screens (its scroll height over its height), the longest seen. */
+  screens: number;
 }
 class Samples {
   n = 0;
@@ -137,19 +168,57 @@ export function controlOf(target: EventTarget | null): string {
     else if (tag === "input") kind = INPUTS[(c.getAttribute("type") ?? "").toLowerCase()] ?? "field";
     else kind = "control";
   }
-  const at = el ?? c;
-  let where = "";
-  if (at?.closest(".rail")) where = "sidebar";
-  else if (at) {
-    const sheet = at.closest(".sheet");
-    if (sheet) {
-      const t = sheet.getAttribute("aria-label") ?? "";
-      where = PANELS.has(t) ? `${t} panel` : "panel";
-    } else if (at.closest("[role=dialog], dialog")) where = "dialog";
-    else if (at.closest("thead")) where = "table header";
-    else if (at.closest("tr, [role=row]")) where = "table row";
-  }
+  const where = placeOf(el ?? c);
   return where ? `${kind} in ${where}` : kind;
+}
+
+/** Where an element sits: the sidebar, a panel (a fixed panel's title only), a dialog, a table. */
+function placeOf(at: Element | null): string {
+  if (!at) return "";
+  if (at.closest(".rail")) return "sidebar";
+  const sheet = at.closest(".sheet");
+  if (sheet) {
+    const t = sheet.getAttribute("aria-label") ?? "";
+    return PANELS.has(t) ? `${t} panel` : "item's card";
+  }
+  if (at.closest("[role=dialog], dialog")) return "dialog";
+  if (at.closest("thead")) return "table header";
+  if (at.closest("tr, [role=row]")) return "table row";
+  return "";
+}
+
+/** What scrolled: the page itself, a list inside it, or a list in the sidebar, a panel, a dialog. */
+function scrollPlace(el: Element | null): string {
+  if (!el || el === document.documentElement || el === document.body) return "window";
+  const where = placeOf(el);
+  if (where) return `list in ${where}`;
+  if (el.classList.contains("pane") || el.parentElement?.classList.contains("pane")) return "page";
+  return el.closest(".pane") ? "list in the page" : "window";
+}
+
+/**
+ * The watched panels shown, as bits (PANEL_NAMES): Settings, and an item's card, which is any
+ * other sliding panel than the fixed ones (its title is the item's name: only that it isn't a
+ * fixed title is looked at, and nothing of it is kept). One sliding off, or kept built but
+ * closed, is inert: gone for the player.
+ */
+let sheets: ArrayLike<Element> | null = null;
+function panelsShown(): number {
+  if (typeof document === "undefined" || typeof document.getElementsByClassName !== "function") return 0;
+  // A live list of the few sheets: no walk of the whole page on each DOM change.
+  sheets ??= document.getElementsByClassName("sheet");
+  let bits = 0;
+  for (let i = 0; i < sheets.length; i++) {
+    const el = sheets[i];
+    if (el.getAttribute("role") !== "dialog" || (el as HTMLElement).inert) continue;
+    // A card left open on a page no longer shown isn't on screen.
+    const pane = el.closest(".pane");
+    if (pane && !pane.classList.contains("shown")) continue;
+    const t = el.getAttribute("aria-label") ?? "";
+    if (t === "Settings") bits |= 1;
+    else if (!PANELS.has(t)) bits |= 2;
+  }
+  return bits;
 }
 
 /** A key as a kind: never the character typed (a digit in a price field is the price). */
@@ -182,6 +251,10 @@ export class Recorder {
   private actions: Action[] = [];
   private slowest: Action[] = [];
   private byKind = new Map<string, Samples & { paints: number[] }>();
+  private panels = new Map<string, PanelStats>();
+  private scrolls = new Map<string, ScrollStats>();
+  /** The scroll going on: its frame gaps so far. */
+  private scrolling: { key: string; last: number; events: number; gaps: number[]; el: Element | null } | null = null;
   private stalls: Stall[] = [];
   private stallCount = 0;
   private minutes = new Map<number, Minute>();
@@ -195,7 +268,9 @@ export class Recorder {
 
   // The action being timed, if one is.
   // `lastPaint`: the paint after its latest DOM change (one frame asked for at a time).
-  private open: { t0: number; how: string; page: string; control: string; paint: number | null; firstChange: number | null; lastChange: number; lastPaint: number; paintAsked: boolean; ticks: Set<string>; stall: number } | null = null;
+  // `panels0`: the watched panels shown when it began; `panelAt`, `panelKeys`: when that changed,
+  // and how; `pw`: the paint after that change.
+  private open: { t0: number; how: string; page: string; control: string; paint: number | null; firstChange: number | null; lastChange: number; lastPaint: number; paintAsked: boolean; ticks: Set<string>; stall: number; panels0: number; panelAt: number | null; panelKeys: string[]; pw: { lastPaint: number; paintAsked: boolean } } | null = null;
   private observer: MutationObserver | null = null;
   private settleTimer: ReturnType<typeof setTimeout> | undefined;
   private beatTimer: ReturnType<typeof setTimeout> | undefined;
@@ -204,7 +279,7 @@ export class Recorder {
   private lastFrame = 0;
   private minuteTimer: ReturnType<typeof setInterval> | undefined;
   private lastSummary = { actions: 0, stalls: 0, frames: { a50: 0, a100: 0, r50: 0, r100: 0 } };
-  private startWatch: { quietSince: number; t0: number; lastPaint: number; paintAsked: boolean } | null = null;
+  private startWatch: { quietSince: number; t0: number; lastPaint: number; paintAsked: boolean; framed?: boolean } | null = null;
   /** Frame counts since switched on (the minutes keep only the last ten hours). */
   private totals = { a50: 0, a100: 0, r50: 0, r100: 0, frames: 0, notDrawn: 0 };
 
@@ -233,6 +308,7 @@ export class Recorder {
     this.reset();
     window.addEventListener("click", this.onClick, { capture: true, passive: true });
     window.addEventListener("keydown", this.onKey, { capture: true, passive: true });
+    window.addEventListener("scroll", this.onScroll, { capture: true, passive: true });
     document.addEventListener("visibilitychange", this.onVisible);
     window.addEventListener("focus", this.onVisible);
     this.lastBeat = now();
@@ -247,6 +323,7 @@ export class Recorder {
     this.on = false;
     window.removeEventListener("click", this.onClick, { capture: true });
     window.removeEventListener("keydown", this.onKey, { capture: true });
+    window.removeEventListener("scroll", this.onScroll, { capture: true });
     document.removeEventListener("visibilitychange", this.onVisible);
     window.removeEventListener("focus", this.onVisible);
     clearTimeout(this.beatTimer);
@@ -258,12 +335,16 @@ export class Recorder {
     this.observer = null;
     this.open = null;
     this.startWatch = null;
+    this.scrolling = null;
   }
 
   private reset() {
     this.actions = [];
     this.slowest = [];
     this.byKind.clear();
+    this.panels.clear();
+    this.scrolls.clear();
+    this.scrolling = null;
     this.stalls = [];
     this.stallCount = 0;
     this.minutes.clear();
@@ -340,6 +421,43 @@ export class Recorder {
     if (e.key === "Shift" || e.key === "Control" || e.key === "Alt" || e.key === "Meta") return;
     this.self(() => this.begin(now(), `key: ${keyKind(e)}`, controlOf(e.target)));
   };
+  /** A scroll event (scroll events don't bubble: this listens in the capture phase). */
+  private onScroll = (e: Event) => this.self(() => {
+    const t = now();
+    const s = this.scrolling;
+    if (s) {
+      s.last = t;
+      s.events++;
+      return;
+    }
+    // Frames are timed only in a focused window (a wheel over an unfocused one gets none).
+    if (!this.focused()) return;
+    const el = e.target instanceof Element ? e.target : null;
+    this.scrolling = { key: `${this.ctx?.page() ?? "?"} · ${scrollPlace(el)}`, last: t, events: 1, gaps: [], el };
+    this.startFrames();
+  });
+  /** The scroll is over: its frames into the stats (one lone event, a jump to the top, isn't a scroll). */
+  private endScroll() {
+    const s = this.scrolling;
+    this.scrolling = null;
+    if (!s || s.events < 2 || !s.gaps.length) return;
+    // Its length, read once the scroll is over (not in the scroll event, ahead of the list's own
+    // handlers, where it could cost a second layout).
+    const el = s.el ?? (typeof document !== "undefined" ? document.documentElement : null);
+    const screens = el && el.clientHeight ? el.scrollHeight / el.clientHeight : 0;
+    let st = this.scrolls.get(s.key);
+    if (!st) this.scrolls.set(s.key, (st = { sessions: 0, frames: 0, over50: 0, over100: 0, max: 0, gaps: new Samples(), screens: 0 }));
+    st.sessions++;
+    st.screens = Math.max(st.screens, screens);
+    for (const d of s.gaps) {
+      st.frames++;
+      if (d > 50) st.over50++;
+      if (d > 100) st.over100++;
+      if (d > st.max) st.max = d;
+      st.gaps.add(d);
+    }
+  }
+
   private onVisible = () => this.self(() => {
     this.lastBeat = now();
     this.lastFrame = 0;
@@ -350,7 +468,7 @@ export class Recorder {
     if (!this.ctx) return;
     if (this.open) this.finish(t0, true);
     const page0 = page ?? this.ctx.page();
-    const a = (this.open = { t0, how, page: page0, control, paint: null as number | null, firstChange: null as number | null, lastChange: 0, lastPaint: 0, paintAsked: false, ticks: new Set(this.ticks.keys()), stall: 0 });
+    const a = (this.open = { t0, how, page: page0, control, paint: null as number | null, firstChange: null as number | null, lastChange: 0, lastPaint: 0, paintAsked: false, ticks: new Set(this.ticks.keys()), stall: 0, panels0: panelsShown(), panelAt: null as number | null, panelKeys: [] as string[], pw: { lastPaint: 0, paintAsked: false } });
     // The next frame after the handlers ran.
     requestAnimationFrame(() => postAfter(() => {
       if (this.open === a && a.paint == null) a.paint = now();
@@ -366,9 +484,21 @@ export class Recorder {
     this.observer = new MutationObserver((recs) => this.self(() => {
       // A batch wholly inside a hidden page (the background warm-up, a hidden page catching up)
       // isn't what's shown. Only its first and last records are looked at: a sync brings 1500.
-      if (hidden(recs[0]) && hidden(recs[recs.length - 1])) return;
       const t = now();
       const a = this.open;
+      // A panel shown or gone, looked at in every batch: one sheet's change can come amid a
+      // hidden page's.
+      let panel = false;
+      if (a && a.panelAt == null) {
+        const bits = panelsShown();
+        if (bits !== a.panels0) {
+          panel = true;
+          a.panelAt = t;
+          for (const [b, name] of PANEL_NAMES) if ((bits ^ a.panels0) & b) a.panelKeys.push(`${name} ${bits & b ? "opened" : "closed"}`);
+          paintAfter(a.pw, () => t);
+        }
+      }
+      if (!panel && hidden(recs[0]) && hidden(recs[recs.length - 1])) return;
       if (a) {
         a.firstChange ??= t;
         a.lastChange = t;
@@ -436,7 +566,21 @@ export class Recorder {
         stall: a.stall,
         ticks: [...a.ticks],
       };
+      if (a.panelKeys.length) rec.panel = a.panelKeys.join(", ");
       this.keep(rec);
+      // A watched panel shown or gone: the first frame after that, and settled.
+      if (a.panelAt != null) {
+        const framed = a.pw.lastPaint >= a.panelAt && !a.pw.paintAsked ? a.pw.lastPaint - a.t0 : null;
+        for (const k of a.panelKeys) {
+          let p = this.panels.get(k);
+          if (!p) this.panels.set(k, (p = { n: 0, frame: new Samples(), settled: new Samples(), unframed: 0, unsettled: 0 }));
+          p.n++;
+          if (framed == null) p.unframed++;
+          else p.frame.add(framed);
+          if (rec.capped) p.unsettled++;
+          else p.settled.add(rec.settled);
+        }
+      }
     }
   }
 
@@ -470,7 +614,7 @@ export class Recorder {
       if (quiet || t - w.t0 >= 20_000) {
         this.startCapped = !quiet;
         // No frame came at all: the window wasn't drawn (hidden or covered), not still changing.
-        this.startNotDrawn = !quiet && w.lastPaint === 0;
+        this.startNotDrawn = !quiet && !w.framed;
         this.startWatch = null;
         this.unobserve();
         // The paint after the last change (with no change since the data came in: then).
@@ -526,10 +670,13 @@ export class Recorder {
     this.self(() => {
       if (!this.focused()) {
         // Paused until the window is shown or focused again (onVisible starts it).
+        if (this.scrolling) this.endScroll();
         this.lastFrame = 0;
         if (this.visible()) this.raf = requestAnimationFrame(this.frame);
         return;
       }
+      // A scroll is over SCROLL_END ms after its last event: this frame isn't part of it.
+      if (this.scrolling && now() - this.scrolling.last > SCROLL_END) this.endScroll();
       if (this.lastFrame) {
         const d = ts - this.lastFrame;
         const m = this.minute(now());
@@ -541,6 +688,8 @@ export class Recorder {
           const act = !!this.open;
           if (d > 50) act ? (m.actionOver50++, tt.a50++) : (m.restOver50++, tt.r50++);
           if (d > 100) act ? (m.actionOver100++, tt.a100++) : (m.restOver100++, tt.r100++);
+          const sc = this.scrolling;
+          if (sc && sc.gaps.length < SCROLL_GAPS) sc.gaps.push(d);
         }
       }
       this.lastFrame = ts;
@@ -573,12 +722,24 @@ export class Recorder {
       `actions ${acts.length}${acts.length ? ` (paint median ${r(median(acts.map((a) => a.paint)))} ms, settled median ${r(median(acts.map((a) => a.settled)))} ms${worst ? `, slowest ${actionKey(worst)} ${r(worst.settled)} ms` : ""})` : ""}`,
       `frames over 50/100 ms: in actions ${f.a50 - last.frames.a50}/${f.a100 - last.frames.a100}, at rest ${f.r50 - last.frames.r50}/${f.r100 - last.frames.r100}`,
       `stalls ${newStalls}${longest ? ` (longest ${r(longest.ms)} ms${longest.ticks.length ? ` during ${longest.ticks.join(" + ")}` : ""})` : ""}`,
+      this.panelLine(),
+      this.scrollLine(),
       cmds ? `slowest commands so far ${cmds} ms` : "",
       `recorder's longest callback ${this.selfMax.toFixed(1)} ms`,
     ].filter(Boolean);
     this.lastSummary = { actions: this.actionCount, stalls: this.stallCount, frames: f };
     this.ctx.log(`timings, last minute: ${parts.join("; ")}`);
   });
+  /** Since switched on: the median first frame of each panel change seen. */
+  private panelLine() {
+    const parts = [...this.panels].filter(([, p]) => p.frame.n).map(([k, p]) => `${k} ${r(p.frame.median())}`);
+    return parts.length ? `panels, median ms to the first frame: ${parts.join(", ")}` : "";
+  }
+  private scrollLine() {
+    let n = 0, max = 0, o50 = 0;
+    for (const s of this.scrolls.values()) (n += s.sessions, (max = Math.max(max, s.max)), (o50 += s.over50));
+    return n ? `scrolling: ${n} scrolls, ${o50} frames over 50 ms, longest frame ${r(max)} ms` : "";
+  }
   private get actionCount() {
     let n = 0;
     for (const s of this.byKind.values()) n += s.n;
@@ -613,6 +774,12 @@ export class Recorder {
       actionCount: this.actionCount,
       slowest: this.slowest,
       byKind: [...this.byKind.entries()].map(([k, s]) => ({ key: k, n: s.n, paint: median(s.paints), settled: s.median(), max: s.max })),
+      panels: PANEL_NAMES.flatMap(([, name]) => ["opened", "closed"].map((how) => {
+        const k = `${name} ${how}`;
+        const p = this.panels.get(k);
+        return { key: k, n: p?.n ?? 0, unframed: p?.unframed ?? 0, unsettled: p?.unsettled ?? 0, frame: p?.frame.n ? { median: p.frame.median(), max: p.frame.max } : null, settled: p?.settled.n ? { median: p.settled.median(), max: p.settled.max } : null };
+      })),
+      scrolls: [...this.scrolls.entries()].map(([k, s]) => ({ key: k, sessions: s.sessions, frames: s.frames, over50: s.over50, over100: s.over100, median: s.gaps.median(), max: s.max, screens: s.screens })),
       stalls: this.stalls,
       stallCount: this.stallCount,
       minutes: [...this.minutes.entries()].sort((a, b) => a[0] - b[0]),
@@ -628,11 +795,12 @@ export class Recorder {
 
 /** Asks for the paint after a DOM change, once per frame: `lastPaint` is set just after it. */
 /** `changedAt` gives the latest change: one made after the frame was drawn waits for the next. */
-function paintAfter(w: { lastPaint: number; paintAsked: boolean }, changedAt: () => number) {
+function paintAfter(w: { lastPaint: number; paintAsked: boolean; framed?: boolean }, changedAt: () => number) {
   if (w.paintAsked || typeof requestAnimationFrame !== "function") return;
   w.paintAsked = true;
   const ask = () =>
     requestAnimationFrame(() => {
+      w.framed = true;
       const drawn = now();
       postAfter(() => {
         if (changedAt() > drawn) return void ask();
@@ -643,10 +811,14 @@ function paintAfter(w: { lastPaint: number; paintAsked: boolean }, changedAt: ()
   ask();
 }
 
-/** Posts a message from inside an animation frame: it runs just after that frame was drawn. */
+/** Posts a message from inside an animation frame: it runs just after that frame was drawn. The
+ *  port is closed once it has answered, so no channel outlives its message. */
 function postAfter(f: () => void) {
   const c = new MessageChannel();
-  c.port1.onmessage = () => f();
+  c.port1.onmessage = () => {
+    c.port1.close();
+    f();
+  };
   c.port2.postMessage(0);
 }
 
@@ -692,11 +864,31 @@ export function buildReport(rec: Recorder, env: TimingEnv | null, extra: { windo
   else line(`  first page settled: ${d.fromStart ? "not yet" : "not recorded (switched on after start; on at the next start, it is)"}`);
   line();
 
+  line("Panels: times, ms to the first frame drawn with it shown or gone (median / longest), to settled (median / longest)");
+  for (const p of d.panels) {
+    if (!p.n) {
+      line(`  ${p.key.padEnd(20)} not yet`);
+      continue;
+    }
+    const fr = p.frame ? `${pad(r(p.frame.median), 5)} / ${pad(r(p.frame.max), 5)}` : `    – /     –`;
+    const se = p.settled ? `${pad(r(p.settled.median), 5)} / ${pad(r(p.settled.max), 5)}` : `    – /     –`;
+    const cut = [p.unframed ? `${p.unframed} cut off before their frame` : "", p.unsettled ? `${p.unsettled} before settling` : ""].filter(Boolean).join(", ");
+    line(`  ${p.key.padEnd(20)} ${pad(p.n, 4)} × · first frame ${fr} · settled ${se}${cut ? ` · ${cut}` : ""}`);
+  }
+  line();
+
+  line("Scrolling: per page and list, scrolls, frames, frame median / longest (ms), frames over 50 / 100 ms, list length in screens");
+  const scrolls = [...d.scrolls].sort((a, b) => b.max - a.max).slice(0, 20);
+  if (!scrolls.length) line("  none yet");
+  for (const s of scrolls) line(`  ${s.key.padEnd(34)} ${pad(s.sessions, 4)} × ${pad(s.frames, 6)} frames · ${pad(s.median.toFixed(1), 5)} / ${pad(r(s.max), 5)} · over 50/100: ${s.over50} / ${s.over100}${s.screens ? ` · ${s.screens.toFixed(1)} screens` : ""}`);
+  if (d.scrolls.length > scrolls.length) line(`  … ${d.scrolls.length - scrolls.length} more`);
+  line();
+
   line(`Slowest ${Math.min(10, d.slowest.length)} actions (of ${d.actionCount}): ms to the next paint / to settled`);
   if (!d.slowest.length) line("  none yet");
   d.slowest.slice(0, 10).forEach((a, i) => {
     const what = a.to ? `${a.page} → ${a.to}, ${a.how}, ${a.control}` : `${a.page}: ${a.how}, ${a.control}`;
-    line(`  ${pad(i + 1, 2)}. ${pad(r(a.paint), 5)} / ${pad(r(a.settled), 5)}${a.capped ? "+" : " "} ${what}${a.stall ? ` · stall ${r(a.stall)}` : ""}${a.ticks.length ? ` · during ${a.ticks.join(" + ")}` : ""} · at ${clock(a.at)}`);
+    line(`  ${pad(i + 1, 2)}. ${pad(r(a.paint), 5)} / ${pad(r(a.settled), 5)}${a.capped ? "+" : " "} ${what}${a.panel ? ` · ${a.panel}` : ""}${a.stall ? ` · stall ${r(a.stall)}` : ""}${a.ticks.length ? ` · during ${a.ticks.join(" + ")}` : ""} · at ${clock(a.at)}`);
   });
   line("  (+: not settled yet when cut off, at 3 s or by the next action)");
   line();

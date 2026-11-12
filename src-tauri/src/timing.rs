@@ -201,7 +201,7 @@ fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
 /// Keeps the `KEEP` newest reports (their names sort by time).
 fn prune(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
-    let mut names: Vec<((String, u32), String)> = entries.flatten().filter_map(|e| {
+    let mut names: Vec<((String, u32), String)> = entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_file())).filter_map(|e| {
         let n = e.file_name().to_string_lossy().into_owned();
         report_key(&n).map(|k| (k, n))
     }).collect();
@@ -223,7 +223,8 @@ fn report_key(name: &str) -> Option<(String, u32)> {
     }
     let n = match &base[17..] {
         "" => 1,
-        more => more.strip_prefix('-').filter(|d| !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))?.parse().ok()?,
+        // "-2" and up, as save_in numbers them: no "-0", "-1" or leading zero.
+        more => more.strip_prefix('-').filter(|d| !d.starts_with('0') && !d.is_empty() && d.bytes().all(|b| b.is_ascii_digit()))?.parse().ok().filter(|n: &u32| *n >= 2)?,
     };
     Some((stamp.to_owned(), n))
 }
@@ -244,7 +245,7 @@ mod tests {
         assert_eq!(report_key("timings-2026-11-02-212820.txt"), Some(("2026-11-02-212820".into(), 1)));
         assert_eq!(report_key("timings-2026-11-02-212820-10.txt"), Some(("2026-11-02-212820".into(), 10)));
         assert!(report_key("timings-2026-11-02-212820-2.txt") < report_key("timings-2026-11-02-212820-10.txt"));
-        for other in ["timings-1999.txt", "timings-ñotes-for-later-x.txt", "timings-2026-11-02-212820-.txt", "timings-2026-11-02-21282x.txt", "myorbiter.log", "timings-2026-11-02-212820.txt.bak"] {
+        for other in ["timings-2026-11-02-212820-1.txt", "timings-2026-11-02-212820-02.txt", "timings-1999.txt", "timings-ñotes-for-later-x.txt", "timings-2026-11-02-212820-.txt", "timings-2026-11-02-21282x.txt", "myorbiter.log", "timings-2026-11-02-212820.txt.bak"] {
             assert_eq!(report_key(other), None, "{other}");
         }
         let dir = std::env::temp_dir().join(format!("myorbiter-timing-prune-{}", std::process::id()));
