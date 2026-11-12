@@ -71,7 +71,7 @@ const resolveComponents = (item) =>
 
 const ITEM_FIELDS = ["uniqueName", "name", "category", "type", "tradable", "masterable", "isPrime", "vaulted", "masteryReq", "rarity", "imageName", "productCategory", "excludeFromCodex", "marketCost", "bpCost", "isAugment"];
 // Left out: wikiaUrl (the app makes the wiki link from the name), to keep the files small.
-const DETAIL_FIELDS = ["description", "buildPrice", "buildTime", "buildQuantity", "health", "shield", "armor", "power", "sprintSpeed", "polarities", "aura", "exilusPolarity", "passiveDescription", "criticalChance", "criticalMultiplier", "procChance", "fireRate", "totalDamage", "magazineSize", "reloadTime", "multishot", "accuracy", "trigger", "disposition", "omegaAttenuation", "slot", "releaseDate", "range", "followThrough", "noise"];
+const DETAIL_FIELDS = ["description", "buildPrice", "buildTime", "buildQuantity", "health", "shield", "armor", "power", "sprintSpeed", "polarities", "aura", "exilusPolarity", "stancePolarity", "passiveDescription", "criticalChance", "criticalMultiplier", "procChance", "fireRate", "totalDamage", "magazineSize", "reloadTime", "multishot", "accuracy", "trigger", "disposition", "omegaAttenuation", "slot", "releaseDate", "range", "followThrough", "noise"];
 const pickFields = (src, fields) => Object.fromEntries(fields.filter((f) => src[f] !== undefined).map((f) => [f, src[f]]));
 
 /** Drop sources, one per place, best chance first; fewer than the app keeps, to keep the files small. */
@@ -130,7 +130,7 @@ function slimUpgrade(x) {
   out.drops = slimDrops(x.drops, x.category === "Mods" && x.rarity === "Common" ? 0 : 1);
   const last = Array.isArray(x.levelStats) ? x.levelStats.at(-1)?.stats : null;
   if (Array.isArray(last)) out.maxStats = last.filter((s) => typeof s === "string").map((s) => s.replace(/\\n/g, "\n"));
-  Object.assign(out, pickFields(x, ["polarity", "baseDrain", "compatName"]));
+  Object.assign(out, pickFields(x, ["polarity", "baseDrain", "compatName", "isUtility"]));
   return out;
 }
 const mods = modsRaw.map(slimUpgrade);

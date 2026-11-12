@@ -28,7 +28,10 @@
  *
  * Not readable yet (TennoScope patch pending): slot polarities on your copy, installed shards,
  * the Helminth, the arcane adapter's bit. missing() says "unknown" for those, never "missing".
- * The catalog has no stance-slot polarity: tierOf counts it as none and says so.
+ * The stance slot's polarity is the catalog's `stancePolarity`; a weapon without one counts as none.
+ *
+ *   bonusElement(build, item, m.catalogByUnique);       // Kuva, Tenet, Coda: the bonus element to pick
+ *                                                       // and why, worked out from the mods (element.ts)
  *
  * Overframe's popular builds (overframeList.ts): a list bundled with the app, collected by hand in
  * a browser with Overframe's permission (lists only), never fetched by MyOrbiter:
@@ -56,6 +59,7 @@ export { tierOf, capacityOf, tierAllows, tierOfAvailability, drainIn, bonusIn, m
 export { availability, availabilityOf, availableAt, availabilityRank, laterOf, sourceLevel, dropsLevel, hardDonorOf, AVAILABILITIES, AVAILABILITY_LABEL, AVAILABILITY_SOURCES, type Availability, type AvailabilityInfo, type AvailabilityRule } from "./availability";
 export { TAGS, NOX_TAGS, TAG_FAMILY, TAG_FAMILIES, familyOfTag, byFamily, canonicalTag, tagsInText, onlyTags, type TagFamily } from "./tags";
 export { missing, bestCopy, endoCost, ENDO_BASE, PATHS, SHARD_PATH, shardPath, type MissingReport, type MissingLine, type MissingKind, type Have } from "./missing";
+export { bonusElement, takesBonusElement, elementOfMod, combineElements, ELEMENT_LABEL, type BonusElement, type BonusChoice, type BaseElement, type CombinedElement, type Element } from "./element";
 export { buildDate, buildAgeDays, withinAge, filterByAge, buildsFor, toggleFavourite, saveBuild, removeBuild } from "./store";
 export { registerSource, unregisterSource, buildSources, sourceBuilds, BLOCKED_HOSTS, TERMS_HOSTS, type BuildSource, type SourceContext, type SourcePermission } from "./source";
 export { overframeFor, overframeWithinAge, overframeBuildUrl, parseOverframeFile, loadOverframe, resetOverframe, matchRate, isBuildPath, updatedAt, OVERFRAME_SITE, OVERFRAME_ORIGIN, OVERFRAME_SOURCE, OVERFRAME_PERMISSION, OVERFRAME_FILE, OVERFRAME_CATEGORIES, OVERFRAME_SHOWN, OVERFRAME_MAX_AGE_DAYS, type OverframeListed, type OverframeFile, type OverframeCategory, type OverframeOptions, type OverframeResult } from "./overframeList";
