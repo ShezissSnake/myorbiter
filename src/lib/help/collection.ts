@@ -83,9 +83,9 @@ const INVENTORY: Walkthrough = {
       ],
       shot: {
         open: "inventory",
-        part: `${holder("inventory.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("inventory.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
-          { at: `${holder("inventory.list")} select`, is: "n", n: 1, from: "corner" },
+          { at: `${holder("inventory.filters")} select`, is: "n", n: 1, from: "corner" },
           { at: `${FIRST} .have`, is: "n", n: 2, from: "corner" },
           { at: `${FIRST} .vals`, is: "n", n: 3, from: "corner" },
           { at: `${FIRST} footer button.list`, is: "n", n: 4, from: "bottom" },
@@ -162,12 +162,12 @@ const PARTS: Walkthrough = {
       ],
       shot: {
         open: "parts",
-        part: `${holder("parts.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("parts.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${CARDS}:has(button.list) .verdict`, is: "n", n: 1, from: "corner" },
           { at: `${CARDS}:has(button.list) .vline`, is: "n", n: 2, from: "corner" },
           { at: `${CARDS}:has(button.list) footer button.list`, is: "n", n: 3, from: "bottom" },
-          { at: `${holder("parts.list")} button.fold`, is: "n", n: 4, from: "corner" },
+          { at: `${holder("parts.filters")} .end button.fold`, is: "n", n: 4, from: "corner" },
         ],
       },
     },
@@ -264,7 +264,7 @@ const SETS: Walkthrough = {
       ],
       shot: {
         open: "sets",
-        part: `${holder("sets.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("sets.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${FIRST} .line.sp`, is: "n", n: 1, from: "corner" },
           { at: `${FIRST} .line.sp + .line`, is: "n", n: 2, from: "corner" },
@@ -348,7 +348,7 @@ const MODS: Walkthrough = {
       ],
       shot: {
         open: "mods",
-        part: `${holder("mods.list")}, ${CARDS}:nth-child(-n+3)`,
+        part: `${holder("mods.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${FIRST} .have`, is: "n", n: 1, from: "corner" },
           { at: `${FIRST} .prices`, is: "n", n: 2, from: "corner" },

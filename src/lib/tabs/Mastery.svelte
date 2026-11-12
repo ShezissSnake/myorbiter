@@ -257,7 +257,7 @@
 
   <!-- The page's two modes as tabs, then the filters: the box first, the kind, the rest folded. -->
   <div class="views"><Tabs bind:value={view} label="Mastery view" options={[{ v: "effort", label: "Easiest first", title: "Everything you haven't mastered, by how hard it is to get" }, { v: "plat", label: "Buy with plat", title: "What platinum gets you, cheapest first: the parts or items to buy, with a buy order a click away" }]} /></div>
-  <div class="bar">
+  {#snippet filters()}
   <input type="search" aria-label="Filter items by name" title="Shows only what matches what you type" placeholder="Filter items…" bind:value={query} />
   <select bind:value={category} onchange={() => (ring = null)} aria-label="Kind" title="Which kind of item">
     <option value="all">All kinds</option>
@@ -269,14 +269,16 @@
     <Chip bind:on={showUnavailable} label="Show unavailable" title="Founders items, past events and the like: things you can't get right now" />
   </Fold>
   <HelpMark part="mastery.filters" />
-  </div>
+  {/snippet}
+  <!-- Easiest first draws these in its list's own row (Browse); the plat view has no list row. -->
+  {#if view === "plat" || !drawnEffort}<div class="bar">{@render filters()}</div>{/if}
 
   <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
   {#if drawnPlat}
     <div class="view swap" class:off={view !== "plat"} use:fresh={view === "plat"} in:arrive={{ y: 0 }}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
   {/if}
   {#if drawnEffort}
-    <div class="view swap" class:off={view === "plat"} use:fresh={view !== "plat"} in:arrive={{ y: 0 }}><Browse id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
+    <div class="view swap" class:off={view === "plat"} use:fresh={view !== "plat"} in:arrive={{ y: 0 }}><Browse filters={view === "plat" ? undefined : filters} id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 

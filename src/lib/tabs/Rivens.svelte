@@ -715,7 +715,7 @@
   {:else if !mine.length}
     <p class="dim">No unveiled rivens in your inventory.</p>
   {:else}
-    <div class="bar">
+    {#snippet filters()}
       <input type="search" placeholder="Filter rivens…" bind:value={query} aria-label="Filter rivens by weapon, name or stat" title="A weapon, a riven's name or a stat" />
       <select bind:value={kind} aria-label="Riven kind" title="Only rivens for one kind of weapon: your own weapons by type, or your companions' (a sentinel's or MOA's gun, a hound's claws)">
         <option value="all">All kinds ({mine.length})</option>
@@ -726,8 +726,8 @@
       {#if splicedCount}<Chip bind:on={splicedOnly} label="Spliced ({splicedCount})" title="Only rivens with a stat from Riven Splicing (Gas, Corrosive, Weak Point Damage…), which can't roll by cycling" />{/if}
       <span class="dim small explain">Grades compare each roll with its range: S is the top of it, B the middle, F the bottom. A curse says whether it hurts (on a stat players want) or is harmless (ammo, zoom, recoil and the like). Dispositions are 1.2 for every weapon since the 22 October 2026 hotfix.</span>
       <HelpMark part="rivens.filters" />
-    </div>
-    <Browse id="rivens" bind:opened rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
+    {/snippet}
+    <Browse {filters} id="rivens" bind:opened rows={shown} {columns} key={(r) => r.id} bind:sort {card} detail={rivenDetail} title={(r) => `${r.weapon} ${r.name}`} min="23rem" cardLimit={36} clear={filtered ? clear : null} empty="No unveiled rivens in your inventory.">
       {#snippet tools()}
         {#if checkingAll?.paused}
           <span class="dim small">{checkingAll.retry ? "Some checks failed" : "warframe.market asked us to wait"}: waiting {pauseMs > PAUSE_MS ? `until ${new Date(pausedAt! + pauseMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "half a minute"}, then {checkingAll.retry ? "trying those again" : `${checkingAll.done + 1} of ${checkingAll.total}`}</span>

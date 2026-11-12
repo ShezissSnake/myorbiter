@@ -324,7 +324,7 @@
     </div>
   </section>
   {/if}
-  <div class="bar">
+  {#snippet filters()}
   <input type="search" aria-label="Filter arcanes by name" title="Shows only what matches what you type" placeholder="Filter arcanes…" bind:value={query} />
   <select bind:value={type} aria-label="Slot" title="What it goes on">
     <option value="all">All slots</option>
@@ -339,12 +339,12 @@
   </select>
   </Fold>
   <HelpMark part="arcanes.filters" />
-  </div>
+  {/snippet}
 
   {#if show === "spares"}
-    <Browse id="arcane-spares" bind:opened={spareOpened} rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
+    <Browse {filters} id="arcane-spares" bind:opened={spareOpened} rows={spareRows} columns={spareColumns} key={(x) => x.row.unique} bind:sort={spareSort} detail={spareDetail} card={spareCard} title={(x) => x.row.name} min="18rem" clear={filtered ? clear : null} empty="No spare arcanes: you keep one of each and have nothing extra." />
   {:else}
-    <Browse id="arcanes" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
+    <Browse {filters} id="arcanes" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={show === "unfinished" ? "Every arcane maxed: nothing left to collect." : "No arcanes."} />
   {/if}
 </div></div>
 

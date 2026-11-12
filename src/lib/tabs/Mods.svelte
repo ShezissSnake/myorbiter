@@ -182,7 +182,7 @@
     {/snippet}
   </PageHead>
 
-  <div class="bar">
+  {#snippet filters()}
   <input type="search" aria-label="Filter mods by name" title="Shows only what matches what you type" placeholder="Filter mods…" bind:value={query} />
   <select bind:value={rarity} aria-label="Rarity" title="Only one rarity">
     <option value="all">All rarities</option>
@@ -194,9 +194,9 @@
     <Chip bind:on={sellingOnly} label="Sold daily" title="Only mods that sell at least once a day on warframe.market" />
   </Fold>
   <HelpMark part="mods.filters" />
-  </div>
+  {/snippet}
 
-  <Browse id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={foldHidden ? "No spare copies of tradable mods that sell daily." : "No spare mod copies: your best copy and one to give away are kept."} />
+  <Browse {filters} id="mods" bind:opened {rows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} min="18rem" clear={filtered ? clear : null} empty={foldHidden ? "No spare copies of tradable mods that sell daily." : "No spare mod copies: your best copy and one to give away are kept."} />
   {#if foldHidden}<p class="dim small more">{foldHidden.toLocaleString("en")} more {foldHidden === 1 ? "mod isn't" : "mods aren't"} {keepsTo.join(" or ")} (More filters). <button class="link" onclick={() => { tradableOnly = false; sellingOnly = false; }}>Show them</button></p>{/if}
 </div></div>
 

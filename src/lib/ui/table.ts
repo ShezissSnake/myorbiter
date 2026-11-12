@@ -16,6 +16,7 @@ export interface Column<T> {
   sortValue?: (r: T) => string | number | null;
   cell?: Snippet<[T]>;
   align?: "left" | "right" | "center";
+  /** A width: in a `fixed` table every column has one, in percent of the table (`"12%"`; see `fixedScale`). */
   width?: string;
   title?: string;
   sortable?: boolean;
@@ -25,6 +26,17 @@ export interface Column<T> {
   minor?: boolean;
   /** Hidden too when there's very little room (half a small screen), so the rest fit. */
   spare?: boolean;
+}
+
+/**
+ * What a `fixed` table's percent widths are multiplied by while its minor columns show: the
+ * non-minor columns' widths add up to the whole table, so the minor ones' are taken out of them.
+ */
+export function fixedScale(columns: { width?: string; minor?: boolean }[]): number {
+  const pct = (c: { width?: string }) => parseFloat(c.width ?? "") || 0;
+  const minor = columns.filter((c) => c.minor).reduce((n, c) => n + pct(c), 0);
+  const rest = columns.filter((c) => !c.minor).reduce((n, c) => n + pct(c), 0);
+  return rest > 0 ? Math.max(0.3, (rest - minor) / rest) : 1;
 }
 
 export const plat = (n: number | null | undefined) => (n == null ? null : `${Math.round(n * 10) / 10}p`);

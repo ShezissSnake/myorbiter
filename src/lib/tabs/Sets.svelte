@@ -281,15 +281,15 @@
 
   <!-- The page's modes as tabs (they change the whole page), the filters under them. -->
   <div class="modes"><Tabs bind:value={mode} label="Sets view" options={[{ v: "sell", label: "Sets you can sell", title: "Complete sets in your inventory, and what each sells for" }, { v: "close", label: "Almost complete", title: "Sets one or two parts short: what the missing parts cost, and what finishing and selling gains" }, { v: "save", label: "Saving up", title: "Sets your loose parts wait for instead of being sold one by one: worth more whole, and you can still get every missing part" }]} /></div>
-  <div class="bar">
+  {#snippet filters()}
   {#if mode === "sell"}
     <Chip bind:on={keepOne} label="Keep one to build" title="Hold back the sets still to build: one of anything you have neither built nor mastered, and as many as an unbuilt weapon made from it takes (Akvasto Prime takes two Vasto Primes)" />
   {/if}
   <input type="search" aria-label="Filter sets by name" title="Shows only what matches what you type" placeholder="Filter sets…" bind:value={query} />
   <HelpMark part="sets.filters" />
-  </div>
+  {/snippet}
 
-  <Browse
+  <Browse {filters}
     id="sets"
     {rows}
     columns={mode === "sell" ? sellCols : mode === "save" ? saveCols : closeCols}

@@ -293,10 +293,10 @@ const BROWSE: Walkthrough = {
       lines: ["Sort by price, sold a day, ducats or what you have, either way.", "Cards or Table: the same items, as you like them."],
       shot: {
         open: "browse",
-        part: holder("browse.list"),
+        part: holder("browse.filters"),
         marks: [
-          { at: `${holder("browse.list")} select`, is: "n", n: 1, from: "bottom" },
-          { at: `${holder("browse.list")} [role=radiogroup], ${holder("browse.list")} .layout`, is: "n", n: 2, from: "bottom" },
+          { at: `${holder("browse.filters")} select`, is: "n", n: 1, from: "bottom" },
+          { at: `${holder("browse.filters")} [role=radiogroup], ${holder("browse.filters")} .layout`, is: "n", n: 2, from: "bottom" },
         ],
       },
     },
