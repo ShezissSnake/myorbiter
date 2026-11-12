@@ -356,7 +356,9 @@
   .relic header { display: flex; justify-content: space-between; align-items: center; gap: .8rem; margin-bottom: .8rem; }
   .who { display: flex; align-items: center; gap: .8rem; min-width: 0; flex: 1; }
   .who .grow { display: grid; gap: .3rem; min-width: 0; flex: 1 1 0; }
-  .relic header > :global(:last-child:not(.who)) { flex: none; }
+  /* The badge (Avail's .cart), keyed by its class: a bare :last-child is tried on every element in
+     the app and makes WebKit restyle a whole subtree whenever any node is added or removed. */
+  .relic header > :global(.cart) { flex: none; }
   /* One line each, cut short with an ellipsis rather than running under the badge beside it. */
   .sub { display: grid; gap: .1rem; min-width: 0; }
   .sub > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
