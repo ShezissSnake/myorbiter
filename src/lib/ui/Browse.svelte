@@ -123,8 +123,11 @@
   // A first screenful at once, then more as you scroll.
   let shown = $state(24);
   // Back to the first page when the sort or the filters change (not when the same rows refresh).
+  // On the count, not the list: a sync brings a new list of the same rows, and reading `view` made
+  // every sync fold a long list back to its first cards, to be drawn again on the next scroll.
+  const rowCount = $derived(view.length);
   $effect(() => {
-    view.length;
+    rowCount;
     sort.key;
     sort.desc;
     shown = cardLimit;

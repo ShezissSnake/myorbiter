@@ -16,7 +16,8 @@
   // `keep`: a panel that's costly to build (Settings) is built on its first open and then stays in
   // the DOM, hidden and inert, so the next open is a class change: it slides on a CSS transform
   // transition, not a Svelte transition, and its blurred shadow comes only once it has settled
-  // (a blur repainted every frame of the slide made the window redraw).
+  // (a blur repainted every frame of the slide made the window redraw): a transition of no length
+  // that waits out the slide, so no timer and no class change lands on the page a frame later.
 
   import HelpMark from "./HelpMark.svelte";
   // `help`: the panel's part id, for its "?" beside Close.
@@ -26,19 +27,12 @@
   $effect.pre(() => {
     if (open) seen = true;
   });
-  let settled = $state(false);
   let body = $state<HTMLElement>();
   $effect(() => {
-    if (!keep) return;
-    if (!open) {
-      settled = false;
-      return;
-    }
+    if (!keep || !open) return;
     // Opens at the top, as a freshly built one did.
     if (body) body.scrollTop = 0;
     moving(ms(SETTLE));
-    const t = setTimeout(() => (settled = true), ms(SETTLE) + 30);
-    return () => clearTimeout(t);
   });
 </script>
 
@@ -67,7 +61,7 @@
     </div>
   {/if}
 {:else if seen}
-  <div class="sheet keep" class:wide class:on={open} class:settled role="dialog" inert={!open} aria-modal={open ? "true" : undefined} aria-label={title} tabindex="-1" use:sheetBuilt use:trap={{ onescape: () => (open = false), active: open }}>
+  <div class="sheet keep" class:wide class:on={open} role="dialog" inert={!open} aria-modal={open ? "true" : undefined} aria-label={title} tabindex="-1" use:sheetBuilt use:trap={{ onescape: () => (open = false), active: open }}>
     {@render panel()}
   </div>
 {/if}
@@ -83,8 +77,7 @@
   .sheet.wide { width: min(58rem, 100vw); }
   /* Kept: shut, it's invisible and takes no clicks (visibility turns off once the slide-out ends). */
   .sheet.keep { transform: translateX(40px); opacity: 0; visibility: hidden; box-shadow: inset 2px 0 0 var(--rule-control); transition: transform 100ms var(--out), opacity 100ms var(--out), visibility 0s linear 100ms; }
-  .sheet.keep.on { transform: none; opacity: 1; visibility: visible; transition: transform var(--settle) var(--out), opacity var(--settle) var(--out), visibility 0s; }
-  .sheet.keep.settled { box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control); }
+  .sheet.keep.on { transform: none; opacity: 1; visibility: visible; box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control); transition: transform var(--settle) var(--out), opacity var(--settle) var(--out), visibility 0s, box-shadow 0s linear var(--settle); }
   header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
   header .register { color: var(--platinum-dim); margin-bottom: .45rem; }
   /* The title takes the room, so the "?" sits beside Close at the right end. */

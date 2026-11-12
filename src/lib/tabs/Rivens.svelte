@@ -905,7 +905,8 @@
   /* The platinum mark sits inside the field, so this column is as wide as the one above it. */
   .form .plat { position: relative; }
   .form .plat input { flex: 1; min-width: 0; width: auto; min-height: 36px; padding-right: 2rem; }
-  .form .plat > :global(:last-child) { position: absolute; right: .7rem; pointer-events: none; }
+  /* The platinum mark (GameIcon's .gi), by its class rather than :last-child (see InMission's .relic header). */
+  .form .plat > :global(.gi) { position: absolute; right: .7rem; pointer-events: none; }
   .form .go { grid-column: span 2; display: flex; gap: .5rem; justify-content: flex-end; }
   .form .go :global(.stamp) { display: inline-flex; align-items: center; gap: .5rem; height: 36px; }
   /* Page area under 760 px (App sets the flag, by the room pages actually have). */

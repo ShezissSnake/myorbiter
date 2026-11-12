@@ -3220,9 +3220,14 @@
   .pane.shown { display: flex; }
   /* A page not on screen stays laid out but isn't drawn, out of the flow and the pointer's way:
      going back to it is a repaint rather than a layout of the whole page (where content-visibility
-     isn't known, it's simply not there, as before). */
+     isn't known, it's simply not there, as before). `visibility: hidden` keeps it from the pointer,
+     Tab and screen readers. It is inherited, so every element of the page shown and of the page
+     left is restyled on a switch (about 150 ms with Inventory's cards drawn); each further inherited
+     property adds to that, so there is no `pointer-events: none` (hidden boxes take no pointer
+     anyway). Without `visibility`, WebKitGTK lets Tab into the item cards of a hidden page (their
+     own `content-visibility: auto` makes them count as on screen), and `inert` costs as much. */
   @supports (content-visibility: hidden) {
-    .pane:not(.shown) { display: flex; content-visibility: hidden; position: absolute; inset: 0; visibility: hidden; pointer-events: none; }
+    .pane:not(.shown) { display: flex; content-visibility: hidden; position: absolute; inset: 0; visibility: hidden; }
   }
   /* Nothing moves in a page nobody sees: an endless animation (InMission's breathing ring, a
      sweep or spinner left on a page) would keep the compositor drawing a frame for it. Paused, not
