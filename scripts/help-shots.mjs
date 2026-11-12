@@ -50,10 +50,10 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   let size = "";
   for (const x of todo) {
     const [w, h] = x.shot.size ?? [1280, 800];
-    const want = `${x.wt.id} ${w}x${h}${x.shot.startup ? ` ${x.shot.startup}` : ""}`;
+    const want = `${x.wt.id} ${w}x${h}${x.shot.startup ? ` ${x.shot.startup}` : ""}${x.shot.emptyChannel ? " empty" : ""}`;
     if (want !== size || x.shot.startup) {
       await p?.close();
-      p = await openApp(browser, url, w, h, x.shot.startup);
+      p = await openApp(browser, url, w, h, x.shot);
       size = want;
     }
     const where = `${x.wt.id}, page ${x.i + 1}`;
@@ -97,15 +97,22 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   console.log(`${Object.keys(sorted).length} pictures, ${Math.round(total / 1024)} KB in all`);
 }
 
-async function openApp(browser, url, w, h, startup = null) {
+async function openApp(browser, url, w, h, shot = {}) {
+  const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
   await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
   p.on("pageerror", (e) => console.error(`help: ${e.message}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the
   // Full mode question seen, calm motion so nothing is caught half-way.
-  // A start-up dialog's window: the Full mode question not asked yet.
-  await p.addInitScript(({ asked }) => {
+  // A start-up dialog's window: the Full mode question not asked yet. A first start's: TennoScope
+  // played by a stand-in (src/lib/core/standIn.ts), and so nothing read. An empty channel's: the
+  // demo's channels with Stable and Beta empty.
+  await p.addInitScript(({ asked, standIn, emptyChannel }) => {
     try {
+      if (standIn) localStorage.setItem("orbiter-demo-tennoscope", standIn);
+      else localStorage.removeItem("orbiter-demo-tennoscope");
+      if (emptyChannel) localStorage.setItem("orbiter-demo-empty-channel", "1");
+      else localStorage.removeItem("orbiter-demo-empty-channel");
       const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");
       s.newsSeen = "9999";
       s.fullModeAsked = asked;
@@ -139,7 +146,7 @@ async function openApp(browser, url, w, h, startup = null) {
       s.buildsFromNox = false;
       localStorage.setItem("orbiter-settings", JSON.stringify(s));
     } catch {}
-  }, { asked: startup !== "first-run" });
+  }, { asked: startup !== "first-run", standIn: shot.standIn ?? null, emptyChannel: !!shot.emptyChannel });
   await p.emulateMedia({ reducedMotion: "reduce" });
   // The first load compiles the app: slow on a busy machine.
   await p.goto(url, { timeout: 180_000 });

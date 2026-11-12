@@ -70,6 +70,8 @@ export interface CatalogItem {
   polarities?: string[];
   aura?: string;
   exilusPolarity?: string;
+  /** A melee weapon's stance slot polarity, when it has one. */
+  stancePolarity?: string;
   passiveDescription?: string;
   abilities?: { name: string; description?: string; imageName?: string }[];
   criticalChance?: number;
@@ -96,6 +98,8 @@ export interface CatalogItem {
   polarity?: string;
   baseDrain?: number;
   compatName?: string;
+  /** Mods: it fits the exilus slot. */
+  isUtility?: boolean;
 }
 
 export interface RelicReward {
@@ -310,6 +314,8 @@ export interface MissionState {
   reward_screen_open: boolean;
   rewards_given: string[];
   last_event: number | null;
+  /** Engine uptime at the first sign this session that the player signed in (ee_log.rs); null at the login screen. */
+  signed_in?: number | null;
   session_start: number | null;
   history: MissionEntry[];
   /** This session's trades that went through, read from the trade dialog in EE.log. */

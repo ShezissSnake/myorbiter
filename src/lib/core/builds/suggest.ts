@@ -60,6 +60,7 @@ import frameRoles from "../../data/frame-roles.json";
 import synergies from "../../data/loadout-synergies.json";
 import { idealRiven, rivenFit, rivensFor, type IdealRiven, type RivenFit, type RivenMarketData } from "./riven";
 import { availabilityOf, availabilityRank, hardDonorOf, type Availability } from "./availability";
+import { modFits } from "./gear";
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -268,6 +269,10 @@ export interface ModIndex {
   byPath: Map<string, CatalogItem>;
   /** Stances by weapon class ("Heavy Blade"). */
   stances: Map<string, CatalogItem[]>;
+  /** Warframe auras, by name. */
+  auras: CatalogItem[];
+  /** Whether the catalog marks the mods that fit the exilus slot (`isUtility`); an older one doesn't. */
+  utilityKnown: boolean;
 }
 
 /** Owned mods and arcanes: path (no "#rank") → the highest rank held. */
@@ -288,11 +293,14 @@ export function modIndex(catalog: CatalogItem[]): ModIndex {
   const byName = new Map<string, CatalogItem>();
   const byPath = new Map<string, CatalogItem>();
   const stances = new Map<string, CatalogItem[]>();
+  const auras: CatalogItem[] = [];
+  let utilityKnown = false;
   const rank = (x: CatalogItem) => (CANONICAL[x.name] === x.uniqueName ? -1 : SECONDARY_COPY.test(x.uniqueName) ? 1 : 0);
   for (const x of catalog) {
     if (x.category !== "Mods" && x.category !== "Arcanes") continue;
     if (x.type === "Focus Way" || x.type === "Plexus Mod" || x.type === "Railjack Mod") continue;
     byPath.set(x.uniqueName, x);
+    if (x.isUtility === true) utilityKnown = true;
     const had = byName.get(x.name);
     if (!had || rank(x) < rank(had)) byName.set(x.name, x);
   }
@@ -302,7 +310,9 @@ export function modIndex(catalog: CatalogItem[]): ModIndex {
     list.push(x);
     stances.set(x.compatName, list);
   }
-  return { byName, byPath, stances };
+  for (const x of byName.values()) if (x.category === "Mods" && (x.compatName ?? "").toUpperCase() === "AURA") auras.push(x);
+  auras.sort((a, b) => a.name.localeCompare(b.name));
+  return { byName, byPath, stances, auras, utilityKnown };
 }
 
 /** The mods and arcanes held, from TennoScope's inventory rows ("path" or "path#rank"). */
@@ -641,6 +651,23 @@ const MELEE_FOLDER: Record<string, string> = {
   DualShortSword: "Dual Swords",
   GreatSword: "Heavy Blade",
   Nikana: "Nikanas",
+  Tonfas: "Tonfas",
+  CrpTonfa: "Tonfas",
+  DualKamas: "Dual Swords",
+  PrimeDualKamas: "Dual Swords",
+  InfWarfan: "Warfans",
+  InfBoomerang: "Glaives",
+  GrnBoomerang: "Glaives",
+  GrineerCombatKnife: "Daggers",
+  GrnTrident: "Polearms",
+  GrineerHalberd: "Polearms",
+  GrineerJetPoweredPolearm: "Hammers",
+  KickAndPunch: "Sparring",
+  GrnSparring: "Sparring",
+  PersianMachete: "Machetes",
+  Maces: "Hammers",
+  InfEmbolistScythe: "Scythes",
+  InfTransformClaw: "Claws",
 };
 const MELEE_NAME: Record<string, string> = {
   Gram: "Heavy Blade",
@@ -694,6 +721,46 @@ const MELEE_NAME: Record<string, string> = {
   Redeemer: "Gunblade",
   Stropha: "Gunblade",
   Sarpa: "Gunblade",
+  Vastilok: "Gunblade",
+  War: "Heavy Blade",
+  Pennant: "Heavy Blade",
+  Sarofang: "Heavy Blade",
+  "Tenet Exec": "Heavy Blade",
+  "Broken Scepter": "Staves",
+  "Mk1-Bo": "Staves",
+  "Mk1-Furax": "Fists",
+  "Dark Sword": "Swords",
+  "Dark Split-Sword": "Dual Swords",
+  "Dex Dakra": "Swords",
+  "Dex Nikana": "Nikanas",
+  "Heat Sword": "Swords",
+  "Plasma Sword": "Swords",
+  "Pangolin Sword": "Swords",
+  Pangolin: "Swords",
+  Mire: "Swords",
+  "Coda Mire": "Swords",
+  "Nami Skyla": "Dual Swords",
+  "Dual Keres": "Dual Swords",
+  "Dual Kamas": "Dual Swords",
+  "Dual Raza": "Dual Swords",
+  "Dual Cleavers": "Dual Swords",
+  "Twin Krohkur": "Dual Swords",
+  Okina: "Dual Daggers",
+  Karyst: "Daggers",
+  "Rakta Dark Dagger": "Daggers",
+  Endura: "Rapiers",
+  Kama: "Machetes",
+  Machete: "Machetes",
+  Halikar: "Glaives",
+  "Coda Pathocyst": "Glaives",
+  "Coda Caustacyst": "Scythes",
+  "Coda Motovore": "Hammers",
+  "Sancti Magistar": "Hammers",
+  "Synoid Heliocor": "Hammers",
+  "Telos Boltace": "Tonfas",
+  "Secura Lecta": "Whips",
+  "Vaykor Sydon": "Polearms",
+  Korumm: "Polearms",
 };
 const stem = (name: string) => name.replace(/\s+(Prime|Wraith|Vandal)$/, "").replace(/^Prisma\s+/, "");
 
@@ -873,6 +940,9 @@ function frameAura(info: FrameInfo, variant: Variant | null = null): { chain: st
   return { chain: ["Energy Siphon", "Corrosive Projection", "Growing Power"], why: "Energy Siphon: steady energy for a frame that casts a lot." };
 }
 
+/** Utility mods many warframe builds put in the exilus slot, when the frame's own pick isn't held. */
+const FRAME_EXILUS = ["Primed Sure Footed", "Sure Footed", "Power Drift", "Cunning Drift", "Coaction Drift", "Handspring", "Vigilante Pursuit", "Enemy Sense"];
+
 function frameExilus(info: FrameInfo, variant: Variant | null = null): { chain: string[]; why: string } {
   if (info.knockdown) return { chain: ["Primed Sure Footed", "Sure Footed"], why: "Knockdown immunity: this frame fights up close and loses its channel or combo when knocked down." };
   const r = (variant?.roles ?? info.roles)[0];
@@ -976,6 +1046,8 @@ const polarityOf = (v: unknown): Polarity | null => {
   if (s === "aura" || s === "any" || s === "omni") return "universal";
   return (["madurai", "vazarin", "naramon", "zenurik", "unairu", "penjaga", "umbra", "universal"] as string[]).includes(s) ? (s as Polarity) : null;
 };
+
+const POL_NAME: Record<Polarity, string> = { madurai: "Madurai", vazarin: "Vazarin", naramon: "Naramon", zenurik: "Zenurik", unairu: "Unairu", penjaga: "Penjaga", umbra: "Umbra", universal: "Omni" };
 
 /** A mod's own polarity, or null when it has none that matters (universal mods drain as listed). */
 const modPolarity = (m: CatalogItem): Polarity | null => {
@@ -1089,13 +1161,19 @@ function layoutOf(kind: GearKind): Layout {
 
 const usesReactor = (kind: GearKind) => kind === "warframe" || kind === "companion" || kind === "archwing" || kind === "necramech" || kind === "exalted";
 
-function weaponExilus(item: CatalogItem, cls: WeaponClass, kind: GearKind): { chain: string[]; why: string } | null {
+function weaponExilus(item: CatalogItem, cls: WeaponClass, kind: GearKind, index: ModIndex): { chain: string[]; why: string } | null {
   if (kind !== "primary" && kind !== "secondary") return null;
   const why = "Ammo: the exilus slot takes utility mods, and this keeps the gun fed.";
-  if (cls === "shotgun") return { chain: ["Primed Shotgun Ammo Mutation", "Shotgun Ammo Mutation"], why };
-  if (cls === "pistol") return { chain: ["Primed Pistol Ammo Mutation", "Pistol Ammo Mutation"], why };
-  if (item.type === "Rifle") return { chain: ["Primed Rifle Ammo Mutation", "Rifle Ammo Mutation"], why };
-  return null;
+  const all =
+    cls === "shotgun" ? ["Primed Shotgun Ammo Mutation", "Shotgun Ammo Mutation"]
+    : cls === "pistol" ? ["Primed Pistol Ammo Mutation", "Pistol Ammo Mutation"]
+    : ["Primed Rifle Ammo Mutation", "Rifle Ammo Mutation", "Primed Sniper Ammo Mutation", "Sniper Ammo Mutation", "Arrow Mutation"];
+  // Only the ones this weapon takes: Rifle Ammo Mutation is for assault rifles, the Sniper one for snipers, Arrow Mutation for bows.
+  const chain = all.filter((n) => {
+    const m = index.byName.get(n);
+    return !!m && modFits(m, item, kind).fits !== false;
+  });
+  return chain.length ? { chain, why } : null;
 }
 
 function weaponArcane(item: CatalogItem, cls: WeaponClass, focus: Focus): { chain: string[]; why: string } | null {
@@ -1177,43 +1255,66 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
   const rawAura = item.aura as unknown;
   const auraPols: (Polarity | null)[] = Array.isArray(rawAura) ? rawAura.map(polarityOf) : [polarityOf(rawAura)];
   const auras: { mod: CatalogItem; why: string; pol: Polarity | null }[] = [];
+  const usable = (m: CatalogItem) => owned.has(m.uniqueName) && allowedAt(m, tier);
   if (layout.aura && info) {
     const a = frameAura(info, variant);
     const chain = [...a.chain, "Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge"].filter((n, k, all) => all.indexOf(n) === k);
-    const ownedAuras = chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m && owned.has(m.uniqueName) && allowedAt(m, tier));
+    const inChain = chain.map((n) => index.byName.get(n)).filter((m): m is CatalogItem => !!m && usable(m));
+    // Any other aura held adds capacity too: the one that adds the most in this frame's aura slot first.
+    const slotPol = auraPols[0] ?? null;
+    const others = index.auras.filter((m) => usable(m) && !inChain.includes(m)).sort((x, y) => bonusIn(y, y.maxRank ?? 0, slotPol) - bonusIn(x, x.maxRank ?? 0, slotPol));
+    const ownedAuras = [...inChain, ...others];
     const want = index.byName.get(a.chain[0]);
     const best = want && allowedAt(want, tier) ? want : undefined;
     for (let k = 0; k < layout.aura && k < ownedAuras.length; k++) {
       const m = ownedAuras[k];
-      auras.push({ mod: m, why: k === 0 && m === best ? a.why : k === 0 ? `${m.name}: the aura you have closest to ${a.chain[0]}; any aura adds capacity.` : `${m.name}: a second aura, for its capacity and effect.`, pol: auraPols[k] ?? null });
+      const why =
+        k > 0 ? `${m.name}: a second aura, for its capacity and effect.`
+        : m === best ? a.why
+        : inChain.includes(m) ? `${m.name}: the aura you have closest to ${a.chain[0]}; any aura adds capacity.`
+        : `${m.name}: an aura you hold, for the capacity it adds (${bonusIn(m, m.maxRank ?? 0, auraPols[k] ?? null)} in this slot); ${a.chain[0]} would suit the frame better.`;
+      auras.push({ mod: m, why, pol: auraPols[k] ?? null });
     }
     if (best && !owned.has(best.uniqueName)) addUpgrade(best, auras[0]?.mod.name ?? null, a.why);
   }
   let stance: { mod: CatalogItem; why: string } | null = null;
+  const stanceSlot = polarityOf(item.stancePolarity);
   if (layout.stance && meleeClass) {
-    const all = index.stances.get(meleeClass) ?? [];
-    const mine = all.filter((m) => owned.has(m.uniqueName) && allowedAt(m, tier));
-    if (mine.length) stance = { mod: mine[0], why: `A ${meleeClass} stance: pick whichever you like to play; it mostly adds capacity.` };
-    else if (all[0]) addUpgrade(all[0], null, `Any ${meleeClass} stance: it adds capacity and combos.`);
+    // One on the weapon's own stance polarity adds twice the capacity: those first.
+    const all = (index.stances.get(meleeClass) ?? []).filter((m) => allowedAt(m, tier)).sort((x, y) => bonusIn(y, y.maxRank ?? 0, stanceSlot) - bonusIn(x, x.maxRank ?? 0, stanceSlot));
+    const mine = all.filter((m) => owned.has(m.uniqueName));
+    const on = (m: CatalogItem) => (stanceSlot && matches(stanceSlot, modPolarity(m)) ? ` It matches the stance slot's ${POL_NAME[stanceSlot]} polarity, so it adds twice the capacity.` : "");
+    if (mine.length) stance = { mod: mine[0], why: `A ${meleeClass} stance: pick whichever you like to play; it mostly adds capacity.${on(mine[0])}` };
+    else if (all[0]) addUpgrade(all[0], null, `Any ${meleeClass} stance: it adds capacity and combos.${on(all[0])}`);
   }
   let exilus: { mod: CatalogItem; why: string } | null = null;
   if (doubled && layout.exilus) {
-    const e = info ? frameExilus(info, variant) : cls ? weaponExilus(item, cls, kind) : null;
+    const fitsExilus = (m: CatalogItem) => m.isUtility === true || !index.utilityKnown;
+    // A mod the build wants anyway that fits the exilus slot goes there, which frees one of its mod slots.
+    const wanted = index.utilityKnown ? resolved.find((r) => r.mod && r.mod.isUtility === true) : undefined;
+    const e = info ? frameExilus(info, variant) : cls ? weaponExilus(item, cls, kind, index) : null;
+    if (wanted?.mod) exilus = { mod: wanted.mod, why: `${wanted.pick.why} In the exilus slot, so it doesn't take one of the mod slots.` };
     if (e) {
-      const r = resolve({ key: "exilus", chain: e.chain, why: e.why }, owned, index, tier);
-      if (r.mod) exilus = { mod: r.mod, why: r.mod.name === e.chain[0] ? e.why : `${e.why} (${r.mod.name} until you have ${e.chain[0]})` };
-      if (r.better) addUpgrade(r.better, r.mod?.name ?? null, e.why);
+      const r = resolve({ key: "exilus", chain: e.chain.filter((n) => { const m = index.byName.get(n); return !m || fitsExilus(m); }), why: e.why }, owned, index, tier);
+      if (!exilus && r.mod) exilus = { mod: r.mod, why: r.mod.name === e.chain[0] ? e.why : `${e.why} (${r.mod.name} until you have ${e.chain[0]})` };
+      if (r.better && !wanted) addUpgrade(r.better, r.mod?.name ?? null, e.why);
+    }
+    // Nothing of those held: a utility mod held that most builds of this kind run.
+    if (!exilus && info) {
+      const r = resolve({ key: "exilus", chain: FRAME_EXILUS.filter((n) => { const m = index.byName.get(n); return !!m && fitsExilus(m); }), why: "" }, owned, index, tier);
+      if (r.mod) exilus = { mod: r.mod, why: `${r.mod.name}: a utility mod you hold, for the exilus slot.` };
     }
   }
   const exilusPol = polarityOf(item.exilusPolarity);
 
   // ---- fit the mods
-  const owners = resolved.filter((r) => r.mod);
+  // The exilus mod is in its own slot, not one of these.
+  const owners = resolved.filter((r) => r.mod && r.mod !== exilus?.mod);
   let placed: Placed[] = owners.slice(0, layout.mods).map((r) => ({ pick: r.pick, mod: r.mod!, rank: r.mod!.maxRank ?? 0 }));
   let rest = owners.slice(layout.mods);
   const pols = [...slotPols];
   const auraSlots = [...auraPols];
-  let stancePol = polarityOf((item as { stancePolarity?: string }).stancePolarity);
+  let stancePol = stanceSlot;
   let exPol = exilusPol;
   let forma = 0;
   let umbra = 0;

@@ -57,6 +57,8 @@ pub struct Companion {
     /// The TennoScope MyOrbiter started, if it's the one running. Shared with the threads that
     /// watch a hand-off (see `ask`).
     started: Arc<Mutex<Option<Proc>>>,
+    /// What TennoScope last answered, so the log has a line per change (`Seen`).
+    seen: Mutex<Seen>,
     /// Held while starting one: two checks at once (the page polls) must not start two.
     starting: Mutex<()>,
     /// How often the TennoScope MyOrbiter started has ended by itself lately, and so whether
@@ -261,18 +263,140 @@ const STATUS_FILE: &str = "tennoscope-status.json";
 /// Older than this, the report is from a TennoScope that has stopped.
 const REPORT_FRESH_MS: u64 = 15_000;
 
-fn read_report(live: &[u32]) -> Option<serde_json::Value> {
-    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as u64;
-    read_report_in(&crate::bridge::runtime_dir()?, live, now)
+fn read_report(live: &[u32]) -> Result<serde_json::Value, NoReport> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64);
+    report_in(&crate::bridge::runtime_dir().ok_or(NoReport::NoFolder)?, live, now)
 }
 
 /// The report, if it's recent and from a TennoScope that is still running.
+#[cfg(test)]
 fn read_report_in(dir: &Path, live: &[u32], now: u64) -> Option<serde_json::Value> {
-    let report: serde_json::Value = serde_json::from_str(&fs::read_to_string(dir.join(STATUS_FILE)).ok()?).ok()?;
-    let at = report.get("at")?.as_u64()?;
+    report_in(dir, live, now).ok()
+}
+
+/// Why there is no report to go by, for MyOrbiter's log.
+#[derive(Debug, Clone, PartialEq)]
+enum NoReport {
+    /// No private folder to share files in (no `$XDG_RUNTIME_DIR`, and the temp folder's isn't safe).
+    NoFolder,
+    NoFile,
+    Unreadable,
+    /// Older than `REPORT_FRESH_MS`: written by a TennoScope that stopped writing.
+    Stale(u64),
+    /// Written by a TennoScope that isn't running any more (an old file).
+    Gone,
+}
+
+impl NoReport {
+    fn words(&self) -> String {
+        match self {
+            NoReport::NoFolder => "there's no private folder to share it in".into(),
+            NoReport::NoFile => "it hasn't written one".into(),
+            NoReport::Unreadable => "its report can't be read".into(),
+            NoReport::Stale(secs) => format!("its last report is {secs} s old"),
+            NoReport::Gone => "the report there is from a TennoScope that has ended".into(),
+        }
+    }
+}
+
+fn report_in(dir: &Path, live: &[u32], now: u64) -> Result<serde_json::Value, NoReport> {
+    let text = fs::read_to_string(dir.join(STATUS_FILE)).map_err(|_| NoReport::NoFile)?;
+    let report: serde_json::Value = serde_json::from_str(&text).map_err(|_| NoReport::Unreadable)?;
+    let at = report.get("at").and_then(|a| a.as_u64()).ok_or(NoReport::Unreadable)?;
     let pid = report.get("pid").and_then(|p| p.as_u64()).map(|p| p as u32);
-    let alive = pid.map_or(true, |p| live.contains(&p));
-    (alive && now.saturating_sub(at) < REPORT_FRESH_MS).then_some(report)
+    if !pid.map_or(true, |p| live.contains(&p)) {
+        return Err(NoReport::Gone);
+    }
+    let age = now.saturating_sub(at);
+    if age >= REPORT_FRESH_MS {
+        return Err(NoReport::Stale(age / 1000));
+    }
+    Ok(report)
+}
+
+/// What TennoScope last answered, as far as MyOrbiter's log tells it: each change is one line
+/// (`Seen::changes`), never a name or a path of the player's.
+#[derive(Debug, Clone, Default, PartialEq)]
+struct Seen {
+    running: bool,
+    report: Option<Result<(), NoReport>>,
+    access: Option<String>,
+    game: Option<bool>,
+    /// The game reader's state and message ("ready", "Inventory synchronized from warframe-memory").
+    reader: Option<(String, String)>,
+    catalog: Option<(String, String)>,
+    /// When the last request it turned down was, and why.
+    refused: Option<(u64, String)>,
+}
+
+impl Seen {
+    fn of(running: bool, report: &Result<serde_json::Value, NoReport>) -> Seen {
+        let state = |r: &serde_json::Value, part: &str| {
+            let h = &r["health"][part];
+            h["state"].as_str().map(|s| (s.to_string(), h["message"].as_str().unwrap_or("").chars().take(200).collect()))
+        };
+        match report {
+            Ok(r) => Seen {
+                running,
+                report: Some(Ok(())),
+                access: r["setup"]["access_mode"].as_str().map(str::to_string),
+                game: r["game_running"].as_bool(),
+                reader: state(r, "game_reader"),
+                catalog: state(r, "catalog"),
+                refused: r["last_error"]["at"].as_u64().map(|at| (at, r["last_error"]["message"].as_str().unwrap_or("").chars().take(200).collect())),
+            },
+            Err(why) => Seen { running, report: running.then(|| Err(why.clone())), ..Seen::default() },
+        }
+    }
+
+    /// The lines for what changed from `before` to `self`.
+    fn changes(&self, before: &Seen) -> Vec<String> {
+        let mut out = Vec::new();
+        if self.running != before.running {
+            out.push(if self.running { "TennoScope is running".to_string() } else { "TennoScope isn't running".to_string() });
+        }
+        // By kind: a stale report's age grows every look, and is one change, not one a look.
+        fn kind(r: &Option<Result<(), NoReport>>) -> Option<Result<(), std::mem::Discriminant<NoReport>>> {
+            r.as_ref().map(|r| r.as_ref().map_err(std::mem::discriminant).copied())
+        }
+        if kind(&self.report) != kind(&before.report) {
+            match (&self.report, &before.report) {
+                (Some(Ok(())), Some(Ok(()))) => {}
+                (Some(Ok(())), _) => out.push("TennoScope's report received".into()),
+                (Some(Err(why)), _) => out.push(format!("no report from TennoScope: {}", why.words())),
+                (None, _) => {}
+            }
+        }
+        if self.report != Some(Ok(())) {
+            return out;
+        }
+        if self.access != before.access {
+            out.push(format!("TennoScope's access mode: {}", self.access.as_deref().unwrap_or("not chosen")));
+        }
+        if self.game != before.game {
+            out.push(match self.game {
+                Some(true) => "TennoScope sees Warframe running".to_string(),
+                Some(false) => "TennoScope doesn't see Warframe running".to_string(),
+                None => "TennoScope doesn't say whether Warframe runs".to_string(),
+            });
+        }
+        if self.reader != before.reader {
+            if let Some((state, message)) = &self.reader {
+                out.push(format!("TennoScope's game reader: {state}{}", if message.is_empty() { String::new() } else { format!(" ({message})") }));
+            }
+        }
+        if self.catalog != before.catalog {
+            if let Some((state, message)) = self.catalog.as_ref().filter(|(s, _)| s != "ready") {
+                out.push(format!("TennoScope's item data: {state}{}", if message.is_empty() { String::new() } else { format!(" ({message})") }));
+            }
+        }
+        if self.refused != before.refused {
+            if let Some((_, message)) = &self.refused {
+                out.push(format!("TennoScope turned a request down: {message}"));
+            }
+        }
+        out
+    }
 }
 
 /// The requests MyOrbiter sends a patched TennoScope (see its `orbiter_bridge::asks`). Your
@@ -776,15 +900,25 @@ impl Companion {
             }
         }
         let found = self.binary();
+        let running = !live.is_empty() || started.is_some();
+        let report = read_report(&live);
+        {
+            let next = Seen::of(running, &report);
+            let mut seen = lock(&self.seen);
+            for line in next.changes(&seen) {
+                log::info!(target: "myorbiter::tennoscope", "{line}");
+            }
+            *seen = next;
+        }
         Status {
             binary: found.as_ref().map(|(p, _)| p.display().to_string()),
             custom: lock(&self.custom).clone(),
             bundled: found.is_some_and(|(_, b)| b),
             supported: SUPPORTED,
             // The one MyOrbiter just started counts while it's still turning into TennoScope.
-            running: !live.is_empty() || started.is_some(),
+            running,
             started_by_myorbiter: started.is_some(),
-            report: read_report(&live),
+            report: report.ok(),
             restart: lock(&self.relaunch).view(Instant::now()),
         }
     }
@@ -1082,6 +1216,33 @@ mod tests {
     }
 
     #[test]
+    fn the_log_says_what_tennoscope_answered_once_per_change() {
+        let report = |access: &str, game: bool, reader: (&str, &str)| -> Result<serde_json::Value, NoReport> {
+            Ok(serde_json::json!({ "at": 1, "setup": { "access_mode": access }, "game_running": game, "health": { "game_reader": { "state": reader.0, "message": reader.1 }, "catalog": { "state": "ready", "message": "Item data up to date" } }, "last_error": null }))
+        };
+        let start = Seen::default();
+        // Started, and nothing written yet: said once, with why.
+        let silent = Seen::of(true, &Err(NoReport::NoFile));
+        assert_eq!(silent.changes(&start), ["TennoScope is running", "no report from TennoScope: it hasn't written one"]);
+        assert!(Seen::of(true, &Err(NoReport::NoFile)).changes(&silent).is_empty(), "the same again says nothing");
+        let stale = Seen::of(true, &Err(NoReport::Stale(40)));
+        assert_eq!(stale.changes(&silent), ["no report from TennoScope: its last report is 40 s old"]);
+        assert!(Seen::of(true, &Err(NoReport::Stale(55))).changes(&stale).is_empty(), "older still is the same change");
+        // The first report: everything in it, once.
+        let first = Seen::of(true, &report("overlay", false, ("idle", "Warframe is not running")));
+        assert_eq!(first.changes(&silent), ["TennoScope's report received", "TennoScope's access mode: overlay", "TennoScope doesn't see Warframe running", "TennoScope's game reader: idle (Warframe is not running)"]);
+        // Full access granted, the game seen, the read done.
+        let full = Seen::of(true, &report("full", true, ("ready", "Inventory synchronized from warframe-memory")));
+        assert_eq!(full.changes(&first), ["TennoScope's access mode: full", "TennoScope sees Warframe running", "TennoScope's game reader: ready (Inventory synchronized from warframe-memory)"]);
+        assert!(full.changes(&full).is_empty());
+        // A read refused by the system, and a request turned down.
+        let refused = Seen::of(true, &Ok(serde_json::json!({ "at": 1, "setup": { "access_mode": "full" }, "game_running": true, "health": { "game_reader": { "state": "failed", "message": "permission denied while reading Warframe process 12" }, "catalog": { "state": "failed", "message": "No valid WFCD catalog is available" } }, "last_error": { "at": 5, "message": "access mode is already changing" } })));
+        assert_eq!(refused.changes(&full), ["TennoScope's game reader: failed (permission denied while reading Warframe process 12)", "TennoScope's item data: failed (No valid WFCD catalog is available)", "TennoScope turned a request down: access mode is already changing"]);
+        // It ends: said, and nothing about a report it can't write.
+        assert_eq!(Seen::of(false, &Err(NoReport::NoFile)).changes(&refused), ["TennoScope isn't running"]);
+    }
+
+    #[test]
     fn report_must_be_fresh_and_alive() {
         let dir = std::env::temp_dir().join(format!("myorbiter-report-{}", std::process::id()));
         fs::create_dir_all(&dir).unwrap();
@@ -1090,6 +1251,12 @@ mod tests {
         assert!(read_report_in(&dir, &[7], 105_000).is_some());
         assert!(read_report_in(&dir, &[7], 200_000).is_none(), "stale");
         assert!(read_report_in(&dir, &[8], 105_000).is_none(), "written by a TennoScope that has gone");
+        assert_eq!(report_in(&dir, &[8], 105_000), Err(NoReport::Gone));
+        assert_eq!(report_in(&dir, &[7], 200_000), Err(NoReport::Stale(100)));
+        fs::write(dir.join(STATUS_FILE), "{not json").unwrap();
+        assert_eq!(report_in(&dir, &[7], 105_000), Err(NoReport::Unreadable));
+        fs::remove_file(dir.join(STATUS_FILE)).unwrap();
+        assert_eq!(report_in(&dir, &[7], 105_000), Err(NoReport::NoFile));
         fs::remove_dir_all(&dir).unwrap();
     }
 

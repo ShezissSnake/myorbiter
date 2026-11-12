@@ -5,6 +5,7 @@
 // (scripts/screenshots.mjs --only help) read it too.
 
 import type { PageId } from "../pages";
+import type { StandIn } from "../core/standIn";
 
 /**
  * A step that brings the demo to the state a picture shows. Selectors are Playwright's (CSS, plus
@@ -46,9 +47,14 @@ export interface Shot {
   /**
    * A dialog that only opens as MyOrbiter starts: "first-run", the first start's Full mode question,
    * not asked yet. The picture is taken in a window of its own, of that dialog as it opens, with no
-   * answer given; `open` and `steps` are not used.
+   * answer given; `open` and `steps` are not used. "first-start": the first start's setup page, with
+   * TennoScope played by the stand-in `standIn` names (core/standIn.ts), taken the same way.
    */
-  startup?: "first-run";
+  startup?: "first-run" | "first-start";
+  /** The demo's TennoScope stand-in, for a "first-start" picture. */
+  standIn?: StandIn;
+  /** The demo's update channels with Stable and Beta empty (core/standIn.ts), for a picture of an empty channel. */
+  emptyChannel?: boolean;
 }
 
 /** One page of a walk-through: one idea. */

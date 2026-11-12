@@ -4,7 +4,8 @@
 // rather than `.pane.shown`. Every sentence about repricing is checked against the code that does it
 // (core/drift.ts, core/approved.ts, core/market.ts, marketStore.svelte.ts), not the panel's text
 // alone. The pictures' steps never press a switch, Check now, a test notification, Report a bug or
-// anything TennoScope runs; they only open the panels and switch Notifications to Choose.
+// anything TennoScope runs; they only open the panels, switch Notifications to Choose, and pick
+// Stable in the demo's empty channels (core/standIn.ts) for the picture of a channel with no build.
 
 import type { Walkthrough } from "./types";
 import { guideCard } from "./guide";
@@ -98,19 +99,23 @@ const SETTINGS_MAIN: Walkthrough = {
       title: "Updates, on your channel",
       lines: [
         "Channel: Stable is tested, Beta the next Stable early, Experimental every change and may break.",
-        "Check now looks at once; MyOrbiter also looks when it starts and every 6 hours.",
-        "Release notes opens this build's page in your browser.",
-        "Nothing installs without your click, not even a more stable channel's older build.",
+        "Check now looks at once; MyOrbiter also looks at start and every 6 hours.",
+        "An empty channel says so, and offers the nearest one with a build.",
+        "Release notes opens this build's page. Nothing installs or switches without your click.",
       ],
       shot: {
         open: "settings",
         size: SIZE,
+        // Pictured with the demo's channels as a new channel has them (core/standIn.ts): Stable
+        // and Beta empty, Experimental with this build.
+        emptyChannel: true,
+        steps: [{ click: `${UPDATES} > .seg-wrap .seg button[role=radio]:has-text('Stable')` }, { wait: 2500 }],
         // From the channel down: the line above it says only what a development build can't do.
-        part: `${UPDATES} > .seg-wrap, ${UPDATES} > .seg-wrap + p.hint, ${UPDATES} > div.row`,
+        part: `${UPDATES} > .seg-wrap, ${UPDATES} > .seg-wrap + p.hint, ${UPDATES} > div.row, ${UPDATES} ${field("settings.updates-empty")}`,
         marks: [
           { at: `${UPDATES} > .seg-wrap .seg`, is: "n", n: 1, from: "corner" },
           { at: `${UPDATES} > div.row button.pb`, is: "n", n: 2, from: "corner" },
-          { at: `${UPDATES} > div.row button.link.out`, is: "n", n: 3, from: "corner" },
+          { at: `${UPDATES} ${field("settings.updates-switch")}`, is: "n", n: 3, from: "corner" },
         ],
       },
     },

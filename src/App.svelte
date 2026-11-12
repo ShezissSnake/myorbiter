@@ -159,6 +159,7 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
+  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, type Action, type Signs } from "./lib/core/firstStart";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -368,8 +369,6 @@
   $effect(() => {
     if (!model && error && nothingYet(error) && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
   });
-  /** Where a first start stands: 1 TennoScope isn't running, 2 it hasn't been told what it may read, 3 waiting for the game. */
-  const setupStep = $derived(!ts.running || ts.unpatched ? 1 : !ts.report?.setup.setup_complete || !ts.report.setup.access_mode ? 2 : 3);
   /** When the data on screen was read. */
   let loadedAt = $state<number | null>(null);
   let loading = $state(true);
@@ -457,6 +456,106 @@
     }
   });
   const model = $derived(built.model);
+  // ---------------------------------------------------------------- the first start
+  // "Getting set up" (below) works out where it stands from every sign MyOrbiter has
+  // (core/firstStart.ts): each wait has a time limit and ends in a plain state with a way on, and
+  // Finish later (or Esc) leaves it at any step. While it's open the sidebar waits (inert).
+  /** The setup page is up: nothing read yet, and TennoScope is meant to read it. */
+  const setupShown = $derived(!model && !!error && nothingYet(error) && !noTennoScope);
+  /** The first start is open: its question, or the setup page. The rest of the window waits. */
+  const setupOpen = $derived(!!firstRun || setupShown);
+  /** A clock for the waits' limits, every second while the setup page is up. */
+  let setupNow = $state(Date.now());
+  $effect(() => {
+    if (!setupShown) return;
+    setupNow = Date.now();
+    const t = setInterval(() => (setupNow = Date.now()), 1000);
+    return () => clearInterval(t);
+  });
+  /** When each wait began (ms): the setup's start or the last Try again, and the first time each sign was seen since. */
+  let setupSince = $state(Date.now());
+  let tsRunningSince = $state<number | null>(null);
+  let gameSince = $state<number | null>(null);
+  let signedInSince = $state<number | null>(null);
+  // The waits count from when the setup page comes up, not from MyOrbiter's start: time spent on
+  // the first start's question (or reading anything before) isn't TennoScope's.
+  let setupWasUp = false;
+  $effect(() => {
+    const up = setupShown && !firstRun;
+    if (up && !setupWasUp) {
+      setupSince = setupNow = Date.now();
+      tsRunningSince = ts.running ? setupSince : null;
+      gameSince = gameSince == null ? null : setupSince;
+    }
+    setupWasUp = up;
+  });
+  /** The last pick-up of TennoScope's data: its error, and what it took in. */
+  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null });
+  const setupSigns = $derived.by((): Signs => ({
+    now: setupNow,
+    status: ts.status ? { supported: ts.status.supported !== false, running: ts.status.running, binary: ts.status.binary, report: ts.report } : null,
+    tsError: ts.error,
+    since: setupSince,
+    runningSince: tsRunningSince,
+    asked: ts.askedAccess && ts.askedAccess.at >= setupSince ? ts.askedAccess : null,
+    gameSince,
+    signedInSince,
+    log: { found: !!mission?.path, signedIn: mission?.signed_in != null },
+    pickup,
+    ptraceScope,
+  }));
+  const setup = $derived(firstStart(setupSigns));
+  // The first time each sign turns up since the wait began (each wait's limit counts from it).
+  $effect(() => {
+    const now = Date.now();
+    if (ts.running) tsRunningSince ??= now;
+    else tsRunningSince = null;
+    const g = setupSigns.status?.report?.game_running ?? setupSigns.log?.signedIn;
+    if (g) gameSince ??= now;
+    else gameSince = null;
+    if (setup.step === "inventory") signedInSince ??= now;
+    else if (setup.step !== "done") signedInSince = null;
+  });
+  // MyOrbiter's log: each change of where the first start stands, once, and a wait that timed out with what was missing.
+  let lastSetupLine = "";
+  $effect(() => {
+    if (!setupShown) return;
+    const line = firstStartLine(setup);
+    if (line === lastSetupLine) return;
+    lastSetupLine = line;
+    logLine(setup.stuck ? "warn" : "info", "setup", line);
+  });
+  /** A way on from a step: each starts that step's wait over. */
+  function setupAct(a: Action) {
+    setupSince = Date.now();
+    tsRunningSince = ts.running ? setupSince : null;
+    if (a === "retry") {
+      if (setup.step === "start") void ts.check(true, true);
+      else if (setup.step === "access") void ts.ask("--access=full");
+      else void ts.ask("--sync");
+      void reload();
+    } else if (a === "full") void ts.ask("--access=full");
+    else if (a === "overlay") {
+      void ts.ask("--access=overlay");
+      finishLater();
+    } else if (a === "settings") showSettings = true;
+  }
+  /**
+   * Finish later (or Esc): out of the first start with safe defaults, at any step. MyOrbiter
+   * carries on without an inventory until TennoScope reads one, and on a first start (nothing
+   * chosen yet) every automatic action on warframe.market stays off.
+   */
+  function finishLater() {
+    logLine("info", "setup", `first start: finished later at "${setup.stage}"`);
+    if (!settings.fullModeAsked || firstStartRun) {
+      settings.market.auto = false;
+      settings.market.autoTrades = false;
+      settings.market.autoRep = false;
+    }
+    withoutInventory();
+  }
+  /** This start began with the first start's question: a new install's first run. */
+  let firstStartRun = false;
   // A hidden page keeps the collection it was drawn with: a sync redraws the page on screen at
   // once and the others when the app is idle, one at a time, or when you open one (lib/pane.svelte.ts).
   setShownPage(() => settings.tab);
@@ -2254,6 +2353,15 @@
     }
     // A dialog or panel is open: it owns the keyboard (Esc closes it).
     if (document.querySelector('[aria-modal="true"]')) return;
+    // The setup page: Esc is Finish later, and the sidebar's shortcuts wait with the sidebar.
+    if (setupShown && !sheetOpen) {
+      if (setupOpen && e.key === "Escape") {
+        e.preventDefault();
+        finishLater();
+        return;
+      }
+      if (ctrl && (/^[1-9]$/.test(e.key) || e.key === "PageDown" || e.key === "PageUp" || e.key === "Tab" || e.key.toLowerCase() === "k")) return e.preventDefault();
+    }
     if (ctrl && e.key.toLowerCase() === "k" && model) {
       e.preventDefault();
       showLookup = true;
@@ -2391,6 +2499,9 @@
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
     if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
+    // Which file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
+    const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
+    if (missing) return `TennoScope's data in ${settings.dataDir || defaultDir || "its folder"} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
     if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
     if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
     return "MyOrbiter couldn't read TennoScope's data.";
@@ -2466,6 +2577,7 @@
     let accountPoll: ReturnType<typeof setInterval>;
     let cardsPoll: ReturnType<typeof setInterval>;
     let tsPoll: ReturnType<typeof setInterval>;
+    let lastTsCheck = 0;
     let statusPoll: ReturnType<typeof setInterval>;
     /** warframe.market reads of your listings that failed in a row (the 30 s timer backs off). */
     let orderFailures = 0;
@@ -2536,6 +2648,7 @@
       // answer to every start until TennoScope reports that mode. Not where TennoScope can't run
       // (macOS), nor when the settings couldn't be read (the answer couldn't be kept).
       if (ts.launch && !settings.fullModeAsked && !settingsUnreadable()) {
+        firstStartRun = true;
         ts.asking = true;
         await ts.check();
         if (ts.status?.supported === false) ts.asking = false;
@@ -2554,7 +2667,8 @@
       // Awaited: whether TennoScope runs here at all decides what an empty folder means.
       await ts.check(true);
       // Every 15 s: if it stopped (crashed, or you quit it), start it again in the background.
-      tsPoll = setInterval(() => ts.check(true), 15_000);
+      // Every 3 s while the setup page is up, so its waits see TennoScope's answers as they come.
+      tsPoll = setInterval(() => (setupShown || Date.now() - lastTsCheck >= 15_000) && ((lastTsCheck = Date.now()), ts.check(true)), 3_000);
       defaultDir = await defaultDataDir();
       await reload();
       if (stopped) return;
@@ -2673,14 +2787,12 @@
     const items: StatusItem[] = [];
     const r = ts.report;
     if (!onConsole) {
-      const full = r?.setup.access_mode === "full";
-      items.push(
-        r
-          ? { label: "Game", value: r.game_running ? `Running${full ? " · Full mode" : ""}` : "Not running", title: r.game_running ? `Warframe is running${full ? ", and TennoScope may read your inventory from it (Full mode)" : ""}` : "TennoScope doesn't see Warframe running", ok: r.game_running }
-          : { label: "Game", value: mission ? "Log found" : "No game log", title: mission ? "Watching Warframe's log" : "No game log found", ok: !!mission },
-      );
+      // From every sign MyOrbiter has (core/firstStart.ts): not running, at sign-in, signed in; and
+      // when nothing is loaded, which side the inventory waits on or why it isn't there.
+      items.push({ label: "Game", ...gameLine(setupSigns) });
       if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
-      else items.push({ label: "Inventory", value: model?.observedAt ? `Read ${ago(model.observedAt, tick)}` : "Not read yet", title: model ? `Inventory read ${model.observedAt ? fmtTime(model.observedAt) : "never"}` : "Nothing read from TennoScope yet", ok: !!model?.observedAt });
+      else if (model?.observedAt) items.push({ label: "Inventory", value: `Read ${ago(model.observedAt, tick)}`, title: `Inventory read ${fmtTime(model.observedAt)}`, ok: true });
+      else items.push({ label: "Inventory", ...inventoryLine(setupSigns), ok: false });
     }
     const n = mkt.orders.length;
     const auto = settings.market.auto && mkt.linked;
@@ -2820,7 +2932,8 @@
 <!-- Keyboard: the first Tab offers to jump past the sidebar to the page. -->
 <a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
 <div class="shell" class:compact class:withside={sideShown} class:withtab={sideTab}>
-  <aside class="rail" aria-label="MyOrbiter">
+  <!-- While the first start is open the sidebar waits: dimmed, not clickable, out of the Tab order. -->
+  <aside class="rail" aria-label="MyOrbiter" inert={setupOpen} class:waits={setupOpen} title={setupOpen ? "Finish getting set up first (or Finish later)" : undefined}>
     <div class="brand">
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
            version the updater compares), small and muted, and your platinum with its picture. -->
@@ -2896,43 +3009,39 @@
     {#if !model && error && nothingYet(error)}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
-        <h2 class="mark">Getting set up</h2>
+        <h2 class="mark">Getting set up{#if !noTennoScope}<HelpMark part="setup.steps" />{/if}</h2>
         {#if noTennoScope}
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
-          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once:</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them.</p>
+          {@const order = ["start", "access", "game", "inventory", "done"]}
+          {@const at = order.indexOf(setup.step === "inventory" ? "game" : setup.step)}
           <ol class="steps">
-            <li class:done={setupStep > 1} class:now={setupStep === 1}>
-              <strong>TennoScope runs</strong>
-              <span class="prose">
-                {#if ts.running && ts.unpatched}It's running, but it's a TennoScope that doesn't talk to MyOrbiter. Close it, and MyOrbiter starts its own.
-                {:else if ts.running}Running in the background{ts.status?.bundled ? ": the copy inside MyOrbiter" : ""}. MyOrbiter closes it when you close MyOrbiter.
-                {:else if ts.status?.binary}Starting it…
-                {:else}MyOrbiter couldn't find TennoScope. Set its program in Settings.{/if}
-              </span>
-              {#if ts.error}<span class="err small">{ts.error}</span>{/if}
-            </li>
-            <li class:done={setupStep > 2} class:now={setupStep === 2}>
-              <strong>Choose whether it reads your inventory</strong>
-              <span class="prose">Off unless you turn it on. Without it, MyOrbiter still has the reward overlay, your warframe.market listings and sales, fissures and the world's clocks; with it, your collection too.</span>
-              {#if setupStep >= 2}<FullMode />{/if}
-              {#if setupStep === 2}<div class="row"><button onclick={() => { void ts.ask("--access=overlay"); withoutInventory(); }} disabled={!ts.running}>Not now: overlay only</button></div>{/if}
-              {#if ts.report?.setup.access_mode && ts.report.setup.access_mode !== "full"}<span class="dim small">Full mode is off ({ts.report.setup.access_mode === "overlay" ? "Overlay" : "Companion"}): TennoScope won't read your inventory. Turn it on above, or later in Settings.</span>{/if}
-            </li>
-            <li class:now={setupStep === 3}>
-              <strong>Start Warframe and log in</strong>
-              <span class="prose">{ts.report?.game_running ? "Warframe is running: TennoScope reads your inventory in a moment, and this page turns into your collection by itself." : "TennoScope reads your inventory once you're in the game, and this page turns into your collection by itself."}</span>
-              {#if ptraceScope}
-                <span class="prose small">This system only lets a program read another one's memory if it started it, and TennoScope doesn't start Warframe. To allow it until you restart, run this in a terminal (it asks for your password):</span>
-                <code class="cmd">sudo sysctl kernel.yama.ptrace_scope=0</code>
-              {:else if ts.report?.game_running && (ts.report.health.game_reader.state === "failed" || ts.report.health.game_reader.state === "degraded")}
-                <span class="err small">TennoScope: {ts.report.health.game_reader.message}</span>
-              {/if}
-            </li>
+            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: "Start Warframe and sign in" }] as st, i (st.id)}
+              <li class:done={at > i} class:now={at === i} data-step={st.id}>
+                <strong>{st.title}</strong>
+                {#if at === i}
+                  <span class="stage" class:stuck={setup.stuck} role="status">{setup.stage}{#if setup.waitingFor && !setup.stuck && setup.limit}<span class="dim" title={`Waiting for ${setup.waitingFor}; past this, the step says what's missing`}>{` · ${Math.max(1, Math.ceil((setup.limit.since + setup.limit.ms - setupNow) / 1000))} s left`}</span>{/if}</span>
+                  {#if setup.stuck && setup.reason}<span class="err small why">Why: {setup.reason}</span>{/if}
+                  {#if st.id === "access"}<span class="prose">Off unless you turn it on. Without it, MyOrbiter still has the reward overlay, your warframe.market listings and sales, fissures and the world's clocks; with it, your collection too.</span>{/if}
+                  {#if st.id === "access" && !setup.waitingFor}<FullMode />{/if}
+                  {#if !(st.id === "access" && !setup.waitingFor)}<span class="prose small">{setup.todo}</span>{/if}
+                  {#if setup.actions.length}
+                    <div class="row">
+                      {#each setup.actions.filter((a) => !(st.id === "access" && a === "full" && !setup.waitingFor)) as a (a)}
+                        <button data-field={`setup.${a}`} class:stamp={a === "retry"} onclick={() => setupAct(a)} disabled={a === "full" && !ts.running}>{a === "retry" ? "Try again" : a === "full" ? "Read my inventory (Full mode)" : a === "overlay" ? "Not now: overlay only" : "Settings"}</button>
+                      {/each}
+                    </div>
+                  {/if}
+                {:else if at > i}
+                  <span class="prose small dim">{st.id === "start" ? `Running${ts.status?.bundled ? ": the copy inside MyOrbiter" : ""}. MyOrbiter closes it when you close MyOrbiter.` : st.id === "access" ? "Full mode is on: TennoScope may read your inventory." : "Done."}</span>
+                {/if}
+              </li>
+            {/each}
           </ol>
           <div class="row">
-            <button onclick={withoutInventory}>Use MyOrbiter without inventory for now</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={finishLater}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -3154,6 +3263,8 @@
     display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: #0e1013; border-right: 1px solid var(--rule);
   }
+  /* The first start is open: the sidebar waits (it is inert too). */
+  .rail.waits { opacity: .38; filter: saturate(.4); }
   .brand { flex: none; display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 16px; }
   .brand-text { flex: 1; display: grid; gap: 6px; min-width: 0; color: var(--platinum); }
   .brand-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -3299,6 +3410,8 @@
   .notice h2 { font-size: 2rem; }
   .notice .row { display: flex; gap: .6rem; flex-wrap: wrap; }
   .notice .why { font-size: .78rem; color: var(--platinum-deep); }
+  .steps .stage { display: block; font-weight: 600; }
+  .steps .stage.stuck { color: var(--gold); }
   .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: .9rem; counter-reset: step; }
   /* Steps to come and done are turned down by colour, not opacity, so they stay readable (about 5:1 and 7:1). */
   .steps li { counter-increment: step; display: grid; grid-template-columns: 2rem 1fr; gap: .25rem .8rem; align-items: start; }
@@ -3308,7 +3421,6 @@
   .steps li.now::before { border-color: var(--gold); color: var(--gold); }
   .steps li.done { color: var(--platinum-dim); --platinum: var(--platinum-dim); }
   .steps li.done::before { content: "✓"; border-color: var(--verdigris); color: var(--verdigris); }
-  .steps .cmd { display: block; padding: .45rem .7rem; background: var(--well); border: 1px solid var(--rule); font-family: var(--face-figures); font-size: .8rem; user-select: all; }
   .steps strong { font-family: var(--face-mark); text-transform: uppercase; font-size: 1.05rem; letter-spacing: .01em; }
   .notice .why code { display: block; margin-top: .4rem; font-family: var(--face-figures); font-size: .9em; white-space: pre-wrap; word-break: break-word; }
   /* A reload failed with data on screen: one slim line above the page, which stays as it was. */

@@ -65,6 +65,8 @@
   const checks = $derived(!!info && installChecks(info.install));
   const installs = $derived(!!info && installInstalls(info.install));
   const offer = $derived(updates.offer);
+  /** The chosen channel has no build: said, with the nearest one that has, to switch to by a click. */
+  const empty = $derived(updates.empty);
   /** Ages "Last checked" while the panel is open. */
   let now = $state(Date.now());
   $effect(() => {
@@ -336,6 +338,18 @@
       <button type="button" class="link out" title="Open this build's release page in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
     </div>
     {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
+    {#if empty && !updates.checking}
+      <div class="offer empty" data-field="settings.updates-empty" transition:reveal>
+        <div class="offer-in">
+          {#if empty.to}
+            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates; MyOrbiter doesn't switch by itself, and you can come back to {CHANNEL_LABEL[settings.updates.channel]} once it has a build.</p>
+            <div class="row"><button type="button" class="stamp" data-field="settings.updates-switch" title={`Get updates from ${CHANNEL_LABEL[empty.to.channel]} from now on: MyOrbiter checks it at once, and installs nothing without your click`} onclick={() => empty.to && updates.setChannel(empty.to.channel)}>Switch to {CHANNEL_LABEL[empty.to.channel]}</button></div>
+          {:else}
+            <p class="small">{empty.words}, and no other channel answered with one just now. MyOrbiter keeps looking every 6 hours.</p>
+          {/if}
+        </div>
+      </div>
+    {/if}
     {#if offer}
       <div class="offer" transition:reveal>
         <div class="offer-in">

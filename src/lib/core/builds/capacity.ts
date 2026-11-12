@@ -21,7 +21,8 @@
 //   up; in a slot of another polarity 25% more, rounded up. No polarity on either: as listed.
 // - An aura (or stance) adds its drain's size plus its rank: twice that on its own polarity, 20%
 //   less on another (rounded down here: MyOrbiter would rather say a build doesn't fit than that it
-//   does). Unverified: no source found gives the rounding for this one.
+//   does). Unverified: no source found gives the rounding for this one. The aura slot's polarity is
+//   the catalog's `aura`, the stance slot's its `stancePolarity` (none when the weapon has none).
 // - Omni ("universal") matches every mod but Umbra ones. Umbra slots come only from Umbra Forma
 //   (warframes); a non-Umbra mod in one is counted as mismatched (unverified, the cautious reading).
 // - The exilus slot needs an adapter and drains like any slot. Arcanes, shards and Helminth take
@@ -242,8 +243,8 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     slotPols: Array.from({ length: Math.max(layout.mods, mods.length) }, (_, i) => innate[i] ?? null),
     aura: polarityOf(Array.isArray(item.aura) ? item.aura[0] : item.aura),
     exilus: polarityOf(item.exilusPolarity),
-    // The catalog carries no stance polarity: counted as none until it does.
-    stance: null,
+    // The weapon's own stance polarity (the catalog's `stancePolarity`); none when it has none.
+    stance: polarityOf(item.stancePolarity),
     forma: [],
   };
   const exilusAdapter = !!build.exilus;
@@ -253,8 +254,14 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
 
   const reasonsFor = (r: Omit<CapacityResult, "reasons" | "tier">, tier: Tier): string[] => {
     const out: string[] = [];
-    const aura = pieces.aura;
-    const auraPart = aura ? ` with the ${aura.name} aura${startPlan.aura && aura.pol && matches(aura.pol, startPlan.aura) ? ` on its ${POLARITY_LABEL[startPlan.aura]} slot` : ""}` : "";
+    // "with the Steel Charge aura on its Madurai slot": what the aura or stance adds, doubled on its own polarity.
+    const bonusPart = (k: "aura" | "stance") => {
+      const p = pieces[k];
+      const pol = r.slots.find((x) => x.slot === k)?.polarity ?? null;
+      return p ? `the ${p.name} ${k}${pol && p.pol && matches(p.pol, pol) ? ` on its ${POLARITY_LABEL[pol]} slot` : ""}` : "";
+    };
+    const bonuses = [bonusPart("aura"), bonusPart("stance")].filter(Boolean);
+    const auraPart = bonuses.length ? ` with ${bonuses.join(" and ")}` : "";
     const adapters = [r.exilusAdapter ? "an Exilus Adapter" : "", r.arcaneAdapter ? `an Arcane Adapter (${kind === "melee" ? "Melee" : kind === "archgun" ? "Archgun" : kind === "secondary" ? "Secondary" : "Primary"})` : ""].filter(Boolean);
     if (tier === "low") out.push(`Fits in ${r.rank}${auraPart}: drain ${r.drain} of ${r.capacity}.`);
     else if (tier === "medium") out.push(`Needs ${doubler}: drain ${r.drain}, capacity ${r.capacity - r.rank} without it and ${r.capacity} with it${auraPart}.`);
@@ -275,7 +282,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
       if (r.umbraForma) out.push(r.umbraForma === 1 ? "One of them is an Umbra Forma." : `${r.umbraForma} of them are Umbra Forma.`);
     }
     if (fortyByForma) out.push(`Rank 40 needs five Forma (two ranks each): ${r.rank} counted.`);
-    if (layout.stance && pieces.stance) out.push("The stance slot's own polarity isn't in MyOrbiter's data: counted as none.");
+    if (layout.stance && pieces.stance && item.stancePolarity == null) out.push("The stance slot's own polarity isn't in MyOrbiter's data: counted as none.");
     if (unknown.length) out.push(`${plural(unknown.length, "mod")} MyOrbiter doesn't know left out of the count.`);
     return out;
   };
