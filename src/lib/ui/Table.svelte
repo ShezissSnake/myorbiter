@@ -36,10 +36,12 @@
   let open = $state<string | null>(null);
   /** The table is wider than the room it has: it scrolls sideways (sideways.ts). */
   let wide = $state(false);
-  // A first screenful of rows at once, then more as you scroll.
+  // A first screenful of rows at once, then more as you scroll; back to it when a filter changes
+  // how many rows there are, not when a sync brings the same rows again (see Browse).
   let shown = $state(50);
+  const rowCount = $derived(rows.length);
   $effect(() => {
-    rows;
+    rowCount;
     shown = limit;
   });
 
