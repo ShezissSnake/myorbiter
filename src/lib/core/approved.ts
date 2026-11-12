@@ -12,9 +12,12 @@ export const AUTO_FLOOR_SHARE = 0.7;
  * sentence. The 70% is `unattendedMove`; the halving is the pass in marketStore; the floors and the
  * raise to them are `planFor` in market.ts.
  */
-export const AUTO_LIMITS =
-  `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved (listing it, typing it, pressing Reprice or applying a Sell spares plan; it stops there and says so) ` +
+const limits = (how: string) =>
+  `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved (${how}; it stops there and says so) ` +
   "and never more than halves one (that waits for you to press Reprice). It never goes under your floors or your minimum price, and it raises a listing that sits under them up to them";
+export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice or applying a Sell spares plan");
+/** The same for a console, where there is no Sell spares. */
+export const AUTO_LIMITS_CONSOLE = limits("listing it, typing it or pressing Reprice");
 
 /** The least an unattended pass may set: 70% of `approved`, rounded up to a whole platinum. */
 export const autoFloor = (approved: number) => Math.ceil(approved * AUTO_FLOOR_SHARE - 1e-9);

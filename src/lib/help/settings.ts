@@ -9,6 +9,7 @@
 
 import type { Walkthrough } from "./types";
 import { guideCard } from "./guide";
+import { AUTO_FLOOR_SHARE } from "../core/approved";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
@@ -284,10 +285,10 @@ const SETTINGS_TRADES: Walkthrough = {
     {
       title: "Automatic repricing",
       lines: [
-        "Off unless you turn it on; it's Apply automatically on Orders too.",
-        "It follows the second-cheapest seller online or in game, never a lone bait listing.",
-        "A gap over 2p and 5% moves it, at most once an hour, six a day.",
-        "Never under 70% of your set or approved price, never halving one; raises to your floors.",
+        "Off until you turn it on; also Apply automatically on Orders.",
+        "It follows the second-cheapest seller online or in game, not lone bait.",
+        "A gap over 2p and 5% moves it; once an hour, six a day per listing.",
+        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, never more than halved; floors hold.`,
       ],
       shot: {
         open: "settings",

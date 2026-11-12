@@ -165,7 +165,7 @@
         {#each Object.entries(PLATFORM_LABEL) as [v, label] (v)}<option value={v}>{label}</option>{/each}
       </select>
     </label>
-    <p class="dim small">The warframe.market MyOrbiter reads and lists on. Signing in sets it from your account. Prices count sellers on your platform, and on the others when you and they both have cross-play on (in game and on your warframe.market profile), since Warframe trades across platforms; Switch and the other platforms can't trade platinum with each other. On a console MyOrbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
+    <p class="dim small">The warframe.market MyOrbiter reads and lists on. Signing in sets it from your account. Prices count sellers on your platform, and on the others when you and they both have cross-play on (the flag on warframe.market profiles; signed out, yours is assumed on), since Warframe trades across platforms; Switch and the other platforms can't trade platinum with each other. On a console MyOrbiter can't read your game, so it keeps to what works without it: your listings and their prices, sales, the riven finder, fissures and Baro. Everything built on your inventory is PC only.</p>
   </section>
 
   <section>

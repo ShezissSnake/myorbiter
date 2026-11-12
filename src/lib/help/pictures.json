@@ -201,31 +201,31 @@
     "hash": "00a35adc2c30c0b8",
     "w": 1006,
     "h": 223,
-    "bytes": 15080
+    "bytes": 15616
   },
   "home-world-2.webp": {
     "hash": "d6646528662089fc",
     "w": 967,
-    "h": 200,
-    "bytes": 14922
+    "h": 228,
+    "bytes": 17878
   },
   "home-world-3.webp": {
     "hash": "b95aa8b866eafb34",
     "w": 949,
     "h": 89,
-    "bytes": 4860
+    "bytes": 4832
   },
   "home-world-4.webp": {
     "hash": "ef9a7ec1b0d0308d",
     "w": 989,
     "h": 488,
-    "bytes": 27462
+    "bytes": 27344
   },
   "home-world-5.webp": {
     "hash": "ee0fc7aabc2e37fe",
     "w": 607,
-    "h": 464,
-    "bytes": 55964
+    "h": 465,
+    "bytes": 57750
   },
   "inventory-1.webp": {
     "hash": "a6aa9326a8b95852",
@@ -417,7 +417,7 @@
     "hash": "c9365feb7026c3d7",
     "w": 1006,
     "h": 434,
-    "bytes": 42084
+    "bytes": 42058
   },
   "parts-2.webp": {
     "hash": "b32cb7fe12423d22",
@@ -438,10 +438,10 @@
     "bytes": 18998
   },
   "parts-5.webp": {
-    "hash": "c80f28883301409c",
+    "hash": "857fe49c802d31d0",
     "w": 989,
     "h": 240,
-    "bytes": 24068
+    "bytes": 23286
   },
   "planner-1.webp": {
     "hash": "1cd741af71d96b13",
@@ -572,32 +572,32 @@
   "settings-1.webp": {
     "hash": "d8360405c8dfb011",
     "w": 591,
-    "h": 369,
-    "bytes": 33758
+    "h": 407,
+    "bytes": 43882
   },
   "settings-2.webp": {
     "hash": "321442af1b6526d3",
     "w": 575,
     "h": 498,
-    "bytes": 41400
+    "bytes": 42864
   },
   "settings-3.webp": {
     "hash": "18ddea2d2bace251",
     "w": 575,
     "h": 418,
-    "bytes": 44594
+    "bytes": 43364
   },
   "settings-4.webp": {
     "hash": "c7c1604cf4ad6400",
     "w": 575,
     "h": 412,
-    "bytes": 40636
+    "bytes": 40622
   },
   "settings-5.webp": {
     "hash": "7052f027299a7a8b",
     "w": 575,
-    "h": 603,
-    "bytes": 60306
+    "h": 621,
+    "bytes": 60690
   },
   "settings-game-1.webp": {
     "hash": "b3f92d18e30786b4",
@@ -627,19 +627,19 @@
     "hash": "b72f282aa7501dbe",
     "w": 575,
     "h": 327,
-    "bytes": 39922
+    "bytes": 41038
   },
   "settings-trades-2.webp": {
     "hash": "693ec2edc21438a9",
     "w": 575,
     "h": 314,
-    "bytes": 34778
+    "bytes": 34836
   },
   "settings-trades-3.webp": {
     "hash": "1d0f86704146583c",
     "w": 557,
-    "h": 228,
-    "bytes": 38630
+    "h": 284,
+    "bytes": 55462
   },
   "spares-1.webp": {
     "hash": "285fee3d0408d891",

@@ -411,7 +411,7 @@
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
     { key: "market", label: "Your orders", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to list", hint: "Your spares worth listing, in the kinds ticked on Sell spares, at or over your minimum" },
-    { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
+    { key: "fissures", label: "Fissures now", hint: "The open fissures, one kind at a time (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "The open fissures, one kind at a time (normal, Steel Path or Void Storms), and your fissure alerts" },
     { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
     { key: "events", label: "Events", hint: "Events running in game (Tactical Alerts, operations, seasonal ones): where, until when, and what they pay" },
     { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie (its missions, modifiers and reward chances), the Archon Hunt and Nightwave" },
