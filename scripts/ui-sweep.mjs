@@ -481,6 +481,9 @@ const helpMissing = [];
 const helpUnknown = [];
 const helpPending = new Map();
 let helpMarks = 0;
+/** Switches drawn without a name of their own (ui/Switch.svelte's `name`), or with one another switch has. */
+const switchFindings = new Map();
+let switchesSeen = 0;
 const keyFindings = [];
 const keyNotes = [];
 /** How many elements focus landed on in each view, so a walk that reached nothing shows. */
@@ -492,6 +495,18 @@ async function helpCheck(p, size, view) {
   for (const part of c.unknown) helpUnknown.push({ size: `${size.w}×${size.h}`, view, part });
   for (const part of c.pending) helpPending.set(part, helpPending.get(part) ?? view);
   helpMarks += c.count;
+  // Every switch on screen by a name of its own: the help's pictures find it by that name.
+  const sw = await p.evaluate(() => {
+    const drawn = [...document.querySelectorAll("input[role=switch]")].filter((i) => i.closest("label")?.getClientRects().length);
+    const names = drawn.map((i) => i.closest("[data-switch]")?.getAttribute("data-switch") ?? "");
+    const what = (i) => i.closest("label")?.querySelector(".label")?.textContent?.trim() ?? "a switch";
+    return {
+      count: drawn.length,
+      bad: drawn.flatMap((i, k) => (!names[k] ? [`${what(i)}: no name`] : names.indexOf(names[k]) !== k ? [`${what(i)}: "${names[k]}" is another switch's name too`] : [])),
+    };
+  });
+  switchesSeen += sw.count;
+  for (const b of sw.bad) if (!switchFindings.has(b)) switchFindings.set(b, view);
 }
 
 async function check(p, size, view) {
@@ -764,7 +779,9 @@ try {
   for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
   for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
-  if (bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
+  console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
+  if (switchFindings.size || bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;

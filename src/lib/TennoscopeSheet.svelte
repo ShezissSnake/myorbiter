@@ -138,7 +138,7 @@
       {/if}
       <p class="dim small">It shows on a fissure's reward screen when there's a choice: two or more cards. Solo there's one card, so nothing shows. A screen TennoScope couldn't read, or the first one after it starts mid-mission, is missed too.</p>
       {#if onWindows}
-        <Switch bind:on={opaqueOverlay} label="Solid overlay background">
+        <Switch name="tennoscope.opaque-overlay" bind:on={opaqueOverlay} label="Solid overlay background">
           <span class="dim small">If the overlay never appears even in Borderless: some drivers draw a see-through window invisibly. This draws it on a dark background instead. From TennoScope's next start (restart MyOrbiter).</span>
         </Switch>
       {/if}

@@ -36,7 +36,7 @@
 
 {#if kind === "switch"}
   <div class="full" class:off={!ready}>
-    <Switch bind:on={() => shown, flip} label="Read my inventory (Full mode)">
+    <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)">
       <span class="warn">{FULL_MODE_WARNING}</span>
       {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">Off: TennoScope reads the reward screen ({mode === "overlay" ? "Overlay" : "Companion"} mode), not your inventory.</span>{/if}
     </Switch>

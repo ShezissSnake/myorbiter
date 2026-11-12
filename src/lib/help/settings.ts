@@ -16,6 +16,9 @@ const S = `.sheet[aria-label="Settings"]`;
 /** A Settings section, by its "?". */
 const sec = (part: string) => `${S} section:has([data-help="${part}"])`;
 const TRADES = `${S} #settings-trades`;
+/** A switch or a field, by its own name (ui/Switch.svelte's `name`, a field's `data-field`), never by where it sits. */
+const sw = (name: string) => `[data-switch="${name}"]`;
+const field = (name: string) => `[data-field="${name}"]`;
 const UPDATES = `${S} #settings-updates`;
 const LOGS = `${S} #settings-logs`;
 const REPORT = `${S} #settings-report`;
@@ -49,7 +52,7 @@ const SETTINGS_MAIN: Walkthrough = {
         open: "settings",
         size: SIZE,
         part: `${S} > header, ${sec("settings.platform")}`,
-        marks: [{ at: `${sec("settings.platform")} select`, is: "n", n: 1, from: "corner" }],
+        marks: [{ at: `${sec("settings.platform")} ${field("settings.platform")} select`, is: "n", n: 1, from: "corner" }],
       },
     },
     {
@@ -64,10 +67,10 @@ const SETTINGS_MAIN: Walkthrough = {
         open: "settings",
         size: SIZE,
         // The head, the two settings, the hint and the first section of pages: the rest are more of the same.
-        part: `${sec("settings.pages")} > :is(.hmark, h3, label, p.hint), ${sec("settings.pages")} > p.hint + div.sec`,
+        part: `${sec("settings.pages")} > :is(.hmark, h3, ${field("settings.start-page")}, ${sw("settings.details")}, p.hint), ${sec("settings.pages")} > p.hint + div.sec`,
         marks: [
-          { at: `${sec("settings.pages")} > label.field select`, is: "n", n: 1, from: "corner" },
-          { at: `${sec("settings.pages")} > label.row`, is: "n", n: 2, from: "corner" },
+          { at: `${sec("settings.pages")} ${field("settings.start-page")} select`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.pages")} ${sw("settings.details")}`, is: "n", n: 2, from: "corner" },
           { at: `${sec("settings.pages")} > p.hint + div.sec li:first-child button.chip`, is: "n", n: 3, from: "corner" },
           { at: `${sec("settings.pages")} > p.hint + div.sec li:first-child button.mv.down`, is: "n", n: 4, from: "corner" },
         ],
@@ -86,7 +89,7 @@ const SETTINGS_MAIN: Walkthrough = {
         size: SIZE,
         part: `${sec("settings.builds")}, ${sec("settings.notifications")}`,
         marks: [
-          { at: `${sec("settings.builds")} > label.row`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.builds")} ${sw("settings.builds-from-nox")}`, is: "n", n: 1, from: "corner" },
           { at: `${sec("settings.notifications")} button.stamp`, is: "n", n: 2, from: "corner" },
         ],
       },
@@ -163,8 +166,8 @@ const SETTINGS_GAME: Walkthrough = {
         size: SIZE,
         part: sec("settings.tennoscope"),
         marks: [
-          { at: `${sec("settings.tennoscope")} > label.row`, is: "n", n: 1, from: "corner" },
-          { at: `${sec("settings.tennoscope")} > .full label.row`, is: "n", n: 2, from: "corner" },
+          { at: `${sec("settings.tennoscope")} ${sw("settings.tennoscope-launch")}`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.tennoscope")} ${sw("settings.full-mode")}`, is: "n", n: 2, from: "corner" },
           { at: `${sec("settings.tennoscope")} > div.field`, is: "n", n: 3, from: "corner" },
         ],
       },
@@ -182,8 +185,8 @@ const SETTINGS_GAME: Walkthrough = {
         size: SIZE,
         part: sec("settings.where-things-are"),
         marks: [
-          { at: `${sec("settings.where-things-are")} > label:nth-of-type(1) input`, is: "n", n: 1, from: "corner" },
-          { at: `${sec("settings.where-things-are")} > label:nth-of-type(2) input`, is: "n", n: 2, from: "corner" },
+          { at: `${sec("settings.where-things-are")} ${field("settings.data-dir")} input`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.where-things-are")} ${field("settings.ee-log")} input`, is: "n", n: 2, from: "corner" },
         ],
       },
     },
@@ -200,7 +203,7 @@ const SETTINGS_GAME: Walkthrough = {
         size: SIZE,
         part: sec("settings.fissures"),
         marks: [
-          { at: `${sec("settings.fissures")} > label.row`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.fissures")} ${sw("settings.jump-to-pick")}`, is: "n", n: 1, from: "corner" },
           { at: `${sec("settings.fissures")} .sliders > label.slider:first-child`, is: "n", n: 2, from: "corner" },
           { at: `${sec("settings.fissures")} .sliders > label.forma`, is: "n", n: 3, from: "corner" },
         ],
@@ -218,12 +221,11 @@ const SETTINGS_GAME: Walkthrough = {
         open: "settings",
         size: SIZE,
         part: sec("settings.overlays"),
-        // The switches are labels, the riven key's field too: reward screen, riven, the key, the kiosk.
         marks: [
-          { at: `${sec("settings.overlays")} > label:nth-of-type(1)`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.overlays")} ${sw("settings.overlay-reward")}`, is: "n", n: 1, from: "corner" },
           { at: `${sec("settings.overlays")} > .shows`, is: "n", n: 2, from: "corner" },
-          { at: `${sec("settings.overlays")} > label:nth-of-type(2)`, is: "n", n: 3, from: "corner" },
-          { at: `${sec("settings.overlays")} > label:last-of-type`, is: "n", n: 4, from: "corner" },
+          { at: `${sec("settings.overlays")} ${sw("settings.overlay-riven")}`, is: "n", n: 3, from: "corner" },
+          { at: `${sec("settings.overlays")} ${sw("settings.overlay-kiosk")}`, is: "n", n: 4, from: "corner" },
         ],
       },
     },
@@ -248,12 +250,11 @@ const SETTINGS_TRADES: Walkthrough = {
       shot: {
         open: "settings",
         size: SIZE,
-        // Trades' labels in order: automatic repricing, +rep message, +rep by itself, sales sold, last copies.
-        part: `${TRADES} > label:nth-of-type(2), ${TRADES} > label:nth-of-type(3), ${TRADES} > label:nth-of-type(4)`,
+        part: `${TRADES} ${field("settings.rep-text")}, ${TRADES} ${sw("settings.auto-rep")}, ${TRADES} ${sw("settings.auto-trades")}`,
         marks: [
-          { at: `${TRADES} > label:nth-of-type(2) input`, is: "n", n: 1, from: "corner" },
-          { at: `${TRADES} > label:nth-of-type(3)`, is: "n", n: 2, from: "corner" },
-          { at: `${TRADES} > label:nth-of-type(4)`, is: "n", n: 3, from: "corner" },
+          { at: `${TRADES} ${field("settings.rep-text")} input`, is: "n", n: 1, from: "corner" },
+          { at: `${TRADES} ${sw("settings.auto-rep")}`, is: "n", n: 2, from: "corner" },
+          { at: `${TRADES} ${sw("settings.auto-trades")}`, is: "n", n: 3, from: "corner" },
         ],
       },
     },
@@ -268,9 +269,9 @@ const SETTINGS_TRADES: Walkthrough = {
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${TRADES} > label:nth-of-type(5), ${sec("settings.selling")}`,
+        part: `${TRADES} ${sw("settings.hide-last-copies")}, ${sec("settings.selling")}`,
         marks: [
-          { at: `${TRADES} > label:nth-of-type(5)`, is: "n", n: 1, from: "corner" },
+          { at: `${TRADES} ${sw("settings.hide-last-copies")}`, is: "n", n: 1, from: "corner" },
           { at: `${sec("settings.selling")} button.link`, is: "n", n: 2, from: "corner" },
         ],
       },
@@ -286,8 +287,8 @@ const SETTINGS_TRADES: Walkthrough = {
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${TRADES} > :is(.hmark, h3), ${TRADES} > label:nth-of-type(1)`,
-        marks: [{ at: `${TRADES} > label:nth-of-type(1) .track`, is: "arrow", from: "left" }],
+        part: `${TRADES} > :is(.hmark, h3), ${TRADES} ${sw("settings.auto-reprice")}`,
+        marks: [{ at: `${TRADES} ${sw("settings.auto-reprice")} .track`, is: "arrow", from: "left" }],
       },
     },
   ],
@@ -336,12 +337,12 @@ const NOTICES: Walkthrough = {
         open: "home",
         size: SIZE,
         steps: [BELL, { wait: 1500 }, CHOOSE],
-        part: `${N} section.how > .pause, ${N} section.how > label.row`,
+        part: `${N} section.how > .pause, ${N} section.how ${sw("notices.toasts")}, ${N} section.how ${sw("notices.desktop")}, ${N} section.how ${sw("notices.quiet-in-fissure")}`,
         marks: [
           { at: `${N} section.how .pausebtns`, is: "n", n: 1, from: "corner" },
-          { at: `${N} section.how > label:nth-of-type(1)`, is: "n", n: 2, from: "corner" },
-          { at: `${N} section.how > label:nth-of-type(2)`, is: "n", n: 3, from: "corner" },
-          { at: `${N} section.how > label:nth-of-type(3)`, is: "n", n: 4, from: "corner" },
+          { at: `${N} section.how ${sw("notices.toasts")}`, is: "n", n: 2, from: "corner" },
+          { at: `${N} section.how ${sw("notices.desktop")}`, is: "n", n: 3, from: "corner" },
+          { at: `${N} section.how ${sw("notices.quiet-in-fissure")}`, is: "n", n: 4, from: "corner" },
         ],
       },
     },
@@ -376,12 +377,12 @@ const NOTICES: Walkthrough = {
         open: "home",
         size: SIZE,
         steps: [BELL, { wait: 1500 }, CHOOSE],
-        // The first group's head and its first three kinds.
+        // The first group's head and its first three kinds; the marks are on its first, Something sold.
         part: `${GROUP} > header, ${GROUP} > div.kind:nth-of-type(-n+3)`,
         marks: [
           { at: `${GROUP} > header h3`, is: "n", n: 1, from: "corner" },
-          { at: `${GROUP} > div.kind:nth-of-type(1) > label.row`, is: "n", n: 2, from: "corner" },
-          { at: `${GROUP} > div.kind:nth-of-type(1) > .chip`, is: "n", n: 3, from: "corner" },
+          { at: `${GROUP} ${sw("notices.kind.sold")}`, is: "n", n: 2, from: "corner" },
+          { at: `${GROUP} > div.kind:has(> ${sw("notices.kind.sold")}) > .chip`, is: "n", n: 3, from: "corner" },
           { at: `${GROUP} > header button.link`, is: "n", n: 4, from: "corner" },
         ],
       },

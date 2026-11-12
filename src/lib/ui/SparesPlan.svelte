@@ -127,7 +127,7 @@
           <p class="note">Loose ones, on top of what you build and master; parts in a whole set still go as the set. 0 sells every spare.{#if rules.prime.sellAs === "sets"} No loose parts are sold now.{/if}</p>
         </div>
         <div class="opt" class:quiet={rules.prime.sellAs === "parts"}>
-          <Switch bind:on={rules.prime.onlyRelicsHeld} disabled={off("prime")} label="Only sets my relics drop" title="Sell a prime set only when a relic you hold drops every one of its parts">A set goes only when a relic you hold drops each of its parts, so you can crack another.{#if rules.prime.sellAs === "parts"} No sets are sold now.{/if}</Switch>
+          <Switch name="spares.only-relics-held" bind:on={rules.prime.onlyRelicsHeld} disabled={off("prime")} label="Only sets my relics drop" title="Sell a prime set only when a relic you hold drops every one of its parts">A set goes only when a relic you hold drops each of its parts, so you can crack another.{#if rules.prime.sellAs === "parts"} No sets are sold now.{/if}</Switch>
         </div>
       </fieldset>
       {#if under("prime", "parts")}<p class="note">{under("prime", "parts")}.</p>{/if}
@@ -139,7 +139,7 @@
       always="Always kept: copies installed in a build, and at least one of every mod. Rivens aren't here: veiled ones are under Resources, unveiled ones go by auction on Rivens.">
       <fieldset class="opts" disabled={off("mods")}>
         <div class="opt">
-          <Switch bind:on={rules.mods.dailyOnly} disabled={off("mods")} label="Only mods that sell every day" title="Leave out mods that sell less than once a day on warframe.market">Common mods at a few platinum can sit for weeks. Off lists slow sellers too.</Switch>
+          <Switch name="spares.daily-only" bind:on={rules.mods.dailyOnly} disabled={off("mods")} label="Only mods that sell every day" title="Leave out mods that sell less than once a day on warframe.market">Common mods at a few platinum can sit for weeks. Off lists slow sellers too.</Switch>
         </div>
       </fieldset>
       <fieldset class="families" disabled={off("mods")} aria-label="Kinds of mods">
@@ -171,7 +171,7 @@
           <p class="note">Of each arcane. Two if you run it on two builds at once.</p>
         </div>
         <div class="opt">
-          <Switch bind:on={rules.arcanes.legendary} disabled={off("arcanes")} label="Legendary ones too" title="Sell spare Legendary arcanes as well">The rarest arcanes, slowest to farm again. Off keeps every copy.</Switch>
+          <Switch name="spares.legendary-arcanes" bind:on={rules.arcanes.legendary} disabled={off("arcanes")} label="Legendary ones too" title="Sell spare Legendary arcanes as well">The rarest arcanes, slowest to farm again. Off keeps every copy.</Switch>
         </div>
       </fieldset>
       {#if under("arcanes", "arcanes")}<p class="note">{under("arcanes", "arcanes")}.</p>{/if}
@@ -242,10 +242,10 @@
 
   <div class="minimums" id="minimums">
     <div class="switches">
-      <Switch bind:on={saveForSets} label="Save prime parts for sets">
+      <Switch name="spares.save-for-sets" bind:on={saveForSets} label="Save prime parts for sets">
         A loose prime part waits for its set instead of being sold on its own when the set sells for clearly more than its parts one by one (at least 10% and 5p more, each part at its price or its ducats at your rate, whichever is more), and you can still get every part it's missing: from a relic you own, a relic that still drops, Varzia, or a part you've been getting lately (Stats, Parts you got). When you put your spares on sale, your listing for a part comes down if every copy you hold is waiting (one you also keep copies of to build stays as you listed it). Sets → Saving up shows what's waiting and what's left to get.
       </Switch>
-      <Switch bind:on={veiledRivens} label="Sell veiled rivens">
+      <Switch name="spares.sell-veiled-rivens" bind:on={veiledRivens} label="Sell veiled rivens">
         Off keeps every veiled riven to unveil yourself: never counted as spare on Inventory, and never put up by Sell spares (where it's the Veiled rivens line under Resources and more).
       </Switch>
     </div>
