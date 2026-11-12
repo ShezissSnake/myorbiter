@@ -295,9 +295,12 @@ SCENARIOS.helpFlat = helpOver(true);
  */
 const scrollList = (ms) => `new Promise((done) => {
   const pane = document.querySelector('.pane.shown');
-  const all = pane ? [pane, ...pane.querySelectorAll('*')] : [];
-  const el = all.filter((e) => e.scrollHeight > e.clientHeight + 200 && /auto|scroll/.test(getComputedStyle(e).overflowY))
-    .sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+  // The page's own scroller first: reading the style of every element on a long page (Inventory
+  // with all its cards drawn: tens of thousands) held the page up for 1.4 to 1.9 s before each
+  // scroll, which the recorder then counted as a stall at rest.
+  const scrolls = (e) => e.scrollHeight > e.clientHeight + 200 && /auto|scroll/.test(getComputedStyle(e).overflowY);
+  const tallest = (xs) => xs.filter(scrolls).sort((a, b) => b.scrollHeight - a.scrollHeight)[0];
+  const el = pane ? (tallest([pane, ...pane.querySelectorAll('.page')]) ?? tallest([...pane.querySelectorAll('*')])) : undefined;
   if (!el) return done(0);
   const screens = el.scrollHeight / el.clientHeight;
   const end = performance.now() + ${ms};
