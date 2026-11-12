@@ -70,6 +70,8 @@ export interface CatalogItem {
   polarities?: string[];
   aura?: string;
   exilusPolarity?: string;
+  /** A melee weapon's stance slot polarity, when it has one. */
+  stancePolarity?: string;
   passiveDescription?: string;
   abilities?: { name: string; description?: string; imageName?: string }[];
   criticalChance?: number;
@@ -96,6 +98,8 @@ export interface CatalogItem {
   polarity?: string;
   baseDrain?: number;
   compatName?: string;
+  /** Mods: it fits the exilus slot. */
+  isUtility?: boolean;
 }
 
 export interface RelicReward {

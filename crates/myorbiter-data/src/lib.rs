@@ -384,7 +384,7 @@ const ITEM_FIELDS: &[&str] = &[
 /// weapon's stats, and the riven disposition.
 const DETAIL_FIELDS: &[&str] = &[
     "description", "buildPrice", "buildTime", "buildQuantity", "health", "shield", "armor", "power",
-    "sprintSpeed", "polarities", "aura", "exilusPolarity", "passiveDescription", "criticalChance",
+    "sprintSpeed", "polarities", "aura", "exilusPolarity", "stancePolarity", "passiveDescription", "criticalChance",
     "criticalMultiplier", "procChance", "fireRate", "totalDamage", "magazineSize", "reloadTime",
     "multishot", "accuracy", "trigger", "disposition", "omegaAttenuation", "slot", "releaseDate",
     "range", "followThrough", "blockingAngle", "comboDuration", "noise",
@@ -402,7 +402,7 @@ fn pick(src: &Map<String, Value>, fields: &[&str]) -> Map<String, Value> {
 /// Every field of an entry [`read_catalog`] looks at.
 const READ_FIELDS: &[&str] = &[
     "abilities", "damage", "fusionLimit", "levelStats", "components", "drops", "polarity", "baseDrain",
-    "compatName", "upgradeEntries",
+    "compatName", "upgradeEntries", "isUtility",
 ];
 
 /// The item categories MyOrbiter looks at: of Misc, only what counts for mastery (kitgun chambers,
@@ -471,7 +471,8 @@ fn read_catalog(path: &Path) -> Result<Vec<Value>, DataError> {
                     slim.insert("maxStats".into(), Value::Array(lines));
                 }
             }
-            slim.extend(pick(&obj, &["polarity", "baseDrain", "compatName"]));
+            // `isUtility`: the mod fits the exilus slot.
+            slim.extend(pick(&obj, &["polarity", "baseDrain", "compatName", "isUtility"]));
         }
         // A riven type's stats: each tag's base value, label and name syllables, to read the
         // game's riven fingerprints.
@@ -724,6 +725,26 @@ mod tests {
         assert!(items.iter().all(|i| i["masterable"] == Value::Bool(true)));
         assert_eq!(items[0]["components"][0]["name"], "Blueprint", "with what building it takes");
         assert!(!masterable_part("/Lotus/Weapons/Sentients/OperatorAmplifiers/Set1/Barrel/SentAmpSet1BarrelPartABlueprint"));
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_melee_weapon_keeps_its_stance_polarity_and_a_mod_whether_it_fits_the_exilus_slot() {
+        let dir = temp_dir("slots");
+        let path = dir.join("catalog/catalog-generation.json");
+        fs::write(
+            &path,
+            r#"{"catalog": [
+              {"uniqueName": "/Lotus/Weapons/Tenno/Melee/Swords/GreatSword/TennoGreatSword", "name": "Galatine", "category": "Melee", "type": "Melee", "masterable": true, "polarities": ["naramon"], "stancePolarity": "vazarin"},
+              {"uniqueName": "/Lotus/Upgrades/Mods/Warframe/AvatarKnockdownResistanceMod", "name": "Handspring", "category": "Mods", "type": "Warframe Mod", "polarity": "vazarin", "baseDrain": 2, "isUtility": true},
+              {"uniqueName": "/Lotus/Upgrades/Mods/Warframe/AvatarHealthMaxMod", "name": "Vitality", "category": "Mods", "type": "Warframe Mod", "polarity": "vazarin", "baseDrain": 2}
+            ]}"#,
+        )
+        .unwrap();
+        let items = read_catalog(&path).unwrap();
+        assert_eq!(items[0]["stancePolarity"], "vazarin");
+        assert_eq!(items[1]["isUtility"], Value::Bool(true));
+        assert!(items[2].get("isUtility").is_none());
         fs::remove_dir_all(&dir).ok();
     }
 

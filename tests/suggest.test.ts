@@ -453,3 +453,56 @@ test("real inventory: every suggestable item at every tier fits, from owned mods
   }
   assert.ok(n > 500, `${n} items`);
 });
+
+// ---------------------------------------------------------------- the aura, stance and exilus slots
+
+test("any aura held fills the aura slot when the frame's own picks aren't held, with the capacity it adds", () => {
+  const rhino = item("Rhino Prime");
+  // Mecha Empowered is in none of the aura lists: still an aura, still capacity.
+  const s = suggest(rhino, "medium", without("Corrosive Projection", "Growing Power", "Energy Siphon", "Steel Charge", "Brief Respite"), index);
+  assert.equal(s.names.aura, "Mecha Empowered");
+  assert.match(s.reasons.aura ?? "", /^Mecha Empowered: an aura you hold, for the capacity it adds \(\d+ in this slot\); Corrosive Projection would suit the frame better\.$/);
+  assert.ok(s.upgrades.some((u) => u.name === "Corrosive Projection" && u.replaces === "Mecha Empowered"));
+  // None held: the slot stays empty and the frame's aura is an upgrade.
+  const none = suggest(rhino, "medium", without(...index.auras.map((a) => a.name)), index);
+  assert.equal(none.aura, undefined);
+  assert.ok(none.upgrades.some((u) => u.name === "Corrosive Projection"));
+});
+
+test("a stance on the weapon's own stance polarity comes first: it adds twice the capacity", () => {
+  // Gram Prime's Heavy Blade stances: Cleaving Whirlwind and Tempo Royale are Vazarin, the other two Madurai.
+  const gram = { ...item("Gram Prime"), stancePolarity: "vazarin" };
+  const s = suggest(gram, "medium", all, index);
+  assert.equal(index.byPath.get(s.stance!.path)?.polarity, "vazarin");
+  assert.match(s.reasons.stance ?? "", /It matches the stance slot's Vazarin polarity, so it adds twice the capacity\.$/);
+  assert.equal(s.polarities?.stance, "vazarin", "no Forma needed on the stance slot");
+  const madurai = suggest({ ...gram, stancePolarity: "madurai" }, "medium", all, index);
+  assert.equal(index.byPath.get(madurai.stance!.path)?.polarity, "madurai");
+});
+
+test("melee classes from the weapon's folder or name: the ones the old list missed", () => {
+  const melee = (name: string, path: string) => ({ ...item("Gram Prime"), name, uniqueName: path });
+  assert.equal(meleeClassOf(melee("Ohma", "/Lotus/Weapons/Corpus/Melee/CrpTonfa/CrpTonfa")), "Tonfas");
+  assert.equal(meleeClassOf(melee("Pathocyst", "/Lotus/Weapons/Infested/Melee/InfBoomerang/InfBoomerangWeapon")), "Glaives");
+  assert.equal(meleeClassOf(melee("War Prime", "/Lotus/Weapons/Tenno/Melee/Swords/PrimeWar/PrimeWarWeapon")), "Heavy Blade");
+  assert.equal(meleeClassOf(melee("Dual Keres Prime", "/Lotus/Weapons/Tenno/Melee/Swords/PrimeDualKeres/PrimeDualKeresWeapon")), "Dual Swords");
+  assert.equal(meleeClassOf(melee("Coda Mire", "/Lotus/Weapons/Infested/InfestedLich/Melee/CodaMire")), "Swords");
+});
+
+test("exilus: a mod the build wants that fits the exilus slot goes there, freeing a mod slot (when the catalog says what fits)", () => {
+  // The catalog's isUtility, as myorbiter-data now keeps it: Sure Footed and the Drift mods fit the exilus slot.
+  const utility = new Set(["Primed Sure Footed", "Sure Footed", "Power Drift", "Cunning Drift", "Coaction Drift"]);
+  const idx = modIndex(catalog.map((c) => (c.category === "Mods" && utility.has(c.name) ? { ...c, isUtility: true } : c)));
+  assert.equal(idx.utilityKnown, true);
+  const ex = item("Excalibur");
+  const s = suggest(ex, "high", all, idx);
+  assert.equal(s.names.exilus, "Primed Sure Footed");
+  assert.ok(!modNames(s).includes("Primed Sure Footed"), "not in a mod slot as well");
+  // Without the frame's own picks held, another utility mod held fills it.
+  const other = suggest(item("Saryn Prime"), "medium", without("Cunning Drift", "Power Drift", "Coaction Drift", "Primed Sure Footed"), idx);
+  assert.equal(other.names.exilus, "Sure Footed");
+  assert.equal(other.reasons.exilus, "Sure Footed: a utility mod you hold, for the exilus slot.");
+  // A mod the catalog doesn't mark as fitting never goes there.
+  const strict = modIndex(catalog.map((c) => (c.category === "Mods" && c.name === "Sure Footed" ? { ...c, isUtility: true } : c)));
+  assert.equal(suggest(item("Rhino Prime"), "high", all, strict).names.exilus, "Sure Footed");
+});

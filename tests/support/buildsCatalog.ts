@@ -65,7 +65,7 @@ export const CATALOG: CatalogItem[] = [
   { uniqueName: P.hek, name: "Hek", category: "Primary", type: "Shotgun", productCategory: "LongGuns", masterable: true, polarities: ["madurai"] },
   { uniqueName: P.lex, name: "Lex Prime", category: "Secondary", type: "Pistol", productCategory: "Pistols", masterable: true, polarities: ["madurai"] },
   { uniqueName: P.bramma, name: "Kuva Bramma", category: "Primary", type: "Bow", productCategory: "LongGuns", masterable: true, polarities: ["madurai"] },
-  { uniqueName: P.nikana, name: "Nikana Prime", category: "Melee", type: "Melee", productCategory: "Melee", masterable: true, polarities: ["madurai", "vazarin"] },
+  { uniqueName: P.nikana, name: "Nikana Prime", category: "Melee", type: "Melee", productCategory: "Melee", masterable: true, polarities: ["madurai", "vazarin"], stancePolarity: "madurai" },
   { uniqueName: P.voidrig, name: "Voidrig", category: "Warframes", type: "Necramech", productCategory: "MechSuits", masterable: true, polarities: ["madurai", "vazarin", "naramon"] },
   { uniqueName: P.helios, name: "Helios", category: "Sentinels", type: "Sentinel", productCategory: "Sentinels", masterable: true, polarities: ["penjaga", "penjaga"] },
 
