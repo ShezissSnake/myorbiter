@@ -189,6 +189,7 @@
   {/snippet}
 
   {#if !mkt.items.length}
+    <div class="bar">{@render filters()}</div>
     {#if loadError}
       <p class="dim">Couldn't load warframe.market's item list: {loadError}. <button class="link" onclick={() => { loadError = null; void load(); }}>Try again</button></p>
     {:else}

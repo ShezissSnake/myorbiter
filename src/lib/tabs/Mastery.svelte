@@ -271,14 +271,14 @@
   <HelpMark part="mastery.filters" />
   {/snippet}
   <!-- Easiest first draws these in its list's own row (Browse); the plat view has no list row. -->
-  {#if view === "plat"}<div class="bar">{@render filters()}</div>{/if}
+  {#if view === "plat" || !drawnEffort}<div class="bar">{@render filters()}</div>{/if}
 
   <!-- Both views stay drawn once drawn, the other hidden (see the script). -->
   {#if drawnPlat}
     <div class="view swap" class:off={view !== "plat"} use:fresh={view === "plat"} in:arrive={{ y: 0 }}><PlatMastery {model} rows={platRows} {wished} onwish={toggleWish} clear={filtered ? clear : null} /></div>
   {/if}
   {#if drawnEffort}
-    <div class="view swap" class:off={view === "plat"} use:fresh={view !== "plat"} in:arrive={{ y: 0 }}><Browse {filters} id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
+    <div class="view swap" class:off={view === "plat"} use:fresh={view !== "plat"} in:arrive={{ y: 0 }}><Browse filters={view === "plat" ? undefined : filters} id="mastery" rows={effortRows} {columns} key={(r) => r.unique} bind:sort {detail} {card} title={(r) => r.name} onopen={(r) => (model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} clear={filtered ? clear : null} empty="Nothing left to master here." /></div>
   {/if}
 </div></div>
 

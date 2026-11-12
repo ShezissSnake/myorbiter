@@ -125,12 +125,12 @@
   const rareOf = (r: RelicRow) => r.rewards.find((x) => x.rarity === "Rare")?.name;
 
   const columns: Column<RelicRow>[] = $derived([
-    { key: "base", width: "16%", label: "Relic", value: (r) => r.base, sortValue: (r) => {
+    { key: "base", width: "15%", label: "Relic", value: (r) => r.base, sortValue: (r) => {
       // "Axi A22" → era order, then letter, then the number padded: A2 < A10 < A22 < B1.
       const [, letter = "", num = "0"] = r.base.split(" ")[1]?.match(/^([A-Za-z]*)(\d*)$/) ?? [];
       return `${ERAS.indexOf(r.era as (typeof ERAS)[number])}${letter}${num.padStart(3, "0")}`;
     }, defaultDesc: false, cell: baseCell },
-    { key: "owned", width: "24%", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
+    { key: "owned", width: "21%", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
     { key: "vault", width: "11%", label: "Vault", value: (r) => (r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"), cell: vaultCell, defaultDesc: false },
     { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered, and you don't have yet" },
     { key: "evI", width: "8%", label: squad === 1 ? "Intact" : "Intact ×4", value: evI, align: "right", cell: evICell, title: squad === 1 ? "Average platinum from one crack of the intact relic" : "Average platinum of the best of four intact cracks (a radshare where everyone brings this relic)" },
@@ -138,7 +138,7 @@
     { key: "gain", width: "12%", label: "Radiant gain", value: gain, align: "right", cell: gainCell, title: "How much more a radiant crack is worth than an intact one, on average. Refining costs 100 Void Traces." },
     { key: "ducats", width: "7%", minor: true, label: "Avg ducats", value: (r) => r.evDucatsIntact || null, align: "right", cell: ducatCell },
     { key: "relicPrice", width: "7%", minor: true, label: "Sell relic", value: (r) => r.relicPrice, align: "right", cell: relicPriceCell, title: "warframe.market price of the intact relic" },
-    { key: "list", width: "5%", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
+    { key: "list", width: "6%", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ]);
 </script>
 
