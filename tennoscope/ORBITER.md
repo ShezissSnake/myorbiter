@@ -25,7 +25,8 @@ gear (polarities, archon shards, Helminth abilities, modular parts), imprints an
 warframes in its status report; it reads card titles in coloured UI themes, catches up on a fissure
 already in progress, uses orbiter's relic tables, makes the overlay visible on Windows, and bundles
 Tesseract and the licences in the Linux build; beside the Windows build's Tesseract it ships the
-texts of the GNU Lesser and Library GPL its DLLs are under (`packaging/windows-tesseract/`). Full access (reading the game's memory) is never
+texts of the GNU Lesser, Library and General Public Licenses its DLLs are under
+(`packaging/windows-tesseract/`). Full access (reading the game's memory) is never
 preselected: its first run starts on Overlay with the account-risk warning beside Full, and orbiter
 turns Full on or off for it (`--access=full` / `--access=overlay`, orbiter's *Read my inventory*
 switch, which shows the same warning).
