@@ -17,6 +17,10 @@ import type {
 export const REFINEMENTS = ["Intact", "Exceptional", "Flawless", "Radiant"] as const;
 export type Refinement = (typeof REFINEMENTS)[number];
 export const ERAS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Vanguard"] as const;
+/** A relic's path says its era by its tier: `/Projections/T4VoidProjection…` is Axi. */
+export const TIER_ERA: Record<string, string> = { T1: "Lith", T2: "Meso", T3: "Neo", T4: "Axi", T5: "Requiem" };
+/** The era a relic's path names, or null when it has no tier (or one the game doesn't have). */
+export const eraOfPath = (path: string): string | null => TIER_ERA[path.match(/\/(T\d)VoidProjection/)?.[1] ?? ""] ?? null;
 
 const RARITY_CHANCE: Record<string, [string, number][]> = {
   Intact: [["Common", 25.33], ["Uncommon", 11], ["Rare", 2]],

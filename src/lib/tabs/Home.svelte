@@ -731,6 +731,7 @@
             <div class="chips">
               {#each day.circuit.incarnons as c (c.name)}<span class="pick" class:want={c.wanted && !console} use:info={c.name}><Thumb file={c.image} size={22} />{c.name}{#if c.wanted && !console}<em class="want" title="A weapon you have, with no adapter yet: worth taking" aria-label="worth taking">+</em>{/if}</span>{/each}
             </div>
+            {#if !console && day.circuit.incarnons.some((c) => c.unseen)}<p class="dim small">MyOrbiter can't see installed Incarnons yet, so it marks none to take: a weapon you have may already have its Genesis.</p>{/if}
           </div>
         {/if}
         {#if day.darvo}

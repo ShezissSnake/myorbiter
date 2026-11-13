@@ -41,7 +41,8 @@ test("today marks Circuit frames you haven't mastered and Incarnons for weapons 
   const t = today(m, live, NOW);
   assert.deepEqual(t.circuit!.frames.map((f) => [f.name, f.wanted]), [["Excalibur", false], ["Mag", true]]);
   assert.deepEqual(t.circuit!.incarnons.map((f) => [f.name, f.wanted, f.note]), [
-    ["Braton", true, "you have the weapon"],
+    // No read of each copy (gear null): a weapon you hold may already have its Genesis installed.
+    ["Braton", false, "you have the weapon; MyOrbiter can't see installed Incarnons yet"],
     ["Lato", false, "adapter in hand"],
     ["Paris", false, "no weapon for it"],
     // Mastered and sold: it would have to be built again.
@@ -101,8 +102,13 @@ test("an Incarnon Genesis already installed on a copy (feature bit 512) means no
   const gear = [{ id: "a", type: "/P/BratonPrime", f: 512 | 1, p: 2 }, { id: "b", type: "/P/Lato", f: 1, p: 0 }];
   const t = today(m, live, NOW, gear);
   assert.deepEqual(t.circuit!.incarnons.map((f) => [f.name, f.wanted, f.note]), [["Braton", false, "installed on Braton Prime"], ["Lato", true, "you have the weapon"]]);
-  // Without gear (an unpatched TennoScope): as before.
-  assert.equal(today(m, live, NOW).circuit!.incarnons[0].wanted, true);
+  // Without gear (an unpatched TennoScope): it can't tell an installed Genesis from none, so no pick
+  // is marked, and it says so.
+  const blind = today(m, live, NOW).circuit!.incarnons;
+  assert.deepEqual(blind.map((f) => [f.name, f.wanted, f.unseen]), [["Braton", false, true], ["Lato", false, true]]);
+  assert.match(blind[0].note, /can't see installed Incarnons yet/);
+  // With the read (even an empty one) it is the weapons you hold with no adapter and no Genesis in.
+  assert.deepEqual(today(m, live, NOW, []).circuit!.incarnons.map((f) => [f.name, f.wanted, f.unseen]), [["Braton", true, false], ["Lato", true, false]]);
 });
 
 test("Teshin's rotation says how many weeks until Umbra Forma", async () => {

@@ -85,7 +85,8 @@ test("Circuit Incarnons: owning any variant of the weapon counts (Dera Vandal, D
   const catalog = [item("/P/Dera", "Dera"), item("/P/DeraVandal", "Dera Vandal"), item("/P/Sybaris", "Sybaris"), item("/P/DexSybaris", "Dex Sybaris"), item("/P/Braton", "Braton"), item("/P/MK1Braton", "MK1-Braton"), item("/P/Okina", "Okina")];
   const m = buildModel(bundle([inv("/P/DeraVandal", "Dera Vandal", "weapon", 1), inv("/P/DexSybaris", "Dex Sybaris", "weapon", 1), inv("/P/MK1Braton", "MK1-Braton", "weapon", 1)], catalog));
   const live: Live = { ...noLive, duviriCycle: { expiry: "", state: "joy", choices: [{ category: "hard", choices: ["Dera", "Sybaris", "Braton", "Okina"] }] } };
-  const t = today(m, live, Date.parse("2026-10-21T12:00:00Z"));
+  // With the read of each copy (none has a Genesis in): without it no pick is marked (tests/today.test.ts).
+  const t = today(m, live, Date.parse("2026-10-21T12:00:00Z"), []);
   assert.deepEqual(t.circuit!.incarnons.map((c) => [c.name, c.wanted]), [["Dera", true], ["Sybaris", true], ["Braton", true], ["Okina", false]]);
 });
 
