@@ -13,7 +13,8 @@
 // checks each picture's shape: one drawn more than 2 % wider or narrower than its own shape fails
 // (findStretched); a last view, Current fissure's reward cards with the demo's Forma Blueprint and
 // every item picture swapped for a wide one, makes sure a picture well is tried with a picture
-// that isn't square. Exits 1 when it finds any of these.
+// that isn't square. It also checks every tag drawn (`.tag`) for words, and for 4.5:1 between them
+// and their fill (findTags). Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -152,6 +153,64 @@ function findClipping(deliberate) {
 
 /** How far a picture's drawn shape may be from its own (width over height) before it counts as stretched. */
 const SHAPE_SLACK = 0.02;
+/** The least contrast a tag's words may have against their fill (the design rules' 4.5:1). */
+const TAG_CONTRAST = 4.5;
+
+/**
+ * Runs in the page: every tag drawn now (`.tag`, the small labelled bars on cards and rows) that has
+ * no words, or whose words are under `minRatio`:1 against what is behind them (its own fill, or the
+ * first fill behind it, laid over its parents'). A tag once drew gold words on its own gold fill.
+ */
+function findTags(minRatio) {
+  const bad = [];
+  let checked = 0;
+  const ctx = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  // Any CSS colour (rgb, color-mix, color(srgb ...)) as [r, g, b, a], by painting it.
+  const rgba = (css) => {
+    ctx.clearRect(0, 0, 1, 1);
+    ctx.fillStyle = "#000";
+    ctx.fillStyle = css;
+    ctx.fillRect(0, 0, 1, 1);
+    const d = ctx.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2], d[3] / 255];
+  };
+  const over = (top, under) => top.slice(0, 3).map((c, i) => c * top[3] + under[i] * (1 - top[3]));
+  const lum = (c) => {
+    const [r, g, b] = c.map((x) => { const v = x / 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  for (const el of document.querySelectorAll(".tag")) {
+    const cs = getComputedStyle(el);
+    const r = el.getBoundingClientRect();
+    if (cs.display === "none" || cs.visibility !== "visible" || r.width < 1 || r.height < 1) continue;
+    checked++;
+    const words = (el.textContent ?? "").replace(/\s+/g, " ").trim();
+    const where = `${typeof el.className === "string" ? el.className.replace(/svelte-\w+/g, "").trim().replace(/\s+/g, ".") : "tag"} "${words.slice(0, 40)}"`;
+    if (!words && !el.querySelector("svg, img")) {
+      bad.push(`${where}: no words`);
+      el.setAttribute("data-sweep", "");
+      continue;
+    }
+    // What is behind the words: fills from the tag outward, until one is opaque.
+    const fills = [];
+    for (let n = el; n; n = n.parentElement) {
+      const c = rgba(getComputedStyle(n).backgroundColor);
+      if (c[3] > 0) fills.push(c);
+      if (c[3] >= 1) break;
+    }
+    let back = [11, 13, 16];
+    for (const c of fills.reverse()) back = over(c, back);
+    const fg = rgba(cs.color);
+    const text = fg[3] < 1 ? over(fg, back) : fg.slice(0, 3);
+    const [hi, lo] = [lum(text), lum(back)].sort((a, b) => b - a);
+    const ratio = (hi + 0.05) / (lo + 0.05);
+    if (ratio < minRatio) {
+      bad.push(`${where}: words ${ratio.toFixed(2)}:1 on their fill`);
+      el.setAttribute("data-sweep", "");
+    }
+  }
+  return { checked, bad };
+}
 
 /**
  * Runs in the page: every picture drawn now at a shape other than its own. A picture is an
@@ -479,6 +538,9 @@ const findings = [];
 /** Pictures drawn out of their own shape, and how many pictures were looked at. */
 const stretched = [];
 let picturesChecked = 0;
+/** Tags drawn with no words, or words unreadable on their fill, and how many tags were looked at. */
+const tagFindings = [];
+let tagsChecked = 0;
 /** The window sizes where the wide-picture view didn't get the Forma Blueprint's card drawn with its picture. */
 const wideMissed = [];
 const helpMissing = [];
@@ -523,6 +585,9 @@ async function check(p, size, view) {
   const shapes = await p.evaluate(findStretched, SHAPE_SLACK);
   for (const f of shapes.found) stretched.push({ size: `${size.w}×${size.h}`, view, ...f });
   picturesChecked += shapes.checked;
+  const tags = await p.evaluate(findTags, TAG_CONTRAST);
+  for (const f of tags.bad) tagFindings.push({ size: `${size.w}×${size.h}`, view, f });
+  tagsChecked += tags.checked;
   if (work) {
     const png = join(work, `${size.w}x${size.h}-${String(shots.length).padStart(3, "0")}.png`);
     await p.screenshot({ path: png });
@@ -764,6 +829,8 @@ try {
     for (const f of stretched) console.log(`STRETCHED ${f.size} ${f.view}: ${f.picture}: its own shape ${f.own}, drawn ${f.drawn} (${f.off})`);
     for (const s of wideMissed) console.log(`NOT REACHED ${s}: the reward cards' Forma Blueprint wasn't drawn with a wide picture, so the wells weren't checked with one`);
     console.log(`${stretched.length} pictures out of shape, ${picturesChecked} pictures checked`);
+    for (const t of tagFindings) console.log(`TAG ${t.size} ${t.view}: ${t.f}`);
+    console.log(`${tagFindings.length} tags without words or unreadable, ${tagsChecked} tags checked`);
   }
   if (keys) {
     for (const f of keyFindings) console.log(`KEYBOARD ${f.size} ${f.view}: ${f.element}: ${f.reason}`);
@@ -786,7 +853,7 @@ try {
   for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
   console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
   console.log(requestsLine());
-  if (worldStateAsked.count || switchFindings.size || bugs.length || stretched.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (worldStateAsked.count || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;
