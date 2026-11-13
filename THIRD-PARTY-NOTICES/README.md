@@ -18,8 +18,9 @@ library they carry from Ubuntu's packages (Linux) or UB Mannheim's Tesseract ins
 with its exact version and where its source is, and a written offer: for three years from the date
 of the release, the complete corresponding source code of the GPL- and LGPL-licensed libraries
 bundled in it is available on request (an issue at https://github.com/ShezissSnake/myorbiter/issues, or the
-maintainer). On Linux, `linux/` holds the copyright file of each library the AppImage carries
-beside MyOrbiter itself (GTK, WebKitGTK and the rest).
+maintainer). On Linux, `linux/` holds the copyright file of each package the listed libraries
+come from: in the AppImage, every library it carries beside MyOrbiter itself (GTK, WebKitGTK and
+the rest); in the `.deb`, every library inside the TennoScope AppImage it carries.
 
 MyOrbiter's Rust crates and npm packages are under their own licences (MIT, Apache-2.0 and others
 compatible with the GPL): `Cargo.lock` and `package-lock.json` in MyOrbiter's source
