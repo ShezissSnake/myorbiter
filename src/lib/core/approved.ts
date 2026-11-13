@@ -13,8 +13,8 @@ export const AUTO_FLOOR_SHARE = 0.7;
  * raise to them are `planFor` in market.ts.
  */
 const limits = (how: string) =>
-  `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter (${how}; a price changed on warframe.market's website doesn't count; it stops there and says so) ` +
-  "and never more than halves one (that waits for you to press Reprice). It never goes under your floors or your minimum price, and it raises a listing that sits under them up to them, within the hour and day limits. " +
+  `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter (${how}; a price changed on warframe.market's website doesn't move it, except that a listing never priced in MyOrbiter starts from the price it is listed at; it stops there and says so) ` +
+  "and never more than halves one (that waits for you to press Reprice). It never goes under your own floors or your minimum price, and it raises a listing that sits under one of them up to it, within the hour and day limits. " +
   `A listing already at or under that ${Math.round(AUTO_FLOOR_SHARE * 100)}% mark (rounded up to a whole platinum) stays put until you press Reprice when the price it would go to, the market's or your floor's, is under the mark too`;
 export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice or applying a Sell spares plan");
 /** The same for a console, where there is no Sell spares. */
