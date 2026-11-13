@@ -14,9 +14,9 @@ name: Release
 #                      Experimental to the build and rebuilds the website; on any other branch it
 #                      stops after the builds and leaves the downloads as the run's artifacts, for
 #                      3 days. With `experimental` off it signs and publishes build-<n> from any
-#                      branch and leaves Experimental alone (a fix for Beta, then promoted). The
-#                      Windows job then runs the Rust tests on Windows: if they fail, nothing is
-#                      signed or published.
+#                      branch and leaves Experimental alone (a fix for Beta, then promoted).
+#                      Whenever the Windows job runs, it ends with the Rust tests on Windows: if
+#                      they fail, nothing is signed or published.
 #   promote            promote-check ─ promote ─ site ─ deploy: moves build <n> to Beta or Stable,
 #                      then rebuilds the website (main only).
 #   pages              site ─ deploy: the website (scripts/site.mjs) on GitHub Pages (main only).
