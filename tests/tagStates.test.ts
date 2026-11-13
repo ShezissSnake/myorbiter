@@ -5,9 +5,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildTag, type BuildTier, type TagForm } from "../src/lib/core/buildPlan";
 
-const root = new URL("..", import.meta.url).pathname;
+const root = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(root, "src/app.css"), "utf8");
 
 /** The variables of :root. */

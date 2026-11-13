@@ -3,7 +3,7 @@
 import { collectionItem, inCodex } from "./collection";
 import { familyOf, modularNext, type ModularStep } from "./modular";
 import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
-import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
+import { NO_MASTERY, REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
@@ -1090,8 +1090,6 @@ export interface InventoryItem {
   rank: number | null;
   maxRank: number | null;
   mastered: boolean;
-  /** Gear only: ranking it up gives mastery. False for a part filed as gear (the Gravimag, a MOA gyro, a zaw link, a Railjack armament). */
-  levels: boolean;
   /** Each, at this rank where the market prices ranks. */
   price: number | null;
   ducats: number | null;
@@ -1113,8 +1111,10 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
   for (const [unique, inv] of m.inventoryByBase) {
     for (const r of inv) {
       if (r.quantity <= 0) continue;
-      // Genetic codes, Heartcells, adapters and the like are filed as gear but are consumables.
-      const kind = KIND[r.category] === "gear" && NOT_GEAR.test(r.name) ? "resource" : KIND[r.category];
+      // Genetic codes, Heartcells, adapters and the like are filed as gear but are consumables; so are
+      // the parts that give no mastery (the Gravimag, MOA and zaw parts, mutagens, Railjack armaments).
+      const filedAsGear = KIND[r.category] === "gear";
+      const kind = filedAsGear && !levels(m, unique, r.name) && !BUILT_MODULAR.test(unique) && !NO_MASTERY.has(unique) ? "resource" : KIND[r.category];
       if (!kind) continue;
       const ranked = kind === "mod" || kind === "arcane";
       const rank = ranked ? (r.rank ?? 0) : null;
@@ -1135,7 +1135,6 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         continue;
       }
       const item = m.catalogByUnique.get(unique);
-      const gearLevels = kind === "gear" && levels(m, unique, r.name);
       const relic = kind === "relic" ? splitRelicName(name) : null;
       const maxRank = ranked ? (r.max_rank ?? item?.maxRank ?? null) : null;
       const atMax = maxRank != null && rank != null && rank >= maxRank && maxRank > 0;
@@ -1153,12 +1152,11 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         name,
         unique,
         kind,
-        type: built ? "Built part" : kind === "gear" ? (!gearLevels ? (ARMAMENT.test(unique) ? "Railjack armament" : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
+        type: built ? "Built part" : kind === "gear" ? (item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : filedAsGear && !NOT_GEAR.test(r.name) && !NO_MASTERY.has(unique) ? (ARMAMENT.test(unique) ? "Railjack armament" : r.category === "frame" ? "Companion" : "Part") : TYPE_NAME[r.category],
         quantity: r.quantity,
         rank,
         maxRank,
         mastered: kind === "gear" ? m.isMastered(unique) || r.mastered : false,
-        levels: gearLevels,
         price,
         ducats: part?.ducats ?? null,
         worth: price == null ? null : price * r.quantity,
@@ -1185,7 +1183,6 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
       rank: null,
       maxRank: null,
       mastered: false,
-      levels: false,
       price,
       ducats: null,
       worth: price == null ? null : price * quantity,

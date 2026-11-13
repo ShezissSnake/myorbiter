@@ -189,7 +189,7 @@
 {#snippet nameCell(r: InventoryItem)}
   <Named file={model.imageOf(r.name) ?? model.imageOf(shown(r))} name={shown(r)}>
     {#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}
-    {#if r.kind === "gear" && r.levels}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
+    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
   </Named>
 {/snippet}
 {#snippet qtyCell(r: InventoryItem)}{r.quantity.toLocaleString("en")}{#if otherRanks(r)}<span class="dim small ranks" title="The same {r.kind} held at other ranks: each rank is a row of its own"> {otherRanks(r)}</span>{/if}{/snippet}
@@ -210,12 +210,12 @@
 {#snippet card(r: InventoryItem, open: () => void)}
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
-    {#if r.kind === "gear" && r.levels}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
+    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
     {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
     {@render listCell(r, true)}
   {/snippet}
-  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && r.levels && !r.mastered} ownedNote="Not mastered" onopen={open} foot={(r.kind === "gear" && r.levels) || perDay(r) != null || spareOf(r) ? foot : undefined}>
+  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} ownedNote="Not mastered" onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}
       {#if r.kind === "mod" || r.kind === "arcane"}
         {@const c = model.catalogByUnique.get(r.unique)}

@@ -6,6 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { inventoryRows, masteryRows } from "../src/lib/core/views";
+import { spareRows } from "../src/lib/core/spares";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, extra: Partial<InventoryRow> = {}): InventoryRow => ({
@@ -24,8 +25,8 @@ function toLevel(held: InventoryRow[], catalog: CatalogItem[]) {
   const m = buildModel(bundle(held, catalog));
   const mine = (unique: string) => held.some((h) => h.item_id === unique);
   const mastery = masteryRows(m).filter((r) => mine(r.unique)).map((r) => `${r.name} · ${r.category} · ${r.status} · ${r.points}`);
-  // `levels` is what Inventory draws "level it" and the "Not mastered" corner by.
-  const inventory = inventoryRows(m).filter((r) => r.kind === "gear" && r.levels !== false && !r.mastered).map((r) => `${r.name} · ${r.type}`);
+  // Inventory draws "level it" and the "Not mastered" corner on gear that isn't mastered.
+  const inventory = inventoryRows(m).filter((r) => r.kind === "gear" && !r.mastered).map((r) => `${r.name} · ${r.type}`);
   return { mastery, inventory };
 }
 
@@ -36,7 +37,7 @@ test("the Gravimag (Misc, typed Rifle, not masterable) is not gear to level", ()
   // On Inventory it stays, as what it is: a part, not a weapon.
   const row = inventoryRows(buildModel(bundle(held, [gravimag]))).find((r) => r.name === "Gravimag")!;
   assert.equal(row.type, "Part");
-  assert.equal(row.levels, false);
+  assert.equal(row.kind, "resource");
 });
 
 test("a held MOA gyro, a zaw link and an Infested mutagen are not gear to level", () => {
@@ -63,7 +64,19 @@ test("Railjack armaments are not gear to level, listed in the catalog or not", (
   ];
   assert.deepEqual(toLevel(held, [listed]), { mastery: [], inventory: [] });
   const rows = inventoryRows(buildModel(bundle(held, [listed])));
-  assert.deepEqual(rows.filter((r) => r.kind === "gear").map((r) => r.type).sort(), ["Railjack armament", "Railjack armament"], "Pulsar is left out of gear by name, as before");
+  assert.deepEqual(rows.map((r) => r.type).sort(), ["Railjack armament", "Railjack armament", "Weapon"], "Pulsar is left out of gear by name, as before");
+});
+
+test("Sell spares offers none of them", () => {
+  const catalog = [
+    { uniqueName: "/Lotus/Types/Items/MiscItems/HeavyWeaponCatalyst", name: "Gravimag", category: "Misc", type: "Rifle", masterable: false },
+    { uniqueName: "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetPayloadDarta", name: "Harpen Gyro", category: "Pets", type: "Pet Resource", masterable: false },
+    { uniqueName: "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Balance/BalanceSpeedI", name: "Jai", category: "Melee", type: "Zaw Component", masterable: false },
+  ] as CatalogItem[];
+  const held = [inv(catalog[0].uniqueName, "Gravimag", "weapon", 2), inv(catalog[1].uniqueName, "Harpen Gyro", "companion", 2), inv(catalog[2].uniqueName, "Jai", "weapon", 2),
+    inv("/Lotus/Weapons/CrewShip/Pilot/Carcinnox/VidarCarcinnoxWeapon", "Vidar Carcinnox Mk III", "weapon", 2)];
+  const m = buildModel(bundle(held, catalog));
+  assert.deepEqual(spareRows(m).map((r) => r.name), []);
 });
 
 test("masterable modular parts still count: a chamber, a strike, a prism and a MOA model", () => {
@@ -95,4 +108,13 @@ test("a masterable weapon outside every Codex group is still gear to level", () 
   const odd = { uniqueName: "/Lotus/Weapons/Odd/OddThing", name: "Odd Thing", category: "Sigils", masterable: true } as CatalogItem;
   const { mastery } = toLevel([inv(odd.uniqueName, "Odd Thing", "weapon", 1)], [odd]);
   assert.equal(mastery.length, 1);
+});
+
+test("Khora's Venari (a frame row, not masterable) is not gear to level; the Orion row the catalog zeroes stays gear on Inventory", () => {
+  const venari = { uniqueName: "/Lotus/Powersuits/Khora/Kavat/KhoraKavatPowerSuit", name: "Venari", category: "Pets", type: "Warframe", productCategory: "SpecialItems", masterable: false } as CatalogItem;
+  const held = [inv(venari.uniqueName, "Venari", "frame", 1)];
+  assert.deepEqual(toLevel(held, [venari]), { mastery: [], inventory: [] });
+  assert.equal(inventoryRows(buildModel(bundle(held, [venari])))[0].type, "Companion");
+  const orion = { uniqueName: "/Lotus/Powersuits/SiriusOrion/OrionSuit", name: "Orion", category: "Warframes", type: "Warframe", masterable: true } as CatalogItem;
+  assert.equal(inventoryRows(buildModel(bundle([inv(orion.uniqueName, "Orion", "frame", 1)], [orion])))[0].kind, "gear");
 });
