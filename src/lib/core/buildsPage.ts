@@ -509,12 +509,12 @@ export function listedAt(date: string | null | undefined): number | null {
 
 /**
  * What to say when an answer from Nox's Frame isn't fresh: a copy older than a week, served
- * because the site didn't answer ("Showing a copy from 27 Oct 2026: Nox's Frame didn't answer
- * (timed out)"). Null when it's fresh from the site or from the week's cache.
+ * because the site couldn't be read again ("Showing a copy from 27 Oct 2026: couldn't read Nox's
+ * Frame again (timed out)"). Null when it's fresh from the site or from the week's cache.
  */
 export function copyLine(a: { stale: boolean; error?: string; fetchedAt: number }): string | null {
   if (!a.stale && !a.error) return null;
-  return `Showing a copy from ${dayOf(a.fetchedAt)}${a.error ? `: Nox's Frame didn't answer (${a.error.replace(/^Error:\s*/, "")})` : ""}`;
+  return `Showing a copy from ${dayOf(a.fetchedAt)}${a.error ? `: couldn't read Nox's Frame again (${a.error.replace(/^Error:\s*/, "")})` : ""}`;
 }
 
 /** The saved build that came from this page (by its address), if any. */
