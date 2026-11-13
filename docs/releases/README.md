@@ -86,8 +86,9 @@ key it was built with (`plugins.updater.pubkey` in `src-tauri/tauri.conf.json`, 
 `npx tauri signer generate -w ~/.tauri/orbiter.key`. Its private key and password are the secrets
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` of the GitHub environment
 `release-signing` (*Settings* → *Environments*), which only `main` may deploy to. Only the `sign`
-job is in that environment, so only it is given them; it runs on `main` only, and builds and
-installs nothing. GitLab keeps its own copy as CI/CD variables of the same names, with the
+job is in that environment, so only it is given them; it runs on `main`, and on another branch only
+with the *experimental* box unticked and if the environment allows that branch (above), and builds
+and installs nothing. GitLab keeps its own copy as CI/CD variables of the same names, with the
 environment scope `release-signing`, unused since its runner stopped. The builds themselves
 never see the key: Tauri's own updater files (`createUpdaterArtifacts`) stay off, since `tauri build` would need the key to make them, and the
 updater takes the AppImage and the setup.exe as they are.

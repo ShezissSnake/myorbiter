@@ -675,7 +675,7 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
     let id = url.trim_end_matches('/').rsplit('/').nth(1).unwrap_or("").to_owned();
     let host = url.split('/').nth(2).unwrap_or("discord.com").to_owned();
     let text = format!(
-        "Send MyOrbiter's notifications to Discord webhook {id} on {host}?\n\nMyOrbiter posts the kinds of notification you picked there.{} Say yes only if you pasted this address yourself.",
+        "Send MyOrbiter's notifications to Discord webhook {id} on {host}?\n\nMyOrbiter posts there the kinds of notification ticked under Send these to Discord. Five are ticked to begin with (rivens you watch for, cheap parts and arcanes, fissures you watch for, someone whispers you, something sold), and all of them but the fissures carry other players' names.{} Say yes only if you pasted this address yourself.",
         if kept.as_deref().is_some_and(|k| !k.is_empty()) { " It replaces the webhook MyOrbiter posted to before." } else { "" }
     );
     let ask = app.clone();

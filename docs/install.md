@@ -35,10 +35,10 @@ the window itself says MyOrbiter.
 
 ### macOS
 
-There is no macOS download: the release pipeline builds for Linux and Windows only. MyOrbiter can be
-built on a Mac from source (`docs/development.md`). Such a build isn't notarised: copied to another
-Mac, it's refused the first time it opens, and *System Settings → Privacy & Security → Open Anyway*
-lets it run.
+There is no macOS download: the release pipeline builds for Linux and Windows only. MyOrbiter may
+build on a Mac from source, but nothing builds or tests it there, and there are no instructions for
+it. Such a build isn't notarised: copied to another Mac, it's refused the first time it opens, and
+*System Settings → Privacy & Security → Open Anyway* lets it run.
 TennoScope doesn't run on macOS, so a Mac has no inventory. Your warframe.market listings and
 sales, fissures, Baro and Varzia, the world's clocks and the riven finder work; the collection pages
 stay empty. A macOS build never updates itself.
@@ -58,8 +58,9 @@ sold by itself. The collection pages are PC only, and MyOrbiter doesn't start Te
 Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside them. The README shows
 the check on Linux and Windows; on macOS it's `shasum -a 256 --check --ignore-missing SHA256SUMS`.
 
-The files are also in the project's package registry, at the addresses the release links to; the
-release's `SHA256SUMS` covers them all.
+The builds made on GitLab (0.2.100 to 0.2.119) have their files in that project's package registry
+on gitlab.com, at the addresses their release page links to; each one's `SHA256SUMS` covers them
+all. Builds made since are only on GitHub's *Releases*.
 
 ## If the window stays blank (Linux)
 
@@ -90,9 +91,10 @@ On the first start MyOrbiter walks you through what TennoScope needs, once, and 
 TennoScope should read your inventory: **Full mode**, off unless you turn it on (*Read my inventory
 (Full mode)* there, in the TennoScope panel or in Settings). Full mode reads Warframe's memory to
 fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party
-programs and leaves using them at your own risk: Full mode could put your account at risk. MyOrbiter
-only reads, and only sends your login session to Digital Extremes and the names of reward items
-read from the screen to warframe.market, for their prices. ([Digital Extremes' forum
+programs and leaves using them at your own risk: Full mode could put your account at risk. Nothing
+is written to the game's memory; the login session found there goes to Digital Extremes, for your
+inventory. Everything MyOrbiter and TennoScope read and send is listed on the page What MyOrbiter
+reads and sends. ([That page](privacy.md); [Digital Extremes' forum
 post](https://forums.warframe.com/topic/1383123/).)
 
 Without Full mode, TennoScope reads only the game's log and the reward screen (Overlay mode), and
@@ -128,11 +130,15 @@ matches the key it was built with.
 
 The first install is by hand, like any first install: download the AppImage or the setup.exe of a
 build on the channel you want from *Releases*, then pick the channel in Settings → *Updates*. From
-then on it updates itself. A build made on your own computer is version 0.1.0 and never updates
-itself. A copy of a build made before the project's time on GitLab (builds below 100) looks for
-updates at an older address that isn't offered current builds: install a current build by hand
-once. Builds made on GitLab (from 0.2.100) ask GitLab, whose channels keep offering the last build
-made there; that build asks GitHub first, so a copy on it follows GitHub's builds from then on.
+then on it updates itself. A build made on your own computer is version 0.1.0 (unless given
+another) and is offered the channel's update like any older build: its AppImage and its Windows
+installer check, and installing the update replaces your build with the published one (an
+AppImage in a folder MyOrbiter can't write to is only told of it). A development build
+(`npm run tauri dev`), the .deb and .rpm, and a build run straight from its folder don't check. A
+copy of a build made before the project's time on GitLab (builds below 100) looks for updates at an
+older address that isn't offered current builds: install a current build by hand once. Builds
+made on GitLab (from 0.2.100) ask GitLab, whose channels keep offering the last build made there;
+that build asks GitHub first, so a copy on it follows GitHub's builds from then on.
 
 ### From orbiter to MyOrbiter
 

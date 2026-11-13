@@ -1,8 +1,8 @@
 # MyOrbiter <0.2.N>: the first public Stable release
 
-MyOrbiter is a free desktop companion for Warframe. It reads what TennoScope stores on your PC (your
-inventory, the game's log, the fissure reward screen) and answers what the game doesn't: which
-reward to take, what you can sell and for how much, what's left to master and how to get it, which
+MyOrbiter is a free desktop companion for Warframe. It reads the game's log itself, and what
+TennoScope stores on your PC (your inventory, the fissure reward screen), and answers what the game
+doesn't: which reward to take, what you can sell and for how much, what's left to master and how to get it, which
 relics finish your sets. It also looks after your warframe.market listings, each automatic feature
 only if you turn it on. It runs on your PC and collects nothing about you.
 
@@ -37,10 +37,12 @@ signature matches.
 ## Full mode: your call
 
 Full mode reads Warframe's memory to fetch your inventory. It is **off** unless you turn it on, and
-the switch comes with a warning. Warframe's EULA forbids unauthorised third-party programs, so using
-it could put your account at risk. MyOrbiter does not call it safe, and you turn it on at your own
-risk. It only reads, and only sends your login session to Digital Extremes. Without it, MyOrbiter
-still shows everything that doesn't need your inventory.
+the switch comes with a warning. Digital Extremes publishes no list of allowed or forbidden
+third-party programs and leaves using them at your own risk, so using it could put your account at
+risk. MyOrbiter does not call it safe, and you turn it on at your own risk. It doesn't write to the
+game's memory, and the login session it finds there goes to Digital Extremes, for your inventory;
+[What MyOrbiter reads and sends](../privacy.md) lists everything MyOrbiter and TennoScope read and
+send. Without it, MyOrbiter still shows everything that doesn't need your inventory.
 
 ## Report a bug
 

@@ -13,9 +13,9 @@ path beside each.
 | What | Where it goes | When |
 | --- | --- | --- |
 | The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the rest stays on your PC | only in Full mode, which is off until you choose it |
-| The game's window, captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
+| Pictures of the game's screen (the monitor it's on, its own window, or whole monitors, by system: below), captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
 | Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
-| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold and gives the player +rep on warframe.market (each off unless you turn it on); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
+| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold on warframe.market (off unless you turn it on); each player you traded with in the last 24 hours, whatever the trade, gets +rep there, a review in your name (off unless you turn it on, whether or not sales are marked); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
 | Order books, prices, the live feed of new orders; signed in: your profile, orders, auctions, chats, status and your changes | warframe.market | while MyOrbiter runs (below) |
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
@@ -34,7 +34,8 @@ mode, without asking again. With Full mode on:
   searches its memory for your login session: your account id and the session's nonce, in the
   game's own request text or its login data. It reads about 150 MB of the game's writable memory
   first, then samples 64 MB more and, if the pair still isn't there, reads the rest of its readable
-  memory.
+  memory. When the samples turned up one pair that isn't confirmed yet, it first reads again, whole,
+  the parts of memory that hold that pair, and reads the rest only if that doesn't confirm it.
 - **What is sent.** It downloads your inventory from Digital Extremes
   (`mobile.warframe.com/api/inventory.php`), with those two values in the address and nothing else;
   the request names no program (no User-Agent), and redirects elsewhere are refused. The pair isn't
@@ -57,20 +58,38 @@ mode, without asking again. With Full mode on:
   [its forum post](https://forums.warframe.com/topic/1383123/) leaves using them at your own risk.
   Full mode could put your account at risk: that's your call. MyOrbiter never calls it safe.
 
-## Overlay mode: the game's window
+## Overlay mode: the game's screen
 
 Until a mode is chosen, TennoScope runs in Companion mode and doesn't look at the game at all. In
 Overlay mode (the first-run "Not now", or Full mode turned off), and in Full mode, it reads the
-game's log and captures the game's window: every 2 seconds during a void fissure mission (from when
+game's log and captures the game's screen: every 2 seconds during a void fissure mission (from when
 the log shows the relics loaded until the reward screen closes, at most 45 minutes), more often
-once the cards show, and at Baro's kiosk. On X11, KDE, wlroots desktops and Windows this needs no
-permission; on other Wayland desktops it asks once through the desktop's screen-share dialog. The
-captures stay in memory. It reads the cards with Tesseract on your PC: each card's title is cut out
-to your temporary folder for Tesseract and deleted once read (if Tesseract fails to run, that
+once the cards show, and at Baro's kiosk. To find the game's window it reads the titles of the open
+windows and takes the largest one named "Warframe"; on Linux, when none is, it also runs
+`xwininfo -root -tree` (at most every 5 seconds) to look for the game inside a Wine virtual desktop.
+What is captured depends on the system:
+
+- **Windows, and Linux on an X11 desktop:** the whole monitor the game's window is on, cut in memory
+  to the game's window before anything is read from it. No permission is asked.
+- **Linux on a Wayland desktop, with the game under XWayland** (found among the open windows, as
+  above): the game's own window, nothing around it. No permission is asked.
+- **Linux on a Wayland desktop, with the game a Wayland window of its own:** no program may ask
+  where another program's window is, so whole monitors are captured, nothing is cut away, and each
+  is read in turn as the game's screen. On desktops that offer wlroots' screen copy, every monitor,
+  with no permission asked. On KDE, every monitor with no permission asked, but only for a
+  TennoScope that doesn't run from an AppImage; the TennoScope inside MyOrbiter is an AppImage, so
+  it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
+  screen-share dialog, which a button in TennoScope's own window opens while the game runs and
+  nothing else can capture it; the desktop shows a screen being shared while that capture is open,
+  and the permission is kept in `screencast.token` (below).
+
+The captures stay in memory. It reads the cards with Tesseract on your PC: each card's title is cut
+out to your temporary folder for Tesseract and deleted once read (if Tesseract fails to run, that
 cut-out is left there; a debug build made from source keeps more there).
 
-To find the game and its log on Linux, TennoScope reads every process's name in `/proc` ten times a
-second, and the game's `stat`, `maps`, `exe` link and `environ` (for its Wine prefix). While the
+To find the game and its log on Linux, TennoScope reads every process's name in `/proc` on each pass
+of its watch, about ten times a second and about a hundred while a reward screen is open, and the
+game's `stat`, `maps`, `exe` link and `environ` (for its Wine prefix). While the
 game isn't running, it also reads the `maps` of any process whose name starts with `Cr`
 (Chromium-based apps) to tell whether Warframe's launcher is open. On Windows it reads the process
 list (names and start times) and the log in `%LOCALAPPDATA%\Warframe`.
@@ -104,9 +123,13 @@ players who whispered you, up to 300; and the sale and whisper notifications, wi
 notification history and in MyOrbiter's own log. When you're signed in to warframe.market and
 marking sales automatically is on (it is off unless you turn it on), a trade from the last 30
 minutes that sold one of your listings goes into your sales log, the listing is marked sold on
-warframe.market, +rep goes to the player (if you turn that on too), and TennoScope is asked to
-read your inventory again. The names of players you trade with, and of a player who whispers you
-(with whisper notifications on), are looked up on warframe.market to show their reputation.
+warframe.market, and TennoScope is asked to read your inventory again. When you're signed in and
+*Give +rep by itself after a trade* is on (it is off unless you turn it on), each player you traded
+with in the last 24 hours gets +rep, once per player, whatever the trade was (a sale, a purchase, a
+swap or a gift), whether marking sales is on or not. A +rep is a positive review, with your +rep
+message, posted on the other player's warframe.market profile in your name. The names of players
+you trade with, and of a player who whispers you (with whisper notifications on), are looked up on
+warframe.market to show their reputation.
 
 MyOrbiter reads `EE.cfg` beside the log and keeps only the display mode (`Graphics.WindowMode`): at
 start, every 5 minutes, and when you change the log's path (not on console).
@@ -116,13 +139,18 @@ the downloads), prints everything MyOrbiter reads from the log.
 TennoScope reads the same log, only in Overlay and Full mode and only while the game runs (ten
 times a second, a hundred while a reward screen is open): for the inventory sync, the reward screen
 (the squad's relics, the screen opening and closing, the rewards, and the squad's account ids,
-which nothing uses any more), and when Baro's Ducat Kiosk opens and closes. Its own bug report can save a copy of the log, with IP and
-e-mail addresses removed, on this computer, only if you ask for it.
+which nothing uses any more), and when Baro's Ducat Kiosk opens and closes. Its own bug report can
+save a copy of the log on this computer, only if you ask for it, in `reports/` in TennoScope's
+folder (the five newest reports kept). Only IP and e-mail addresses are removed from that copy; the rest of the log stays in it, other players'
+names, the squad's account ids, your trades and the log's first lines (the game's command line,
+your user name and computer name) among them.
 
 ## warframe.market
 
 Every request MyOrbiter makes to warframe.market says who it is, with the User-Agent
-`MyOrbiter/<version> (+https://github.com/ShezissSnake/myorbiter)`.
+`MyOrbiter/<version> (+https://github.com/ShezissSnake/myorbiter)`. Its API calls also carry your
+platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and riven lists (only
+`Language: en`) and signing in with an email and password (neither).
 
 - **Read without signing in:**
   - the item list and the riven lists (weapons and stats), when MyOrbiter starts or a page needs
@@ -159,7 +187,8 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   reprice or close a riven auction); when a trade in the game's log in the last half hour shows you
   sold a listing (off unless you turn it on in Settings, Trades or on Orders); to give each player
   you trade with +rep with your message (off unless you turn it on); to hide your last copies while someone
-  whispers you and show them again after the minutes you set (if you turn it on); and with automatic
+  whispers you and show each again after the minutes you set, once an inventory read newer than the
+  whisper still has the copy (if you turn it on); and with automatic
   repricing (off unless you turn it on; its limits are in Settings, Trades).
 - **How often, at most.** API calls go out one at a time, at least 0.4 seconds apart (1.5 seconds
   for a minute and a half after warframe.market says to slow down), which keeps them under 3 a
@@ -236,8 +265,11 @@ web requests; its status connection sends no User-Agent.
 
 ## Discord, only if you set a webhook
 
-If you give MyOrbiter a Discord webhook, the notifications of the kinds you pick are posted there
-as text, the same title and text MyOrbiter shows: item names, prices, places, your ducats, other
+If you give MyOrbiter a Discord webhook, the notifications of the kinds ticked under *Send these to
+Discord* are posted there. Five are ticked to begin with: Rivens you watch for, Cheap parts and
+arcanes, Fissures you watch for, Someone whispers you and Something sold; all of them but the
+fissures carry other players' names (the seller of a riven or a cheap part, whoever whispered you,
+the buyer). Posts are text, the same title and text MyOrbiter shows: item names, prices, places, your ducats, other
 players' names (buyers, sellers, whoever whispered you, with their reputation) and, if you pick
 warframe.market messages, the first 140 characters of each. Posts are cut to 1,900 characters,
 @mentions are off, and they're signed "MyOrbiter". Only Discord webhook addresses are accepted
@@ -294,8 +326,9 @@ user name in paths and players' names hidden.
 
 Links open in your browser, which then visits that site. MyOrbiter opens only https links to
 warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this
-project on github.com (releases, issues, Report a bug) and its website (shezisssnake.github.io), and
-this project on gitlab.com (older builds' release pages). TennoScope opens its upstream project on github.com
+project on github.com (its releases, its issues and Report a bug, its files on `main`, this page
+among them, and its security pages) and its website (shezisssnake.github.io/myorbiter), and this
+project's pages on gitlab.com (older builds' release pages, its issues). TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -348,13 +381,22 @@ Linux).
 MyOrbiter never reads the warframe.market sign-in TennoScope keeps (in its database or the system
 keyring).
 
+TennoScope also keeps the reports its own bug report saves, in `reports/` in its folder (above). On
+Linux, once you've given it the desktop's screen-share permission, it keeps that permission in
+`~/.config/tennoscope/screencast.token` (under `$XDG_CONFIG_HOME` when that is set), readable only
+by you, and offers it to the desktop again the next time the button in its window that asks for it is used.
+
 ### MyOrbiter's own files
 
 - `~/.config/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` on Windows):
-  - `settings.json`: your settings (the Discord address you entered among them) and your records:
+  - `settings.json`: your settings (the Discord address you entered among them); your records:
     the sales log, the trade log (other players' names, items, platinum), value history, riven
     history, relic runs and drops, notifications, who you gave +rep, the whispers and chats already
-    seen;
+    seen; and what MyOrbiter last learned of your account from TennoScope, kept so alerts and
+    figures outlive a TennoScope restart: the Foundry's builds and their finish times, mastery rank,
+    platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed to the
+    Helminth, the sets your loose parts were saved for, the gear you chose to keep, and what it has
+    already told you about;
   - `relic-data.json` (drop tables), `recipe-data.json` (Foundry recipes),
     `worldstate-tables.json` (the world state's place names);
   - `tennoscope-program` (a TennoScope you chose in Settings), and on Linux `rendering` and
@@ -371,7 +413,7 @@ keyring).
   errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
   is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
-- Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, the system and the graphics card's maker, never a name or a price; it sends nothing.
+- Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
   file.
 - The window's own storage (kept by the system web view) remembers the cards or rows layout of each
@@ -394,6 +436,27 @@ Keyring, or KWallet with Secret Service on; the Credential Manager on Windows), 
 `dev.myorbiter.app` / `warframe.market`. When the keyring can't store it, it goes to `market-token`
 in the config folder (readable only by your user on Linux; on Windows it has the folder's usual
 permissions).
+
+### Removing what is kept
+
+To remove what MyOrbiter keeps on this computer, delete it by hand, with MyOrbiter closed (it
+writes `settings.json` as it runs):
+
+- MyOrbiter's folders: `~/.config/dev.myorbiter.app/`, `~/.cache/dev.myorbiter.app/` and
+  `~/.local/share/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` and
+  `%LOCALAPPDATA%\dev.myorbiter.app` on Windows), and the two lock files beside the config folder;
+- the folders left from the rename: the old `dev.orbiter.app` folders, and any
+  `dev.myorbiter.app.before-copy-<n>`; the config ones keep an old `settings.json`, with the trade
+  log it held then;
+- the sign-in in the system keyring, `dev.myorbiter.app` / `warframe.market` (and one kept under the
+  old name);
+- TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
+  Linux `screencast.token`.
+
+Clearing the Discord address in Notifications leaves the address you confirmed in `discord-webhook`
+in the config folder: delete that file to remove it. The trade log (other players' names, items and
+platinum, up to 2000 trades) has no removal in the app: nothing there takes out a trade, a player or
+the whole log. `settings.json` can be edited by hand (the log is `trades`, under `market`) or deleted.
 
 ### Without a network
 
