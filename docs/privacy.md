@@ -218,8 +218,9 @@ web requests; its status connection sends no User-Agent.
   hours while MyOrbiter runs (a failed read is tried again on the next visit). This one is read by
   MyOrbiter's window, so it carries the window's own User-Agent, not MyOrbiter's.
 - **Item pictures**: WFCD's (`raw.githubusercontent.com`, then `cdn.warframestat.us`, which may
-  send the request on to `raw.githubusercontent.com`: the one redirect MyOrbiter follows); for items
-  WFCD has no picture of, warframe.market's. MyOrbiter downloads each size once and keeps it.
+  send the request on to `raw.githubusercontent.com`; MyOrbiter follows it there and to no other
+  host); for items WFCD has no picture of, warframe.market's. MyOrbiter downloads each size once
+  and keeps it.
   TennoScope's own window, when you open it, loads WFCD's pictures from `raw.githubusercontent.com`
   itself, with the window's User-Agent, and keeps only what the window caches.
 
