@@ -129,5 +129,6 @@ The `e2e-updater` Cargo feature is never used for a release: the release workflo
 Windows jobs fail a build whose binary carries it. It lets a local build take
 `MYORBITER_UPDATER_E2E_ENDPOINT` (a `http://127.0.0.1:…` manifest) and `MYORBITER_UPDATER_E2E_PUBKEY`
 (a test key's public key). So two local builds signed with a throwaway key can update one into the
-other against a local server. `MYORBITER_UPDATER_E2E_AUTO=1` makes it check, install and restart by
+other against a local server, which must serve the download on the manifest's own origin
+(the same `http://127.0.0.1:<port>`, with no query; `localhost` is refused). `MYORBITER_UPDATER_E2E_AUTO=1` makes it check, install and restart by
 itself, printing each step, for a run with no window to click in.
