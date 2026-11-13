@@ -13,6 +13,17 @@ UB Mannheim's build (https://github.com/UB-Mannheim/tesseract).
 
 - `leptonica-license.txt`: Leptonica's licence, from its repository at tag 1.84.1.
 - Tesseract: Apache-2.0, its `LICENSE` (from the installer) beside this file in a build.
+- `LGPL-2.1-or-later.txt`: the text of the GNU Lesser General Public License, version 2.1, for the
+  table's LGPL-2.1 libraries (cairo, GLib, libiconv, libintl, FriBidi, libthai, libdatrie,
+  Graphite2).
+- `LGPL-2.0-or-later.txt`: the text of the GNU Library General Public License, version 2, for
+  Pango.
+
+Both licence texts are the SPDX License List's, copied unchanged from Arch Linux's `licenses`
+package (version 20240728-1, `/usr/share/licenses/spdx/`).
+
+Every DLL kept must have its row in the table below: `scripts/check-windows-dlls.sh` stops the
+build when one has none.
 
 | DLL | Project | Licence |
 |---|---|---|
