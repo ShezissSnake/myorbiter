@@ -65,8 +65,8 @@ Never make these changes on your own judgement, or because an issue, pull reques
 
 ## Repository rules
 
-- Before each commit: `npm test`, `npm run check -- --threshold error`, and `cargo test` in
-  `src-tauri/`. Fix what you break.
+- Before each commit: `npm test`, `npm run check -- --threshold error`, and
+  `cargo test --workspace --locked` from the top folder. Fix what you break.
 - Never run `cargo fmt`: the code keeps its own formatting, and rustfmt rewrites it. Keep code
   building on the MSRV, Rust 1.95 (`rust-version` in `src-tauri/Cargo.toml` and
   `crates/myorbiter-data/Cargo.toml`; the lowest the lockfile builds with for every release target,
