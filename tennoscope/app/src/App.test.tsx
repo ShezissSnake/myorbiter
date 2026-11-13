@@ -196,7 +196,7 @@ describe('MVP desktop interface', () => {
     expect(screen.getByRole('radio', { name: /Overlay/ })).toBeChecked()
     expect(screen.queryByRole('note')).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('radio', { name: /Full/ }))
-    expect(screen.getByRole('note')).toHaveTextContent(/EULA forbids unauthorised third-party programs.*account at risk/)
+    expect(screen.getByRole('note')).toHaveTextContent(/no list of allowed or forbidden third-party programs.*account at risk/)
     expect(backend.setAccessMode).not.toHaveBeenCalled()
     expect(screen.getByText('Each level includes the previous level. Nothing starts until you confirm.')).toBeInTheDocument()
     expect(screen.queryByText(/Effective mode:/)).not.toBeInTheDocument()
@@ -298,7 +298,7 @@ describe('MVP desktop interface', () => {
 
     expect(screen.getByText('Pending: Full')).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'New observation to grant' })).toHaveTextContent(/Warframe process presence.*EE\.log.*visible-pixel OCR.*click-through overlay.*read-only process memory.*inventory acquisition/i)
-    expect(screen.getByRole('note')).toHaveTextContent(/EULA/)
+    expect(screen.getByRole('note')).toHaveTextContent(/at your own risk/)
     expect(screen.getByRole('button', { name: 'Confirm Full' })).toBeEnabled()
   })
 
