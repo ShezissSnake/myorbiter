@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The Windows Tesseract TennoScope ships inside MyOrbiter's Windows installer, fetched on Linux for the
-# cross-compiled build (.gitlab-ci.yml, build job). It does what TennoScope's own
+# cross-compiled build: ci/build.sh's Windows half, which the Release workflow doesn't run (it runs
+# ci/build.sh --no-windows and builds the installer on Windows). It does what TennoScope's own
 # tennoscope/scripts/vendor-windows-tesseract.ps1 does on Windows, with the same pinned installer:
 # the version and its SHA-256 are read from that script, so there is one place to bump them.
 #
@@ -52,14 +53,7 @@ cp "$here"/tennoscope/packaging/windows-tesseract/* "$out/licenses/"
   find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n' | LC_ALL=C sort -f
 } > "$out/licenses/DLLS.txt"
 # Every DLL kept needs its row in the table of projects and licences (a new installer can bring a
-# new one): stop rather than ship a library the notices don't name.
-table="$here/tennoscope/packaging/windows-tesseract/README.md"
-unlisted=()
-while IFS= read -r dll; do
-  # A cell of the table's first column, exactly (rows name one or more files, comma-separated).
-  awk -F'|' -v d="$dll" 'NF > 2 { n = split($2, c, ","); for (i = 1; i <= n; i++) {
-      gsub(/^[ `]+|[ `]+$/, "", c[i]); if (c[i] == d) found = 1 } }
-    END { exit found ? 0 : 1 }' "$table" || unlisted+=("$dll")
-done < <(find "$out" -maxdepth 1 -name '*.dll' -printf '%f\n')
-[ ${#unlisted[@]} -eq 0 ] || { echo "not in $table: ${unlisted[*]}" >&2; exit 1; }
+# new one): stop rather than ship a library the notices don't name (scripts/check-windows-dlls.sh,
+# which scripts/tennoscope-notice.sh runs on every Windows build too).
+"$here/scripts/check-windows-dlls.sh" "$out"
 echo "Tesseract $version for Windows in $out ($(find "$out" -maxdepth 1 -name '*.dll' | wc -l) DLLs)"
