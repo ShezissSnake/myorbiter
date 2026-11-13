@@ -30,9 +30,15 @@ npm run dev              # http://localhost:1421
 `npm run dev-data` fetches the item list and riven names from warframe.market and the Foundry
 recipes from warframe-public-export-plus: the same sources and shape the app reads, requested one at
 a time at the app's pace. All of `public/dev-*.json` stays out of git: it holds your own account.
+`npm run dev` reads the world state (fissures, Baro, the clocks and the rest) live from
+api.warframestat.us, from the browser.
 
 Or use the invented account in `demo/` (the one in the screenshots), with no data of your own:
-`npm run dev:demo`. `demo/README.md` says how it's made.
+`npm run dev:demo`. `demo/README.md` says how it's made. The demo has a world state of its own
+(`demo/dev-worldstate.json`) and asks no world-state service, so the screenshots
+(`npm run screenshots`), the help pictures and their check (`npm run screenshots -- --only help
+[--check]`) and the sweep (`npm run sweep`) see the same world on every run, online or not; each of
+them stops and counts any world-state request, and fails if there was one.
 
 ## Tests
 

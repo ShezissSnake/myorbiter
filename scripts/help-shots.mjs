@@ -20,6 +20,7 @@ import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, wri
 import { join } from "node:path";
 import { pictures } from "../src/lib/help/index.ts";
 import { pageById } from "../src/lib/pages.ts";
+import { stopWorldState } from "./no-world-state.mjs";
 
 const MAX_W = 1200;
 const MAX_BYTES = 60 * 1024;
@@ -101,6 +102,7 @@ async function openApp(browser, url, w, h, shot = {}) {
   const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
   await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+  await stopWorldState(p);
   p.on("pageerror", (e) => console.error(`help: ${e.message}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the
   // Full mode question seen, calm motion so nothing is caught half-way.

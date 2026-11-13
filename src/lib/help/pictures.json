@@ -152,8 +152,8 @@
   "home-3.webp": {
     "hash": "f146c30403d031f0",
     "w": 1007,
-    "h": 114,
-    "bytes": 6538
+    "h": 347,
+    "bytes": 31610
   },
   "home-4.webp": {
     "hash": "829bdc62896ec0b6",
@@ -188,44 +188,44 @@
   "home-collection-4.webp": {
     "hash": "ffd02fe1146011a5",
     "w": 400,
-    "h": 169,
-    "bytes": 13918
+    "h": 170,
+    "bytes": 14742
   },
   "home-collection-5.webp": {
     "hash": "7e71193752bb4b3b",
     "w": 400,
-    "h": 310,
-    "bytes": 29970
+    "h": 273,
+    "bytes": 25292
   },
   "home-world-1.webp": {
     "hash": "00a35adc2c30c0b8",
     "w": 1006,
-    "h": 223,
-    "bytes": 15276
+    "h": 224,
+    "bytes": 15660
   },
   "home-world-2.webp": {
     "hash": "d6646528662089fc",
     "w": 967,
-    "h": 200,
-    "bytes": 16578
+    "h": 257,
+    "bytes": 24254
   },
   "home-world-3.webp": {
     "hash": "b95aa8b866eafb34",
     "w": 949,
     "h": 89,
-    "bytes": 4894
+    "bytes": 4810
   },
   "home-world-4.webp": {
     "hash": "ef9a7ec1b0d0308d",
     "w": 989,
-    "h": 487,
-    "bytes": 27422
+    "h": 451,
+    "bytes": 25080
   },
   "home-world-5.webp": {
     "hash": "ee0fc7aabc2e37fe",
     "w": 607,
     "h": 465,
-    "bytes": 57574
+    "bytes": 58216
   },
   "inventory-1.webp": {
     "hash": "a6aa9326a8b95852",
@@ -362,8 +362,8 @@
   "notices-1.webp": {
     "hash": "75ef0c45f3a55b49",
     "w": 591,
-    "h": 520,
-    "bytes": 47980
+    "h": 559,
+    "bytes": 57382
   },
   "notices-2.webp": {
     "hash": "4d1d9cefe0f41573",
@@ -471,7 +471,7 @@
     "hash": "4aface5590873e11",
     "w": 292,
     "h": 124,
-    "bytes": 5898
+    "bytes": 6068
   },
   "rail-3.webp": {
     "hash": "4a57cb81c596aa45",
@@ -489,7 +489,7 @@
     "hash": "3483602d39efc6c9",
     "w": 989,
     "h": 133,
-    "bytes": 5916
+    "bytes": 5924
   },
   "relics-3.webp": {
     "hash": "171f9e9f4e4ad99b",
@@ -716,26 +716,26 @@
   "watching-2.webp": {
     "hash": "8f3189e187f36e95",
     "w": 283,
-    "h": 117,
-    "bytes": 4484
+    "h": 234,
+    "bytes": 14976
   },
   "watching-3.webp": {
     "hash": "e2024b3bdab1ccd7",
     "w": 301,
-    "h": 225,
-    "bytes": 12920
+    "h": 283,
+    "bytes": 15408
   },
   "watching-4.webp": {
     "hash": "3c15bcef55850f33",
     "w": 301,
-    "h": 361,
-    "bytes": 18252
+    "h": 362,
+    "bytes": 18592
   },
   "watching-5.webp": {
     "hash": "abfd19b551a151f1",
     "w": 301,
-    "h": 263,
-    "bytes": 17054
+    "h": 264,
+    "bytes": 14826
   },
   "whats-new-1.webp": {
     "hash": "560297366818c3d2",
@@ -765,6 +765,6 @@
     "hash": "2c6e29912b50df05",
     "w": 989,
     "h": 571,
-    "bytes": 52016
+    "bytes": 51178
   }
 }

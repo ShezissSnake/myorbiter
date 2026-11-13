@@ -32,6 +32,7 @@ function dropDevData(): Plugin {
 /**
  * Times in a demo file, moved by `shift` ms: Unix seconds and milliseconds of these years, ISO
  * times, and the price date ("2026-11-04"). The files are written as of demo/meta.json's `now`.
+ * ISO times before 2000 are the 1999 Calendar's own dates in the world state: kept as they are.
  */
 function shiftTimes(v: unknown, shift: number, key = ""): unknown {
   if (typeof v === "number") {
@@ -40,7 +41,7 @@ function shiftTimes(v: unknown, shift: number, key = ""): unknown {
     return v;
   }
   if (typeof v === "string") {
-    if (/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(v)) return new Date(Date.parse(v) + shift).toISOString();
+    if (/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(v) && v >= "2000") return new Date(Date.parse(v) + shift).toISOString();
     if (key === "dump_date" && /^\d{4}-\d\d-\d\d$/.test(v)) return new Date(Date.parse(v) + Math.round(shift / 86_400_000) * 86_400_000).toISOString().slice(0, 10);
     return v;
   }
@@ -93,7 +94,12 @@ function demoData(): Plugin {
 // Tauri expects a fixed port; 1421 so it never clashes with another Tauri app on the default 1420.
 export default defineConfig({
   plugins: [svelte(), dropDevData(), demoData()],
-  define: { __MYORBITER_BUILD__: JSON.stringify(buildStamp()) },
+  define: {
+    __MYORBITER_BUILD__: JSON.stringify(buildStamp()),
+    // The demo dev server (npm run dev:demo): the page reads the world state from demo/ and asks no
+    // service for it. False in `npm run dev` and in the app's builds (Tauri never reads it: backend.ts).
+    __MYORBITER_DEMO__: JSON.stringify(process.env.MYORBITER_DEMO === "1"),
+  },
   clearScreen: false,
   server: { port: 1421, strictPort: true, watch: { ignored: ["**/src-tauri/**", "**/target/**", "**/tennoscope/**"] } },
 });
