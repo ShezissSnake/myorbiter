@@ -50,7 +50,7 @@
   import PickMany from "../ui/PickMany.svelte";
   import { details } from "../details.svelte";
   import { DEAL_MIN_REF, DEAL_SHARE } from "../core/deals";
-  import { bountyBoards, type BountyTable } from "../core/board";
+  import { bountyBoards, missionTypes, type BountyTable } from "../core/board";
   import { scoreCards } from "../core/pick";
   import { homeCardsChosen } from "../core/homeCards";
   import FissureBoard from "../ui/FissureBoard.svelte";
@@ -238,9 +238,8 @@
   const CYCLE_SHORT: Record<string, string> = { cetus: "Cetus", cambion: "Cambion", vallis: "Vallis" };
   const RESET_SHORT: Record<string, string> = { daily: "Standing caps", weekly: "Archon, Circuit" };
   const watched = $derived(matchedFissures(settings.fissureRules, live.fissures, now));
-  const MISSIONS = ["Capture", "Defense", "Disruption", "Excavation", "Extermination", "Hijack", "Interception", "Mobile Defense", "Rescue", "Sabotage", "Spy", "Survival", "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy", "Skirmish", "Volatile", "Orphix"];
   const PLANETS = ["Mercury", "Venus", "Earth", "Lua", "Mars", "Phobos", "Deimos", "Ceres", "Jupiter", "Europa", "Saturn", "Uranus", "Neptune", "Pluto", "Sedna", "Eris", "Void", "Kuva Fortress", "Zariman", "Veil Proxima", "Earth Proxima", "Venus Proxima", "Saturn Proxima", "Neptune Proxima", "Pluto Proxima"];
-  const missionTypes = $derived([...new Set([...MISSIONS, ...(live.fissures ?? []).map((f) => f.missionType)])].sort());
+  const missionChoices = $derived(missionTypes(live.fissures));
   const planets = $derived([...new Set([...PLANETS, ...(live.fissures ?? []).map((f) => planetOf(f.node)).filter(Boolean)])]);
   let adding = $state(false);
   /** The alert being changed, when one was clicked: Save puts the change in its place. */
@@ -658,7 +657,7 @@
           <span class="addfold" in:unfold><span class="addrule">
             <PickMany bind:value={draft.kinds} label="Kind" any="Normal or SP" noun="kinds" options={(["normal", "steel", "storm"] as const).map((k) => ({ v: k, label: FISSURE_KIND[k] }))} />
             <PickMany bind:value={draft.tiers} label="Era" any="Any era" noun="eras" options={TIERS.map((t) => ({ v: t, label: t }))} />
-            <PickMany bind:value={draft.missions} label="Mission" any="Any mission" noun="missions" options={missionTypes.map((m) => ({ v: m, label: m }))} />
+            <PickMany bind:value={draft.missions} label="Mission" any="Any mission" noun="missions" options={missionChoices.map((m) => ({ v: m, label: m }))} />
             <PickMany bind:value={draft.planets} label="Planet" any="Any planet" noun="planets" options={planets.map((p) => ({ v: p, label: p }))} />
             <IconButton icon={editing ? "check" : "plus"} tone="gold" label={editing ? "Save this alert" : "Add this alert"} disabled={duplicate} onclick={saveRule} />
             <IconButton icon="close" tone="quiet" label="Cancel" onclick={closeRule} />

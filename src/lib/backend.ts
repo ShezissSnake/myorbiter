@@ -23,7 +23,7 @@ import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
-import type { SyndicateMission } from "./core/board";
+import { choiceFromHome, fissureChoiceOf, type FissureChoice, type SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
@@ -204,8 +204,11 @@ export interface Settings {
   homeFissures: "normal" | "steel" | "storm";
   /** Home's fissure board: only the fissures your alerts match, of every kind. */
   homeFissuresOnly: boolean;
-  /** The column on the right of a wide window: shown or folded, and what it shows, in order. */
-  side: { on: boolean; cards: string[] };
+  /**
+   * The column on the right of a wide window: shown or folded, what it shows, in order, and which
+   * fissures its Fissures card lists (its own choice, apart from Home's board).
+   */
+  side: { on: boolean; cards: string[]; fissures: FissureChoice };
   /** Lines under Needs you on Home you dismissed (an alert, an invasion, a Varzia rotation). */
   homeDismissed: string[];
   /** What you get notifications for (the bell in the sidebar). */
@@ -469,7 +472,7 @@ export const defaultSettings = (): Settings => ({
   homeHidden: [],
   homeFissures: "normal",
   homeFissuresOnly: false,
-  side: { on: true, cards: ["alerts", "fissures", "clocks", "foundry", "bounties"] },
+  side: { on: true, cards: ["alerts", "fissures", "clocks", "foundry", "bounties"], fissures: choiceFromHome("normal", false) },
   homeDismissed: [],
   notify: defaultNotify(),
   notifyOptions: defaultNotifyOptions(),
@@ -921,6 +924,8 @@ export async function loadSettings(): Promise<Settings> {
   // TennoScope's program is chosen in a native dialog and kept by MyOrbiter itself: an old path the
   // page saved is dropped rather than carried along (into exports and bug reports).
   if (raw?.tennoscope && typeof raw.tennoscope === "object") delete (raw.tennoscope as { path?: unknown }).path;
+  const homeFissures: Settings["homeFissures"] = raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal";
+  const homeFissuresOnly = raw?.homeFissuresOnly === true;
   return {
     ...base,
     ...(raw ?? {}),
@@ -933,9 +938,15 @@ export async function loadSettings(): Promise<Settings> {
     // A first start (no settings yet) asks; settings from before the question don't.
     fullModeAsked: raw ? raw.fullModeAsked !== false : false,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
-    side: { on: raw?.side?.on !== false, cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards },
-    homeFissures: raw?.homeFissures === "steel" || raw?.homeFissures === "storm" ? raw.homeFissures : "normal",
-    homeFissuresOnly: raw?.homeFissuresOnly === true,
+    side: {
+      on: raw?.side?.on !== false,
+      cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards,
+      // The Fissures card's own choice; a file from before it (or a part of it that isn't valid)
+      // starts from what the card showed then: Home's board's kind and its Only my alerts.
+      fissures: fissureChoiceOf(raw?.side?.fissures, choiceFromHome(homeFissures, homeFissuresOnly)),
+    },
+    homeFissures,
+    homeFissuresOnly,
     details: raw?.details === true,
     startDone: raw?.startDone === true,
     homeChosen: raw?.homeChosen === true,
