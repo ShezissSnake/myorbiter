@@ -85,8 +85,8 @@ What is captured depends on the system:
   is read in turn as the game's screen. On desktops that offer wlroots' screen copy, every monitor,
   with no permission asked. On KDE, every monitor with no permission asked, but only for a
   TennoScope that doesn't run from an AppImage, and only if KWin accepts the installed program (one
-  it refuses is left with the screen-share dialog below); the TennoScope inside MyOrbiter is an
-  AppImage, so it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
+  it refuses doesn't capture this way, and isn't offered *Allow screen capture* either); the
+  TennoScope inside MyOrbiter is an AppImage, so it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
   screen-share dialog, which *Allow screen capture* opens (in MyOrbiter's TennoScope panel, or in
   TennoScope's own window) while the game runs and nothing else can capture it; the desktop shows a screen being shared while that capture is open,
   and the permission is kept in `screencast.token` (below).
