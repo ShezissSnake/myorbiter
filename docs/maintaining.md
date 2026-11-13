@@ -102,7 +102,7 @@ and GitLab's `…/packages/generic/myorbiter/<version>/myorbiter_<version>_<file
 that names any other address is refused, and copies already installed keep that rule. So each of
 these needs a build that accepts the new form published first, and installed, before the form
 changes: moving or renaming the repository, a release tag other than `build-<digits>`, other file
-names, another host.
+names, another host, a version with anything after its three numbers (`0.3.0-beta.1`).
 
 The jobs that move a channel and the site build share the concurrency group `channels`: one runs,
 one waits, and GitHub cancels a waiting job when a third arrives. Start one task at a time; a job

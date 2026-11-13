@@ -896,7 +896,7 @@ mod tests {
             ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131a/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
             ("https://github.com/ShezissSnake/myorbiter/releases/download/build-x131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
             ("https://github.com/ShezissSnake/myorbiter/releases/download/v0.2.131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
-            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-١٣١/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-\u{661}\u{663}\u{661}/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
             // A file of another version, and a GitLab folder of another version.
             (gh("amd64.AppImage").replace("myorbiter_0.2.131", "myorbiter_0.2.130"), "0.2.131", LINUX, "a file of another version"),
             (format!("{GL_112}amd64.AppImage").replace("/0.2.112/", "/0.2.111/"), "0.2.112", LINUX, "a folder of another version"),
@@ -951,8 +951,8 @@ mod tests {
         }
     }
 
-    /// Audit finding 10 (b), as a manifest would carry it: Linux's entry with the Windows file's
-    /// address and signature (both validly signed for this version) is refused under Linux.
+    /// A manifest whose Linux entry carries the Windows file's address and signature (validly
+    /// signed for this version) is refused under Linux.
     #[test]
     fn the_other_systems_signed_file_is_refused() {
         let mut raw: serde_json::Value = serde_json::from_str(include_str!("../../tests/fixtures/updater/experimental-0.2.106.json")).unwrap();
@@ -960,6 +960,27 @@ mod tests {
         raw["platforms"]["linux-x86_64"] = windows;
         let release: tauri_plugin_updater::RemoteRelease = serde_json::from_value(raw).unwrap();
         assert_eq!(download_allowed(release.download_url(LINUX).unwrap().as_str(), "0.2.106", LINUX), Err("the other system's file"));
+    }
+
+    /// What is checked is the address the plugin will request, as it parsed it from the manifest:
+    /// a manifest whose text the parser rewrites into the project's own address (a `..`, an
+    /// upper-case host, https's own port) has that address requested, and passes; the same text
+    /// given to the function as it stands is refused (above).
+    #[test]
+    fn the_address_checked_is_the_one_the_plugin_requests() {
+        let own = format!("{GH_131}amd64.AppImage");
+        for written in [
+            "https://github.com/ShezissSnake/myorbiter/releases/download/x/../build-131/myorbiter_0.2.131_amd64.AppImage",
+            "https://GitHub.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage",
+            "https://github.com:443/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage",
+        ] {
+            let manifest = serde_json::json!({ "version": "0.2.131", "platforms": { LINUX: { "url": written, "signature": "x" } } });
+            let release: tauri_plugin_updater::RemoteRelease = serde_json::from_value(manifest).unwrap();
+            let held = release.download_url(LINUX).unwrap().as_str();
+            assert_eq!(held, own, "{written}");
+            assert_eq!(download_allowed(held, "0.2.131", LINUX), Ok(()), "{written}");
+            assert_eq!(download_allowed(written, "0.2.131", LINUX), Err("an address that reads differently once parsed"), "{written}");
+        }
     }
 
     /// An update as the check and the install see it, without the plugin.
