@@ -9,6 +9,7 @@
 
 import type { Walkthrough } from "./types";
 import { guideCard } from "./guide";
+import { AUTO_FLOOR_SHARE } from "../core/approved";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
@@ -284,10 +285,10 @@ const SETTINGS_TRADES: Walkthrough = {
     {
       title: "Automatic repricing",
       lines: [
-        "Off unless you turn it on; it's Apply automatically on Orders too.",
-        "It follows the second-cheapest seller online or in game, never a lone bait listing.",
-        "Only a gap over 2p and over 5% of its price moves it.",
-        "At most once an hour and six times a day per listing.",
+        "Off until you turn it on; also Apply automatically on Orders.",
+        "It follows the second-cheapest seller online or in game, not a lone bait listing.",
+        "A gap over 2p and 5% moves it; once an hour, six a day per listing.",
+        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved in MyOrbiter, never more than halved.`,
       ],
       shot: {
         open: "settings",
@@ -299,7 +300,7 @@ const SETTINGS_TRADES: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: "Unattended, a price never goes under 70% of the one you last set or approved, nor under your floors, and is never more than halved.",
+    text: `Unattended, a price never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter, nor under your floors, and is never more than halved.`,
   },
   covers: { "settings.trades": 3, "settings.selling": 2 },
 };
@@ -366,7 +367,7 @@ const NOTICES: Walkthrough = {
         part: `${N} section.how > .testrow, ${N} section.how > .discord`,
         marks: [
           { at: `${N} section.how .testrow button.stamp`, is: "n", n: 1, from: "corner" },
-          { at: `${N} section.how .discord input`, is: "n", n: 2, from: "corner" },
+          { at: `${N} section.how .discord input`, is: "n", n: 2, from: "bottom" },
         ],
       },
     },

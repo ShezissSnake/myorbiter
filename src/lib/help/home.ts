@@ -4,8 +4,9 @@
 // Every sentence about listings and prices is checked against the code that works it out
 // (tabs/Home.svelte, core/worthSelling.ts, core/spares.ts, core/deals.ts, core/traders.ts). The
 // demo's world is a file of its own (demo/dev-worldstate.json), the same on every run; the pictures
-// still crop a panel's head and first rows, as a real day's world is longer. The steps only open things (the
-// Customise gear, Add alert's menus); no tick, chip, status, dismiss, copy or add is pressed.
+// still crop a panel's head and first rows, as a real day's world is longer. The steps only open
+// things (the Customise gear, Add alert's menus); no tick, chip, status, dismiss, copy or add is
+// pressed.
 
 import type { Walkthrough } from "./types";
 import { guideOf } from "./guide";
@@ -129,7 +130,7 @@ const WORLD: Walkthrough = {
       },
     },
     {
-      title: "Every fissure open now",
+      title: "Fissures open now, by kind",
       lines: [
         "Normal, Steel Path or Void Storms, and how many of each are open.",
         "Each era: your relic worth most to crack there, and the plat you'd average.",
