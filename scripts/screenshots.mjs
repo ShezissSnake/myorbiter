@@ -14,9 +14,11 @@
 // Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
 // server on its own port, checks that the server answering is that one, opens each page in
 // Chromium, saves WebP files over the ones in the repository, and stops the server. Needs
-// ImageMagick (`magick`) for the WebP files. The demo's order books and price histories are files
-// in demo/; the worldstate is read live (demo/README.md), so Home and Current fissure change from
-// run to run. Nothing but GET requests would reach warframe.market.
+// ImageMagick (`magick`) for the WebP files. The demo's order books, price histories and world
+// state are files in demo/ (demo/README.md), with their times moved up to the moment they're
+// served, so Home and Current fissure show the same world on every run, online or not. No request
+// goes to a world-state service: every one is stopped and counted, and a run that saw any fails.
+// Nothing but GET requests would reach warframe.market.
 
 import { spawn, execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
@@ -24,6 +26,7 @@ import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { requestsLine, stopWorldState, worldStateAsked } from "./no-world-state.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const portArg = process.argv.indexOf("--port");
@@ -146,6 +149,7 @@ try {
     if (large) mkdirSync(join(root, out, "large"), { recursive: true });
     const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
     await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+    await stopWorldState(p);
     p.on("pageerror", (e) => console.error(`${kind}: ${e.message}`));
     // What's New, and on a first start the Full mode question, would open over the first page.
     await p.addInitScript(() => {
@@ -192,6 +196,8 @@ try {
     }
     await p.close();
   }
+  console.log(requestsLine());
+  if (worldStateAsked.count) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 1;

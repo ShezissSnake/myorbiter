@@ -501,6 +501,9 @@ export const defaultSettings = (): Settings => ({
 });
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+/** Set by vite.config.ts: true only on the demo dev server (MYORBITER_DEMO=1), false in a build and in `npm run dev`. */
+declare const __MYORBITER_DEMO__: boolean | undefined;
+const inDemo = !inTauri && typeof __MYORBITER_DEMO__ !== "undefined" && __MYORBITER_DEMO__ === true;
 
 async function invoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
   const { invoke } = await import("@tauri-apps/api/core");
@@ -725,6 +728,10 @@ export async function loadLive(): Promise<Live> {
   let raw: Record<string, unknown> | null = null;
   try {
     if (inTauri) raw = await invoke("worldstate");
+    // The demo (npm run dev:demo, the screenshots, the help-picture check, the sweep): its own
+    // invented world state, demo/dev-worldstate.json, so every run sees the same world, online or
+    // not; no world-state service is asked.
+    else if (inDemo) raw = await fetch("/dev-worldstate.json").then((r) => (r.ok ? r.json() : null));
     else {
       const get = (p: string) => fetch(`https://api.warframestat.us/pc/${p}?language=en`).then((r) => r.json()).catch(() => null);
       const names = ["fissures", "vaultTrader", "voidTrader", "invasions", "nightwave", "sortie", "archonHunt", "steelPath", "duviriCycle", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "zarimanCycle", "alerts", "dailyDeals", "syndicateMissions", "events", "archimedeas", "calendar", "descendia"];
