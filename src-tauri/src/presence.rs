@@ -236,30 +236,137 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
     clear_heartbeat(id);
 }
 
+/// How the sockets reach warframe.market: straight, or through the proxy set in the environment,
+/// the one the HTTP agent uses (`http_agent` in lib.rs: ureq reads ALL_PROXY, HTTPS_PROXY and
+/// HTTP_PROXY, upper case then lower, the first it accepts, and not NO_PROXY).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Route {
+    Direct,
+    /// An HTTP proxy, asked for a tunnel (CONNECT), with `user:password` if the address gives them.
+    Http { host: String, port: u16, login: Option<String> },
+    /// A proxy MyOrbiter can't use (SOCKS: the HTTP agent can't either, so no request goes out at
+    /// all). The sockets don't go around it.
+    Unusable(String),
+}
+
+const PROXY_VARS: [&str; 6] = ["ALL_PROXY", "all_proxy", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"];
+
+/// The route from the environment's variables (`var` reads one), chosen as ureq chooses the HTTP
+/// agent's proxy: the first variable whose address ureq accepts.
+pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
+    for name in PROXY_VARS {
+        let Some(value) = var(name) else { continue };
+        if ureq::Proxy::new(&value).is_err() {
+            continue;
+        }
+        let v = value.trim_end_matches('/');
+        let (scheme, rest) = v.split_once("://").unwrap_or(("http", v));
+        if scheme != "http" {
+            return Route::Unusable(scheme.to_string());
+        }
+        let (login, address) = match rest.rsplit_once('@') {
+            Some((l, a)) => (Some(l.to_string()), a),
+            None => (None, rest),
+        };
+        let mut parts = address.split(':');
+        let host = parts.next().unwrap_or_default().to_string();
+        let port = match parts.next().map(str::parse::<u32>) {
+            Some(Ok(p)) => p,
+            _ => 80,
+        };
+        return match u16::try_from(port) {
+            Ok(port) => Route::Http { host, port, login },
+            Err(_) => Route::Unusable(format!("port {port}")),
+        };
+    }
+    Route::Direct
+}
+
+/// The route as the environment had it at start, like the HTTP agent's.
+fn route() -> Route {
+    static ROUTE: std::sync::OnceLock<Route> = std::sync::OnceLock::new();
+    ROUTE.get_or_init(|| route_from(|name| std::env::var(name).ok())).clone()
+}
+
 /// Opens a WebSocket with time limits: `tungstenite::connect` has none, so a connection or TLS
 /// handshake that never answers (a captive portal, a stuck proxy) would hang its thread for good.
+/// Through the proxy, when one is set (`route`).
 pub(crate) fn connect(
     request: tungstenite::handshake::client::Request,
 ) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, tungstenite::Error> {
+    connect_by(request, &route())
+}
+
+const LIMIT: Duration = Duration::from_secs(10);
+
+/// A TCP connection to `host`, its time limits set.
+fn reach(host: &str, port: u16) -> std::io::Result<std::net::TcpStream> {
     use std::net::{TcpStream, ToSocketAddrs};
-    const LIMIT: Duration = Duration::from_secs(10);
-    let uri = request.uri();
-    let host = uri.host().unwrap_or_default().to_string();
-    let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("ws") { 80 } else { 443 });
     let mut last = std::io::Error::new(std::io::ErrorKind::NotFound, format!("no address for {host}"));
-    let mut stream = None;
-    for addr in (host.as_str(), port).to_socket_addrs()? {
+    for addr in (host, port).to_socket_addrs()? {
         match TcpStream::connect_timeout(&addr, LIMIT) {
             Ok(s) => {
-                stream = Some(s);
-                break;
+                s.set_read_timeout(Some(LIMIT))?;
+                s.set_write_timeout(Some(LIMIT))?;
+                return Ok(s);
             }
             Err(e) => last = e,
         }
     }
-    let stream = stream.ok_or(last)?;
-    stream.set_read_timeout(Some(LIMIT))?;
-    stream.set_write_timeout(Some(LIMIT))?;
+    Err(last)
+}
+
+/// Asks the proxy on `stream` for a tunnel to `target` (`host:port`, the name as given: the proxy
+/// looks it up). The answer is read a byte at a time, so nothing of what follows it is taken.
+fn tunnel(stream: &mut std::net::TcpStream, target: &str, agent: Option<&str>, login: Option<&str>) -> std::io::Result<()> {
+    use base64::Engine;
+    use std::io::{Error, ErrorKind, Read, Write};
+    let mut ask = format!("CONNECT {target} HTTP/1.1\r\nHost: {target}\r\n");
+    if let Some(a) = agent {
+        ask.push_str(&format!("User-Agent: {a}\r\n"));
+    }
+    if let Some(l) = login {
+        ask.push_str(&format!("Proxy-Authorization: Basic {}\r\n", base64::engine::general_purpose::STANDARD.encode(l)));
+    }
+    ask.push_str("\r\n");
+    stream.write_all(ask.as_bytes())?;
+    stream.flush()?;
+    let mut head = Vec::new();
+    let mut byte = [0u8; 1];
+    while !head.ends_with(b"\r\n\r\n") {
+        if head.len() > 8192 || stream.read(&mut byte)? == 0 {
+            return Err(Error::new(ErrorKind::InvalidData, "the proxy's answer ended early"));
+        }
+        head.push(byte[0]);
+    }
+    let line = String::from_utf8_lossy(&head);
+    let status = line.split_whitespace().nth(1).unwrap_or("?");
+    if status != "200" {
+        return Err(Error::other(format!("the proxy refused the connection ({status})")));
+    }
+    Ok(())
+}
+
+/// `connect` by the given route.
+pub(crate) fn connect_by(
+    request: tungstenite::handshake::client::Request,
+    route: &Route,
+) -> Result<tungstenite::WebSocket<tungstenite::stream::MaybeTlsStream<std::net::TcpStream>>, tungstenite::Error> {
+    let uri = request.uri();
+    let host = uri.host().unwrap_or_default().to_string();
+    let port = uri.port_u16().unwrap_or(if uri.scheme_str() == Some("ws") { 80 } else { 443 });
+    let stream = match route {
+        Route::Direct => reach(&host, port)?,
+        Route::Http { host: proxy, port: proxy_port, login } => {
+            let mut s = reach(proxy, *proxy_port)?;
+            let agent = request.headers().get(tungstenite::http::header::USER_AGENT).and_then(|v| v.to_str().ok());
+            tunnel(&mut s, &format!("{host}:{port}"), agent, login.as_deref())?;
+            s
+        }
+        Route::Unusable(what) => {
+            return Err(tungstenite::Error::Io(std::io::Error::new(std::io::ErrorKind::Unsupported, format!("the proxy set ({what}) isn't one MyOrbiter can use"))))
+        }
+    };
     match tungstenite::client_tls_with_config(request, stream, None, None) {
         Ok((ws, _)) => Ok(ws),
         Err(tungstenite::HandshakeError::Failure(e)) => Err(e),
@@ -436,6 +543,101 @@ mod tests {
         let _ = rustls::crypto::ring::default_provider().install_default();
         let mut ws = connect(crate::market::socket_request().unwrap()).expect("connected");
         let _ = ws.close(None);
+    }
+
+    #[test]
+    fn the_sockets_take_the_proxy_the_http_agent_takes() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| move |name: &str| pairs.iter().find(|(k, _)| *k == name).map(|(_, v)| v.to_string());
+        let http = |host: &str, port: u16, login: Option<&str>| Route::Http { host: host.into(), port, login: login.map(Into::into) };
+        assert_eq!(route_from(env(&[])), Route::Direct);
+        assert_eq!(route_from(env(&[("HTTPS_PROXY", "http://proxy.example:3128/")])), http("proxy.example", 3128, None));
+        assert_eq!(route_from(env(&[("http_proxy", "proxy.example")])), http("proxy.example", 80, None), "no scheme: http, port 80");
+        assert_eq!(route_from(env(&[("ALL_PROXY", "http://user:p@ss@proxy.example:8080")])), http("proxy.example", 8080, Some("user:p@ss")));
+        // In ureq's order: ALL_PROXY first, upper case before lower.
+        assert_eq!(route_from(env(&[("http_proxy", "http://c:3"), ("HTTPS_PROXY", "http://b:2"), ("all_proxy", "http://a:1")])), http("a", 1, None));
+        // One ureq doesn't accept is passed over, as ureq passes it over.
+        assert_eq!(route_from(env(&[("ALL_PROXY", "https://tls.example:443"), ("HTTPS_PROXY", "http://b:2")])), http("b", 2, None));
+        assert_eq!(route_from(env(&[("ALL_PROXY", "http://nopassword@proxy.example:1"), ("HTTP_PROXY", "http://b:2")])), http("b", 2, None));
+        // SOCKS: the agent can't use it, and the sockets don't go around it.
+        assert_eq!(route_from(env(&[("ALL_PROXY", "socks5://127.0.0.1:1080"), ("HTTPS_PROXY", "http://b:2")])), Route::Unusable("socks5".into()));
+    }
+
+    /// A stand-in proxy on 127.0.0.1: answers each CONNECT with `answer` and, on 200, joins the
+    /// connection to `target` (another listener on 127.0.0.1), whatever host the CONNECT named.
+    /// Gives the heads of the CONNECTs it got.
+    fn stand_in_proxy(answer: &'static str, target: u16) -> (u16, std::thread::JoinHandle<Vec<String>>) {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        let h = std::thread::spawn(move || {
+            let (mut s, _) = l.accept().unwrap();
+            s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut head = Vec::new();
+            let mut b = [0u8; 1];
+            while !head.ends_with(b"\r\n\r\n") && s.read(&mut b).unwrap_or(0) == 1 {
+                head.push(b[0]);
+            }
+            s.write_all(answer.as_bytes()).unwrap();
+            if answer.starts_with("HTTP/1.1 200") {
+                let t = std::net::TcpStream::connect(("127.0.0.1", target)).unwrap();
+                let (mut s2, mut t2) = (s.try_clone().unwrap(), t.try_clone().unwrap());
+                let (mut s, mut t) = (s, t);
+                let up = std::thread::spawn(move || std::io::copy(&mut s2, &mut t2));
+                let _ = std::io::copy(&mut t, &mut s);
+                let _ = up.join();
+            }
+            vec![String::from_utf8_lossy(&head).into_owned()]
+        });
+        (port, h)
+    }
+
+    /// A listener on 127.0.0.1 for a stand-in WebSocket server, and its port.
+    fn socket_server() -> (u16, std::net::TcpListener) {
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        (l.local_addr().unwrap().port(), l)
+    }
+
+    #[test]
+    fn a_socket_goes_through_the_proxy_set() {
+        let (target, server) = socket_server();
+        let served = std::thread::spawn(move || {
+            let (s, _) = server.accept().unwrap();
+            let mut ws = tungstenite::accept(s).unwrap();
+            let _ = ws.close(None);
+            let _ = ws.flush();
+        });
+        let (proxy, asked) = stand_in_proxy("HTTP/1.1 200 Connection established\r\n\r\n", target);
+        // A name nothing resolves: only the proxy may look it up, so going straight would fail.
+        use tungstenite::client::IntoClientRequest;
+        let mut request = format!("ws://ws.example.invalid:{target}/socket").into_client_request().unwrap();
+        request.headers_mut().insert("User-Agent", tungstenite::http::HeaderValue::from_static("MyOrbiter/test"));
+        let route = Route::Http { host: "127.0.0.1".into(), port: proxy, login: Some("user:secret".into()) };
+        let ws = connect_by(request, &route);
+        assert!(ws.is_ok(), "{:?}", ws.err());
+        drop(ws);
+        served.join().unwrap();
+        let head = asked.join().unwrap().remove(0);
+        assert!(head.starts_with(&format!("CONNECT ws.example.invalid:{target} HTTP/1.1\r\n")), "{head}");
+        assert!(head.contains("\r\nUser-Agent: MyOrbiter/test\r\n"), "{head}");
+        assert!(head.contains("\r\nProxy-Authorization: Basic dXNlcjpzZWNyZXQ=\r\n"), "{head}");
+    }
+
+    #[test]
+    fn a_proxy_that_refuses_ends_the_attempt_and_nothing_goes_straight() {
+        let (target, server) = socket_server();
+        server.set_nonblocking(true).unwrap();
+        let (proxy, asked) = stand_in_proxy("HTTP/1.1 407 Proxy Authentication Required\r\nContent-Length: 0\r\n\r\n", target);
+        use tungstenite::client::IntoClientRequest;
+        let request = format!("ws://127.0.0.1:{target}/socket").into_client_request().unwrap();
+        let route = Route::Http { host: "127.0.0.1".into(), port: proxy, login: Some("user:secret".into()) };
+        let e = connect_by(request, &route).err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(e.contains("the proxy refused the connection (407)") && !e.contains("secret"), "{e}");
+        assert_eq!(asked.join().unwrap().len(), 1);
+        assert!(server.accept().is_err(), "nothing reached the target straight");
+        // And a proxy MyOrbiter can't use: no connection at all.
+        let request = format!("ws://127.0.0.1:{target}/socket").into_client_request().unwrap();
+        assert!(connect_by(request, &Route::Unusable("socks5".into())).is_err());
+        assert!(server.accept().is_err());
     }
 
     #[test]

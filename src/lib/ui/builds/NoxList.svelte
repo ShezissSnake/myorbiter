@@ -143,7 +143,7 @@
   {#if !list || list.st === "reading"}
     <p class="state" role="status"><span class="run" aria-hidden="true"></span>Reading {NOX_SITE}'s top builds for {item.name}…</p>
   {:else if list.st === "failed"}
-    <p class="state bad" role="alert">{NOX_SITE} didn't answer: {list.error}. <button type="button" class="link" title="Ask again" onclick={() => read(false)}>Try again</button></p>
+    <p class="state bad" role="alert">Couldn't read {NOX_SITE}'s builds: {list.error}. <button type="button" class="link" title="Ask again" onclick={() => read(false)}>Try again</button></p>
   {:else}
     {#if listCopy || list.error}<p class="state warn" role="status">{listCopy ?? `Couldn't read it again: ${list.error}`}</p>{/if}
     {#if !all.length}

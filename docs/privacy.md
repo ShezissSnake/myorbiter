@@ -140,8 +140,9 @@ Every request MyOrbiter makes to warframe.market says who it is, with the User-A
   - the in-game names of players you trade with or who whisper you (their profile and reputation),
     signed in or not;
   - your closed orders, when you press Import on Sales;
-  - warframe.market's live feed of new orders on your platform: one connection, held while
-    MyOrbiter is open.
+  - warframe.market's live feed of new orders on your platform: one connection, held while there
+    is something to watch for (up to 300 things you're after, your price alerts among them) and
+    closed once there has been nothing for 10 minutes.
 - **Signed in** (your own sign-in: an email and password used once for a token, or a pasted
   token): your profile (at start and after signing in, and every minute or more while
   warframe.market isn't answering); your orders (every 30 seconds, every 2 minutes while the window
@@ -216,8 +217,10 @@ web requests; its status connection sends no User-Agent.
   when Orders shows your riven auctions, and when a riven reroll is shown; at most once every 6
   hours while MyOrbiter runs (a failed read is tried again on the next visit). This one is read by
   MyOrbiter's window, so it carries the window's own User-Agent, not MyOrbiter's.
-- **Item pictures**: WFCD's (`raw.githubusercontent.com`, then `cdn.warframestat.us`); for items
-  WFCD has no picture of, warframe.market's. MyOrbiter downloads each size once and keeps it.
+- **Item pictures**: WFCD's (`raw.githubusercontent.com`, then `cdn.warframestat.us`, which may
+  send the request on to `raw.githubusercontent.com`; MyOrbiter follows it there and to no other
+  host); for items WFCD has no picture of, warframe.market's. MyOrbiter downloads each size once
+  and keeps it.
   TennoScope's own window, when you open it, loads WFCD's pictures from `raw.githubusercontent.com`
   itself, with the window's User-Agent, and keeps only what the window caches.
 
@@ -227,8 +230,8 @@ web requests; its status connection sends no User-Agent.
   link you click opens overframe.gg in your browser.
 - **Nox's Frame** (`noxsframe.com`): an item's top builds, read when you open the item on Builds,
   and a build's page when you open it (on unless you turn it off in Settings). At most one request
-  every 3 seconds; each answer kept a week (Refresh reads it again); after a refusal or a browser
-  check, nothing goes out for 15 minutes. These requests say
+  every 3 seconds; each answer kept a week (Refresh reads it again; a page MyOrbiter can't read
+  isn't kept); after a refusal or a browser check, nothing goes out for 15 minutes. These requests say
   `MyOrbiter/<version> (Warframe companion; build lookup; contact via noxsframe Discord)`.
 
 ## Discord, only if you set a webhook

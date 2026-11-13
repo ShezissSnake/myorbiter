@@ -117,6 +117,8 @@ test("Apply automatically: random markets never take a listing under 70% of its 
   forAll("reprice seeds", (_r, seed) => void seeds.push(seed), Math.ceil(RUNS / 4));
   const it = { id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] };
   const model = { price: () => null, priceMax: () => null, relicPrice: () => null, partByName: new Map() } as unknown as Model;
+  // Passes that took a price down: the three checks below run only on those.
+  let lowered = 0;
   for (const seed of seeds) {
     const r = rng(seed);
     const minPrice = r.pick([1, 5, 10, 15]);
@@ -127,8 +129,11 @@ test("Apply automatically: random markets never take a listing under 70% of its 
     const floor = autoFloor(s.approved["it||"] ?? startPrice);
     market.items = async () => [it];
     market.myOrders = async () => [mine];
-    let ask = 0;
-    market.book = async () => [{ id: "r", type: "sell", platinum: ask, quantity: 1, rank: null, subtype: null, visible: true, user: { id: "x", ingameName: "Tenno_Bravo", status: "ingame", platform: "pc", crossplay: true } }] as never;
+    // Two or three sellers in game: the price to follow is the second-cheapest (core/drift.ts),
+    // so with one seller there is none and a price could never go down.
+    let asks: number[] = [];
+    const names = ["Tenno_Alpha", "Tenno_Bravo", "Tenno_Charlie"];
+    market.book = async () => asks.map((platinum, i) => ({ id: `r${i}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: `x${i}`, ingameName: names[i], status: "ingame", platform: "pc", crossplay: true } })) as never;
     market.update = (async (_id: string, c: { platinum?: number }) => {
       mine = { ...mine, platinum: c.platinum! };
       return {} as never;
@@ -136,11 +141,16 @@ test("Apply automatically: random markets never take a listing under 70% of its 
     const approvedBefore = s.approved["it||"] ?? startPrice;
     for (let pass = 0; pass < 6; pass++) {
       const before = mine.platinum;
-      ask = r.pick([r.int(1, before), r.int(1, 3 * before), Math.floor(before / 2) + 1, 1]);
+      const ask = r.pick([r.int(1, before), r.int(1, 3 * before), Math.floor(before / 2) + 1, 1]);
+      asks = Array.from({ length: r.int(2, 3) }, (_, i) => (i === 0 ? ask : ask + r.int(0, 4)));
       mkt.books = {};
+      // Each pass stands for one at least an hour after the last: the cooldown (one change an hour)
+      // would otherwise stop every seed after its first change, and it isn't what this test holds.
+      s.changes = {};
       await mkt.reprice(model, s, true, true);
-      const ctx = `PROPERTY_SEED=${seed} approved=${approvedBefore} floor=${floor} min=${minPrice} pass=${pass} ${before}p → ${mine.platinum}p (ask ${ask})`;
+      const ctx = `PROPERTY_SEED=${seed} approved=${approvedBefore} floor=${floor} min=${minPrice} pass=${pass} ${before}p → ${mine.platinum}p (asks ${asks.join("/")})`;
       if (mine.platinum < before) {
+        lowered++;
         assert.ok(mine.platinum >= floor, `under the 70% floor: ${ctx}`);
         assert.ok(mine.platinum >= minPrice, `under the minimum: ${ctx}`);
         assert.ok(mine.platinum >= before / 2, `more than halved: ${ctx}`);
@@ -149,4 +159,5 @@ test("Apply automatically: random markets never take a listing under 70% of its 
       assert.equal(s.approved["it||"] ?? startPrice, approvedBefore, `a timed pass changed the approved price: ${ctx}`);
     }
   }
+  assert.ok(lowered > 50, `passes that took a price down: ${lowered}`);
 });
