@@ -626,25 +626,71 @@ export function parseMyAuctions(raw: unknown): MyAuction[] {
   return out;
 }
 
-/** Your open auction for this riven, if you have one: same weapon, same name. */
-export function auctionOf(meta: RivenMeta, r: Riven, mine: MyAuction[]): MyAuction | undefined {
+/**
+ * Your open auction for this riven, if you have one (`mayBeAuctionOf`): same weapon and name,
+ * unless it is exactly one of `rivens` (your others of that weapon and name) and not this one.
+ * Without `rivens`, or for a riven that can't be put in the auction form, weapon and name alone.
+ */
+export function auctionOf(meta: RivenMeta, r: Riven, mine: MyAuction[], rivens: Riven[] = []): MyAuction | undefined {
+  const made = auctionItemFor(meta, r);
+  if ("error" in made) {
+    const weapon = weaponSlug(meta, r.weaponUnique, r.weapon);
+    const name = r.name.toLowerCase();
+    return mine.find((a) => !a.closed && a.weapon === weapon && a.name.toLowerCase() === name);
+  }
+  const others = othersLike(meta, r, rivens);
+  return mine.find((a) => !a.closed && mayBeAuctionOf(a, made.item, others));
+}
+
+/** Your other rivens of this one's weapon and name, in the auction form (the ones `mayBeAuctionOf` tells it from). */
+export function othersLike(meta: RivenMeta, r: Riven, rivens: Riven[]): AuctionItem[] {
   const weapon = weaponSlug(meta, r.weaponUnique, r.weapon);
   const name = r.name.toLowerCase();
-  return mine.find((a) => !a.closed && a.weapon === weapon && a.name === name);
+  const out: AuctionItem[] = [];
+  for (const o of rivens) {
+    if (o.id === r.id || o.name.toLowerCase() !== name || weaponSlug(meta, o.weaponUnique, o.weapon) !== weapon) continue;
+    const made = auctionItemFor(meta, o);
+    if ("item" in made) out.push(made.item);
+  }
+  return out;
 }
+
+/** What tells one riven from another in an auction: `MyAuction`'s fields that `isAuctionOf` reads. */
+type RivenFacts = Pick<MyAuction, "weapon" | "name" | "rerolls" | "mr" | "rank" | "polarity" | "attributes">;
 
 /**
  * Whether one of your auctions is this riven, as warframe.market gives it back: the weapon and
  * name, and what tells two rivens of one weapon with one name apart (stats with their values and
  * signs, cycles, mastery, rank, polarity). Values are compared to the second decimal, the
- * precision they are sent with.
+ * precision they are sent with. An auction it doesn't know as this riven may still be it (a value
+ * given back rounded another way, the riven ranked or cycled since): see `mayBeAuctionOf`.
  */
-export function isAuctionOf(a: MyAuction, item: AuctionItem): boolean {
+export function isAuctionOf(a: RivenFacts, item: AuctionItem): boolean {
   if (a.weapon !== item.weapon_url_name || a.name.toLowerCase() !== item.name.toLowerCase()) return false;
   if (a.rerolls !== (item.re_rolls ?? 0) || a.mr !== (item.mastery_level ?? 0) || a.rank !== (item.mod_rank ?? 0) || a.polarity !== (item.polarity ?? "")) return false;
   const want = item.attributes ?? [];
   if (a.attributes.length !== want.length) return false;
   return want.every((w) => a.attributes.some((x) => x.url_name === w.url_name && x.positive === w.positive && Math.abs(x.value - w.value) < 0.01));
+}
+
+/** Whether two rivens in the auction form are one, told apart as `isAuctionOf` does. */
+export function sameRiven(x: AuctionItem, y: AuctionItem): boolean {
+  return isAuctionOf({ weapon: x.weapon_url_name, name: x.name, rerolls: x.re_rolls ?? 0, mr: x.mastery_level ?? 0, rank: x.mod_rank ?? 0, polarity: x.polarity ?? "", attributes: x.attributes ?? [] }, y);
+}
+
+/**
+ * Whether one of your auctions may be this riven, so that putting it up would make a second: the
+ * same weapon and name, unless the auction is exactly one of `others` (your other rivens of that
+ * weapon and name, `othersLike`) and not this one. It errs to "up": an auction that can't be told
+ * apart (a value given back rounded another way, no stats in the answer, one of the rivens ranked
+ * or cycled since) counts for each of them, as weapon and name alone did; except an auction of
+ * this riven given back changed (a value altered on the way, or the riven ranked since it was put
+ * up) so that it is exactly another of `others`: it counts as that one's, and this riven can be
+ * put up again. A known corner, kept: telling auctions apart by their id would close it.
+ */
+export function mayBeAuctionOf(a: MyAuction, item: AuctionItem, others: AuctionItem[] = []): boolean {
+  if (a.weapon !== item.weapon_url_name || a.name.toLowerCase() !== item.name.toLowerCase()) return false;
+  return isAuctionOf(a, item) || !others.some((o) => isAuctionOf(a, o));
 }
 
 // ---------------------------------------------------------------- what rivens traded for in game

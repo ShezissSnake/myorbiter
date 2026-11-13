@@ -10,7 +10,7 @@
   import type { RivenWatch, Settings } from "../backend";
   import { marketUrl, marketWaitLeft } from "../backend";
   import { tradesFor, type RivenTrade } from "../core/rivens";
-  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, weaponChoices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
+  import { attributeSlug, auctionItemFor, auctionOf, checkedWhen, curseWord, cycleCost, gradeAuction, kuvaSpent, lastCycle, othersLike, parseRiven, priceCheck, rivenTables, rollChoice, cycleKey, searchFor, searchKey, statMarket, unpackListed, unpackPrices, weaponChoices, type MyAuction, type Riven, type RivenAuction, type RivenChange, type RollChoice } from "../core/rivens";
   import { mkt } from "../marketStore.svelte";
   import { rivens } from "../rivenStore.svelte";
   import { dealOf, estimateListed, estimateRiven, type Estimate } from "../core/rivenModel";
@@ -314,7 +314,7 @@
     f.busy = true;
     f.error = null;
     try {
-      await rivens.sell(made.item, buyout, starting);
+      await rivens.sell(made.item, buyout, starting, "", 0, othersLike(meta, r, mine));
       delete sell[r.id];
     } catch (e) {
       f.error = String(e).replace(/^Error:\s*/, "");
@@ -586,7 +586,7 @@
       {/if}
     {/if}
     {#if meta}
-      {@const listed = auctionOf(meta, r, rivens.mine)}
+      {@const listed = auctionOf(meta, r, rivens.mine, mine)}
       {@const f = sell[r.id]}
       {#if listed}
         {@const rp = reprice[listed.id]}
@@ -612,8 +612,11 @@
           <Chip bind:on={f.bids} label="Take bids from" title="Let buyers bid below the buyout, from a starting price" />
           {#if f.bids}<span class="plat"><input type="number" min="1" bind:value={f.starting} aria-label="Starting bid" /><GameIcon name="platinum" size={14} /></span>{/if}
           <button class="stamp" title="Put it up as an auction on warframe.market at this buyout" disabled={f.busy || !f.buyout}>{f.busy ? "Listing…" : "Sell it"}</button>
-          <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => delete sell[r.id]} />
+          <!-- Off while it's being sent: closing the form can't take the create back. -->
+          <IconButton icon="close" tone="quiet" label="Cancel" title={f.busy ? "It's being sent: wait for warframe.market's answer" : undefined} disabled={f.busy} onclick={() => delete sell[r.id]} />
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
+          <!-- searchWait is any queued riven request (it doesn't say which): the note says "may". -->
+          {#if f.busy && rivens.searchWait}<span class="dim small" role="status" title="warframe.market takes 10 riven requests a minute, searches and auctions alike: one is queued until {waitTime(rivens.searchWait)}, and this one may be waiting behind it">May wait for warframe.market's request limit…</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
         </form>
         </div></div>
@@ -650,7 +653,7 @@
       <span class="grow"></span>
       <!-- The same three places on every card: check prices, sell, open on warframe.market. -->
       <ProgressButton variant="icon" icon={pc || c?.error || c?.loading ? "refresh" : "search"} spin tone="quiet" state={c?.loading ? "working" : "idle"} label={pc ? "Check again" : c?.error ? "Try again" : "Check prices"} working="Checking…" title={pc ? "Check again: find similar rivens for sale now" : "Check prices: find similar rivens for sale"} disabled={!meta} onclick={() => check(r)} />
-      {#if meta && auctionOf(meta, r, rivens.mine)}<span class="slot"></span>
+      {#if meta && auctionOf(meta, r, rivens.mine, mine)}<span class="slot"></span>
       {:else}<button type="button" class="ib rsell" class:on={!!sell[r.id]} aria-label="Sell: {r.weapon} {r.name}" title={!mkt.linked ? "Sign in to warframe.market on Orders first" : "Sell: put it up as an auction on warframe.market"} disabled={!meta || !mkt.linked || !!sell[r.id]} onclick={() => openSell(r, estimates[r.id]?.mid ?? pc?.typical ?? pc?.lowest ?? null)}><Icon name="list" /><span>Sell</span></button>{/if}
       <ProgressButton variant="icon" icon="external" tone="quiet" label="Similar rivens on warframe.market" working="Opening…" busy={links.isOpening(searchUrl(r))} onclick={() => openUrl(searchUrl(r))} />
     </footer>
