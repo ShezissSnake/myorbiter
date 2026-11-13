@@ -42,7 +42,8 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
       `\\localhost\c$\Users\<you>\AppData\Roaming\io.github.deftera186.tennoscope` says "give a
       folder on this computer"; the same folder as `C:\Users\…` works. The same for Warframe's
       EE.log, and for a TennoScope program picked on a network location in *Choose…*.
-      `cargo test` on Windows also runs `local_path_tests`.
+      The Release workflow's Windows job runs `cargo test --workspace --locked`, `local_path_tests`
+      included, after building the installer.
 - [ ] **An update with TennoScope running** (`companion.rs` `stop` waits up to 3 s for TennoScope
       to exit): *Update and restart* to a newer build; the passive installer runs to the end
       without a "can't write tennoscope.exe" box, and MyOrbiter comes back on the new version with

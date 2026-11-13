@@ -14,7 +14,9 @@ name: Release
 #                      Experimental to the build and rebuilds the website; on any other branch it
 #                      stops after the builds and leaves the downloads as the run's artifacts, for
 #                      3 days. With `experimental` off it signs and publishes build-<n> from any
-#                      branch and leaves Experimental alone (a fix for Beta, then promoted).
+#                      branch and leaves Experimental alone (a fix for Beta, then promoted). The
+#                      Windows job then runs the Rust tests on Windows: if they fail, nothing is
+#                      signed or published.
 #   promote            promote-check ─ promote ─ site ─ deploy: moves build <n> to Beta or Stable,
 #                      then rebuilds the website (main only).
 #   pages              site ─ deploy: the website (scripts/site.mjs) on GitHub Pages (main only).
@@ -290,7 +292,8 @@ jobs:
         run: echo "**Not published:** built from \`$REF\`, not main. The downloads are this run's artifacts, for 3 days." >>"$GITHUB_STEP_SUMMARY"
 
   # Windows, natively on Windows (as before the move; GitLab cross-compiled only because its builds
-  # ran on Linux): TennoScope's program with its Tesseract, then MyOrbiter's installer carrying it.
+  # ran on Linux): TennoScope's program with its Tesseract, then MyOrbiter's installer carrying it,
+  # then the Rust tests the test job runs.
   windows:
     name: Windows installer
     needs: test
@@ -384,6 +387,12 @@ jobs:
           if-no-files-found: error
           retention-days: 3
           compression-level: 0
+
+      # The test job's Rust tests again, on Windows: the code built only for Windows (network paths,
+      # replacing a file in use, the process checks, the folder lookups) and its tests run nowhere
+      # else. Last, so a run where only this fails still leaves the installer to look at; a failure
+      # fails the job, and then nothing is signed or published.
+      - run: cargo test --workspace --locked
 
   # Signs the AppImage and the setup.exe for the updater. Only on main (or with `experimental` off),
   # once every build that was asked for has succeeded. The key comes from the release-signing

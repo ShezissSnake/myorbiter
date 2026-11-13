@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, sign as edSign } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -190,4 +191,57 @@ test("release notes: Merge prefixes stripped, Git's merge lines dropped, duplica
   assert.equal(lines.at(-1), "…and 5 more");
   const wide = Array.from({ length: 30 }, (_, i) => `${i} ${"y".repeat(LINE_MAX)}`);
   assert.ok(formatNotes(wide).length <= 1000);
+});
+
+/** The script run as the release scripts run it: its exit code and what it printed. */
+function cli(...argv: string[]) {
+  const r = spawnSync(process.execPath, ["scripts/updater-manifest.mjs", ...argv], { encoding: "utf8" });
+  return { status: r.status, out: r.stdout, err: r.stderr };
+}
+
+test("from the command line, verify needs --version, and check needs --version and --require", () => {
+  const k = signer();
+  const dir = release({ [APPIMAGE]: Buffer.from("\x7fELF linux"), [SETUP]: Buffer.from("MZ windows") }, k.sign, "0.1.52");
+  try {
+    const manifest = join(dir, "latest.json");
+    writeFileSync(manifest, JSON.stringify(buildManifest({ dir, version: "0.1.52", base: `${PACKAGES}/0.1.52`, pubkey: k.pub })));
+    const file = join(dir, APPIMAGE);
+    const verify = ["verify", "--pubkey", k.pub, "--file", file, "--sig", `${file}.sig`];
+
+    // With every flag, as the workflow and ci/ call it: as before.
+    let r = cli(...verify, "--version", "0.1.52");
+    assert.equal(r.status, 0, r.err);
+    assert.match(r.out, /signature good, signed for 0\.1\.52/);
+    r = cli(...verify, "--version", "0.1.53");
+    assert.equal(r.status, 1);
+    assert.match(r.err, /signed for 0\.1\.52, not 0\.1\.53/);
+    // Without it, or with nothing after it, the signed version would go unchecked.
+    for (const argv of [verify, [...verify, "--version"], [...verify, "--version", ""]]) {
+      r = cli(...argv);
+      assert.equal(r.status, 1, argv.slice(-2).join(" "));
+      assert.match(r.err, /verify needs --version/);
+    }
+
+    const version = ["--version", "0.1.52"];
+    const require = ["--require", "linux-x86_64,windows-x86_64"];
+    r = cli("check", "--manifest", manifest, ...version, ...require);
+    assert.equal(r.status, 0, r.err);
+    assert.deepEqual(r.out.trim().split(",").sort(), ["linux-x86_64", "windows-x86_64"]);
+    r = cli("check", "--manifest", manifest, "--version", "0.1.53", ...require);
+    assert.equal(r.status, 1);
+    assert.match(r.err, /0\.1\.53/);
+    for (const argv of [["check", "--manifest", manifest, ...require], ["check", "--manifest", manifest, ...require, "--version", ""]]) {
+      r = cli(...argv);
+      assert.equal(r.status, 1);
+      assert.match(r.err, /check needs --version/);
+    }
+    // No --require, or one that names no system, would require nothing.
+    for (const req of [[], ["--require"], ["--require", ""], ["--require", ","], ["--require", ",,"]]) {
+      r = cli("check", "--manifest", manifest, ...version, ...req);
+      assert.equal(r.status, 1, req.join(" "));
+      assert.match(r.err, /check needs --require/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
 });
