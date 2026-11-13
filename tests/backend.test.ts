@@ -177,6 +177,20 @@ test("only Discord webhook addresses are posted to", async () => {
   assert.ok(!isDiscordWebhook("https://discord.com/api/webhooks/1/x?wait=true"));
 });
 
+test("the Discord field removes the kept address only when emptied, and confirms only a webhook on change", async () => {
+  const { discordFieldAction } = await import("../src/lib/backend");
+  const hook = "https://discord.com/api/webhooks/1234567890/AbC_dEf-123";
+  for (const event of ["input", "change"] as const) {
+    assert.equal(discordFieldAction("", event), "forget", `empty, on ${event}`);
+    assert.equal(discordFieldAction("   ", event), "forget", `blank, on ${event}`);
+    assert.equal(discordFieldAction("https://discord.com/api/webhooks/", event), "none", `half an address, on ${event}`);
+    assert.equal(discordFieldAction("not an address", event), "none", `not an address, on ${event}`);
+    assert.equal(discordFieldAction("https://evil.example/api/webhooks/1/x", event), "none", `another site, on ${event}`);
+  }
+  assert.equal(discordFieldAction(hook, "change"), "confirm", "a webhook is confirmed on change");
+  assert.equal(discordFieldAction(hook, "input"), "none", "and not while it is being typed");
+});
+
 test("a kept worldstate part whose end has passed isn't kept", async () => {
   const { mergeLive } = await import("../src/lib/backend");
   const now = Date.parse("2026-11-02T12:00:00Z");

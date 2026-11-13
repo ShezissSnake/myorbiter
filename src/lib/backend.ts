@@ -454,6 +454,16 @@ export async function discordConfirm(url: string): Promise<boolean> {
 }
 
 /**
+ * What the Discord address field does with its value: an empty or blank field removes the
+ * confirmed address at once (on input, and again on change), a webhook address is confirmed when
+ * the field changes (pasted, or left), and anything else does neither.
+ */
+export function discordFieldAction(value: string, event: "input" | "change"): "forget" | "confirm" | "none" {
+  if (value.trim() === "") return "forget";
+  return event === "change" && isDiscordWebhook(value) ? "confirm" : "none";
+}
+
+/**
  * The Discord address field emptied: the confirmed address leaves MyOrbiter's config folder.
  * `field` is the field's value; nothing is removed unless it is empty.
  */

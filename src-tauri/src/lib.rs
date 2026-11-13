@@ -721,8 +721,13 @@ fn forget_discord_address(dir: &Path, field: &str) -> std::io::Result<bool> {
 #[tauri::command]
 fn discord_forget(app: tauri::AppHandle, field: String) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
-    if forget_discord_address(&dir, &field).map_err(|e| format!("couldn't remove the Discord address: {e}"))? {
-        log::info!(target: "myorbiter::notify", "Discord address cleared; its file removed");
+    match forget_discord_address(&dir, &field) {
+        Ok(true) => log::info!(target: "myorbiter::notify", "Discord address cleared; its file removed"),
+        Ok(false) => {}
+        Err(e) => {
+            log::warn!(target: "myorbiter::notify", "Discord address cleared, but its file couldn't be removed: {e}");
+            return Err(format!("couldn't remove the Discord address: {e}"));
+        }
     }
     Ok(())
 }
