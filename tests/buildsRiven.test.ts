@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { readCatalogFile } from "./support/catalogFiles";
 import { idealRiven, MIN_LISTED, rivenClassOf, rivenFamily, rivenFit, rivensFor, RIVEN_STATS, type RivenMarketData } from "../src/lib/core/builds/riven";
 import { modIndex, rivenFor, suggest } from "../src/lib/core/builds/suggest";
 import type { Riven, RivenAuction } from "../src/lib/core/rivens";
@@ -148,9 +149,9 @@ test("suggest() carries the riven for weapons that take one, the player's sorted
   assert.equal(rivenClassOf(item("Kuva Grattler")), "archgun");
 });
 
-const metaPath = new URL("../public/dev-rivens.json", import.meta.url);
-test("every stat the rules name is a warframe.market slug with a game tag", { skip: !existsSync(metaPath) && "public/dev-rivens.json not present: run `npm run dev-data`" }, () => {
-  const meta = JSON.parse(readFileSync(metaPath, "utf8")) as { attributes: { slug: string; gameRef: string }[] };
+const rivenRead = readCatalogFile<{ attributes: { slug: string; gameRef: string }[] }>("dev-rivens.json");
+test(`catalog (${rivenRead.source}dev-rivens.json): every stat the rules name is a warframe.market slug with a game tag`, () => {
+  const meta = rivenRead.data;
   for (const [slug, d] of Object.entries(RIVEN_STATS)) {
     const a = meta.attributes.find((x) => x.slug === slug);
     assert.ok(a, `${slug} is a market slug`);
