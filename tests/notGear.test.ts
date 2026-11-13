@@ -3,6 +3,7 @@
 // not a row on Mastery, and no "level it" on Inventory. Where the catalog knows an item it says so;
 // only an item the catalog doesn't list is taken for gear.
 import { test } from "node:test";
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { inventoryRows, masteryRows } from "../src/lib/core/views";
@@ -133,4 +134,19 @@ test("Khora's Venari and the Orion row the model zeroes (neither gives mastery) 
   // The catalog marks Sirius & Orion's second son masterable, and the model zeroes it (the pair counts once).
   const orion = { uniqueName: "/Lotus/Powersuits/SiriusOrion/OrionSuit", name: "Orion", category: "Warframes", type: "Warframe", masterable: true } as CatalogItem;
   assert.deepEqual(toLevel([inv(orion.uniqueName, "Orion", "frame", 1)], [orion]), { mastery: [], inventory: [] });
+});
+
+test("with the catalog as the data crate slims it (the demo's), a held Gravimag and a Railjack armament are not gear to level", () => {
+  // The crate keeps a Misc item only if it is masterable (or typed as a weapon, since it was fixed to),
+  // and the demo's catalog was built before: it has no Gravimag entry, and the row's path is all there is.
+  const demo = JSON.parse(readFileSync(new URL("../demo/dev-bundle.json", import.meta.url), "utf8")) as Bundle;
+  assert.ok(!demo.catalog.some((c) => c.name === "Gravimag"), "the demo's catalog doesn't list the Gravimag");
+  const held = [
+    inv("/Lotus/Types/Items/MiscItems/HeavyWeaponCatalyst", "Gravimag", "weapon", 1),
+    inv("/Lotus/Weapons/CrewShip/Laser/Blaster/BlasterTierC", "Carcinnox Mk Iii", "weapon", 1),
+  ];
+  const m = buildModel({ ...demo, inventory: [...demo.inventory, ...held] });
+  const mine = (u: string) => held.some((h) => h.item_id === u);
+  assert.deepEqual(masteryRows(m).filter((r) => mine(r.unique)).map((r) => r.name), []);
+  assert.deepEqual(inventoryRows(m).filter((r) => mine(r.unique)).map((r) => [r.name, r.kind, r.levels]), [["Gravimag", "gear", false], ["Carcinnox Mk Iii", "gear", false]]);
 });

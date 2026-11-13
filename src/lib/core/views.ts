@@ -425,9 +425,16 @@ const NOT_GEAR = /Genetic Code|Heartcell|Arcane Adapter|Training Amp|Pulsar Mk/i
 /**
  * Railjack armaments (Carcinnox, Apoc, Cryophon, Photor, Laith, Milati, Vort, the ordnance), every
  * make of each: TennoScope reads them from the ship's weapon section and files them as weapons. They
- * give no mastery, and the catalog may not list a new one yet, so the path says it.
+ * give no mastery, and the app's catalog never lists them (Railjack is not a category it keeps), so
+ * the path says it.
  */
 const ARMAMENT = /^\/Lotus\/Weapons\/CrewShip\//;
+/**
+ * A row filed as a weapon whose path is a miscellaneous item's (the Gravimag, `/Types/Items/MiscItems/`):
+ * the game's weapons live under `/Weapons/`, `/Powersuits/` and the like, so this is a part, whether or
+ * not the catalog lists it (it lists those typed as weapons since the data crate keeps them).
+ */
+const MISC_ITEM = /^\/Lotus\/Types\/Items\/MiscItems\//;
 
 /**
  * Whether ranking an inventory row filed as a frame, weapon or companion gives mastery. The catalog
@@ -436,7 +443,7 @@ const ARMAMENT = /^\/Lotus\/Weapons\/CrewShip\//;
  * catalog does not list is taken for gear to level (a new weapon the catalog hasn't caught up with).
  */
 function levels(m: Model, unique: string, name: string): boolean {
-  if (NOT_GEAR.test(name) || ARMAMENT.test(unique)) return false;
+  if (NOT_GEAR.test(name) || ARMAMENT.test(unique) || MISC_ITEM.test(unique)) return false;
   const item = m.catalogByUnique.get(unique);
   return !item || !!item.masterable;
 }

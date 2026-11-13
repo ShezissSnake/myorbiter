@@ -151,7 +151,7 @@
   .side { flex: 1; min-width: 0; display: grid; gap: .45rem; align-content: center; }
   footer { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; min-height: 1.4rem; padding-top: .45rem; border-top: 1px solid var(--rule); font-size: .78rem; }
   footer:empty { display: none; }
-  /* A tag longer than the card is wide shortens with an ellipsis (its title says it all) rather than running out of the card. */
+  /* A tag longer than the card is wide shortens with an ellipsis rather than running out of the card (no label is that long at the narrowest card today). */
   footer :global(.tag) { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .prime { color: var(--gold); }
   .sub { display: inline-flex; align-items: center; gap: .3rem; }
