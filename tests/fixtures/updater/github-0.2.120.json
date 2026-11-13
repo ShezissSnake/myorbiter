@@ -1,0 +1,16 @@
+{
+  "version": "0.2.120",
+  "notes": "Made-up notes for a test",
+  "pub_date": "2026-11-13T12:00:00Z",
+  "platforms": {
+    "linux-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQUFBQUFBQUFBVkVFSGJIeFhvdWdrZkFvcXB2YWhIVWorK20xN0djdVZBZTdzV3JyNzdrbTlkR3kxYUVYRDhYSzk0K3lmUGlGNzhxSFhyTHlsbHg4RzhvOEJ6eGUydkEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTYwNDAwCWZpbGU6bXlvcmJpdGVyXzAuMi4xMjBfYW1kNjQuQXBwSW1hZ2UJdmVyc2lvbjowLjIuMTIwCmJEdDlWYWRTV0xTVHlmQ3p2MDE4eHhoQkdlS2tTekpZa1A2N3loc1Y1Um82Q1JwME1JTGNPVzZBaWwyZkUvZ3VYSWd3K3ZtQ2Q5UlhNSnNlMXBuUkF3PT0K",
+      "url": "https://github.com/ShezissSnake/myorbiter/releases/download/build-120/myorbiter_0.2.120_amd64.AppImage"
+    },
+    "windows-x86_64": {
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRQUFBQUFBQUFBVkdINGN4SERTcitzaWgzVGExUjlVMFI3Q0JiMGN1M09QaWptMXNYNGNpN3NaZFdXdWUremFYZ05BTDVZdzdOajVicW5wUnZVUit4dVJrZDhVc0RNUkE4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzk0NTYwNDAwCWZpbGU6bXlvcmJpdGVyXzAuMi4xMjBfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMi4xMjAKV21iTDhBR1htL2FlL1FhMnd2NW5sVXBmcjU2aU1BMjY1d0d5cmxDc1RyTWd4L254aVNBOXZ0cWc4UytIS0k0OVE1YjJIcTdoZUhuUFg4UHZ2MzBEQ0E9PQo=",
+      "url": "https://github.com/ShezissSnake/myorbiter/releases/download/build-120/myorbiter_0.2.120_x64-setup.exe"
+    }
+  },
+  "commit": "0000000000000000000000000000000000000054"
+}
