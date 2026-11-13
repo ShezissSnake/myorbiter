@@ -13,13 +13,21 @@ tesseract_notices="$here/tennoscope/app/src-tauri/vendor/tesseract/licenses"
 install -m 644 "$here/tennoscope/LICENSE" "$dir/LICENSE"
 install -m 644 "$here/tennoscope/THIRD_PARTY_NOTICES.md" "$dir/THIRD_PARTY_NOTICES.md"
 [ -d "$tesseract_notices" ] || { echo "no Tesseract notices in $tesseract_notices: vendor Tesseract first" >&2; exit 1; }
+# Windows: TennoScope's Tesseract is in tesseract/ beside it, with its DLLs, and each DLL needs its
+# row in the table of projects and licences (whichever script vendored it: the .ps1 has no such
+# check). On Linux there is no tesseract/ folder here (the Tesseract is inside TennoScope's AppImage).
+if [ -d "$dir/tesseract" ]; then
+  "$here/scripts/check-windows-dlls.sh" "$dir/tesseract"
+fi
 rm -rf "$dir/THIRD-PARTY-NOTICES/tesseract"
 mkdir -p "$dir/THIRD-PARTY-NOTICES"
 cp -R "$tesseract_notices" "$dir/THIRD-PARTY-NOTICES/tesseract"
 # Where the source of those libraries is, with the written offer for the GPL and LGPL ones, goes in
 # MyOrbiter's own THIRD-PARTY-NOTICES/ too (Linux: collect-linux-sources.sh wrote it; Windows: the
-# table in tennoscope/packaging/windows-tesseract/). On Linux, repack-appimage.sh then replaces it
-# inside the AppImage with the list of every library the AppImage carries.
+# table in tennoscope/packaging/windows-tesseract/). On Linux, ci/build.sh then replaces it with the
+# list of every library TennoScope's AppImage carries, which the AppImage and the .deb both take,
+# and repack-appimage.sh replaces that inside the AppImage with the list of every library the
+# AppImage carries.
 [ -f "$tesseract_notices/SOURCES.md" ] || { echo "no SOURCES.md in $tesseract_notices: vendor Tesseract again" >&2; exit 1; }
 install -m 644 "$tesseract_notices/SOURCES.md" "$here/THIRD-PARTY-NOTICES/SOURCES.md"
 version=$(sed -n 's/^version = "\(.*\)"$/\1/p' "$here/tennoscope/Cargo.toml" | head -n 1)

@@ -37,9 +37,12 @@ done
 # Where the source of every library the AppImage carries is: linuxdeploy's (GTK, WebKitGTK and the
 # rest, in the AppDir), the TennoScope AppImage's own and its Tesseract's, each matched to the Ubuntu
 # package it came from on this build machine, with the written offer for the GPL and LGPL ones
-# (scripts/collect-linux-sources.sh). The copyright files of linuxdeploy's go beside them in linux/.
+# (scripts/collect-linux-sources.sh). The copyright files of linuxdeploy's go beside them in linux/,
+# which is emptied first: the one the bundle took from the tree (ci/build.sh's, for TennoScope's
+# AppImage alone) is written again here with the rest, and none is kept that this list doesn't name.
 notices="$appdir/usr/lib/myorbiter/THIRD-PARTY-NOTICES"
 [ -d "$notices" ] || { echo "no THIRD-PARTY-NOTICES in the AppDir at $notices" >&2; exit 1; }
+rm -rf "$notices/linux"
 inner=$(mktemp -d)
 (cd "$inner" && APPIMAGE_EXTRACT_AND_RUN=1 "$pristine" --appimage-extract >/dev/null)
 NOTICES_DIR="$notices/linux" "$here/scripts/collect-linux-sources.sh" "$notices/SOURCES.md" "$appdir/usr/lib" "$appdir/usr/bin" "$inner/squashfs-root/usr"

@@ -56,6 +56,41 @@ check_glibc_floor() {
   done
 }
 
+# The .deb carries TennoScope's AppImage too, so it must carry THIRD-PARTY-NOTICES/ with SOURCES.md
+# (every package-built library in that AppImage, where its source is, and the written offer) and
+# linux/ (each package's copyright file). Proved on the built .deb, as repack-appimage.sh proves
+# its AppImage. The folder is found by name: MyOrbiter's is the one with the tree's README.md and
+# fonts/ (TennoScope's, tennoscope/THIRD-PARTY-NOTICES/, holds only tesseract/).
+check_deb_notices() {
+  local deb=$1 unpacked notices dir pkg rows=0
+  local found=() missing=()
+  unpacked=$(mktemp -d)
+  dpkg-deb -x "$deb" "$unpacked"
+  while IFS= read -r -d '' dir; do
+    if [ -f "$dir/README.md" ] && [ -d "$dir/fonts" ]; then found+=("$dir"); fi
+  done < <(find "$unpacked" -type d -name THIRD-PARTY-NOTICES -print0)
+  [ ${#found[@]} -eq 1 ] || { echo "$deb: expected one THIRD-PARTY-NOTICES/ with README.md and fonts/, found ${#found[@]}" >&2; exit 1; }
+  notices=${found[0]}
+  grep -q 'complete corresponding source code' "$notices/SOURCES.md" 2>/dev/null \
+    || { echo "$deb: ${notices#"$unpacked"}/SOURCES.md has no written offer" >&2; exit 1; }
+  # The table's rows (scripts/collect-linux-sources.sh): the package is the first cell, and its
+  # copyright file is linux/<package without :arch>.copyright.
+  while IFS= read -r pkg; do
+    rows=$((rows + 1))
+    [ -f "$notices/linux/${pkg%%:*}.copyright" ] || missing+=("$pkg")
+  done < <(awk -F'|' '/^\| Package \|/ { table = 1; next }
+    table && /^\|---/ { next }
+    table && /^\| / { gsub(/^ +| +$/, "", $2); print $2; next }
+    table { exit }' "$notices/SOURCES.md")
+  [ "$rows" -gt 0 ] || { echo "$deb: ${notices#"$unpacked"}/SOURCES.md lists no package" >&2; exit 1; }
+  if [ ${#missing[@]} -gt 0 ]; then
+    echo "$deb: no copyright file in ${notices#"$unpacked"}/linux/ for: ${missing[*]}" >&2
+    exit 1
+  fi
+  rm -rf "$unpacked"
+  echo "notices: $(basename "$deb") lists $rows packages, each with its copyright file"
+}
+
 rm -rf "$out"
 mkdir -p "$out"
 
@@ -81,6 +116,16 @@ built=(tennoscope/target/release/bundle/appimage/*.AppImage)
 install -m 755 "${built[0]}" vendor/tennoscope/TennoScope.AppImage
 # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
 scripts/tennoscope-notice.sh vendor/tennoscope
+# Where the source of every library TennoScope's AppImage carries is (the system libraries
+# linuxdeploy copied into it, its Tesseract's), with the written offer, and their copyright files
+# in linux/: in the tree's THIRD-PARTY-NOTICES/, so the AppImage and the .deb both carry them.
+# linux/ is emptied first, so nothing from an earlier build goes with them. repack-appimage.sh
+# then writes the AppImage's own, longer list. The AppDir is what TennoScope's AppImage was packed
+# from (its build repacks from it), the folder the glibc check reads below.
+tennoscope_appdir=tennoscope/target/release/bundle/appimage/TennoScope.AppDir
+[ -d "$tennoscope_appdir/usr" ] || { echo "no $tennoscope_appdir/usr: TennoScope's AppImage build left no AppDir" >&2; exit 1; }
+rm -rf THIRD-PARTY-NOTICES/linux
+NOTICES_DIR=THIRD-PARTY-NOTICES/linux scripts/collect-linux-sources.sh THIRD-PARTY-NOTICES/SOURCES.md "$tennoscope_appdir/usr"
 
 step "MyOrbiter's AppImage and .deb ($version)"
 rm -f "$target"/release/bundle/appimage/*.AppImage "$target"/release/bundle/deb/*.deb
@@ -88,6 +133,7 @@ npx tauri build --bundles appimage,deb --config src-tauri/tauri.bundle.json --co
 # TennoScope's AppImage back in as it was built (linuxdeploy rewrites it), with the bundled
 # libraries' sources listed (scripts/repack-appimage.sh).
 scripts/repack-appimage.sh
+check_deb_notices "$target/release/bundle/deb/myorbiter_${version}_amd64.deb"
 not_e2e "$target/release/myorbiter"
 check_glibc_floor "$target/release/bundle/appimage/myorbiter.AppDir" \
   tennoscope/target/release/bundle/appimage/TennoScope.AppDir
@@ -107,6 +153,9 @@ if $windows; then
   mkdir -p vendor/tennoscope/tesseract
   cp tennoscope/target/$win/release/tennoscope.exe vendor/tennoscope/
   cp -r tennoscope/app/src-tauri/vendor/tesseract/. vendor/tennoscope/tesseract/
+  # The installer carries the Windows list (tennoscope-notice.sh writes SOURCES.md over the Linux
+  # one) and none of the Linux half's copyright files.
+  rm -rf THIRD-PARTY-NOTICES/linux
   scripts/tennoscope-notice.sh vendor/tennoscope
 
   step "MyOrbiter's installer (Windows, $version)"
