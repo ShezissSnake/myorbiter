@@ -109,7 +109,7 @@ fn check_urls(channel: Channel) -> Vec<String> {
 /// 0.2.<n>, but a copy installed now must still take an update once the version's first numbers
 /// change, and this rule can't be corrected in copies already installed). That loses nothing: the
 /// file's name carries the version and its signature names it, so another release folder can only
-/// name a file that isn't there.
+/// name a file the release workflow did not put there, which the signature refuses.
 pub fn download_allowed(url: &str, version: &str, target: &str) -> Result<(), &'static str> {
     let (file, other) = match target {
         "linux-x86_64" => ("amd64.AppImage", "x64-setup.exe"),
@@ -960,6 +960,33 @@ mod tests {
         raw["platforms"]["linux-x86_64"] = windows;
         let release: tauri_plugin_updater::RemoteRelease = serde_json::from_value(raw).unwrap();
         assert_eq!(download_allowed(release.download_url(LINUX).unwrap().as_str(), "0.2.106", LINUX), Err("the other system's file"));
+    }
+
+    /// What the release script writes for GitHub is what installed copies accept: the fixture is
+    /// scripts/github-manifest.mjs's own output (held by tests/githubManifestFixture.test.ts), and
+    /// each system's address in it, as the plugin reads it, passes for that system with the
+    /// manifest's version and is refused as the other system's file for the other.
+    #[test]
+    fn the_github_manifest_the_release_script_writes_is_accepted() {
+        let raw = include_str!("../../tests/fixtures/updater/github-0.2.120.json");
+        let release: tauri_plugin_updater::RemoteRelease = serde_json::from_str(raw).unwrap();
+        let version = release.version.to_string();
+        assert_eq!(version, "0.2.120");
+        for (target, other) in [(LINUX, WINDOWS), (WINDOWS, LINUX)] {
+            let url = release.download_url(target).unwrap();
+            assert_eq!(url.host_str(), Some("github.com"), "{url}");
+            assert_eq!(download_allowed(url.as_str(), &version, target), Ok(()), "{url} for {target}");
+            assert_eq!(download_allowed(url.as_str(), &version, other), Err("the other system's file"), "{url} for {other}");
+        }
+    }
+
+    /// The page cannot call the updater plugin's own commands, which would download with no
+    /// address rule: the capability file grants no `updater:` permission.
+    #[test]
+    fn the_page_has_no_updater_permission() {
+        let cap: serde_json::Value = serde_json::from_str(include_str!("../capabilities/default.json")).unwrap();
+        let updater = cap["permissions"].as_array().unwrap().iter().filter(|p| p.as_str().or(p["identifier"].as_str()).is_some_and(|id| id.starts_with("updater:"))).count();
+        assert_eq!(updater, 0, "no updater permission in capabilities/default.json");
     }
 
     /// What is checked is the address the plugin will request, as it parsed it from the manifest:
