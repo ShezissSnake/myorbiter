@@ -41,7 +41,7 @@ carries the matching public key (`plugins.updater.pubkey` in
 `src-tauri/tauri.conf.json`) and installs an update only when its signature checks out against it.
 Before that, it downloads an update only from the project's own address for the version on offer and
 the player's system (a `build-<n>` release on github.com, or that version's folder in the GitLab
-project's package registry: `download_allowed` in `src-tauri/src/updates.rs`), whatever address the
-channel's manifest names.
-A leaked private key, or a change that loosens that check, is a vulnerability: report it as above.
+project's package registry: `download_allowed` in `src-tauri/src/updates.rs`); an update whose
+manifest names any other address is refused.
+A leaked private key, or a change that loosens either check, is a vulnerability: report it as above.
 The downloads on the Releases page also come with `SHA256SUMS` (README, Checking a download).
