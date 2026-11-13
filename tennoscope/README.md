@@ -90,7 +90,7 @@ no longer permits before the switch completes.
 
 > [!IMPORTANT]
 > **Choose the access you want before TennoScope observes Warframe.** First run
-> preselects Full and starts no running-game access until you confirm one. Full reads an
+> preselects Overlay and starts no running-game access until you confirm one. Full reads an
 > account ID and a nonce from the Warframe process and sends them to
 > `mobile.warframe.com`'s inventory endpoint and nowhere else. Overlay does not read process
 > memory. TennoScope never writes to the game or automates an action. It is an unofficial

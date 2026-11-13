@@ -17,7 +17,7 @@ export const ALWAYS_OFF = [
 
 /** Shown beside Full wherever it can be turned on: what it does and what it risks, plainly. */
 export const FULL_ACCESS_WARNING =
-  "Full reads Warframe's memory to fetch your inventory. Warframe's EULA forbids unauthorised third-party programs, so using it could put your account at risk. TennoScope only reads, and only sends your login session to Digital Extremes."
+  "Full reads Warframe's memory to fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk: Full could put your account at risk. Nothing is written to the game's memory; the login session found there goes to Digital Extremes, for your inventory. Everything TennoScope reads and sends is listed on MyOrbiter's page What MyOrbiter reads and sends."
 
 export const ACCESS_MODES: readonly AccessModeDefinition[] = [
   {

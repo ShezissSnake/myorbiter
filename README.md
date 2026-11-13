@@ -2,10 +2,10 @@
 
 # MyOrbiter, the Warframe companion
 
-MyOrbiter is a desktop companion for Warframe, for Linux, the Steam Deck and Windows. It reads what
-TennoScope stores on your PC (the game's log, the fissure reward screen and, if you allow it, your
-inventory) and answers what the game doesn't: which reward to take, what to sell and for how much,
-what's left to master, and which relics finish your sets. It can also keep your warframe.market
+MyOrbiter is a desktop companion for Warframe, for Linux, the Steam Deck and Windows. It reads the
+game's log itself, and what TennoScope stores on your PC (the fissure reward screen and, if you
+allow it, your inventory), and answers what the game doesn't: which reward to take, what to sell
+and for how much, what's left to master, and which relics finish your sets. It can also keep your warframe.market
 listings at the market price (the second-cheapest seller online or in game).
 
 **Unofficial.** MyOrbiter is a fan-made tool, not affiliated with or endorsed by Digital Extremes.
@@ -21,9 +21,9 @@ With Full mode on (it's off unless you turn it on), TennoScope reads the game's 
 inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and
 [leaves using them at your own risk](https://forums.warframe.com/topic/1383123/): Full mode could
 put your account at risk, so you choose whether to turn it on. It doesn't write to the game's
-memory, and only sends your login session to Digital Extremes and the names of reward items read
-from the screen to warframe.market, for their prices. [What MyOrbiter reads and sends](docs/privacy.md)
-lists everything it reads, every host it talks to, and every file it keeps; there's no telemetry.
+memory, and the login session it finds there goes to Digital Extremes, for your inventory.
+[What MyOrbiter reads and sends](docs/privacy.md) lists everything MyOrbiter and TennoScope read and
+send, every host they talk to, and every file they keep; there's no telemetry.
 
 **It acts on your warframe.market account.** Once you sign in, what you press and the automatic
 features you turn on (repricing, marking sales sold, +rep, hiding your last copies, holding your

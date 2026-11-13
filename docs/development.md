@@ -12,7 +12,10 @@ npm run tauri dev        # a development window
 npm run tauri build      # AppImage, .deb and .rpm in target/release/bundle
 ```
 
-A build made this way is version 0.1.0, never updates itself, and carries no TennoScope inside it.
+A build made this way is version 0.1.0 and carries no TennoScope inside it. Its AppImage is offered
+the update channel's build like any older build, and installing it replaces this one; the .deb and
+.rpm, the program run straight from `target/release/` and a development window don't check
+(`install_kind` in `src-tauri/src/updates.rs`).
 A development window (`npm run tauri dev`) starts the TennoScope built in
 `tennoscope/target/release/` by itself; for any other build without one, build TennoScope as
 `tennoscope/ORBITER.md` says and point Settings → TennoScope at the program.
