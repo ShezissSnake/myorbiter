@@ -319,9 +319,19 @@ struct Head<'a> {
     category: Option<Cow<'a, str>>,
     #[serde(default)]
     masterable: Option<bool>,
+    #[serde(borrow, default, rename = "type")]
+    item_type: Option<Cow<'a, str>>,
 }
 
 impl Head<'_> {
+    /// A type TennoScope files an inventory row under as a weapon (`classify_item`): a Misc item of
+    /// one of these arrives in the inventory as a weapon whether or not it gives mastery (the
+    /// Gravimag is typed "Rifle"), so MyOrbiter has to know it to tell the two apart.
+    fn weapon_typed(&self) -> bool {
+        const TYPES: &[&str] = &["rifle", "shotgun", "bow", "pistol", "melee", "archgun", "archmelee", "arch-gun", "arch-melee", "kitgun component", "zaw component"];
+        self.item_type.as_deref().is_some_and(|t| TYPES.contains(&t.to_ascii_lowercase().as_str()))
+    }
+
     /// Masterable, by the catalog's flag or because the game gives mastery by it anyway.
     fn masterable(&self) -> bool {
         self.masterable.unwrap_or(false) || self.unique_name.as_deref().is_some_and(masterable_part)
@@ -405,11 +415,12 @@ const READ_FIELDS: &[&str] = &[
     "compatName", "upgradeEntries", "isUtility",
 ];
 
-/// The item categories MyOrbiter looks at: of Misc, only what counts for mastery (kitgun chambers,
-/// amp prisms, K-Drive boards).
+/// The item categories MyOrbiter looks at: of Misc, what counts for mastery (kitgun chambers, amp
+/// prisms, K-Drive boards) and what the inventory files as a weapon without giving any (the
+/// Gravimag, kitgun grips and scaffolds), so a held one is not taken for a weapon to level.
 fn kept_item(head: &Head) -> bool {
     let category = head.category.as_deref().unwrap_or("");
-    KEPT_CATEGORIES.contains(&category) && (category != "Misc" || head.masterable())
+    KEPT_CATEGORIES.contains(&category) && (category != "Misc" || head.masterable() || head.weapon_typed())
 }
 
 /// Keeps the item categories MyOrbiter looks at, and only the fields it reads. The full file is
@@ -576,6 +587,26 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("catalog")).unwrap();
         dir
+    }
+
+    #[test]
+    fn misc_items_filed_as_weapons_are_kept_though_they_give_no_mastery() {
+        let dir = temp_dir("misc");
+        let path = dir.join("catalog/catalog-generation.json");
+        fs::write(
+            &path,
+            r#"{"catalog": [
+              {"uniqueName": "/Lotus/Types/Items/MiscItems/HeavyWeaponCatalyst", "name": "Gravimag", "category": "Misc", "type": "Rifle", "masterable": false},
+              {"uniqueName": "/Lotus/Weapons/Ostron/Melee/ModularMelee01/Handles/HandleA", "name": "Kitgun Grip", "category": "Misc", "type": "Kitgun Component", "masterable": false},
+              {"uniqueName": "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart", "name": "Catchmoon", "category": "Misc", "type": "Kitgun Component", "masterable": true},
+              {"uniqueName": "/Lotus/Types/Items/MiscItems/Ferrite", "name": "Ferrite", "category": "Misc", "type": "Resource", "masterable": false},
+              {"uniqueName": "/Lotus/Upgrades/Skins/Foo", "name": "A skin", "category": "Skins", "type": "Skin", "masterable": false}
+            ]}"#,
+        )
+        .unwrap();
+        let names: Vec<String> = read_catalog(&path).unwrap().iter().map(|v| v["name"].as_str().unwrap().to_string()).collect();
+        assert_eq!(names, ["Gravimag", "Kitgun Grip", "Catchmoon"]);
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

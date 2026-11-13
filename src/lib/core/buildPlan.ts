@@ -34,6 +34,31 @@ export const TIER_TIP: Record<BuildTier, string> = {
   parts: "A part is still to get",
 };
 
+/** The tag classes (app.css, `.tag.ok` and the rest) a state is drawn in; none is the plain tag. */
+export type TagTone = "ok" | "warn" | "bad" | "";
+
+/** Where the tag is drawn: an item card, a Foundry row (which names what is short) or the item's sheet. */
+export type TagForm = "card" | "row" | "sheet";
+
+/**
+ * The tag for a build state: its words and its tone. Every state has words (a tag with none is a
+ * bare coloured bar). `short` is what the plan says is still short; the Foundry's row names the
+ * first of it.
+ */
+export function buildTag(tier: BuildTier, short: readonly string[] = [], form: TagForm = "card"): { label: string; tone: TagTone } {
+  const more = short.length > 1 ? ` +${short.length - 1}` : "";
+  switch (tier) {
+    case "now":
+      return { label: "Can build now", tone: "ok" };
+    case "farm":
+      return { label: `Parts ready · ${form === "row" && short.length ? `farm ${short[0]}${more}` : form === "sheet" ? "farm resources" : "farm"}`, tone: "warn" };
+    case "hard":
+      return { label: `Parts ready · ${form === "row" && short.length ? `needs ${short[0]}${more}` : form === "sheet" ? "needs rare resources" : "rare resources"}`, tone: "bad" };
+    default:
+      return { label: "Parts to get", tone: "" };
+  }
+}
+
 export interface ResourceNeed {
   path: string;
   name: string;
