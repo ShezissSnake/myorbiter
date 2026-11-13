@@ -212,7 +212,8 @@ class Rivens {
     try {
       await this.put(item, buyout, starting, note, minRep, others);
     } finally {
-      this.sending.splice(this.sending.indexOf(item), 1);
+      const at = this.sending.indexOf(item);
+      if (at >= 0) this.sending.splice(at, 1);
     }
   }
   private async put(item: AuctionItem, buyout: number, starting: number, note: string, minRep: number, others: AuctionItem[]) {

@@ -164,6 +164,26 @@ test("a second Sell for the same riven while the first create has no answer yet 
   await second;
 });
 
+test("a second Sell is refused during the look after a failed create too, until that look has ended", async () => {
+  let creates = 0;
+  const looks: ((v: unknown[]) => void)[] = [];
+  let reads = 0;
+  market.myAuctions = (() => (reads++ === 0 ? Promise.resolve([]) : new Promise((ok) => looks.push(ok)))) as never;
+  market.createAuction = (async () => {
+    creates++;
+    throw new Error(TIMED_OUT);
+  }) as never;
+  const first = assert.rejects(rivens.sell(item, 100, 100), /timed out/);
+  await settle();
+  assert.equal(reads, 2, "the look after the failed create is out");
+  const second = assert.rejects(rivens.sell(item, 100, 100), /still being put up/);
+  await settle();
+  assert.equal(creates, 1, "one create, not two");
+  looks.splice(0).forEach((f) => f([]));
+  await first;
+  await second;
+});
+
 test("while one riven is being put up, another of the same weapon and name can be", async () => {
   market.myAuctions = async () => [];
   const create = slowCreate();
