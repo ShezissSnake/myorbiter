@@ -4,6 +4,7 @@
 import { collectionItem, type CollectionItem } from "./collection";
 import { researchedStep, vendorBlueprint } from "./acquire";
 import { REFINEMENTS, splitRelicName, type Model, type Refinement } from "./model";
+import { masteryRow } from "./views";
 import type { Fissure } from "./types";
 
 export interface RelicChance {
@@ -56,6 +57,11 @@ export interface WishItem {
   odds: number | null;
   /** Buying the missing parts at the daily median. */
   buyCost: number | null;
+  /**
+   * Nothing missing and nothing to build either: the catalog lists no parts for it (a Kuva or Tenet
+   * weapon), so there is nothing to collect or build here. How to get it, as Mastery says it.
+   */
+  how: string | null;
 }
 
 const ownedCache = new WeakMap<Model, Map<string, Partial<Record<Refinement, number>>>>();
@@ -237,7 +243,14 @@ export function wishItem(m: Model, unique: string): WishItem | null {
   // Only meaningful when every missing part comes from relics.
   const odds = missing.length && relicParts.length === missing.length ? finishOdds(m, missing.map((p) => ({ name: p.name, need: p.required - p.have }))) : null;
   const prices = missing.map((p) => (p.price == null ? null : p.price * (p.required - p.have)));
-  return { c, missing, odds, buyCost: missing.length && prices.every((x) => x != null) ? Math.round(prices.reduce((a: number, b) => a + (b ?? 0), 0)) : null };
+  const partless = !missing.length && !c.buildable && !c.owned && !c.mastered && !c.building && !c.step && !c.partBuilt;
+  return {
+    c,
+    missing,
+    odds,
+    buyCost: missing.length && prices.every((x) => x != null) ? Math.round(prices.reduce((a: number, b) => a + (b ?? 0), 0)) : null,
+    how: partless ? masteryRow(m, item).acq.how : null,
+  };
 }
 
 /** Open fissures by era (normal and Steel Path; Omnia takes any relic but a Requiem one). */

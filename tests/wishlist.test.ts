@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { ODDS_COPIES, crackableFirst, crackableNow, dropSpots, farmFor, openEras, partOdds, relicsFor, wishItem, wishlistEras } from "../src/lib/core/wishlist";
-import type { Bundle, Fissure, InventoryRow } from "../src/lib/core/types";
+import { masteryRows } from "../src/lib/core/views";
+import { collection } from "../src/lib/core/collection";
+import { readyTag, type RecipeData } from "../src/lib/core/buildPlan";
+import type { Bundle, CatalogItem, Fissure, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number): InventoryRow => ({ item_id, name, category, quantity, mastered: false, image_name: null, rank: null, max_rank: null });
 const RHINO = "/Lotus/Powersuits/Rhino/RhinoPrime";
@@ -72,6 +75,76 @@ test("the wishlist puts what you can crack for right now first (Omnia counts for
   assert.deepEqual(crackableNow(rhino, openEras([f("Omnia")])), ["Axi R1"]);
   assert.deepEqual(crackableFirst([none, rhino], openEras([f("Axi")])).map((w) => w.c.unique), [RHINO, "/Other"]);
   assert.deepEqual(crackableFirst([none, rhino], openEras([])).map((w) => w.c.unique), ["/Other", RHINO], "otherwise in the order you starred them");
+});
+
+// What a wished item says about being ready to build is what Foundry and Mastery say for it: one
+// function (readyTag), from the same read of the item.
+const TESTBLADE = "/Lotus/Weapons/Tenno/Melee/Testblade";
+const testblade = {
+  uniqueName: TESTBLADE, name: "Testblade", category: "Melee", type: "Melee", masterable: true,
+  components: [
+    { uniqueName: "/Lotus/Types/Recipes/Weapons/TestbladeBlueprint", name: "Blueprint", itemCount: 1 },
+    { uniqueName: "/Lotus/Types/Gameplay/NarmerSorties/NarmerIsoplast", name: "Narmer Isoplast", itemCount: 2 },
+  ],
+} as CatalogItem;
+const kuva = { uniqueName: "/Lotus/Weapons/Grineer/KuvaLich/LongGuns/KuvaBramma", name: "Kuva Bramma", category: "Primary", type: "Bow", masterable: true } as CatalogItem;
+const holdBlueprint = [inv("/Lotus/Types/Recipes/Weapons/TestbladeBlueprint", "Testblade Blueprint", "blueprint", 1)];
+const LIVE = { fissures: null, resurgence: null, resurgenceExpiry: null };
+const withRecipes = (inventory: InventoryRow[], catalog: CatalogItem[], recipes: RecipeData | null) =>
+  buildModel({ observed_at: 1, inventory, catalog, relics: [], prices: { prices: {}, max_rank_prices: {} } }, LIVE, null, null, null, recipes);
+const NO_RECIPES: RecipeData = { checkedAt: 1, recipes: {}, names: {} };
+
+test("a wished weapon the catalog gives no parts for is not 'Can build now'; it says how to get it", () => {
+  const w = wishItem(withRecipes([], [kuva], null), kuva.uniqueName)!;
+  assert.equal(w.c.buildable, false, "Foundry: nothing to build");
+  assert.match(w.how ?? "", /Spawn a Kuva Lich/, "the card says how to get it, as Mastery does");
+  assert.equal(w.how, masteryRows(withRecipes([], [kuva], null)).find((r) => r.name === "Kuva Bramma")!.acq.how);
+  // A held one, or one with parts to get, has no such line.
+  assert.equal(wishItem(withRecipes([], [testblade], null), TESTBLADE)!.how, null);
+});
+
+test("every part in hand but a resource short: Wishlist, Foundry and Mastery say the same", () => {
+  const m = withRecipes(holdBlueprint, [testblade], NO_RECIPES);
+  const w = wishItem(m, TESTBLADE)!;
+  assert.deepEqual({ buildable: w.c.buildable, short: w.c.short, tier: w.c.tier }, { buildable: true, short: ["Narmer Isoplast"], tier: "hard" });
+  const tag = readyTag(w.c);
+  assert.equal(tag.label, "Parts ready · rare resources");
+  assert.match(tag.title, /building needs Narmer Isoplast/);
+  const foundry = collection(m).find((c) => c.name === "Testblade")!;
+  assert.deepEqual(readyTag(foundry), tag);
+  const row = masteryRows(m).find((r) => r.name === "Testblade")!;
+  assert.equal(row.status, "build");
+  const onMastery = readyTag({ tier: row.buildTier === "parts" ? null : row.buildTier, short: row.buildNames }, "card", row.buildShort);
+  assert.deepEqual([onMastery.tier, onMastery.label, onMastery.tone], [tag.tier, tag.label, tag.tone]);
+});
+
+test("Mastery doesn't say 'Can build now' or claim resources it has not checked while the recipes are unread", () => {
+  const complete = { ...testblade, components: testblade.components!.slice(0, 1) } as CatalogItem;
+  // Every part in hand, no resource listed for the item itself: with the recipes read, build now.
+  const read = masteryRows(withRecipes(holdBlueprint, [complete], NO_RECIPES)).find((r) => r.name === "Testblade")!;
+  assert.equal(readyTag({ tier: read.buildTier === "parts" ? null : read.buildTier, short: read.buildNames }, "card", read.buildShort).label, "Can build now");
+  // With none read (a first start offline): the parts are in hand, and that is all it says.
+  const unread = masteryRows(withRecipes(holdBlueprint, [complete], null)).find((r) => r.name === "Testblade")!;
+  assert.equal(unread.status, "build");
+  const t = readyTag({ tier: unread.buildTier === "parts" ? null : unread.buildTier, short: unread.buildNames }, "card", unread.buildShort);
+  assert.deepEqual([t.tier, t.label], ["unchecked", "Parts ready"]);
+  assert.doesNotMatch(t.title, /and resource in hand/);
+  assert.match(t.title, /aren't checked/);
+  // The resources the catalog itself lists for it are known without the recipes.
+  const known = masteryRows(withRecipes(holdBlueprint, [testblade], null)).find((r) => r.name === "Testblade")!;
+  assert.deepEqual(known.buildNames, ["Narmer Isoplast"]);
+  assert.equal(readyTag({ tier: null, short: known.buildNames }).tier, "farm");
+});
+
+test("the pages draw the build state from readyTag, not a rule of their own", async () => {
+  const { readFileSync } = await import("node:fs");
+  for (const f of ["tabs/Wishlist", "tabs/Mastery", "tabs/Foundry"].map((x) => `../src/lib/${x}.svelte`).concat(["../src/lib/HoverCard.svelte", "../src/lib/ItemDetails.svelte"])) {
+    const src = readFileSync(new URL(f, import.meta.url), "utf8");
+    assert.match(src, /readyTag\(/, `${f} uses readyTag`);
+    assert.doesNotMatch(src, />Can build now</, `${f} writes its own 'Can build now' tag`);
+    assert.doesNotMatch(src, /\bbuildTag\(/, `${f} builds the tag by hand`);
+  }
+  assert.doesNotMatch(readFileSync(new URL("../src/lib/tabs/Wishlist.svelte", import.meta.url), "utf8"), /!w\.missing\.length \? "Can build|else if !w\.missing\.length\}<span class="tag/);
 });
 
 test("a huge relic count is counted up to a couple of hundred copies, not one array entry each", () => {

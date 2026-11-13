@@ -149,6 +149,76 @@ test("a captured Infested companion is one revive away; a listed Plexus is yours
   assert.equal(none.status, "missing");
 });
 
+// A dual-pistol prime is built from its Blueprint, its Link and two of the single pistol. Holding
+// the first two but not the pistols once read "0 missing parts from relics" at "Easy".
+const dual = (): { catalog: CatalogItem[]; blueprint: InventoryRow; link: InventoryRow } => ({
+  catalog: [
+    { uniqueName: "/W/BroncoPrime", name: "Bronco Prime", category: "Secondary", masterable: true, isPrime: true, components: [{ uniqueName: "/W/BroncoPrimeBarrel", name: "Barrel", ducats: 25, itemCount: 1 }] },
+    { uniqueName: "/W/AkbroncoPrime", name: "Akbronco Prime", category: "Secondary", masterable: true, isPrime: true, components: [
+      { uniqueName: "/W/AkbroncoPrimeBlueprint", name: "Blueprint", ducats: 15, itemCount: 1 },
+      { uniqueName: "/W/AkbroncoPrimeLink", name: "Link", ducats: 15, itemCount: 1 },
+      { uniqueName: "/W/BroncoPrime", name: "Bronco Prime", itemCount: 1 },
+      { uniqueName: "/W/BroncoPrime", name: "Bronco Prime", itemCount: 1 },
+    ] },
+  ] as CatalogItem[],
+  blueprint: inv("/W/AkbroncoPrimeBlueprint", "Akbronco Prime Blueprint", "prime_part", 1),
+  link: inv("/W/AkbroncoPrimeLink", "Akbronco Prime Link", "prime_part", 1),
+});
+const akbronco = (inventory: InventoryRow[], catalog: CatalogItem[]) =>
+  masteryRows(buildModel({ observed_at: 1, inventory, catalog, relics: [], prices: {} } as unknown as Bundle)).find((r) => r.name === "Akbronco Prime")!;
+
+test("a dual-pistol prime with every part in hand but not the two pistols names the pistols, never '0 missing parts'", () => {
+  const d = dual();
+  const none = akbronco([d.blueprint, d.link], d.catalog);
+  assert.equal(none.status, "parts");
+  assert.doesNotMatch(none.acq.how, /^0 missing/);
+  assert.match(none.acq.how, /2× Bronco Prime \(you have none\)/);
+  assert.ok(none.acq.difficulty > 2, `not "Easy": ${none.acq.difficulty}`);
+  // One pistol held: it says how many.
+  const one = akbronco([d.blueprint, d.link, inv("/W/BroncoPrime", "Bronco Prime", "weapon", 1)], d.catalog);
+  assert.match(one.acq.how, /2× Bronco Prime \(you have 1\)/);
+  // Both held: every part and both pistols, so build it.
+  const both = akbronco([d.blueprint, d.link, inv("/W/BroncoPrime", "Bronco Prime", "weapon", 2)], d.catalog);
+  assert.equal(both.status, "build");
+  assert.match(both.acq.how, /build it in the Foundry/);
+});
+
+test("a dual-pistol prime short a relic part and the pistols says both", () => {
+  const d = dual();
+  const r = akbronco([d.blueprint], d.catalog);
+  assert.match(r.acq.how, /^1 missing part from relics/);
+  assert.match(r.acq.how, /also built from 2× Bronco Prime \(you have none\)/);
+});
+
+test("every prime in the demo catalog built from other weapons says what is missing, with every relic part held", async () => {
+  const { readFileSync } = await import("node:fs");
+  const demo = JSON.parse(readFileSync(new URL("../demo/dev-bundle.json", import.meta.url), "utf8")) as Bundle;
+  const byUnique = new Map(demo.catalog.map((i) => [i.uniqueName, i]));
+  const duals = demo.catalog.filter((i) => i.isPrime && (i.components ?? []).some((c) => byUnique.get(c.uniqueName)?.masterable));
+  assert.deepEqual(duals.map((i) => i.name).sort(), ["Akbronco Prime", "Aklex Prime", "Akmagnus Prime", "Akvasto Prime"]);
+  for (const item of duals) {
+    const parts = (item.components ?? []).filter((c) => !byUnique.get(c.uniqueName)?.masterable).map((c) => inv(c.uniqueName, `${item.name} ${c.name}`, "prime_part", c.itemCount ?? 1));
+    const weapon = (item.components ?? []).find((c) => byUnique.get(c.uniqueName)?.masterable)!;
+    const r = masteryRows(buildModel({ ...demo, inventory: parts })).find((x) => x.name === item.name)!;
+    assert.doesNotMatch(r.acq.how, /^0 missing/, `${item.name}: ${r.acq.how}`);
+    assert.ok(r.acq.how.includes(weapon.name), `${item.name} names ${weapon.name}: ${r.acq.how}`);
+    assert.equal(r.acq.difficulty, 3, item.name);
+  }
+});
+
+test("a Necramech is a Necramech on Mastery as on Foundry, with its points and rank 40 as before", () => {
+  const voidrig = { uniqueName: "/Lotus/Powersuits/EntratiMech/NechroTech", name: "Voidrig", category: "Warframes", type: "Necramech", productCategory: "MechSuits", masterable: true } as CatalogItem;
+  const warframe = { uniqueName: "/Lotus/Powersuits/Excalibur/Excalibur", name: "Excalibur", category: "Warframes", type: "Warframe", productCategory: "Suits", masterable: true } as CatalogItem;
+  const m = buildModel({ observed_at: 1, inventory: [], catalog: [voidrig, warframe], relics: [], prices: {} } as unknown as Bundle);
+  const row = masteryRows(m).find((r) => r.name === "Voidrig")!;
+  assert.equal(row.category, "Necramech");
+  assert.equal(row.category, collection(m).find((c) => c.name === "Voidrig")!.type);
+  assert.equal(masteryRows(m).find((r) => r.name === "Excalibur")!.category, "Warframe");
+  // Points and rank 40 (the Mastery card's 8,000) are the same as when it read "Warframe".
+  assert.equal(row.points, 8000);
+  assert.equal(masteryPoints(voidrig), 8000);
+});
+
 test("Kahl's Garrison titles map to their ranks: 1 Shelter … 5 Home (the wiki's Kahl's Garrison page)", async () => {
   const { syndicateOf } = await import("../src/lib/core/acquire");
   assert.deepEqual(["Shelter", "Encampment", "Fort", "Settlement", "Home"].map((t) => syndicateOf(`Kahl's Garrison, ${t}`)?.rank), [1, 2, 3, 4, 5]);
