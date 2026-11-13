@@ -17,10 +17,15 @@ beforeEach(() => stored.clear());
 const json = <T,>(x: T): T => JSON.parse(JSON.stringify(x));
 const HOUR = 3_600_000;
 
-/** Every field set to a valid value that isn't its default. Times are relative to now where the loader keeps only recent or future ones. */
+/**
+ * Every field set to a valid value that isn't its default, the optional ones the loader reads
+ * included. Times are relative to now where the loader keeps only recent or future ones. An
+ * optional field that is in neither the defaults nor what the loader makes of no file is noticed
+ * by nothing here: add it by hand.
+ */
 function full(now = Date.now()): Settings {
   return {
-    advice: { platPerDucat: 0.25, minPlat: 7, slowBelow: 2, squad: 4, maxMissing: 3, vosforLens: "market" },
+    advice: { platPerDucat: 0.25, minPlat: 7, slowBelow: 2, squad: 4, maxMissing: 3, vosforLens: "market", baroRate: { rate: 0.26, item: "Example Primed Mod", price: 90, ducats: 350, visit: 1_700_000_000_000 } },
     market: {
       platform: "xbox",
       auto: true,
@@ -103,7 +108,7 @@ function full(now = Date.now()): Settings {
       platinum: 345,
       credits: 1_000_000,
       endo: 5000,
-      rivens: [{ type: "/Example/RivenMod", id: "rv1", fp: { compat: "/Example/Rifle", rerolls: 3 } }],
+      rivens: [{ type: "/Example/RivenMod", id: "rv1", fp: { compat: "/Example/Rifle", rerolls: 3 }, pending: { compat: "/Example/Rifle", rerolls: 4 } }],
       imprints: [{ type: "/Example/Imprint" } as never],
       gear: [{ type: "/Example/Rifle", f: 1, p: 2 }],
       consumedSuits: ["/Example/Frame"],
@@ -117,11 +122,11 @@ function full(now = Date.now()): Settings {
       rivensNotified: ["rn1"],
       cyclesNotified: ["cy1"],
       shortNotified: ["sh1"],
-      valueHistory: [{ at: 1_700_000_000_000, worth: 1000, liquid: 400, platinum: 345 }],
-      relicRuns: [{ at: 1_700_000_000_000, cards: ["Example Alpha"], relics: ["/Example/Relic/Radiant"] }],
+      valueHistory: [{ at: 1_700_000_000_000, worth: 1000, liquid: 400, platinum: 345, credits: 1_000_000, endo: 5000, held: { "/Example/Part": 2 }, complete: true }],
+      relicRuns: [{ at: 1_700_000_000_000, cards: ["Example Alpha"], relics: ["/Example/Relic/Radiant"], mission: "Survival", before: { "/Example/Part": 1 } }],
       drops: { at: 1_700_000_000_000, counts: { "/Example/Part": 2 }, windows: [{ from: 1_699_000_000_000, at: 1_700_000_000_000, gains: { "/Example/Part": 1 } }] },
       savingFor: { "/Example/Part": { set: "Example Prime Set", complete: 1 } },
-      notices: [{ id: "n1", at: 1_700_000_000_000, kind: "sold", title: "Sold", body: "Example Alpha", read: true }],
+      notices: [{ id: "n1", at: 1_700_000_000_000, kind: "sold", title: "Sold", body: "Example Alpha", read: true, outcome: { how: "held", why: "quiet" } }],
       worldNotified: ["wn1"],
     },
     favourites: ["Example Rifle"],
