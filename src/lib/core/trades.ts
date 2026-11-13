@@ -150,25 +150,28 @@ export function takeLogged(logged: Sale[], line: { name: string; rank: number | 
 /**
  * One line of a sale trade, put in the sales log before its listing is marked sold. Copies this
  * trade logged before (it's handled again) and copies you logged by hand around then
- * (handLoggedSale: the same item and rank) are not logged again; the hand-logged sale is
- * claimed with the trade's key. A hand-logged sale of more copies than the trade is split: the
- * trade's copies take its key, the rest stay a sale of their own. Returns the log as it now is
+ * (handLoggedSale: the same item and rank) are not logged again; each hand-logged sale it
+ * counts is claimed with the trade's key, as many as the line's copies take. A hand-logged sale
+ * of more copies than are left is split: those copies take the key, the rest stay a sale of
+ * their own. Returns the log as it now is
  * and `left`, the copies still to log and mark sold.
  */
 export function placeTradeLine(sales: Sale[], logged: Sale[], line: { name: string; rank: number | null; count: number }, at: number, key: string): { sales: Sale[]; left: number } {
-  let left = line.count - takeLogged(logged, line);
-  if (left <= 0) return { sales, left: 0 };
-  const hand = handLoggedSale(sales, { ...line, count: left }, at);
-  if (!hand) return { sales, left };
-  const h = sales[hand.index];
-  const out = [...sales];
-  if (h.quantity > left) {
-    // The closed order's id stays with the claimed part, so an import doesn't add it again.
-    const rest: Sale = { ...h, quantity: h.quantity - left };
-    delete rest.wfm;
-    out.splice(hand.index, 1, { ...h, quantity: left, trade: key }, rest);
-  } else out[hand.index] = { ...h, trade: key };
-  left -= hand.copies;
+  let left = Math.max(0, line.count - takeLogged(logged, line));
+  let out = sales;
+  // Every hand-logged sale it takes, nearest first, until the line's copies are counted: two
+  // Sold clicks of one each and a trade of 2 are one sale.
+  for (let hand = left ? handLoggedSale(out, { ...line, count: left }, at) : null; hand; hand = left ? handLoggedSale(out, { ...line, count: left }, at) : null) {
+    const h = out[hand.index];
+    out = [...out];
+    if (h.quantity > left) {
+      // The closed order's id stays with the claimed part, so an import doesn't add it again.
+      const rest: Sale = { ...h, quantity: h.quantity - left };
+      delete rest.wfm;
+      out.splice(hand.index, 1, { ...h, quantity: left, trade: key }, rest);
+    } else out[hand.index] = { ...h, trade: key };
+    left -= hand.copies;
+  }
   return { sales: out, left };
 }
 

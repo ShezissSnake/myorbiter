@@ -85,6 +85,17 @@ test("a set sale takes only its own parts' closed orders, and a part sale logged
   assert.equal(importClosed([sales[0]], closedParts).added, 3);
 });
 
+test("a set sale's parts imported over two runs: each part's order is matched once, none added", () => {
+  const sales: Sale[] = [{ at, item: "Nekros Prime Set", rank: null, quantity: 1, platinum: 48, trade: "7|1" }];
+  // The Systems order closed first; the Blueprint's shows up at the next import.
+  const first = importClosed(sales, [closedParts[2]], setPartsOf(m));
+  assert.deepEqual([first.added, first.matched], [0, 1]);
+  const second = importClosed(first.sales, [closedParts[2], closedParts[0]], setPartsOf(m));
+  assert.deepEqual([second.added, second.matched, second.sales[0].wfmParts], [0, 1, ["c2", "c0"]]);
+  // A second Systems order: the set has only one, so it's a sale of its own.
+  assert.equal(importClosed(second.sales, [closedParts[2], closedParts[0], { ...closedParts[2], id: "c7" }], setPartsOf(m)).added, 1);
+});
+
 test("a hand-logged sale of another rank is not the trade's sale", () => {
   // Sold ×1 of a maxed arcane on Orders, then three unranked copies traded in game.
   const hand: Sale[] = [{ at: 0, item: "Arcane Energize", rank: 5, quantity: 1, platinum: 60 }];
@@ -116,6 +127,15 @@ test("differing quantities: only the copies not yet logged are logged and marked
   const logged = [{ ...a.sales[0] }, { at: 60_000, item: "Serration", rank: 10, quantity: 2, platinum: 20, trade: "s|1" }];
   assert.equal(placeTradeLine(logged, loggedForTrade(logged, "s|1"), line, 60_000, "s|1").left, 0);
   assert.equal(placeTradeLine(b.sales, loggedForTrade(b.sales, "s|1"), line, 60_000, "s|1").left, 0);
+});
+
+test("two Sold clicks of one each, then the trade of 2: both are the trade's, nothing marked or logged again", () => {
+  const sold: Sale[] = [{ at, item: "Serration", rank: 10, quantity: 1, platinum: 20 }, { at: at + 10_000, item: "Serration", rank: 10, quantity: 1, platinum: 20 }];
+  const r = placeTradeLine(sold, [], { name: "Serration", rank: 10, count: 2 }, at + 60_000, "s|1");
+  assert.deepEqual([r.left, r.sales.map((s) => [s.quantity, s.trade])], [0, [[1, "s|1"], [1, "s|1"]]]);
+  const trade: TradeLogEntry = { key: "s|1", at: at + 60_000, partner: "Buyer1", offered: [{ name: "Serration", rank: 10, count: 2 }], received: [], platOut: 0, platIn: 40 };
+  assert.equal(revenue(r.sales, [trade]), 40, "the trade's 40p, once");
+  assert.equal(revenue(sold, [trade]), 40, "and the same with marking off");
 });
 
 test("Stats pairs a hand-logged sale with a trade by the same rule: rank and copies", () => {

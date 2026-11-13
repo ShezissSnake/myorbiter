@@ -33,14 +33,23 @@ export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (se
   const out = sales.map((s) => ({ ...s, ...(s.wfmParts ? { wfmParts: [...s.wfmParts] } : {}) }));
   const known = new Set(out.flatMap((s) => [...(s.wfm ? [s.wfm] : []), ...(s.wfmParts ?? [])]));
   // Copies of each part a set sale can still take, by sale and part name (saleName).
+  const byId = new Map(closed.map((c) => [c.id, c]));
   const room = new Map<Sale, Map<string, number>>();
   const roomOf = (s: Sale) => {
     let r = room.get(s);
     if (!r) {
       r = new Map();
       for (const p of setParts(s.item) ?? []) r.set(saleName(p.name), (r.get(saleName(p.name)) ?? 0) + p.required * s.quantity);
-      // Parts matched by an earlier import: the set has that many fewer to take, whichever they were.
-      let taken = s.wfmParts?.length ?? 0;
+      // Parts matched by an earlier import: each takes its own part's room, by the closed order's
+      // name (the profile lists every closed order each time). One no longer listed takes room
+      // from any part, so it can't make room for an order to be matched twice.
+      let taken = 0;
+      for (const id of s.wfmParts ?? []) {
+        const c = byId.get(id);
+        const k = c ? saleName(c.name) : null;
+        if (k != null && r.has(k)) r.set(k, Math.max(0, r.get(k)! - Math.max(1, c!.quantity)));
+        else taken++;
+      }
       for (const [k, n] of r) {
         const t = Math.min(n, taken);
         r.set(k, n - t);
