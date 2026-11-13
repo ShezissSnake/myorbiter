@@ -66,7 +66,8 @@ game's log and captures the game's screen: every 2 seconds during a void fissure
 the log shows the relics loaded until the reward screen closes, at most 45 minutes), more often
 once the cards show, and at Baro's kiosk. To find the game's window it reads the titles of the open
 windows and takes the largest one named "Warframe"; on Linux, when none is, it also runs
-`xwininfo -root -tree` (at most every 5 seconds) to look for the game inside a Wine virtual desktop.
+`xwininfo -root -tree` to look for the game inside a Wine virtual desktop (at most every 5 seconds
+while that finds nothing, and at each capture once it has found the game that way).
 What is captured depends on the system:
 
 - **Windows, and Linux on an X11 desktop:** the whole monitor the game's window is on, cut in memory
@@ -79,8 +80,8 @@ What is captured depends on the system:
   with no permission asked. On KDE, every monitor with no permission asked, but only for a
   TennoScope that doesn't run from an AppImage; the TennoScope inside MyOrbiter is an AppImage, so
   it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
-  screen-share dialog, which a button in TennoScope's own window opens while the game runs and
-  nothing else can capture it; the desktop shows a screen being shared while that capture is open,
+  screen-share dialog, which *Allow screen capture* opens (in MyOrbiter's TennoScope panel, or in
+  TennoScope's own window) while the game runs and nothing else can capture it; the desktop shows a screen being shared while that capture is open,
   and the permission is kept in `screencast.token` (below).
 
 The captures stay in memory. It reads the cards with Tesseract on your PC: each card's title is cut
@@ -328,7 +329,8 @@ Links open in your browser, which then visits that site. MyOrbiter opens only ht
 warframe.market, wiki.warframe.com, warframe.fandom.com, overframe.gg, noxsframe.com, this
 project on github.com (its releases, its issues and Report a bug, its files on `main`, this page
 among them, and its security pages) and its website (shezisssnake.github.io/myorbiter), and this
-project's pages on gitlab.com (older builds' release pages, its issues). TennoScope opens its upstream project on github.com
+project's pages on gitlab.com (anything under its `/-/` path: older builds' release pages, its
+issues and the like). TennoScope opens its upstream project on github.com
 (its own bug report and release pages).
 
 ## Nothing else
@@ -384,7 +386,7 @@ keyring).
 TennoScope also keeps the reports its own bug report saves, in `reports/` in its folder (above). On
 Linux, once you've given it the desktop's screen-share permission, it keeps that permission in
 `~/.config/tennoscope/screencast.token` (under `$XDG_CONFIG_HOME` when that is set), readable only
-by you, and offers it to the desktop again the next time the button in its window that asks for it is used.
+by you, and offers it to the desktop again the next time *Allow screen capture* is used.
 
 ### MyOrbiter's own files
 
@@ -448,8 +450,8 @@ writes `settings.json` as it runs):
 - the folders left from the rename: the old `dev.orbiter.app` folders, and any
   `dev.myorbiter.app.before-copy-<n>`; the config ones keep an old `settings.json`, with the trade
   log it held then;
-- the sign-in in the system keyring, `dev.myorbiter.app` / `warframe.market` (and one kept under the
-  old name);
+- the sign-in in the system keyring, `dev.myorbiter.app` / `warframe.market` (and, if one was kept,
+  the one under the old name);
 - TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
   Linux `screencast.token`.
 

@@ -58,9 +58,9 @@ sold by itself. The collection pages are PC only, and MyOrbiter doesn't start Te
 Every release lists the SHA-256 of each of its files in `SHA256SUMS`, beside them. The README shows
 the check on Linux and Windows; on macOS it's `shasum -a 256 --check --ignore-missing SHA256SUMS`.
 
-The builds made on GitLab (0.2.100 to 0.2.119) have their files in that project's package registry
-on gitlab.com, at the addresses their release page links to; each one's `SHA256SUMS` covers them
-all. Builds made since are only on GitHub's *Releases*.
+The builds made on GitLab (0.2.100 to 0.2.119) also have their files in the project's package
+registry on gitlab.com, at the addresses their release page links to; each one's `SHA256SUMS` covers
+them all. Builds made since (from 0.2.120) are on GitHub's *Releases* only.
 
 ## If the window stays blank (Linux)
 

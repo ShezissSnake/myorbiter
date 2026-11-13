@@ -1,6 +1,7 @@
 // The Full mode warning (src/lib/FullMode.svelte), shown beside every switch that turns Full mode on
 // and copied into the docs: what Digital Extremes publishes about third-party programs (no list of
-// allowed or forbidden ones, at your own risk), and everything Full mode sends and to whom.
+// allowed or forbidden ones, at your own risk), where the login session goes, and the page that
+// lists everything MyOrbiter and TennoScope send.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
