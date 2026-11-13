@@ -79,7 +79,7 @@ The riven cycle's overlay is the corner: in every mode, Companion included, Tenn
 MyOrbiter's request for it every 0.7 seconds, and while MyOrbiter asks for it (only with that
 overlay on in MyOrbiter, and for at most two minutes per request), TennoScope looks for the game's
 window to place it: once when the request comes, then about every 2.8 seconds for as long as the
-overlay isn't showing (on Linux it shows only once the game's window is found). These looks read
+overlay isn't showing (on Linux it shows only once it knows where the game is: its window found, or where a reward screen was last read). These looks read
 the same window titles, and on Linux run `xwininfo` the same way.
 
 What is captured depends on the system:
