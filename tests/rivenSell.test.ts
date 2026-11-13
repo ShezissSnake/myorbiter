@@ -29,19 +29,21 @@ const raw = (id: string, over: Partial<AuctionItem> = {}, extra: Record<string, 
   item: { ...item, ...over }, ...extra,
 });
 
-test("a reprice changes the price and sends every other field back as it was read", async () => {
+test("a reprice changes the price and sends every other field back as it was read (private from the answer)", async () => {
   for (const [priv, visible] of [[true, true], [false, false], [true, false], [false, true]] as const) {
     const [a] = parseMyAuctions([raw("x", {}, { private: priv, visible, note_raw: "gg", minimal_reputation: 7, starting_price: 60, buyout_price: 100 })]);
     const sent: unknown[] = [];
     market.updateAuction = (async (_id: string, c: unknown) => void sent.push(c)) as never;
     market.myAuctions = async () => [];
     await rivens.reprice(a, 90);
-    assert.deepEqual(sent, [{ starting_price: 60, buyout_price: 90, minimal_reputation: 7, private: priv, visible, note: "gg" }]);
+    assert.deepEqual(sent, [{ starting_price: 60, buyout_price: 90, minimal_reputation: 7, private: priv, note: "gg" }]);
   }
 });
 
-test("an answer with no private field is read as not private", () => {
+test("an answer with no private field keeps what was always sent: private when hidden", () => {
   assert.equal(parseMyAuctions([raw("x")])[0].private, false);
+  assert.equal(parseMyAuctions([raw("x", {}, { visible: false })])[0].private, true);
+  assert.equal(parseMyAuctions([raw("x", {}, { visible: false, private: false })])[0].private, false);
 });
 
 test("Sell sends nothing when the read of your auctions fails, and says so", async () => {

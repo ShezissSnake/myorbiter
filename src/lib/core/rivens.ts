@@ -578,7 +578,10 @@ export interface MyAuction {
   topBid: number | null;
   closed: boolean;
   visible: boolean;
-  /** The answer's own `private` field, kept as read so a price change can send it back unchanged. */
+  /**
+   * The answer's own `private` field, kept as read so a price change can send it back unchanged.
+   * An answer without one (not a boolean) falls back to what MyOrbiter always sent: private when hidden.
+   */
   private: boolean;
   note: string;
   minRep: number;
@@ -609,7 +612,7 @@ export function parseMyAuctions(raw: unknown): MyAuction[] {
       topBid: a.top_bid == null ? null : Number(a.top_bid),
       closed: a.closed === true,
       visible: a.visible !== false,
-      private: a.private === true,
+      private: typeof a.private === "boolean" ? a.private : a.visible === false,
       note: String(a.note_raw ?? a.note ?? ""),
       minRep: Number(a.minimal_reputation ?? 0),
       updated: String(a.updated ?? ""),

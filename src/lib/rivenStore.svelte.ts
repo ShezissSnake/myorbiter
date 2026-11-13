@@ -225,11 +225,11 @@ class Rivens {
    * A new buyout for one of your auctions. It stays what it was: one with no bidding (starting at
    * the buyout) keeps starting at the new buyout; one taking bids keeps its starting bid unless the
    * buyout goes under it. Everything else goes back as it was read: the minimum reputation, the
-   * note, `visible` and `private`.
+   * note and `private`.
    */
   async reprice(a: MyAuction, buyout: number) {
     const starting = startingFor(a, buyout);
-    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: a.private, visible: a.visible, note: a.note });
+    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: a.private, note: a.note });
     await this.loadMine();
   }
   async close(a: MyAuction) {
