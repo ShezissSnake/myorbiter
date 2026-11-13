@@ -45,7 +45,7 @@ them stops and counts any world-state request, and fails if there was one.
 ```fish
 npm test                                   # the analysis core
 npm run check -- --threshold error         # type-checks the project
-cargo test --manifest-path src-tauri/Cargo.toml
+cargo test --workspace --locked            # both crates: the app and the data crate
 ```
 
 The tests that need the dev data (the Sell spares plan, riven stats, the real catalogue) are
