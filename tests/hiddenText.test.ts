@@ -7,8 +7,8 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 
 const SKIP_DIRS = new Set(["node_modules", "target", ".git", "dist", "gen", "vendor"]);
-const TEXT = new Set([".ts", ".mts", ".mjs", ".js", ".svelte", ".css", ".html", ".json", ".md", ".rs", ".toml", ".yml", ".yaml", ".sh", ".ps1", ".py", ".txt", ".sql", ".tsx", ".hbs", ".spec", ".asc", ".desktop", ""]);
-const HIDDEN = /[\u00AD\u034F\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u;
+const TEXT = new Set([".ts", ".mts", ".mjs", ".js", ".svelte", ".css", ".html", ".json", ".md", ".rs", ".toml", ".yml", ".yaml", ".sh", ".ps1", ".py", ".txt", ".sql", ".tsx", ".hbs", ".spec", ".asc", ".desktop", ".svg", ""]);
+const HIDDEN = /[\u00AD\u034F\u061C\u115F\u1160\u180E\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u206F\u3164\uFEFF\uFFA0\u{E0000}-\u{E007F}\u{E0100}-\u{E01EF}]/u;
 
 function* files(dir: string): Generator<string> {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
