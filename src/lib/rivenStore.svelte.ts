@@ -223,8 +223,11 @@ class Rivens {
   }
   /**
    * Reads your auctions (the pages, a reprice, a close); whether the read worked. An answer that
-   * came back out of date is dropped and counts as worked: the Sell read sent after it keeps the
-   * fresher list, and nothing waits to try it again.
+   * came back out of date is dropped and counts as worked, a failed one too, so nothing tries it
+   * again sooner. The list kept is not always the fresher one. After a create has ended, the
+   * Sell's own read that follows keeps the fresher list; but a Sell's own read kept meanwhile may
+   * have been asked for before a reprice or a close was done, and then the page shows the old
+   * price, or the closed auction as open, until the next read.
    */
   async loadMine(): Promise<boolean> {
     const asked = this.epoch;

@@ -683,7 +683,10 @@ export function sameRiven(x: AuctionItem, y: AuctionItem): boolean {
  * same weapon and name, unless the auction is exactly one of `others` (your other rivens of that
  * weapon and name, `othersLike`) and not this one. It errs to "up": an auction that can't be told
  * apart (a value given back rounded another way, no stats in the answer, one of the rivens ranked
- * or cycled since) counts for each of them, as weapon and name alone did.
+ * or cycled since) counts for each of them, as weapon and name alone did; except an auction of
+ * this riven given back changed (a value altered on the way, or the riven ranked since it was put
+ * up) so that it is exactly another of `others`: it counts as that one's, and this riven can be
+ * put up again. A known corner, kept: telling auctions apart by their id would close it.
  */
 export function mayBeAuctionOf(a: MyAuction, item: AuctionItem, others: AuctionItem[] = []): boolean {
   if (a.weapon !== item.weapon_url_name || a.name.toLowerCase() !== item.name.toLowerCase()) return false;

@@ -328,6 +328,20 @@ test("after a create that got no answer and was not found, the next Sell reads f
   assert.equal(creates, 1);
 });
 
+// A known corner, kept on purpose and not a wanted behaviour: this riven's auction given back
+// changed so that it is exactly a twin (alike in all but its values) counts as the twin's, and this
+// riven is put up again. A later change that knows an auction by its id should turn this test round
+// (no create, "already up").
+test("known corner, to be turned round once auctions are known by id: an auction given back with a twin's values counts as the twin's", async () => {
+  let creates = 0;
+  const alike: AuctionItem = { ...item, attributes: [{ ...attrs[0], value: 148.3 }, { ...attrs[1], value: -38.9 }] };
+  // This riven is up; the site gives its auction back with values that are exactly the twin's.
+  market.myAuctions = async () => [raw("mine", { attributes: alike.attributes })] as never;
+  market.createAuction = (async () => void creates++) as never;
+  await rivens.sell(item, 100, 100, "", 0, [alike]);
+  assert.equal(creates, 1, "today: sent a second time");
+});
+
 test("two rivens of one weapon with one name can both be put up, and neither twice", async () => {
   let creates = 0;
   let up: ReturnType<typeof raw>[] = [raw("first")];
