@@ -15,3 +15,10 @@ test("auto +rep: skipped trades and old ones are left alone", () => {
   const trades = [trade("a", "Ann", now - 1000), trade("b", "Bob", now - AUTO_REP_WINDOW - 1)];
   assert.deepEqual(repCandidates(trades, { a: "skipped" }, now), []);
 });
+
+test("auto +rep: a purchase counts like a sale, within the last 24 hours only", () => {
+  const hour = 60 * 60_000;
+  const bought = (key: string, at: number): TradeLogEntry => ({ key, at, partner: "ExampleSeller", offered: [], received: [{ name: "Example Prime Blueprint", rank: null, count: 1 }], platOut: 30, platIn: 0 });
+  assert.deepEqual(repCandidates([bought("p", now - 20 * hour)], {}, now).map((t) => t.partner), ["ExampleSeller"], "bought from 20 hours ago: that seller");
+  assert.deepEqual(repCandidates([bought("p", now - 25 * hour)], {}, now), [], "25 hours ago: nobody");
+});
