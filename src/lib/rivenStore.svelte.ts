@@ -20,12 +20,17 @@ class Rivens {
   private loading: Promise<RivenMeta | null> | null = null;
 
   /**
-   * While a search waits for warframe.market's contract budget (10 a minute, kept in market.rs):
-   * when the queued one goes (unix ms). Searches wait their turn; none is dropped. Null otherwise.
+   * While a search, or a riven being put up, waits for warframe.market's contract budget (10 a
+   * minute, kept in market.rs): when the queued one goes (unix ms). Requests wait their turn; none
+   * is dropped. Null otherwise.
    */
   searchWait = $state<number | null>(null);
   private waitDone: ReturnType<typeof setTimeout> | undefined;
   private waitListener: Promise<() => void> | null = null;
+  /** Hears from the Rust side when a riven request (a search, or putting one up) waits its turn. */
+  private listenForWaits() {
+    this.waitListener ??= onSearchWait((until) => this.waiting(until)).catch(() => () => {});
+  }
   /** A search queued until `until`: shown until then, or a later one's time. */
   waiting(until: number) {
     if (this.searchWait != null && this.searchWait > until) return;
@@ -60,7 +65,7 @@ class Rivens {
     const hit = this.results[key];
     // Results are reused for a while; a failure isn't, so "Try again" really tries again.
     if (hit && !("error" in hit) && Date.now() - hit.at < maxAge) return hit.auctions;
-    this.waitListener ??= onSearchWait((until) => this.waiting(until)).catch(() => () => {});
+    this.listenForWaits();
     try {
       const auctions = await market.rivenAuctions(weapon, positive, negative);
       this.keep(key, { at: Date.now(), auctions });
@@ -179,18 +184,45 @@ class Rivens {
   }
   /** A create failed and the read after it did too: it may have been made, so the next Sell reads first. */
   private unchecked = false;
-  /** Reads your auctions; whether the read worked. */
-  async loadMine(): Promise<boolean> {
+  /**
+   * Moved each time a create ends and each time one of Sell's own reads ends. A read sent before
+   * that and answered after it is out of date (each request runs on its own thread in the app, so
+   * answers can come back in any order): its list could lack an auction just made, which would let
+   * that riven be sent again. Such an answer changes neither the list nor its time.
+   */
+  private epoch = 0;
+  /**
+   * Reads your auctions: the list, or null if the read failed. Kept as `mine` unless the answer is
+   * out of date (`epoch`); one of Sell's own reads (`own`) moves `epoch` when it ends.
+   */
+  private async readMine(own: boolean): Promise<MyAuction[] | null> {
+    const asked = this.epoch;
     try {
-      this.mine = parseMyAuctions(await market.myAuctions());
-      this.unchecked = false;
-      this.mineAt = Date.now();
-      this.mineError = null;
-      return true;
+      const list = parseMyAuctions(await market.myAuctions());
+      if (asked === this.epoch) {
+        this.mine = list;
+        this.unchecked = false;
+        this.mineAt = Date.now();
+        this.mineError = null;
+      }
+      return list;
     } catch (e) {
-      this.mineError = String(e).replace(/^Error:\s*/, "");
-      return false;
+      // Sell's own read keeps its reason for the message it shows, however late it came back.
+      if (own || asked === this.epoch) this.mineError = String(e).replace(/^Error:\s*/, "");
+      return null;
+    } finally {
+      if (own) this.epoch++;
     }
+  }
+  /**
+   * Reads your auctions (the pages, a reprice, a close); whether the read worked. An answer that
+   * came back out of date is dropped and counts as worked: the Sell read sent after it keeps the
+   * fresher list, and nothing waits to try it again.
+   */
+  async loadMine(): Promise<boolean> {
+    const asked = this.epoch;
+    const list = await this.readMine(false);
+    return list != null || asked !== this.epoch;
   }
   /** Rivens being put up now: a second Sell for one of them is refused until the first has ended. */
   private sending: AuctionItem[] = [];
@@ -209,6 +241,8 @@ class Rivens {
     // awaited, so two calls in a row can't both pass.
     if (this.sending.some((s) => sameRiven(s, item))) throw new Error("This riven is still being put up: wait for it to finish.");
     this.sending.push(item);
+    // A create waits in the same queue as searches; the form says so while it does (`searchWait`).
+    this.listenForWaits();
     try {
       await this.put(item, buyout, starting, note, minRep, others);
     } finally {
@@ -225,35 +259,44 @@ class Rivens {
     // can't say. The same, however fresh the list, after a create whose check failed
     // (`unchecked`), and for a riven whose create failed and wasn't found (`notFound`): the site
     // may have made it after that look.
+    // What this Sell goes by is its own read's answer, even when that answer came back too late to
+    // be kept as `mine` (another Sell's create ended meanwhile).
     const retry = this.notFound.some((s) => sameRiven(s, item));
+    let list = this.mine;
     if (retry || this.unchecked || this.mineAt == null || Date.now() - this.mineAt > SELL_FRESH_MS) {
-      if (!(await this.loadMine())) {
+      const read = await this.readMine(true);
+      if (!read) {
         // The read's own reason: where the site asked to wait or the sign-in ended, a moment won't do.
         const why = (this.mineError ? waitWords(this.mineError) : "").replace(/[.\s]+$/, "").replace(/^[A-Z](?=[a-z'])/, (c) => c.toLowerCase());
         throw new Error(`MyOrbiter could not check the auctions already up on warframe.market, so nothing was sent${why ? `: ${why}.` : ". Try again in a moment."}`);
       }
       // Cleared only by this Sell's own read, not by a page's read that may have begun earlier.
       if (retry) this.notFound = this.notFound.filter((s) => !sameRiven(s, item));
+      list = read;
     }
     // Already up (put up on the site since the page last read your auctions): not a second time.
     // The same match as the page's "up for sale" mark (core/rivens.ts, auctionOf): weapon and
     // name, unless the auction is exactly another of your rivens of that name and not this one.
-    if (this.mine.some((a) => !a.closed && mayBeAuctionOf(a, item, others))) throw new Error("This riven is already up on warframe.market: reprice or close that auction instead");
-    const before = new Set(this.mine.map((a) => a.id));
+    if (list.some((a) => !a.closed && mayBeAuctionOf(a, item, others))) throw new Error("This riven is already up on warframe.market: reprice or close that auction instead");
+    const before = new Set(list.map((a) => a.id));
     try {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
     } catch (e) {
+      // Ended: a read sent before now and answered later is out of date (`epoch`).
+      this.epoch++;
       // No answer in time doesn't mean it wasn't made: look before letting you send it again.
       // If that look fails too, the next Sell reads first (and sends nothing if that fails).
-      this.unchecked = !(await this.loadMine());
+      const look = await this.readMine(true);
+      this.unchecked = !look;
       // Only this riven counts: another one for the same weapon, put up meanwhile, doesn't.
-      if (!this.unchecked && this.mine.some((a) => !before.has(a.id) && !a.closed && isAuctionOf(a, item))) return;
+      if (look?.some((a) => !before.has(a.id) && !a.closed && isAuctionOf(a, item))) return;
       // Not found: it may still be made after this look, so this riven's next Sell reads first.
       if (!this.notFound.some((s) => sameRiven(s, item))) this.notFound.push(item);
       throw e;
     }
+    this.epoch++;
     // The create worked; if the read after it fails, the next Sell reads first (the list lacks this auction).
-    this.unchecked = !(await this.loadMine());
+    this.unchecked = !(await this.readMine(true));
   }
   /**
    * A new buyout for one of your auctions. It stays what it was: one with no bidding (starting at

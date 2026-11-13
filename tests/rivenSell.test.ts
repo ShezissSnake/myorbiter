@@ -184,6 +184,58 @@ test("a second Sell is refused during the look after a failed create too, until 
   await second;
 });
 
+/**
+ * The page's read of your auctions is sent, then Sell's create; the page read's answer (the list
+ * from before the create) comes back last. Returns how many creates went out over two presses.
+ */
+async function pageReadAnsweredLast(made: "worked" | "timed out but made") {
+  let creates = 0;
+  let up: ReturnType<typeof raw>[] = [];
+  let answerPage: (v: unknown) => void = () => {};
+  let calls = 0;
+  market.myAuctions = (() => (calls++ === 0 ? new Promise((ok) => (answerPage = ok)) : Promise.resolve(up))) as never;
+  market.createAuction = (async () => {
+    creates++;
+    up = [...up, raw(`n${creates}`)];
+    if (made === "timed out but made") throw new Error(TIMED_OUT);
+  }) as never;
+  const page = rivens.refreshMine(`page-read-${made}`);
+  await settle();
+  await rivens.sell(item, 100, 100);
+  assert.deepEqual(rivens.mine.map((a) => a.id), ["n1"], "Sell's own read shows it up");
+  answerPage([]); // the page read, sent before the create, answers after it
+  await page;
+  await rivens.sell(item, 100, 100).catch(() => {});
+  return creates;
+}
+
+test("a page read sent before a create that worked and answered after it doesn't let a second create through", async () => {
+  assert.equal(await pageReadAnsweredLast("worked"), 1);
+});
+
+test("a page read sent before a create that timed out but was found, answered after it, doesn't let a second create through", async () => {
+  assert.equal(await pageReadAnsweredLast("timed out but made"), 1);
+});
+
+test("a dropped page read leaves the fresher list and its time, and nothing waits for it", async () => {
+  let answerPage: (v: unknown) => void = () => {};
+  let calls = 0;
+  market.myAuctions = (() => (calls++ === 0 ? new Promise((ok) => (answerPage = ok)) : Promise.resolve([raw("fresh")]))) as never;
+  market.createAuction = (async () => {}) as never;
+  const page = rivens.refreshMine("dropped-read");
+  await settle();
+  await rivens.sell({ ...item, weapon_url_name: "soma" }, 100, 100);
+  const at = rivens.mineAt;
+  answerPage([]);
+  assert.equal(await page, undefined);
+  assert.deepEqual(rivens.mine.map((a) => a.id), ["fresh"]);
+  assert.equal(rivens.mineAt, at);
+  // A page read sent after Sell's has ended is taken as before.
+  market.myAuctions = async () => [];
+  assert.equal(await rivens.loadMine(), true);
+  assert.deepEqual(rivens.mine, []);
+});
+
 test("while one riven is being put up, another of the same weapon and name can be", async () => {
   market.myAuctions = async () => [];
   const create = slowCreate();
