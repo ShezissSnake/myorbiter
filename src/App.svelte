@@ -1792,7 +1792,8 @@
   });
 
   // Last copies hidden while someone whispers you (lastCopy.ts): hidden on the whisper, shown
-  // again once the wait is over unless they sold.
+  // again once the wait is over and an inventory read taken since still holds the copy, unless
+  // they sold or the player showed or hid them by hand meanwhile.
   async function hideLastCopies(who: string[]) {
     const lc = settings.market.lastCopy;
     if (!lc.optIn || !mkt.linked) return;
@@ -1801,16 +1802,29 @@
     settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, hiddenNow, Date.now());
     if (hiddenNow.length) {
       const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
-      mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back then unless sold`, "info");
+      mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back after that if a newer inventory read still has it`, "info");
     }
   }
+  /** Listings already said to be waiting for a newer inventory read (by id and hide time): said once each. */
+  const toldWaiting = new Set<string>();
   async function showLastCopiesDue() {
     const lc = settings.market.lastCopy;
     if (!lc.hidden.length || !mkt.linked || !mkt.orders.length) return;
     // An emptied minutes box mustn't leave them hidden for ever.
-    // Turned off: whatever it hid comes back now.
+    // Turned off: whatever it hid comes back now (still only against a read taken since).
     const minutes = !lc.optIn ? 0 : lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES;
-    const { show, keep } = dueToShow(lc.hidden, mkt.orders, Date.now(), minutes);
+    // The read the last check (setShown) counts from: a copy sold in game after the whisper is
+    // still in an older one.
+    const readAt = mkt.model?.observedAt ? +mkt.model.observedAt : null;
+    const { show, keep, waiting } = dueToShow(lc.hidden, mkt.orders, Date.now(), minutes, readAt);
+    const untold = waiting.filter((h) => !toldWaiting.has(`${h.id}|${h.at}`));
+    for (const h of untold) toldWaiting.add(`${h.id}|${h.at}`);
+    if (untold.length) {
+      const names = untold.map((h) => mkt.item(mkt.orders.find((o) => o.id === h.id)?.itemId ?? "")?.name ?? "a listing");
+      const one = names.length === 1;
+      const list = `${names.slice(0, 4).join(", ")}${names.length > 4 ? ` and ${names.length - 4} more` : ""}`;
+      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. With Full access while Warframe runs, Sync asks TennoScope for a read now. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
+    }
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
       return;
@@ -1818,9 +1832,12 @@
     const before = new Set(lc.hidden.map((h) => h.id));
     const kept = new Set(keep.map((h) => h.id));
     const shown = await mkt.setShown(show, true);
-    const failed = show.filter((o) => !shown.includes(o)).map((o) => ({ id: o.id, at: Date.now() }));
-    // From the list as it is now: a whisper while this waited may have hidden more, and those stay.
-    settings.market.lastCopy.hidden = [...settings.market.lastCopy.hidden.filter((h) => !before.has(h.id) || kept.has(h.id)), ...failed];
+    // From the list as it is now: a whisper while this waited may have hidden more, and those stay;
+    // one the player showed or hid by hand meanwhile has left the list, and isn't put back.
+    const listNow = settings.market.lastCopy.hidden;
+    const still = new Set(listNow.map((h) => h.id));
+    const failed = show.filter((o) => !shown.includes(o) && still.has(o.id)).map((o) => ({ id: o.id, at: Date.now() }));
+    settings.market.lastCopy.hidden = [...listNow.filter((h) => !before.has(h.id) || kept.has(h.id)), ...failed];
     if (shown.length) mkt.note(`Shown again${minutes ? `, not sold in ${minutes} min` : ""}: ${shown.map((o) => mkt.item(o.itemId)?.name ?? "a listing").join(", ")}`, "info");
   }
   $effect(() => {

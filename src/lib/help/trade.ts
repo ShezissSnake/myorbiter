@@ -357,7 +357,7 @@ const SELL: Walkthrough = {
       lines: [
         "Price each: the cheapest seller in game, raised to your minimum and floors; else blank.",
         "Sellers' asks in game, the daily median, and how many you can spare.",
-        "Listed already? Add to that listing, at this price, rather than making a second.",
+        "Listed already? Add to it, not a second; a hidden one stays hidden.",
         "Sending checks again: not under its minimum, not over what your inventory says is spare.",
       ],
       shot: {

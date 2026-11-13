@@ -515,7 +515,7 @@
     f.busy = true;
     f.error = null;
     try {
-      // No bidding stays no bidding; bids from where they were, never above the new buyout; hidden stays hidden.
+      // No bidding stays no bidding; bids from where they were, never above the new buyout; the minimum reputation, note and private setting as read.
       await rivens.reprice(a, buyout);
       auctionPrice = null;
     } catch (e) {
@@ -809,7 +809,7 @@
           </span>
         {/each}
         <HelpMark part="orders.whispers" />
-        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
+        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one. Each comes back after the wait only if an inventory read newer than the whisper still has the copy; with Full access while Warframe runs, Sync asks TennoScope for a read now. To show one sooner, use its Shown switch: the rule then leaves it as you set it until the next whisper">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
       </section>
     {/if}
 
