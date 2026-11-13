@@ -11,7 +11,9 @@
 //! channel is a setting in the page; this module turns it into the manifest's addresses, asks
 //! tauri-plugin-updater whether that manifest offers another version, and installs it only when
 //! the page asks, after the plugin has checked its signature against the public key in
-//! tauri.conf.json.
+//! tauri.conf.json. The download is fetched only from MyOrbiter's own address for that build and
+//! system (`download_allowed`), checked when the check keeps the update and again just before the
+//! download.
 //!
 //! Where an update can go depends on how MyOrbiter was installed (`Install`): an AppImage replaces
 //! its own file, the Windows installer runs in passive mode, while a .deb or .rpm, a development
@@ -86,6 +88,179 @@ fn check_urls(channel: Channel) -> Vec<String> {
         return vec![url];
     }
     endpoints(channel)
+}
+
+/// Whether an update's download is MyOrbiter's own address for that build and system: `Ok`, or
+/// `Err` with the reason. It is, exactly, one of the two forms the release scripts write:
+///
+/// - `https://github.com/<GITHUB_REPO>/releases/download/build-<digits>/myorbiter_<version>_<file>`
+///   (scripts/github-manifest.mjs, `releaseFolder`);
+/// - `https://gitlab.com/api/v4/projects/<PROJECT>/packages/generic/myorbiter/<version>/myorbiter_<version>_<file>`
+///   (the builds GitLab made, 0.2.100 to 0.2.119: ci/publish.sh).
+///
+/// `version` is the version on offer, three numbers and nothing after them, the same text wherever
+/// it appears; `target` is the system as `<os>-<arch>`, whose `<file>` is `amd64.AppImage` on
+/// `linux-x86_64` and `x64-setup.exe` on `windows-x86_64` (no other system has a build). https
+/// only, with no user, password, port, query or fragment, and the address reads the same once
+/// parsed and written out again, so nothing the parser rewrites (`..`, `%2e%2e`, a default port,
+/// an upper-case host) passes for another path.
+///
+/// The release's number isn't tied to the version (the release scripts make build-<n> for
+/// 0.2.<n>, but a copy installed now must still take an update once the version's first numbers
+/// change, and this rule can't be corrected in copies already installed). That loses nothing: the
+/// file's name carries the version and its signature names it, so another release folder can only
+/// name a file that isn't there.
+pub fn download_allowed(url: &str, version: &str, target: &str) -> Result<(), &'static str> {
+    let (file, other) = match target {
+        "linux-x86_64" => ("amd64.AppImage", "x64-setup.exe"),
+        "windows-x86_64" => ("x64-setup.exe", "amd64.AppImage"),
+        _ => return Err("a system MyOrbiter has no build for"),
+    };
+    match semver::Version::parse(version) {
+        Ok(v) if v.pre.is_empty() && v.build.is_empty() && v.to_string() == version => {}
+        _ => return Err("a version that isn't three numbers"),
+    }
+    let Ok(parsed) = url.parse::<tauri::Url>() else {
+        return Err("not an address");
+    };
+    if parsed.as_str() != url {
+        return Err("an address that reads differently once parsed");
+    }
+    if parsed.scheme() != "https" {
+        return Err("not https");
+    }
+    if !parsed.username().is_empty() || parsed.password().is_some() {
+        return Err("a user or password");
+    }
+    if parsed.port().is_some() {
+        return Err("a port");
+    }
+    if parsed.query().is_some() {
+        return Err("a query");
+    }
+    if parsed.fragment().is_some() {
+        return Err("a fragment");
+    }
+    let path = parsed.path();
+    if path.contains("//") {
+        return Err("a doubled slash");
+    }
+    let name = match parsed.host_str() {
+        Some("github.com") => {
+            let Some(rest) = path.strip_prefix(&format!("/{GITHUB_REPO}/releases/download/")) else {
+                return Err("another repository on github.com");
+            };
+            if rest.contains('%') {
+                return Err("an encoded character in the path");
+            }
+            let (tag, name) = rest.split_once('/').unwrap_or((rest, ""));
+            match tag.strip_prefix("build-") {
+                Some(n) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => {}
+                _ => return Err("a release that isn't build-<digits>"),
+            }
+            name
+        }
+        Some("gitlab.com") => {
+            // The project's `%2F` is matched as written: the API names the project by its path.
+            let Some(rest) = path.strip_prefix(&format!("/api/v4/projects/{PROJECT}/packages/generic/")) else {
+                return Err("another project on gitlab.com");
+            };
+            if rest.contains('%') {
+                return Err("an encoded character in the path");
+            }
+            let Some(rest) = rest.strip_prefix("myorbiter/") else {
+                return Err("a package other than the builds'");
+            };
+            let (folder, name) = rest.split_once('/').unwrap_or((rest, ""));
+            if folder != version {
+                return Err("a folder of another version");
+            }
+            name
+        }
+        _ => return Err("another host"),
+    };
+    if name == format!("myorbiter_{version}_{file}") {
+        Ok(())
+    } else if name == format!("myorbiter_{version}_{other}") {
+        Err("the other system's file")
+    } else if !name.contains('/') && name.starts_with("myorbiter_") && name.ends_with(&format!("_{file}")) {
+        Err("a file of another version")
+    } else {
+        Err("another file")
+    }
+}
+
+/// What the address check reads of an update: the plugin's `Update`, or a test's stand-in.
+trait Download {
+    /// The address the plugin fetches, as it holds it (parsed from the manifest).
+    fn url(&self) -> &str;
+    /// The version on offer, which the download's signature must name.
+    fn version(&self) -> &str;
+    /// The system the download must be for, as `<os>-<arch>`.
+    fn target(&self) -> String;
+}
+
+impl Download for Update {
+    fn url(&self) -> &str {
+        self.download_url.as_str()
+    }
+    fn version(&self) -> &str {
+        &self.version
+    }
+    /// The plugin's own names: `Update.target` is the system it runs on (`linux`, `windows`), since
+    /// the check sets no target of its own, and the arch is the one it was built for. The plugin
+    /// takes the address from the manifest's `<os>-<arch>-<installer>` entry when there is one and
+    /// `<os>-<arch>` otherwise, without saying which: either way the file must be this system's.
+    fn target(&self) -> String {
+        format!("{}-{}", self.target, std::env::consts::ARCH)
+    }
+}
+
+/// Whether `update`'s download may be fetched here: `download_allowed`, or in an end-to-end test
+/// build the test server's own address (`e2e::download`). A refusal goes to the log by the
+/// address's host alone (`refused_line`).
+fn own_download(channel: Channel, update: &impl Download) -> bool {
+    #[cfg(feature = "e2e-updater")]
+    if e2e::download(update.url()) {
+        return true;
+    }
+    match download_allowed(update.url(), update.version(), &update.target()) {
+        Ok(()) => true,
+        Err(reason) => {
+            log::warn!(target: "myorbiter::updates", "{}", refused_line(channel, update.url(), reason));
+            false
+        }
+    }
+}
+
+/// The log's line for a refused download: of the address, only its host.
+fn refused_line(channel: Channel, url: &str, reason: &str) -> String {
+    let host = url.parse::<tauri::Url>().ok().and_then(|u| u.host_str().map(str::to_owned));
+    format!("{}: update refused, its download (at {}) isn't MyOrbiter's own: {reason}", channel.name(), host.as_deref().unwrap_or("no host"))
+}
+
+/// Keeps `update` as the one a click installs, if its download is MyOrbiter's own. One that isn't
+/// is refused before it's kept, and nothing is pending afterwards.
+fn keep<D: Download>(pending: &Mutex<Option<(Channel, D)>>, channel: Channel, update: D) -> Result<(), String> {
+    let own = own_download(channel, &update);
+    let mut kept = pending.lock().unwrap_or_else(|e| e.into_inner());
+    if own {
+        *kept = Some((channel, update));
+        Ok(())
+    } else {
+        *kept = None;
+        Err(format!("The {} channel's manifest names a download that isn't MyOrbiter's own; nothing was downloaded", channel.label()))
+    }
+}
+
+/// The same check again, just before the download, so nothing kept from an earlier check passes
+/// unless it passes now. A refused update is no longer pending.
+fn still_own<D: Download>(pending: &Mutex<Option<(Channel, D)>>, channel: Channel, update: &D) -> Result<(), String> {
+    if own_download(channel, update) {
+        return Ok(());
+    }
+    *pending.lock().unwrap_or_else(|e| e.into_inner()) = None;
+    Err("this update's download isn't MyOrbiter's own, so nothing was downloaded".into())
 }
 
 /// How a newer or older build compares with the one running.
@@ -352,14 +527,14 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             let date = update.raw_json.get("pub_date").and_then(|d| d.as_str()).map(str::to_owned);
             let notes = update.body.clone();
             let version = remote.to_string();
+            // Kept only if its download is MyOrbiter's own; otherwise nothing is pending.
+            keep(&pending.0, channel, update)?;
             log::info!(target: "myorbiter::updates", "{}: {version} on offer (this is {current})", channel.name());
-            let check = match offer(&current, &remote) {
+            Ok(match offer(&current, &remote) {
                 Offer::Newer => Check::Newer { version, notes, date },
                 Offer::Older => Check::Older { version, notes, date },
                 Offer::Same => Check::Current { version },
-            };
-            *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = Some((channel, update));
-            Ok(check)
+            })
         }
         Ok(None) => {
             log::info!(target: "myorbiter::updates", "{}: up to date ({current})", channel.name());
@@ -428,6 +603,8 @@ async fn install(app: &AppHandle, pending: &Pending, channel: Channel, version: 
     if remote < current && !confirm_older(app, &current, &remote).await {
         return Err(format!("{remote} wasn't installed: the step back from {current} wasn't confirmed"));
     }
+    // The address once more, right before the download: whatever check kept this update.
+    still_own(&pending.0, channel, &update)?;
     log::info!(target: "myorbiter::updates", "installing {remote} from {} (was {current})", channel.name());
     let mut done = 0u64;
     let mut last_sent = 0u64;
@@ -517,6 +694,15 @@ mod e2e {
     /// The test server's manifest (only a local plain-http address is taken).
     pub fn endpoint() -> Option<String> {
         std::env::var("MYORBITER_UPDATER_E2E_ENDPOINT").ok().filter(|u| u.parse::<tauri::Url>().is_ok_and(|p| p.scheme() == "http" && p.host_str() == Some("127.0.0.1") && p.username().is_empty() && p.password().is_none()))
+    }
+
+    /// The test server's own downloads, in place of MyOrbiter's release addresses: plain http on
+    /// the manifest's own origin (`http://127.0.0.1:<port>`), with no user, query or fragment.
+    pub fn download(url: &str) -> bool {
+        let (Some(Ok(server)), Ok(url)) = (endpoint().map(|e| e.parse::<tauri::Url>()), url.parse::<tauri::Url>()) else {
+            return false;
+        };
+        url.scheme() == "http" && url.origin() == server.origin() && url.username().is_empty() && url.password().is_none() && url.query().is_none() && url.fragment().is_none()
     }
 
     /// With the test server set: plain http allowed for it, and, when `MYORBITER_UPDATER_E2E_PUBKEY`
@@ -639,6 +825,198 @@ mod tests {
         assert!(release.download_url("darwin-aarch64").is_err());
     }
 
+    const LINUX: &str = "linux-x86_64";
+    const WINDOWS: &str = "windows-x86_64";
+    const GH_131: &str = "https://github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_";
+    const GL_112: &str = "https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.2.112/myorbiter_0.2.112_";
+
+    /// The addresses the release scripts write and the published manifests hold, each for its own
+    /// system: the fixture's two (GitLab, 0.2.106) as the plugin reads them, GitHub's form for
+    /// build 131, GitLab's for 0.2.112, and both forms once the version's first numbers move on.
+    #[test]
+    fn the_projects_own_downloads_are_allowed() {
+        let raw = include_str!("../../tests/fixtures/updater/experimental-0.2.106.json");
+        let release: tauri_plugin_updater::RemoteRelease = serde_json::from_str(raw).unwrap();
+        for target in [LINUX, WINDOWS] {
+            assert_eq!(download_allowed(release.download_url(target).unwrap().as_str(), "0.2.106", target), Ok(()), "{target}");
+        }
+        for (url, version, target) in [
+            (format!("{GH_131}amd64.AppImage"), "0.2.131", LINUX),
+            (format!("{GH_131}x64-setup.exe"), "0.2.131", WINDOWS),
+            (format!("{GL_112}amd64.AppImage"), "0.2.112", LINUX),
+            (format!("{GL_112}x64-setup.exe"), "0.2.112", WINDOWS),
+            // The release's number isn't the version's last number, and the version isn't 0.2.<n>.
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-140/myorbiter_0.3.0_amd64.AppImage".into(), "0.3.0", LINUX),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-007/myorbiter_1.0.12_x64-setup.exe".into(), "1.0.12", WINDOWS),
+            ("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/1.0.0/myorbiter_1.0.0_amd64.AppImage".into(), "1.0.0", LINUX),
+            ("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.3.1/myorbiter_0.3.1_x64-setup.exe".into(), "0.3.1", WINDOWS),
+        ] {
+            assert_eq!(download_allowed(&url, version, target), Ok(()), "{url} for {target}");
+        }
+    }
+
+    /// Everything else is refused, each for its own reason.
+    #[test]
+    fn every_other_download_is_refused_for_its_reason() {
+        let gh = |file: &str| format!("{GH_131}{file}");
+        let cases: Vec<(String, &str, &str, &str)> = vec![
+            // Another host, one that only looks like it, and GitHub's own file storage.
+            ("https://example.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another host"),
+            ("https://github.com.example.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another host"),
+            ("https://github.com./ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another host"),
+            ("https://objects.githubusercontent.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another host"),
+            ("https://raw.githubusercontent.com/ShezissSnake/myorbiter/main/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another host"),
+            // http.
+            ("http://github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "not https"),
+            // A port, and https's own port, which the parser drops.
+            ("https://github.com:8443/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a port"),
+            ("https://github.com:443/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            // A user, a password, and a user named like the host in front of another host.
+            ("https://user@github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a user or password"),
+            ("https://user:secret@github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a user or password"),
+            ("https://github.com@example.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a user or password"),
+            // A query, an empty one, a fragment.
+            (gh("amd64.AppImage?x=1"), "0.2.131", LINUX, "a query"),
+            (gh("amd64.AppImage?"), "0.2.131", LINUX, "a query"),
+            (gh("amd64.AppImage#x"), "0.2.131", LINUX, "a fragment"),
+            // Another owner, another repository, the old name (which only redirects), and a case change.
+            ("https://github.com/someone/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another repository on github.com"),
+            ("https://github.com/ShezissSnake/myorbiter-fork/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another repository on github.com"),
+            ("https://github.com/ShezissSnake/orbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another repository on github.com"),
+            ("https://github.com/shezisssnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another repository on github.com"),
+            // Another GitLab project, by path, by number, and with its slash written in lower case.
+            ("https://gitlab.com/api/v4/projects/someone%2Fmyorbiter/packages/generic/myorbiter/0.2.112/myorbiter_0.2.112_amd64.AppImage".into(), "0.2.112", LINUX, "another project on gitlab.com"),
+            ("https://gitlab.com/api/v4/projects/12345/packages/generic/myorbiter/0.2.112/myorbiter_0.2.112_amd64.AppImage".into(), "0.2.112", LINUX, "another project on gitlab.com"),
+            ("https://gitlab.com/api/v4/projects/sheziss-group%2fmyorbiter/packages/generic/myorbiter/0.2.112/myorbiter_0.2.112_amd64.AppImage".into(), "0.2.112", LINUX, "another project on gitlab.com"),
+            // The channel's own folder in GitLab's registry, where the manifests are.
+            ("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/channel/experimental/myorbiter_0.2.112_amd64.AppImage".into(), "0.2.112", LINUX, "a package other than the builds'"),
+            // A release tag that isn't build- and digits.
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/experimental/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131a/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-x131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/v0.2.131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a release that isn't build-<digits>"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-١٣١/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            // A file of another version, and a GitLab folder of another version.
+            (gh("amd64.AppImage").replace("myorbiter_0.2.131", "myorbiter_0.2.130"), "0.2.131", LINUX, "a file of another version"),
+            (format!("{GL_112}amd64.AppImage").replace("/0.2.112/", "/0.2.111/"), "0.2.112", LINUX, "a folder of another version"),
+            (format!("{GL_112}amd64.AppImage").replace("myorbiter_0.2.112", "myorbiter_0.2.111"), "0.2.112", LINUX, "a file of another version"),
+            // The other system's file, each way, on both hosts.
+            (gh("x64-setup.exe"), "0.2.131", LINUX, "the other system's file"),
+            (gh("amd64.AppImage"), "0.2.131", WINDOWS, "the other system's file"),
+            (format!("{GL_112}x64-setup.exe"), "0.2.112", LINUX, "the other system's file"),
+            (format!("{GL_112}amd64.AppImage"), "0.2.112", WINDOWS, "the other system's file"),
+            // Another file of the build: the .deb, a signature, a manifest; and one a folder deeper.
+            (gh("amd64.deb"), "0.2.131", LINUX, "another file"),
+            (gh("amd64.AppImage.sig"), "0.2.131", LINUX, "another file"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/latest.json".into(), "0.2.131", LINUX, "another file"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/x/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "another file"),
+            // `..`, `%2e%2e` and `.%2e`: the parser resolves them, so the address reads differently.
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/../build-1/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/%2e%2e/build-1/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/.%2E/build-1/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage/..".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            // Other rewrites: an upper-case host, a backslash, a tab.
+            ("https://GitHub.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131\\myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.App\tImage".into(), "0.2.131", LINUX, "an address that reads differently once parsed"),
+            // An encoded slash or dot in the file name, or in the release.
+            (gh("amd64%2FAppImage"), "0.2.131", LINUX, "an encoded character in the path"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131/x%2Fmyorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an encoded character in the path"),
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131%2Fx/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "an encoded character in the path"),
+            (gh("amd64%2EAppImage"), "0.2.131", LINUX, "an encoded character in the path"),
+            (format!("{GL_112}amd64%2FAppImage"), "0.2.112", LINUX, "an encoded character in the path"),
+            // A doubled slash.
+            ("https://github.com/ShezissSnake/myorbiter/releases/download/build-131//myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a doubled slash"),
+            ("https://github.com//ShezissSnake/myorbiter/releases/download/build-131/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX, "a doubled slash"),
+            ("https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/0.2.112//myorbiter_0.2.112_amd64.AppImage".into(), "0.2.112", LINUX, "a doubled slash"),
+            // A version the app can't read as three numbers.
+            (gh("amd64.AppImage"), "0.2", LINUX, "a version that isn't three numbers"),
+            (gh("amd64.AppImage"), "v0.2.131", LINUX, "a version that isn't three numbers"),
+            (gh("amd64.AppImage"), "0.2.131-beta.1", LINUX, "a version that isn't three numbers"),
+            (gh("amd64.AppImage"), "0.2.131+x", LINUX, "a version that isn't three numbers"),
+            (gh("amd64.AppImage"), "0.2.0131", LINUX, "a version that isn't three numbers"),
+            (gh("amd64.AppImage"), "", LINUX, "a version that isn't three numbers"),
+            // A system MyOrbiter has no build for.
+            (gh("amd64.AppImage"), "0.2.131", "darwin-aarch64", "a system MyOrbiter has no build for"),
+            (gh("amd64.AppImage"), "0.2.131", "linux-aarch64", "a system MyOrbiter has no build for"),
+            (gh("x64-setup.exe"), "0.2.131", "windows-i686", "a system MyOrbiter has no build for"),
+            (gh("amd64.AppImage"), "0.2.131", "linux", "a system MyOrbiter has no build for"),
+            (gh("amd64.AppImage"), "0.2.131", "", "a system MyOrbiter has no build for"),
+            // Not an address at all.
+            ("not an address".into(), "0.2.131", LINUX, "not an address"),
+        ];
+        for (url, version, target, reason) in &cases {
+            assert_eq!(download_allowed(url, version, target), Err(*reason), "{url:?} ({version:?}, {target:?})");
+        }
+    }
+
+    /// Audit finding 10 (b), as a manifest would carry it: Linux's entry with the Windows file's
+    /// address and signature (both validly signed for this version) is refused under Linux.
+    #[test]
+    fn the_other_systems_signed_file_is_refused() {
+        let mut raw: serde_json::Value = serde_json::from_str(include_str!("../../tests/fixtures/updater/experimental-0.2.106.json")).unwrap();
+        let windows = raw["platforms"]["windows-x86_64"].clone();
+        raw["platforms"]["linux-x86_64"] = windows;
+        let release: tauri_plugin_updater::RemoteRelease = serde_json::from_value(raw).unwrap();
+        assert_eq!(download_allowed(release.download_url(LINUX).unwrap().as_str(), "0.2.106", LINUX), Err("the other system's file"));
+    }
+
+    /// An update as the check and the install see it, without the plugin.
+    struct Offered(String, &'static str, &'static str);
+
+    impl Download for Offered {
+        fn url(&self) -> &str {
+            &self.0
+        }
+        fn version(&self) -> &str {
+            self.1
+        }
+        fn target(&self) -> String {
+            self.2.into()
+        }
+    }
+
+    /// The check keeps an update only when its download is MyOrbiter's own. One that isn't leaves
+    /// nothing pending (not even what an earlier check kept), and the page gets a plain sentence.
+    #[test]
+    fn a_check_keeps_no_update_whose_download_is_not_the_projects() {
+        let pending: Mutex<Option<(Channel, Offered)>> = Mutex::new(None);
+        assert_eq!(keep(&pending, Channel::Experimental, Offered(format!("{GH_131}amd64.AppImage"), "0.2.131", LINUX)), Ok(()));
+        assert!(pending.lock().unwrap().as_ref().is_some_and(|(c, u)| *c == Channel::Experimental && u.1 == "0.2.131"));
+        let foreign = Offered("https://example.com/ShezissSnake/myorbiter/releases/download/build-132/myorbiter_0.2.132_amd64.AppImage".into(), "0.2.132", LINUX);
+        assert_eq!(
+            keep(&pending, Channel::Experimental, foreign),
+            Err("The Experimental channel's manifest names a download that isn't MyOrbiter's own; nothing was downloaded".into())
+        );
+        assert!(pending.lock().unwrap().is_none(), "nothing is pending after a refusal");
+        let windows_file = Offered(format!("{GH_131}x64-setup.exe"), "0.2.131", LINUX);
+        assert!(keep(&pending, Channel::Beta, windows_file).unwrap_err().starts_with("The Beta channel's manifest"));
+        assert!(pending.lock().unwrap().is_none());
+    }
+
+    /// The install checks the pending update again just before the download: one kept by
+    /// anything else than this check (an older check, say) is refused there and dropped.
+    #[test]
+    fn an_install_checks_the_kept_update_again() {
+        let foreign = Offered("https://example.com/myorbiter_0.2.132_amd64.AppImage".into(), "0.2.132", LINUX);
+        let kept = Offered(foreign.0.clone(), foreign.1, foreign.2);
+        let pending = Mutex::new(Some((Channel::Experimental, kept)));
+        assert_eq!(still_own(&pending, Channel::Experimental, &foreign), Err("this update's download isn't MyOrbiter's own, so nothing was downloaded".into()));
+        assert!(pending.lock().unwrap().is_none());
+        let own = Offered(format!("{GL_112}x64-setup.exe"), "0.2.112", WINDOWS);
+        assert_eq!(still_own(&pending, Channel::Experimental, &own), Ok(()));
+    }
+
+    /// The log names the refused address by its host and nothing else of it: no user, password,
+    /// port, path, file, query or fragment.
+    #[test]
+    fn a_refusal_is_logged_by_host_alone() {
+        let line = refused_line(Channel::Beta, "https://someone:secret@downloads.example.net:8443/a/path/evil_0.2.131.exe?token=abc#frag", "another host");
+        assert_eq!(line, "beta: update refused, its download (at downloads.example.net) isn't MyOrbiter's own: another host");
+        assert_eq!(refused_line(Channel::Stable, "not an address", "not an address"), "stable: update refused, its download (at no host) isn't MyOrbiter's own: not an address");
+    }
+
     /// Each way a check can fail has its own plain sentence, naming the channel where it matters.
     #[test]
     fn a_failed_check_says_why_in_plain_words() {
@@ -682,8 +1060,27 @@ mod tests {
         let config: serde_json::Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
         let built = &config["plugins"]["updater"];
         assert_eq!(&updater_config(built.clone()), built);
+        // The test server's download isn't let through either.
+        assert!(!own_download(Channel::Beta, &Offered("http://127.0.0.1:9/myorbiter_0.2.131_amd64.AppImage".into(), "0.2.131", LINUX)));
         std::env::remove_var("MYORBITER_UPDATER_E2E_ENDPOINT");
         std::env::remove_var("MYORBITER_UPDATER_E2E_PUBKEY");
+    }
+
+    /// A build for the end-to-end test takes its server's own downloads, on the manifest's origin,
+    /// and nothing else that isn't MyOrbiter's own.
+    #[test]
+    #[cfg(feature = "e2e-updater")]
+    fn the_test_build_takes_only_its_servers_downloads() {
+        std::env::set_var("MYORBITER_UPDATER_E2E_ENDPOINT", "http://127.0.0.1:8765/latest.json");
+        let at = |url: &str| own_download(Channel::Experimental, &Offered(url.into(), "0.2.131", LINUX));
+        assert!(at("http://127.0.0.1:8765/myorbiter_0.2.131_amd64.AppImage"));
+        assert!(!at("http://127.0.0.1:8766/myorbiter_0.2.131_amd64.AppImage"), "another port");
+        assert!(!at("http://localhost:8765/myorbiter_0.2.131_amd64.AppImage"), "another host");
+        assert!(!at("http://127.0.0.1:8765/myorbiter_0.2.131_amd64.AppImage?x"), "a query");
+        assert!(!at("https://example.com/myorbiter_0.2.131_amd64.AppImage"));
+        assert!(at(&format!("{GH_131}amd64.AppImage")), "the project's own still passes");
+        std::env::remove_var("MYORBITER_UPDATER_E2E_ENDPOINT");
+        assert!(!at("http://127.0.0.1:8765/myorbiter_0.2.131_amd64.AppImage"), "not without the test server set");
     }
 
     /// The committed key is the release key (id E8C1BC6BE2D5CFB9), not a test key.

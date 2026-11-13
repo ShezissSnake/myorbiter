@@ -260,10 +260,12 @@ the same way, so Settings can name a channel that has one; it switches nothing. 
 on the channel its build was published to (Experimental, where every build lands first); an install
 that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
-that `latest.json` points: the build's release on github.com, which hands the download to GitHub's
-file storage (`release-assets.githubusercontent.com` or `objects.githubusercontent.com`), or
-gitlab.com's package registry, which may hand it to a file storage of its choosing that wasn't
-audited. Other installs
+that `latest.json` points, and only if that is one of this project's own addresses for the version
+on offer and your system: a `build-<n>` release of this project on github.com, which hands the
+download to GitHub's file storage (`release-assets.githubusercontent.com` or
+`objects.githubusercontent.com`), or that version's folder in this project's package registry on
+gitlab.com, which may hand it to a file storage of its choosing that wasn't audited. A `latest.json`
+that points anywhere else is refused, and nothing is downloaded. Other installs
 (.deb and .rpm, a build run straight from its folder, a development build) don't check.
 TennoScope's own updater is switched off in this build: it never asks GitHub for a new version, and
 MyOrbiter's update brings the next TennoScope.

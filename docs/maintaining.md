@@ -95,6 +95,15 @@ channel's `latest.json`; the builds' files stay on their own `build-<n>` release
 manifest names. Installed copies read `https://github.com/ShezissSnake/myorbiter/releases/download/<channel>/latest.json`
 first and GitLab's `channel/<channel>/latest.json` second (`src-tauri/src/updates.rs`).
 
+Installed copies download an update only from the address forms the release scripts write today,
+`https://github.com/ShezissSnake/myorbiter/releases/download/build-<digits>/myorbiter_<version>_<file>`
+and GitLab's `…/packages/generic/myorbiter/<version>/myorbiter_<version>_<file>`, with `<file>`
+`amd64.AppImage` or `x64-setup.exe` (`download_allowed` in `src-tauri/src/updates.rs`); a manifest
+that names any other address is refused, and copies already installed keep that rule. So each of
+these needs a build that accepts the new form published first, and installed, before the form
+changes: moving or renaming the repository, a release tag other than `build-<digits>`, other file
+names, another host.
+
 The jobs that move a channel and the site build share the concurrency group `channels`: one runs,
 one waits, and GitHub cancels a waiting job when a third arrives. Start one task at a time; a job
 that ends as cancelled is run again with **Re-run failed jobs**.
