@@ -2610,12 +2610,7 @@
       if (action === "rep") void repFromNotice(id);
     });
     let feedPoll: ReturnType<typeof setInterval> | undefined;
-    market
-      .feed(true)
-      .then((s) => {
-          mkt.feed = s;
-        })
-      .catch(() => {});
+    // The feed itself is connected by the store, while something is watched (mkt.watchLive).
     feedPoll = setInterval(() => {
       market
         .feedState()

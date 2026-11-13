@@ -91,6 +91,8 @@ const APPLY_TTL = 2 * 60_000;
 const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
 const PLAN_FRESH_MS = 10 * 60_000;
+/** How long the live feed stays connected after the watchlist empties (see `wantFeed`). */
+export const FEED_LINGER_MS = 10 * 60_000;
 
 /** Two plain values (rows read from warframe.market) alike field for field. */
 const sameJson = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
@@ -180,8 +182,8 @@ class MarketStore {
     this.deals = [];
     this.dealsAt = null;
     this.lastPass = null;
-    // The live feed subscribed to the old platform's new listings.
-    if (this.feed?.running) {
+    // The live feed subscribed to the old platform's new listings: started again if it's on.
+    if (this.feedOn) {
       await market.feed(false);
       this.feed = await market.feed(true);
     }
@@ -1251,7 +1253,8 @@ class MarketStore {
   liveDeals = $state(0);
   private liveWatch = new Map<string, Watch>();
   private liveModel: Model | null = null;
-  /** What the live feed looks for: a longer list than the scan's, as it costs no requests. */
+  /** What the live feed looks for: a longer list than the scan's, as it costs no requests. The
+   * feed is connected only while this holds something (see `wantFeed`). */
   watchLive(m: Model, watch: Watch[]) {
     this.liveModel = m;
     const map = new Map<string, Watch>();
@@ -1260,6 +1263,38 @@ class MarketStore {
       if (it && !map.has(it.slug)) map.set(it.slug, w);
     }
     this.liveWatch = map;
+    this.wantFeed(map.size > 0);
+  }
+  /** Whether the live feed is wanted on: set by `wantFeed`, never by the feed's own state. */
+  private feedOn = false;
+  private feedOff: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * The live feed on while something is watched. It connects when the watchlist first holds
+   * something and stays connected while it does; it closes only once the list has stayed empty
+   * for FEED_LINGER_MS, so a list that empties for a moment (a model rebuilt mid-read) doesn't
+   * cost a new connection, and it never connects more than once in that time.
+   */
+  private wantFeed(on: boolean) {
+    if (on) {
+      if (this.feedOff) clearTimeout(this.feedOff);
+      this.feedOff = null;
+      if (this.feedOn) return;
+      this.feedOn = true;
+      void market
+        .feed(true)
+        .then((s) => (this.feed = s))
+        .catch(() => {});
+      return;
+    }
+    if (!this.feedOn || this.feedOff) return;
+    this.feedOff = setTimeout(() => {
+      this.feedOff = null;
+      this.feedOn = false;
+      void market
+        .feed(false)
+        .then((s) => (this.feed = s))
+        .catch(() => {});
+    }, FEED_LINGER_MS);
   }
   /** One sell order from the live feed: a deal joins the list (and so gets announced). */
   feedOrder(o: FeedOrder) {

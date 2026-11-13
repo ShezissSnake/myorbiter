@@ -253,7 +253,12 @@ test("Nox's Frame's list in words: days, card dates, a stale copy, the saved bui
   assert.equal(listedAt(null), null);
   assert.equal(copyLine({ stale: false, fetchedAt: NOW }), null);
   assert.equal(copyLine({ stale: true, fetchedAt: Date.parse("2026-10-27T10:00:00Z") }), "Showing a copy from 27 Oct 2026");
-  assert.equal(copyLine({ stale: true, error: "Error: timed out", fetchedAt: Date.parse("2026-10-27T10:00:00Z") }), "Showing a copy from 27 Oct 2026: Nox's Frame didn't answer (timed out)");
+  assert.equal(copyLine({ stale: true, error: "Error: timed out", fetchedAt: Date.parse("2026-10-27T10:00:00Z") }), "Showing a copy from 27 Oct 2026: couldn't read Nox's Frame again (timed out)");
+  // A page it could no longer read is said as that, not as no answer.
+  assert.equal(
+    copyLine({ stale: true, error: "the page didn't look like a list of builds; Nox's Frame may have changed it", fetchedAt: Date.parse("2026-10-27T10:00:00Z") }),
+    "Showing a copy from 27 Oct 2026: couldn't read Nox's Frame again (the page didn't look like a list of builds; Nox's Frame may have changed it)",
+  );
   const url = "https://noxsframe.com/builds/abc-x";
   const kept = build({ source: { url, site: "Nox's Frame" } });
   assert.equal(savedFrom([build(), kept], url), kept);

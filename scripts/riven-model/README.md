@@ -22,8 +22,9 @@ python3 scripts/riven-model/train.py DATA_DIR src/lib/data/riven-model.json
 
 `collect.py` reads PC listings with a fixed buyout for the 220 weapons whose rivens trade most (by DE's weekly figures):
 for each, the cheapest and dearest 100, and the cheapest and dearest 100 with each of the stats
-players look for. GET requests only, one at a time and at least 0.45 s apart, under an honest
-User-Agent; it can be stopped and started again (it skips weapons done). It writes
+players look for. GET requests only, one at a time and at least 6 s apart (warframe.market allows
+10 auction searches a minute), retries included (14 to 18 searches a weapon, so about six hours for 220); a "too many requests"
+waits its Retry-After in full. Under an honest User-Agent; it can be stopped and started again (it skips weapons done). It writes
 `auctions.jsonl`, `seen.txt` and `done.txt` beside itself and needs `weekly.txt`
 (https://www-static.warframe.com/repos/weeklyRivensPC.json) there. Point `train.py` at that
 folder, with warframe.market's `/v2/riven/weapons` saved as `rw.json`. The listings themselves
