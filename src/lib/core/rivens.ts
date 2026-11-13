@@ -578,6 +578,8 @@ export interface MyAuction {
   topBid: number | null;
   closed: boolean;
   visible: boolean;
+  /** The answer's own `private` field, kept as read so a price change can send it back unchanged. */
+  private: boolean;
   note: string;
   minRep: number;
   updated: string;
@@ -607,6 +609,7 @@ export function parseMyAuctions(raw: unknown): MyAuction[] {
       topBid: a.top_bid == null ? null : Number(a.top_bid),
       closed: a.closed === true,
       visible: a.visible !== false,
+      private: a.private === true,
       note: String(a.note_raw ?? a.note ?? ""),
       minRep: Number(a.minimal_reputation ?? 0),
       updated: String(a.updated ?? ""),
@@ -625,6 +628,20 @@ export function auctionOf(meta: RivenMeta, r: Riven, mine: MyAuction[]): MyAucti
   const weapon = weaponSlug(meta, r.weaponUnique, r.weapon);
   const name = r.name.toLowerCase();
   return mine.find((a) => !a.closed && a.weapon === weapon && a.name === name);
+}
+
+/**
+ * Whether one of your auctions is this riven, as warframe.market gives it back: the weapon and
+ * name, and what tells two rivens of one weapon with one name apart (stats with their values and
+ * signs, cycles, mastery, rank, polarity). Values are compared to the second decimal, the
+ * precision they are sent with.
+ */
+export function isAuctionOf(a: MyAuction, item: AuctionItem): boolean {
+  if (a.weapon !== item.weapon_url_name || a.name.toLowerCase() !== item.name.toLowerCase()) return false;
+  if (a.rerolls !== (item.re_rolls ?? 0) || a.mr !== (item.mastery_level ?? 0) || a.rank !== (item.mod_rank ?? 0) || a.polarity !== (item.polarity ?? "")) return false;
+  const want = item.attributes ?? [];
+  if (a.attributes.length !== want.length) return false;
+  return want.every((w) => a.attributes.some((x) => x.url_name === w.url_name && x.positive === w.positive && Math.abs(x.value - w.value) < 0.01));
 }
 
 // ---------------------------------------------------------------- what rivens traded for in game

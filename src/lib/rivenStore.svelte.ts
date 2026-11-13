@@ -2,7 +2,7 @@
 // riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
 import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
-import { packListed, packPrices, startingFor, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
+import { packListed, packPrices, startingFor, isAuctionOf, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
 /** How often the pages read your riven auctions at most (`refreshMine`). */
@@ -176,10 +176,13 @@ class Rivens {
     const ok = await this.loadMine();
     if (!ok && this.mineAsked === asked) this.mineAsked = { at: now - MINE_EVERY_MS + MINE_RETRY_MS, who };
   }
+  /** A create failed and the read after it did too: it may have been made, so the next Sell reads first. */
+  private unchecked = false;
   /** Reads your auctions; whether the read worked. */
   async loadMine(): Promise<boolean> {
     try {
       this.mine = parseMyAuctions(await market.myAuctions());
+      this.unchecked = false;
       this.mineAt = Date.now();
       this.mineError = null;
       return true;
@@ -197,17 +200,23 @@ class Rivens {
     // pages read it only every few minutes): without it, one that timed out but was made can't be
     // told from one that wasn't, and sending again would put the riven up twice; with an old list,
     // one put up meanwhile on the site could be taken for this one.
-    if (this.mineAt == null || Date.now() - this.mineAt > SELL_FRESH_MS) await this.loadMine();
+    // When that read fails nothing is sent: an earlier create may have been made, and the list
+    // can't say. The same after a create whose check failed (`unchecked`), however fresh the list.
+    if (this.unchecked || this.mineAt == null || Date.now() - this.mineAt > SELL_FRESH_MS) {
+      if (!(await this.loadMine())) throw new Error("MyOrbiter could not check the auctions already up on warframe.market, so nothing was sent. Try again in a moment.");
+    }
     // Already up (put up on the site since the page last read your auctions): not a second time.
     // The same match as the page's "up for sale" mark (core/rivens.ts, auctionOf).
     if (this.mine.some((a) => !a.closed && a.weapon === item.weapon_url_name && a.name === item.name)) throw new Error("This riven is already up on warframe.market: reprice or close that auction instead");
-    const before = this.mineAt != null ? new Set(this.mine.map((a) => a.id)) : null;
+    const before = new Set(this.mine.map((a) => a.id));
     try {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
     } catch (e) {
       // No answer in time doesn't mean it wasn't made: look before letting you send it again.
-      await this.loadMine().catch(() => {});
-      if (before && this.mine.some((a) => !before.has(a.id) && a.weapon === item.weapon_url_name)) return;
+      // If that look fails too, the next Sell reads first (and sends nothing if that fails).
+      this.unchecked = !(await this.loadMine());
+      // Only this riven counts: another one for the same weapon, put up meanwhile, doesn't.
+      if (!this.unchecked && this.mine.some((a) => !before.has(a.id) && !a.closed && isAuctionOf(a, item))) return;
       throw e;
     }
     await this.loadMine();
@@ -215,11 +224,12 @@ class Rivens {
   /**
    * A new buyout for one of your auctions. It stays what it was: one with no bidding (starting at
    * the buyout) keeps starting at the new buyout; one taking bids keeps its starting bid unless the
-   * buyout goes under it; a hidden one stays hidden.
+   * buyout goes under it. Everything else goes back as it was read: the minimum reputation, the
+   * note, `visible` and `private`.
    */
   async reprice(a: MyAuction, buyout: number) {
     const starting = startingFor(a, buyout);
-    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: !a.visible, note: a.note });
+    await market.updateAuction(a.id, { starting_price: starting, buyout_price: buyout, minimal_reputation: a.minRep, private: a.private, visible: a.visible, note: a.note });
     await this.loadMine();
   }
   async close(a: MyAuction) {
