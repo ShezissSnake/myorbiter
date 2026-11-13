@@ -56,7 +56,8 @@ test("the item list: every buildable item once, yours first, then by name", () =
   const rhino = list.find((x) => x.name === "Rhino Prime");
   assert.equal(list.length, new Set(list.map((x) => x.name)).size, "one per name");
   assert.ok(list.find((x) => x.name === "Voidrig")?.kind === "necramech");
-  if (rhino && rhino.unique === P.rhino) assert.equal(list[0].name, "Rhino Prime", "yours first");
+  assert.equal(rhino?.unique, P.rhino, "the fixture holds the item that is owned");
+  assert.equal(list[0].name, "Rhino Prime", "yours first");
 });
 
 test("the item search: names starting with it, then a word starting with it, then containing it; yours first at each step", () => {
