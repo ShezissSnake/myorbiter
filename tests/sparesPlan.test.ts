@@ -3,10 +3,11 @@
 // situation these tests look at). Each test changes one choice from the usual ones and looks at
 // what the plan starts from (sellTargets), what it then does (bulkPlan), and the last check before
 // a listing (listGuard), so a choice can't hold something back in one and let it through another.
-// The last test runs the plan on the player's own dev data (public/dev-*.json), when it's there.
+// The last test runs the plan on the player's own dev data (public/dev-*.json) when it's there, else on the demo's files again.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { catalogFile } from "./support/catalogFiles";
 import { buildModel, type Model } from "../src/lib/core/model";
 import {
   actionKey,
@@ -312,11 +313,13 @@ test("saved: Sell spares' choices, and the old switches beside them for an older
   assert.deepEqual(sparesSettingsOf(saved), s.market.spares, "read back as saved");
 });
 
-// The player's own dev data (public/dev-*.json, from `npm run dev-bundle` and `npm run dev-data`):
-// no counts, since an account moves on; only that the plan runs and says why for every line.
-const own = (f: string) => new URL(`../public/${f}`, import.meta.url);
-const OWN = ["dev-bundle.json", "dev-recipe-data.json", "dev-market-items.json"];
-test("on the player's own dev data: every target names its rule and a positive count", { skip: !OWN.every((f) => existsSync(own(f))) && "public/dev-*.json isn't here: run `npm run dev-bundle` and `npm run dev-data`" }, () => {
+// The player's own dev data (public/dev-*.json, from `npm run dev-bundle` and `npm run dev-data`)
+// when it is there, else the demo's files: no counts, since an account moves on; only that the plan
+// runs and says why for every line. The name says which of the two it read; the three files come
+// from one folder, so a half-made set in `public/` is not mixed with the demo's.
+const ownSource = ["dev-bundle.json", "dev-recipe-data.json", "dev-market-items.json"].every((f) => catalogFile(f).source === "public/") ? "public/" : "demo/";
+const own = (f: string) => new URL(`../${ownSource}${f}`, import.meta.url);
+test(`on the dev data (${ownSource}dev-*.json): every target names its rule and a positive count`, () => {
   const m = buildModel(read(own("dev-bundle.json")) as Bundle, undefined, null, null, null, read(own("dev-recipe-data.json")));
   const index = indexItems(read(own("dev-market-items.json")));
   for (const r of [defaultSparesRules(), rules((x) => ((x.arcanes.which = "any"), (x.mods.dailyOnly = false), (x.prime.sellAs = "parts")))]) {

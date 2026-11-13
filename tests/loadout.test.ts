@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { DEMO_NAMED, lacking, readCatalogFile } from "./support/catalogFiles";
 import {
   frameInfo,
   heldFrom,
@@ -346,23 +347,27 @@ test("every set piece goes where the catalog says it goes, and every piece and p
   for (const f of SYN.shieldGating.frames) assert.ok(FRAME_NAMES.includes(f), `${f} is a curated frame`);
 });
 
-// ---------------------------------------------------------------- against the real catalog and inventory (when present)
+// ---------------------------------------------------------------- against the catalog and inventory: the player's own (public/dev-bundle.json) when it is there, else the demo's
 
-const bundlePath = new URL("../public/dev-bundle.json", import.meta.url);
-const hasBundle = existsSync(bundlePath);
-const bundle = hasBundle ? (JSON.parse(readFileSync(bundlePath, "utf8")) as { catalog: CatalogItem[]; inventory: InventoryRow[] }) : null;
+const bundleRead = readCatalogFile<{ catalog: CatalogItem[]; inventory: InventoryRow[] }>("dev-bundle.json");
+const bundle = bundleRead.data;
+const from = `${bundleRead.source}dev-bundle.json`;
 
-test("real catalog: every loadout name and path exists exactly", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const idx = modIndex(bundle!.catalog);
-  assert.deepEqual(loadoutModNames().filter((n) => !idx.byName.has(n)), []);
-  for (const x of loadoutItems()) assert.equal(bundle!.catalog.find((c) => c.uniqueName === x.path)?.name, x.name, x.path);
+test(`catalog (${from}): every loadout name and path exists exactly`, () => {
+  const idx = modIndex(bundle.catalog);
+  assert.deepEqual(lacking(bundleRead.source, loadoutModNames(), idx.byName, fixture.catalog), []);
+  for (const x of loadoutItems()) {
+    const got = bundle.catalog.find((c) => c.uniqueName === x.path)?.name;
+    if (got === undefined && bundleRead.source === "demo/" && x.name in DEMO_NAMED) continue; // see DEMO_NAMED
+    assert.equal(got, x.name, x.path);
+  }
 });
 
-test("real inventory: shards held are marked, and every warframe's loadout keeps to its tier", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const idx = modIndex(bundle!.catalog);
-  const owned = ownedFrom(bundle!.inventory);
-  const held = heldFrom(bundle!.inventory);
-  const frames = bundle!.catalog.filter((c) => c.category === "Warframes" && c.type === "Warframe" && c.name !== "Helminth");
+test(`inventory (${from}): shards held are marked, and every warframe's loadout keeps to its tier`, () => {
+  const idx = modIndex(bundle.catalog);
+  const owned = ownedFrom(bundle.inventory);
+  const held = heldFrom(bundle.inventory);
+  const frames = bundle.catalog.filter((c) => c.category === "Warframes" && c.type === "Warframe" && c.name !== "Helminth");
   for (const f of frames) for (const tier of TIERS) checkBudget(loadoutFor(f, tier, owned, idx, held)!, tier, `${f.name} ${tier}`);
   // Marked shards never outnumber the ones held, per path.
   for (const f of frames) {

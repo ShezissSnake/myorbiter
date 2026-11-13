@@ -1,7 +1,8 @@
 // Builds: mod and arcane availability (availability.ts) and the progression tier (tierOf).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { readCatalogFile } from "./support/catalogFiles";
 import {
   availability,
   availabilityOf,
@@ -124,9 +125,9 @@ test("the data file: corrupted mods and overrides name real mods, every override
   for (const [k, s] of Object.entries(d.sources)) assert.ok(/^https:\/\//.test(s) || /^MyOrbiter's rule/.test(s), `${k}: ${s}`);
 });
 
-const hasBundle = existsSync(new URL("../public/dev-bundle.json", import.meta.url));
-test("real catalog: the corrupted list and overrides are catalog names", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const b = JSON.parse(readFileSync(new URL("../public/dev-bundle.json", import.meta.url), "utf8")) as { catalog: CatalogItem[] };
+const catalogRead = readCatalogFile<{ catalog: CatalogItem[] }>("dev-bundle.json");
+test(`catalog (${catalogRead.source}dev-bundle.json): the corrupted list and overrides are catalog names`, () => {
+  const b = catalogRead.data;
   const names = new Set(b.catalog.map((c) => c.name));
   const d = data as unknown as { corrupted: string[]; overrides: Record<string, unknown> };
   for (const n of [...d.corrupted, ...Object.keys(d.overrides)]) assert.ok(names.has(n), n);
