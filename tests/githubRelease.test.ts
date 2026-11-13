@@ -87,6 +87,50 @@ test("off main a build is published only with experimental unticked, and then ne
   assert.match(job("site"), /^ {4}if: >-\n {6}\$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main'$/m);
 });
 
+test("the Windows job runs the test job's Rust tests as its last step, after the installer is uploaded", () => {
+  const steps = (j: string) => j.slice(j.indexOf("\n    steps:\n"));
+  const command = /^ {6}- run: (cargo test [^\n]+)$/m.exec(steps(job("test")))?.[1];
+  assert.equal(command, "cargo test --workspace --locked");
+  // The job's steps, without the comments of the job after it.
+  const windows = steps(job("windows")).replace(/(\n {2}#[^\n]*)+\n?$/, "\n");
+  const run = windows.indexOf(`\n      - run: ${command}\n`);
+  const upload = windows.indexOf("- uses: actions/upload-artifact@");
+  assert.ok(upload > 0 && run > upload, "no test step after the upload");
+  // Nothing after it, and nothing that lets it fail quietly.
+  assert.equal(windows.slice(run).trimEnd(), `\n      - run: ${command}`);
+  assert.doesNotMatch(windows, /continue-on-error/);
+  // A failed test step fails the job, and then nothing is signed (or published).
+  assert.match(job("sign"), /\n {6}&& \(needs\.windows\.result == 'success' \|\| needs\.windows\.result == 'skipped'\) \}\}\n/);
+});
+
+test("every call of the manifest scripts' verify and check names the version, and check both systems", () => {
+  const files = [".github/workflows/release.yml", "ci/experimental.sh", "ci/promote.sh", "ci/publish.sh"];
+  const calls: Record<string, string[]> = {};
+  for (const f of files) {
+    // Continued lines joined; comments are not calls.
+    const lines = readFileSync(f, "utf8").replace(/\\\n\s*/g, " ").split("\n").filter((l) => !/^\s*#/.test(l));
+    calls[f] = [];
+    for (const l of lines) {
+      const m = /node scripts\/(updater|github)-manifest\.mjs (verify|check)\b(.*)$/.exec(l);
+      if (!m) continue;
+      calls[f].push(`${m[1]} ${m[2]}`);
+      assert.match(m[3], / --version "\$[A-Z_a-z]+"(\s|$)/, `${f}: ${l.trim()}`);
+      if (m[2] === "check") assert.match(m[3], / --require linux-x86_64,windows-x86_64(\s|;|$)/, `${f}: ${l.trim()}`);
+    }
+  }
+  // So that a call written another way can't slip past the match above.
+  for (const f of files) {
+    const all = readFileSync(f, "utf8").split("\n").filter((l) => !/^\s*#/.test(l) && /manifest\.mjs (verify|check)\b/.test(l));
+    assert.equal(all.length, calls[f].length, f);
+  }
+  assert.deepEqual(calls, {
+    ".github/workflows/release.yml": ["updater verify", "github check", "github check", "updater verify"],
+    "ci/experimental.sh": ["updater check"],
+    "ci/promote.sh": ["updater check", "updater verify"],
+    "ci/publish.sh": ["updater check"],
+  });
+});
+
 test("the first build made on GitHub is the same number everywhere", () => {
   const offset = Number(/^ {2}BUILD_OFFSET: "(\d+)"$/m.exec(wf)?.[1]);
   assert.equal(offset, 26);

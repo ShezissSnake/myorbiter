@@ -6,8 +6,11 @@
 //   node scripts/updater-manifest.mjs verify --file F --sig F.sig --version 0.2.52 [--config src-tauri/tauri.conf.json]
 //   node scripts/updater-manifest.mjs manifest --dir DIR --version 0.2.152 --base URL
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
-//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.2.152 [--require linux-x86_64,windows-x86_64]
+//   node scripts/updater-manifest.mjs check --manifest latest.json --version 0.2.152 --require linux-x86_64,windows-x86_64
 //        [--base URL]
+//
+// Flags without brackets are required: verify and check stop with an error rather than leave out
+// the check a missing flag stands for.
 //
 // URL (--base) is the folder the build's files are downloaded from, ending in its version: the
 // build's generic package, https://gitlab.com/api/v4/projects/<project>/packages/generic/myorbiter/0.2.152.
@@ -263,7 +266,8 @@ function main(argv) {
     }
     case "verify": {
       if (!a.file || !a.sig) throw new Error("verify needs --file and --sig");
-      const signed = verifySignature(readFileSync(a.file), readFileSync(a.sig, "utf8"), a.pubkey ?? pubkeyFromConfig(config), a.version ?? null);
+      if (!a.version) throw new Error("verify needs --version");
+      const signed = verifySignature(readFileSync(a.file), readFileSync(a.sig, "utf8"), a.pubkey ?? pubkeyFromConfig(config), a.version);
       console.log(`${a.file}: signature good, signed for ${signed}`);
       return;
     }
@@ -278,10 +282,11 @@ function main(argv) {
       return;
     }
     case "check": {
-      if (!a.manifest) throw new Error("check needs --manifest");
+      for (const k of ["manifest", "version", "require"]) if (!a[k]) throw new Error(`check needs --${k}`);
+      const require = a.require.split(",").filter(Boolean);
+      if (!require.length) throw new Error(`check needs --require to name a system, not "${a.require}"`);
       const manifest = JSON.parse(readFileSync(a.manifest, "utf8"));
-      const require = a.require ? a.require.split(",").filter(Boolean) : [];
-      console.log(checkManifest(manifest, { version: a.version ?? null, require, base: a.base ?? null }).join(","));
+      console.log(checkManifest(manifest, { version: a.version, require, base: a.base ?? null }).join(","));
       return;
     }
     default:
