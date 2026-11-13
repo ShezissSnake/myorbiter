@@ -219,7 +219,8 @@ class Rivens {
       if (!this.unchecked && this.mine.some((a) => !before.has(a.id) && !a.closed && isAuctionOf(a, item))) return;
       throw e;
     }
-    await this.loadMine();
+    // The create worked; if the read after it fails, the next Sell reads first (the list lacks this auction).
+    this.unchecked = !(await this.loadMine());
   }
   /**
    * A new buyout for one of your auctions. It stays what it was: one with no bidding (starting at

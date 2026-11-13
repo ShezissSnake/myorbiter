@@ -103,3 +103,20 @@ test("a create that timed out but was made is not reported as failed, whatever t
   await rivens.sell(item, 100, 100);
   assert.deepEqual(rivens.mine.map((a) => a.id), ["new"]);
 });
+
+test("a create that worked, then a failed read: Sell again within half a minute reads first and sends nothing", async () => {
+  let creates = 0;
+  let readable = true;
+  market.myAuctions = async () => {
+    if (!readable) throw new Error(TIMED_OUT);
+    return [];
+  };
+  market.createAuction = (async () => {
+    creates++;
+    readable = false; // made, and the read after it fails
+  }) as never;
+  await rivens.sell(item, 100, 100);
+  assert.equal(creates, 1);
+  await assert.rejects(rivens.sell(item, 100, 100), /could not check the auctions already up/);
+  assert.equal(creates, 1);
+});
