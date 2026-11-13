@@ -157,7 +157,7 @@
         sub: spares ? `×${spareN.toLocaleString("en")} spare · ${spareOf(r)?.type ?? r.type}` : priceOf(r) == null ? `${r.type} · its set` : `×${heldN.toLocaleString("en")} held · each`,
         value: Math.round(value),
         title: spares ? `${shown(r)}: ${spareN.toLocaleString("en")} spare, about ${Math.round(value).toLocaleString("en")}p (no more than the market sells in a month: its part of Spare value). Click for its details` : priceOf(r) == null ? `${shown(r)}: built gear can't be traded; its set sells for ${Math.round(value).toLocaleString("en")}p. Click for its details` : `${shown(r)}: ${Math.round(value).toLocaleString("en")}p each, ${heldN.toLocaleString("en")} held. Click for its details`,
-        open: () => (r.kind === "gear" && c ? details.open(r.unique) : (opened = r)),
+        open: () => (r.kind === "gear" && r.levels && c ? details.open(r.unique) : (opened = r)),
         image: imageFor(r),
         look: r.kind === "mod" ? "mod" : r.kind === "arcane" ? "arcane" : "art",
         fallback: kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry",
@@ -324,7 +324,7 @@
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
-  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
+  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
 </div></div>
 
 <style>

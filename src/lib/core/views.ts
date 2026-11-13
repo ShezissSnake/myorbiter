@@ -3,7 +3,7 @@
 import { collectionItem, inCodex } from "./collection";
 import { familyOf, modularNext, type ModularStep } from "./modular";
 import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
-import { REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
+import { NO_MASTERY, REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
@@ -1153,7 +1153,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         name,
         unique,
         kind,
-        type: built ? "Built part" : kind === "gear" ? (!gearLevels ? (ARMAMENT.test(unique) ? "Railjack armament" : r.category === "frame" ? TYPE_NAME.frame : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
+        type: built ? "Built part" : kind === "gear" ? (!gearLevels && !NO_MASTERY.has(unique) ? (ARMAMENT.test(unique) ? "Railjack armament" : r.category === "frame" ? TYPE_NAME.frame : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
         quantity: r.quantity,
         rank,
         maxRank,
