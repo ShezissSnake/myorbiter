@@ -4,9 +4,10 @@
 //! - `report_text` (clipboard / report.txt) is sanitized and never contains
 //!   EE.log content.
 //! - The report folder additionally carries the app log and, only for
-//!   acquisition failures, a sanitized copy of Warframe's EE.log (IPs and
-//!   email addresses redacted). The sanitized copy is safe to attach to a
-//!   public issue.
+//!   acquisition failures, a copy of Warframe's EE.log with IP and e-mail
+//!   addresses redacted. Everything else stays in that copy: other players'
+//!   names, account ids, trades, and the user and computer name in the log's
+//!   first lines. The player reads it before sharing it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -211,7 +212,7 @@ pub fn assemble_report_text(
         EeLogState::NotRequested => {}
         EeLogState::Included => {
             text.push_str("\nNotes\n");
-            text.push_str("EE.log is included in the report folder (sanitized, IPs and email addresses have been redacted). You can attach it to a GitHub issue.\n");
+            text.push_str("A copy of EE.log is included in the report folder, with IP and e-mail addresses removed. Other players' names, account ids, trades, and your user and computer name in its first lines stay in it. Read it before sharing it.\n");
         }
         EeLogState::CopyFailed => {
             text.push_str("\nNotes\n");

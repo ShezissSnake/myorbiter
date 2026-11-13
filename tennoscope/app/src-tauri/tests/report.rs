@@ -166,8 +166,9 @@ fn ee_log_copied_only_when_path_resolves() {
     assert_eq!(sensitive, "session secrets\n");
     let text = fs::read_to_string(folder.join("report.txt")).expect("report reads");
     assert!(
-        text.contains("You can attach it to a GitHub issue"),
-        "sanitization note present"
+        text.contains("with IP and e-mail addresses removed")
+            && text.contains("Read it before sharing it"),
+        "the note on the EE.log copy says what was removed and to read it first"
     );
 }
 
@@ -185,8 +186,12 @@ fn github_text_never_contains_ee_log_lines() {
         "EE.log content must never reach report text"
     );
     assert!(
-        text.contains("GitHub issue"),
-        "the attach-to-issue instruction is present when EE.log is included"
+        text.contains("Other players' names, account ids, trades, and your user and computer name"),
+        "the note on the EE.log copy names what stays in it"
+    );
+    assert!(
+        !text.to_lowercase().contains("safe") && !text.contains("You can attach it"),
+        "the note on the EE.log copy never calls it safe to attach"
     );
 }
 
