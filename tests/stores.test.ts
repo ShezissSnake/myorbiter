@@ -337,6 +337,32 @@ test("a listing hidden at 2p isn't shown again under a 5p category minimum, and 
   mkt.rules = null;
 });
 
+test("a listing the last-copy rule hid, shown and hidden again by hand on Orders, isn't shown when the wait ends", async () => {
+  const { dueToShow } = await import("../src/lib/core/lastCopy");
+  mkt.items = spareItems;
+  mkt.model = await spareModel();
+  const s = { ...defaultMarketSettings(), approved: {} };
+  s.lastCopy = { optIn: true, minutes: 10, hidden: [{ id: "w", at: 0 }, { id: "x", at: 0 }] };
+  mkt.rules = s;
+  mkt.orders = [{ ...order("w"), rank: 0, visible: false }, { ...order("x"), rank: 0, visible: false }];
+  market.update = (async (id: string, c: { visible?: boolean }) => {
+    mkt.orders = mkt.orders.map((o) => (o.id === id && c.visible != null ? { ...o, visible: c.visible } : o));
+  }) as never;
+  market.myOrders = async () => mkt.orders;
+  assert.ok(await mkt.update(mkt.orders[0], { visible: true }));
+  assert.ok(await mkt.update(mkt.orders.find((o) => o.id === "w")!, { visible: false }));
+  // The player's last word on "w" wins; "x" is still the rule's.
+  assert.deepEqual(s.lastCopy.hidden.map((h) => h.id), ["x"]);
+  const { show } = dueToShow(s.lastCopy.hidden, mkt.orders, 20 * 60_000, 10, Date.now());
+  assert.deepEqual(show.map((o) => o.id), ["x"]);
+  // Make the hidden listings visible (Orders) is the player's word too.
+  assert.equal(await mkt.showHidden(mkt.orders.filter((o) => o.id === "x")), 1);
+  assert.deepEqual(s.lastCopy.hidden, []);
+  mkt.rules = null;
+  mkt.model = null;
+  mkt.orders = [];
+});
+
 test("more copies of a listing at an unchanged price under the minimum are refused", async () => {
   mkt.items = spareItems;
   mkt.model = await spareModel();
@@ -596,16 +622,53 @@ test("the listing form checks against the newest inventory read, not the one it 
   formDone();
 });
 
-test("adding to a listing counts the copies already listed, hidden ones too, and shows it", async () => {
+test("adding to a listing counts the copies already listed, hidden ones too, and a hidden one stays hidden", async () => {
   mkt.orders = [{ ...order("old", 2, 25), rank: 0, visible: false }];
   const sent = await serrationForm(2);
   await mkt.submitDraft();
   assert.deepEqual(sent.update, [], "2 listed and 2 more is past the 3 spare");
   mkt.draft!.quantity = 1;
   await mkt.submitDraft();
-  assert.deepEqual(sent.update, [["old", { platinum: 20, quantity: 3, visible: true }]]);
+  // Becoming visible is the player's own step on Orders (held to the whole listing's check there).
+  assert.deepEqual(sent.update, [["old", { platinum: 20, quantity: 3 }]]);
   assert.deepEqual(sent.create, []);
-  assert.match(mkt.draftDone ?? "", /^Added 1× Serration R0 to your listing: now 3 at 20p/);
+  assert.match(mkt.draftDone ?? "", /^Added 1× Serration R0 to your listing: now 3 at 20p, still hidden/);
+  formDone();
+  mkt.orders = [];
+});
+
+test("adding to a shown listing leaves it shown, and sends nothing about whether it's shown", async () => {
+  mkt.orders = [{ ...order("old", 2, 25), rank: 0 }];
+  const sent = await serrationForm(1);
+  await mkt.submitDraft();
+  assert.deepEqual(sent.update, [["old", { platinum: 20, quantity: 3 }]]);
+  assert.match(mkt.draftDone ?? "", /^Added 1× Serration R0 to your listing: now 3 at 20p\.?$/);
+  formDone();
+  mkt.orders = [];
+});
+
+test("a price-only change in the listing form never shows a hidden listing: on never-sell, or with more listed than spare", async () => {
+  // On never-sell: the price changes, the listing stays hidden.
+  mkt.orders = [{ ...order("old", 2, 25), rank: 0, visible: false }];
+  const spares = { ...defaultMarketSettings().spares, neverSell: [{ id: "it", name: "Serration", cat: null }] };
+  let sent = await serrationForm(0, 5, { spares });
+  mkt.draft!.addToExisting = true;
+  mkt.draft!.quantity = 0;
+  mkt.draft!.platinum = 30;
+  await mkt.submitDraft();
+  assert.ok(!(sent.update as [string, { visible?: boolean }][]).some(([, c]) => c.visible === true), "no {visible: true} sent");
+  assert.deepEqual(sent.update, [["old", { platinum: 30, quantity: 2 }]]);
+  assert.match(mkt.draftDone ?? "", /^Serration R0: listing set to 30p, still hidden/);
+  formDone();
+  // Five listed against three spare (two traded away since it was hidden): the same.
+  mkt.orders = [{ ...order("old", 5, 25), rank: 0, visible: false }];
+  sent = await serrationForm(0);
+  mkt.draft!.addToExisting = true;
+  mkt.draft!.quantity = 0;
+  mkt.draft!.platinum = 30;
+  await mkt.submitDraft();
+  assert.deepEqual(sent.update, [["old", { platinum: 30, quantity: 5 }]]);
+  assert.deepEqual(mkt.orders.map((o) => o.visible), [false]);
   formDone();
   mkt.orders = [];
 });

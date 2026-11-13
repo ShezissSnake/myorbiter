@@ -93,6 +93,11 @@
   });
   /** Nothing left to add: the form only changes the listing's price. */
   const repriceOnly = $derived(merging && !!d && d.quantity === 0);
+  /**
+   * The listing it would change is hidden (by hand, by the last-copy rule, or left after its copies
+   * went): it stays hidden. Showing it is a new offer, made on Orders and checked there.
+   */
+  const hiddenListing = $derived(merging && !!existing && !existing.visible);
   /** The order book couldn't be read (offline, or warframe.market down): the price is yours to set. */
   const bookFailed = $derived(!!d && !d.priced && !!mkt.draftError);
 
@@ -210,7 +215,8 @@
           {:else if noneHere}<p class="err small">You hold none at this {d.maxRank != null ? "rank" : "variant"}: pick one you have.</p>
           {:else if oversell}<p class="err small">You hold {heldHere} at this {d.maxRank != null ? "rank" : "variant"}{merging && existing ? `, ${existing.quantity} listed already` : ""}: you can't list more than that.</p>
           {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies MyOrbiter keeps back for you.`}</p>{/if}
-          {#if repriceOnly && existing}<p class="small dim">All you can spare is listed already ({existing.quantity} at {existing.platinum}p). This only changes the price.</p>{/if}
+          {#if repriceOnly && existing}<p class="small dim">{room === 0 ? `All you can spare is listed already (${existing.quantity} at ${existing.platinum}p).` : "Nothing to add."} This only changes the price{hiddenListing ? ": the listing stays hidden" : ""}.</p>
+          {:else if hiddenListing}<p class="small dim">Your listing is hidden, and stays hidden with these added: show it on Orders when buyers should see it.</p>{/if}
           {#if underMinimum}<p class="err small">Under your {minimum}p {minimumWords} (Sell spares): MyOrbiter never lists under it. <button type="button" class="link" title="Ask {minimum}p, the minimum" onclick={() => { if (d && minimum != null) d.platinum = minimum; }}>Ask {minimum}p</button></p>
           {:else if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor on Orders, minimums on Sell spares)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
@@ -221,7 +227,7 @@
           {#if existing}
             <label class="merge small">
               <input type="checkbox" bind:checked={d.addToExisting} />
-              Add to your listing ({existing.quantity} at {existing.platinum}p) instead of making a second one
+              Add to your {existing.visible ? "" : "hidden "}listing ({existing.quantity} at {existing.platinum}p) instead of making a second one
             </label>
           {/if}
           {#if mkt.draftError && !bookFailed}<p class="err small">{mkt.draftError}</p>{/if}
@@ -230,7 +236,7 @@
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
             <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "Sell"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}
-              title={repriceOnly ? "Change your listing's price on warframe.market" : merging ? "Add these to your listing on warframe.market" : "Put it up for sale on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
+              title={repriceOnly ? `Change your listing's price on warframe.market${hiddenListing ? " (it stays hidden)" : ""}` : merging ? `Add these to your listing on warframe.market${hiddenListing ? " (it stays hidden)" : ""}` : "Put it up for sale on warframe.market"} disabled={!ready} onclick={() => mkt.submitDraft()} />
           </div>
         {/if}
       {/if}

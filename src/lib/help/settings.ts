@@ -269,8 +269,8 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Hide last copies (off to start): any whisper hides each listing you have one copy of.",
         "Selling rules live on Sell spares: sets, veiled rivens, minimum prices.",
-        "Each comes back after 10 minutes, or the time you set, unless it sold.",
-        "A later whisper doesn't make the wait longer.",
+        "Back after 10 minutes (or your time) if a newer inventory read has it.",
+        "A later whisper doesn't lengthen the wait; one you show or hide stays so.",
       ],
       shot: {
         open: "settings",

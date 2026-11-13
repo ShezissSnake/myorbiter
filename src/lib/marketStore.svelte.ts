@@ -29,6 +29,7 @@ import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
+import { forget } from "./core/lastCopy";
 
 export interface Draft {
   itemId: string;
@@ -902,11 +903,15 @@ class MarketStore {
     await this.guard("Listing", async () => {
       const tag = `${d.name}${d.rank != null ? ` R${d.rank}` : ""}${d.subtype ? ` (${d.subtype})` : ""}`;
       if (existing) {
-        await market.update(existing.id, { platinum: d.platinum!, quantity: existing.quantity + d.quantity, visible: true });
+        // Whether it's shown is left as it is: a hidden listing (hidden by hand, by the last-copy
+        // rule, or left after its copies went) stays hidden. Showing it is a new offer, made on
+        // Orders and held there to the whole listing's check, not only the copies added here.
+        await market.update(existing.id, { platinum: d.platinum!, quantity: existing.quantity + d.quantity });
         if (d.platinum !== existing.platinum) this.noteChange(existing);
         if (why) this.audit(`Listing form, added to ${existing.id}`, why);
+        const still = existing.visible ? "" : ", still hidden";
         this.note(
-          d.quantity ? `Added ${d.quantity}× ${tag} to your listing: now ${existing.quantity + d.quantity} at ${d.platinum}p` : `${tag}: listing set to ${d.platinum}p`,
+          d.quantity ? `Added ${d.quantity}× ${tag} to your listing: now ${existing.quantity + d.quantity} at ${d.platinum}p${still}` : `${tag}: listing set to ${d.platinum}p${still}`,
           "ok",
         );
       } else {
@@ -978,12 +983,21 @@ class MarketStore {
     let shown = 0;
     await this.guard("Showing hidden listings", async () => {
       for (const [i, o] of orders.entries()) {
-        shown += (await this.setShown([o], true, false)).length;
+        const done = await this.setShown([o], true, false);
+        shown += done.length;
+        // Shown by hand: the last-copy rule leaves it alone from now on.
+        this.forgetWhisperHides(done.map((x) => x.id));
         step?.(i + 1, orders.length);
       }
       await this.refresh().catch(() => {});
     });
     return shown;
+  }
+
+  /** Takes listings off the last-copy rule's list (core/lastCopy.ts): they're not shown again when its wait ends. */
+  private forgetWhisperHides(ids: string[]) {
+    const lc = this.rules?.lastCopy;
+    if (lc && ids.length) lc.hidden = forget(lc.hidden, ids);
   }
 
   /** True when warframe.market took the change. */
@@ -1012,6 +1026,8 @@ class MarketStore {
     }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
+      // Shown or hidden by hand: the player's last word, so the last-copy rule leaves it alone.
+      if (change.visible != null) this.forgetWhisperHides([o.id]);
       // A price you typed is the price you approved, and a change: a pass on the timer leaves it an hour.
       if (change.platinum != null) this.approve(o, change.platinum);
       if (change.platinum != null && change.platinum !== o.platinum) this.noteChange(o);
