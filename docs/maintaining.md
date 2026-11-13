@@ -116,8 +116,8 @@ from a branch cut at Beta's build, without becoming Experimental's build:
    run never signs. Sessions push only `work/*` branches, so a fix prepared in a session goes into
    `beta-fix/<name>` by a pull request into that branch.
 3. **The fix** on `beta-fix/<name>`, tested as for `main` (`npm test`, `npm run check -- --threshold
-   error`, `cargo test` in `src-tauri/`). A fix that `main` needs too goes into `main` by its own
-   pull request.
+   error`, `cargo test --workspace --locked` from the top folder). A fix that `main` needs too goes
+   into `main` by its own pull request.
 4. **Release run:** Run workflow, *Use workflow from* `beta-fix/<name>`, *task* `release`,
    *windows* ticked, ***experimental* unticked**. *Sign the updater downloads* fails unless
    `release-signing` allows the branch (*The signing key's environment*, below). It publishes the

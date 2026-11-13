@@ -157,8 +157,7 @@ jobs:
       - run: npm test
       - run: npm run check -- --threshold error
       - run: cargo check --workspace --tests --locked
-      - run: cargo test --locked
-        working-directory: src-tauri
+      - run: cargo test --workspace --locked
 
       # A prebuilt cargo-audit, checksum-verified by the action; no fallback to building it.
       - uses: taiki-e/install-action@b80e2bb2635f28eb98b9fce1e2f0887e1535c6b2 # v2.90.0
