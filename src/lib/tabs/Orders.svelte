@@ -809,7 +809,7 @@
           </span>
         {/each}
         <HelpMark part="orders.whispers" />
-        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one. Each comes back after the wait once TennoScope has read your inventory since and the copy is still there; showing or hiding one yourself takes it off the rule">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
+        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one. Each comes back after the wait only if an inventory read newer than the whisper still has the copy; with Full access while Warframe runs, Sync asks TennoScope for a read now. To show one sooner, use its Shown switch: the rule then leaves it as you set it until the next whisper">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
       </section>
     {/if}
 

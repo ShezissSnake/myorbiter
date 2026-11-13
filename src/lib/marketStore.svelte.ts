@@ -987,7 +987,7 @@ class MarketStore {
       for (const [i, o] of orders.entries()) {
         const done = await this.setShown([o], true, false);
         shown += done.length;
-        // Shown by hand: the last-copy rule leaves it alone from now on.
+        // Shown by hand: the last-copy rule leaves it alone until a later whisper hides it again.
         this.forgetWhisperHides(done.map((x) => x.id));
         step?.(i + 1, orders.length);
       }
@@ -1028,7 +1028,8 @@ class MarketStore {
     }
     return this.guard("Saving", async () => {
       await market.update(o.id, change);
-      // Shown or hidden by hand: the player's last word, so the last-copy rule leaves it alone.
+      // Shown or hidden by hand: the player's last word, so the last-copy rule leaves it alone
+      // until a later whisper hides it again.
       if (change.visible != null) this.forgetWhisperHides([o.id]);
       // A price you typed is the price you approved, and a change: a pass on the timer leaves it an hour.
       if (change.platinum != null) this.approve(o, change.platinum);
