@@ -23,7 +23,7 @@
   import Art from "./ui/Art.svelte";
   import PartChip from "./ui/PartChip.svelte";
   import Thumb from "./ui/Thumb.svelte";
-  import { buildPlan, TIER_LABEL, TIER_TIP } from "./core/buildPlan";
+  import { buildPlan, buildTag, TIER_LABEL, TIER_TIP } from "./core/buildPlan";
   import P from "./ui/P.svelte";
   import Effort from "./ui/Effort.svelte";
   import Avail from "./ui/Avail.svelte";
@@ -171,7 +171,7 @@
           {#if c.mastered}<span class="tag good">Mastered</span>{:else if c.owned}<span class="tag mastery">Owned, not mastered</span>{/if}
           {#if c.building}<span class="tag">Building</span>{/if}
           {#if c.partBuilt && !c.owned && c.stepTag}<span class="tag ok" title={c.stepHow}>{c.stepTag}</span>{/if}
-          {#if c.buildable && plan}<span class="tag" class:ok={plan.tier === "now"} class:warn={plan.tier === "farm"} class:bad={plan.tier === "hard"} title={TIER_TIP[plan.tier]}>{plan.tier === "now" ? "Can build now" : `Parts ready · ${TIER_LABEL[plan.tier].toLowerCase()}`}</span>{:else if c.buildable}<span class="tag ok">Can build now</span>{/if}
+          {#if c.buildable}{@const t = buildTag(plan?.tier ?? "now", [], "sheet")}<span class="tag {t.tone}" title={plan ? TIER_TIP[plan.tier] : undefined}>{t.label}</span>{/if}
           {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
           {#if c.unobtainable}<span class="tag">No longer available</span>{/if}
         </div>
