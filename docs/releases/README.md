@@ -41,6 +41,15 @@ first (`https://github.com/ShezissSnake/myorbiter/releases/download/<channel>/la
 `src-tauri/src/updates.rs`). Their second address is the same channel on GitLab's package registry,
 which keeps the manifests GitLab's last build left there.
 
+Installed copies download an update only from the two address forms the release scripts write, for
+the version on offer and their own system (`download_allowed` in `src-tauri/src/updates.rs`):
+`https://github.com/ShezissSnake/myorbiter/releases/download/build-<digits>/myorbiter_<version>_<file>`
+and, for the builds GitLab made,
+`https://gitlab.com/api/v4/projects/sheziss-group%2Fmyorbiter/packages/generic/myorbiter/<version>/myorbiter_<version>_<file>`,
+where `<file>` is `amd64.AppImage` on Linux and `x64-setup.exe` on Windows. A manifest that names
+any other address is refused before anything is downloaded. Changing either form takes a build
+that accepts the new one first (`docs/maintaining.md`).
+
 - **A build on `main` becomes Experimental.** With the signing key available, the `sign` job signs
   the final AppImage (after `scripts/repack-appimage.sh`) and the Windows installer with
   `scripts/updater-sign.mjs` (plain Node, no dependencies, signatures of the form
