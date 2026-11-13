@@ -236,6 +236,45 @@ test("a dropped page read leaves the fresher list and its time, and nothing wait
   assert.deepEqual(rivens.mine, []);
 });
 
+test("Sell's own look after a create isn't lost to another Sell's read that ended meanwhile: no second create", async () => {
+  const other: AuctionItem = { ...item, weapon_url_name: "soma" };
+  // Reads answered by hand, in the order the test gives.
+  const reads: { ok: (v: unknown) => void; fail: (e: Error) => void }[] = [];
+  market.myAuctions = (() => new Promise((ok, fail) => reads.push({ ok, fail }))) as never;
+  let creates = 0;
+  let answerCreate: () => void = () => {};
+  market.createAuction = ((body: { item: AuctionItem }) => {
+    if (body.item.weapon_url_name === item.weapon_url_name) creates++;
+    return new Promise<void>((ok) => (answerCreate = ok));
+  }) as never;
+  // A fresh list, and the other riven carries a "read first" mark (its create failed and wasn't found).
+  const page = rivens.loadMine();
+  reads.shift()!.ok([]);
+  await page;
+  Object.assign(rivens as unknown as object, { notFound: [other] });
+  // This riven's Sell goes by the fresh list and sends its create; the other's Sell reads first.
+  const first = rivens.sell(item, 100, 100);
+  await settle();
+  assert.equal(creates, 1);
+  const otherSell = assert.rejects(rivens.sell(other, 100, 100), /could not check/);
+  await settle();
+  const otherRead = reads.shift()!;
+  // The create ends (made), and this Sell's look goes out; then the other's read ends (failed).
+  answerCreate();
+  await settle();
+  const look = reads.shift()!;
+  otherRead.fail(new Error(TIMED_OUT));
+  await otherSell;
+  look.ok([raw("made")]);
+  await first;
+  // A second press on this riven: already up, nothing sent.
+  market.myAuctions = async () => [raw("made")];
+  market.createAuction = (async () => void creates++) as never;
+  const again = await rivens.sell(item, 100, 100).then(() => "sent", (e: Error) => e.message);
+  assert.equal(creates, 1, "one create, not two");
+  assert.match(again, /already up/);
+});
+
 test("while one riven is being put up, another of the same weapon and name can be", async () => {
   market.myAuctions = async () => [];
   const create = slowCreate();

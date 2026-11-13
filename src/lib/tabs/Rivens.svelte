@@ -615,7 +615,8 @@
           <!-- Off while it's being sent: closing the form can't take the create back. -->
           <IconButton icon="close" tone="quiet" label="Cancel" title={f.busy ? "It's being sent: wait for warframe.market's answer" : undefined} disabled={f.busy} onclick={() => delete sell[r.id]} />
           {#if estimates[r.id] || pc?.lowest != null}<span class="dim small hint">{#if estimates[r.id]}Estimate {estimates[r.id].mid}p (the middle half of listings like it ask {estimates[r.id].lo}–{estimates[r.id].hi}p){pc?.lowest != null ? "; " : ""}{/if}{#if pc?.lowest != null}cheapest similar {pc.lowest}p{pc.typical != null ? `, most around ${pc.typical}p` : ""}{/if}. To sell sooner, ask toward the lower end.</span>{/if}
-          {#if f.busy && rivens.searchWait}<span class="dim small" role="status" title="warframe.market takes 10 riven requests a minute, searches and auctions alike: this one goes at {waitTime(rivens.searchWait)}">Waiting for warframe.market's search limit…</span>{/if}
+          <!-- searchWait is any queued riven request (it doesn't say which): the note says "may". -->
+          {#if f.busy && rivens.searchWait}<span class="dim small" role="status" title="warframe.market takes 10 riven requests a minute, searches and auctions alike: one is queued until {waitTime(rivens.searchWait)}, and this one may be waiting behind it">May wait for warframe.market's request limit…</span>{/if}
           {#if f.error}<span class="err small">{f.error}</span>{/if}
         </form>
         </div></div>

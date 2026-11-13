@@ -185,15 +185,18 @@ class Rivens {
   /** A create failed and the read after it did too: it may have been made, so the next Sell reads first. */
   private unchecked = false;
   /**
-   * Moved each time a create ends and each time one of Sell's own reads ends. A read sent before
-   * that and answered after it is out of date (each request runs on its own thread in the app, so
-   * answers can come back in any order): its list could lack an auction just made, which would let
-   * that riven be sent again. Such an answer changes neither the list nor its time.
+   * Moved each time a create ends, and each time one of Sell's own reads is kept as `mine`. A read
+   * sent before that and answered after it is out of date (each request runs on its own thread in
+   * the app, so answers can come back in any order): its list could lack an auction just made,
+   * which would let that riven be sent again. Such an answer changes neither the list nor its time.
+   * A create that ends also makes the list not fresh (`mineAt` null) until a read is kept, so if
+   * the look after it is the answer dropped, the next Sell reads first.
    */
   private epoch = 0;
   /**
    * Reads your auctions: the list, or null if the read failed. Kept as `mine` unless the answer is
-   * out of date (`epoch`); one of Sell's own reads (`own`) moves `epoch` when it ends.
+   * out of date (`epoch`); one of Sell's own reads (`own`) that is kept moves `epoch`, so a page
+   * read sent before it and answered after can't put an older list back.
    */
   private async readMine(own: boolean): Promise<MyAuction[] | null> {
     const asked = this.epoch;
@@ -204,15 +207,19 @@ class Rivens {
         this.unchecked = false;
         this.mineAt = Date.now();
         this.mineError = null;
+        if (own) this.epoch++;
       }
       return list;
     } catch (e) {
       // Sell's own read keeps its reason for the message it shows, however late it came back.
       if (own || asked === this.epoch) this.mineError = String(e).replace(/^Error:\s*/, "");
       return null;
-    } finally {
-      if (own) this.epoch++;
     }
+  }
+  /** A create has ended: older reads are out of date, and the list isn't fresh until one is kept. */
+  private createEnded() {
+    this.epoch++;
+    this.mineAt = null;
   }
   /**
    * Reads your auctions (the pages, a reprice, a close); whether the read worked. An answer that
@@ -283,7 +290,7 @@ class Rivens {
       await market.createAuction({ starting_price: starting, buyout_price: buyout, minimal_reputation: minRep, private: false, note, item });
     } catch (e) {
       // Ended: a read sent before now and answered later is out of date (`epoch`).
-      this.epoch++;
+      this.createEnded();
       // No answer in time doesn't mean it wasn't made: look before letting you send it again.
       // If that look fails too, the next Sell reads first (and sends nothing if that fails).
       const look = await this.readMine(true);
@@ -294,7 +301,7 @@ class Rivens {
       if (!this.notFound.some((s) => sameRiven(s, item))) this.notFound.push(item);
       throw e;
     }
-    this.epoch++;
+    this.createEnded();
     // The create worked; if the read after it fails, the next Sell reads first (the list lacks this auction).
     this.unchecked = !(await this.readMine(true));
   }
