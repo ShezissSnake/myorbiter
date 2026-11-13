@@ -6,8 +6,9 @@
   import type { Fissure, Live } from "../core/types";
   import { eraTint } from "./table";
   import type { Settings } from "../backend";
-  import { bountyBoards, fissureCounts, fissuresByEra, type BountyTable } from "../core/board";
-  import { cycleTimers, matchedFissures } from "../core/timers";
+  import { bountyBoards, chosenFissures, fissureCounts, FISSURE_MODES, missionTypes, MODE_LABEL, type BountyTable, type FissureMode } from "../core/board";
+  import { cycleTimers, matchedFissures, TIERS } from "../core/timers";
+  import PickMany from "./PickMany.svelte";
   import { foundryBuilds } from "../core/foundry";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
@@ -33,7 +34,7 @@
 
   const SIDE_CARDS: { key: string; label: string; hint: string; pc?: boolean }[] = [
     { key: "alerts", label: "Alerts", hint: "Fissures matching your alerts, alerts and invasions with something you need" },
-    { key: "fissures", label: "Fissures", hint: "Every open fissure of the kind Home shows (normal, Steel Path or Void Storms); with Only my alerts on there, just the ones your alerts match" },
+    { key: "fissures", label: "Fissures", hint: "The open fissures of the kinds, eras and missions you choose with its funnel (Normal, Steel Path, Void Storms; Home's board keeps its own choice), or with Only my alerts just the ones your alerts match" },
     { key: "clocks", label: "Clocks", hint: "Day and night on the open worlds" },
     { key: "foundry", label: "Foundry", hint: "What's building and when it's ready", pc: true },
     { key: "bounties", label: "Bounties", hint: "Each place's bounty reward you need, else its rarest" },
@@ -43,15 +44,35 @@
   const on = (k: string) => settings.side.cards.includes(k) && !(console && SIDE_CARDS.find((c) => c.key === k)?.pc);
   const toggle = (k: string, v: boolean) => (settings.side.cards = v ? [...settings.side.cards.filter((x) => x !== k), k] : settings.side.cards.filter((x) => x !== k));
 
-  const mode = $derived(settings.homeFissures);
   const counts = $derived(fissureCounts(live.fissures, now));
   const watched = $derived(matchedFissures(settings.fissureRules, live.fissures, now));
-  // As Home's board: with Only my alerts, just the matches, of every kind.
-  const mine = $derived(settings.homeFissuresOnly && settings.fissureRules.length > 0);
-  const eras = $derived(fissuresByEra(live.fissures, mode, now));
-  /** With Only my alerts: the matches of every kind, soonest to close first. */
-  const soonest = $derived(watched.map((w) => w.fissure).sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry)));
+  // The Fissures card's own choice (settings.side.fissures), apart from Home's board: kinds, eras
+  // and mission types, or with Only my alerts just the matches, of every kind (core/board.ts).
+  const fz = $derived(settings.side.fissures);
+  const listed = $derived(chosenFissures(live.fissures, fz, settings.fissureRules, now));
+  const mine = $derived(listed.mine);
   const watchedIds = $derived(new Set(watched.map((w) => w.fissure.id)));
+  /** The choices are open under the card's heading (a fold of the column's own, not a setting). */
+  let choosingFissures = $state(false);
+  let funnel = $state<HTMLButtonElement>();
+  /** What the heading says is listed: "Fissures", "Steel Path", "Normal + Void Storms", "All fissures", "My alerts". */
+  const listedName = $derived(
+    mine ? "My alerts" : fz.kinds.length === 3 ? "All fissures" : fz.kinds.length === 1 ? (fz.kinds[0] === "normal" ? "Fissures" : MODE_LABEL[fz.kinds[0]]) : fz.kinds.map((k) => MODE_LABEL[k]).join(" + "),
+  );
+  /** "Lith, Axi · Capture", for the titles: what narrows the list. */
+  const narrowedBy = $derived([fz.eras.join(", "), fz.missions.length > 2 ? `${fz.missions.length} missions` : fz.missions.join(", ")].filter(Boolean).join(" · "));
+  /** Ticks a kind on or off, in Home's order; the last one on stays on. */
+  const setKind = (k: FissureMode, v: boolean) => {
+    const kinds = FISSURE_MODES.filter((x) => (x === k ? v : fz.kinds.includes(x)));
+    if (kinds.length) settings.side.fissures.kinds = kinds;
+  };
+  const setEra = (e: string, v: boolean) => (settings.side.fissures.eras = TIERS.filter((t) => (t === e ? v : fz.eras.includes(t))));
+  const everyEraAndMission = () => {
+    settings.side.fissures.eras = [];
+    settings.side.fissures.missions = [];
+    // The × goes with the narrowing: focus to the funnel beside the heading, not lost to the page.
+    funnel?.focus();
+  };
   /** "Augustus (Mars)" → its node and planet. */
   const place = (node: string) => {
     const m = /^(.*?)\s*\(([^)]+)\)\s*$/.exec(node);
@@ -116,17 +137,43 @@
       </section>
     {:else if on(k) && k === "fissures"}
       <section>
-        <div class="hmark"><h3 class="register"><GameIcon name="void-tear" size={13} /> {mine ? `My alerts · ${watched.length}` : `${mode === "steel" ? "Steel Path" : mode === "storm" ? "Void Storms" : "Fissures"} · ${counts[mode]}`}</h3><HelpMark part="watching.fissures" /></div>
+        <!-- What is listed and how many; narrowed by era or mission, the funnel is lit and × puts every era and mission back. -->
+        <div class="hmark fzhead">
+          <h3 class="register" title="{listedName}: {listed.count} listed{listed.narrowed ? `, only ${narrowedBy}` : ''}"><GameIcon name="void-tear" size={13} /><span class="what">{listedName} · {listed.count}</span></h3>
+          <button class="ib" bind:this={funnel} class:lit={listed.narrowed} aria-expanded={choosingFissures} aria-controls={choosingFissures ? "side-fissure-choice" : undefined} aria-label="Choose this column's fissures{listed.narrowed ? `: narrowed to ${narrowedBy}` : ''}" title="Choose which fissures this column lists: kinds, eras, missions{settings.fissureRules.length ? ', or only your alerts' : ''}. Home's board keeps its own choice" onclick={() => (choosingFissures = !choosingFissures)}><Icon name="filter" size={13} /></button>
+          <HelpMark part="watching.fissures" />
+        </div>
+        {#if listed.narrowed}
+          <div class="narrow"><Icon name="filter" size={11} /><span class="by" title="Only {narrowedBy}">Only {narrowedBy}</span><button class="ib" aria-label="Show every era and mission in this column's fissures" title="Show every era and mission again; the kinds stay as they are" onclick={everyEraAndMission}><Icon name="close" size={11} /></button></div>
+        {/if}
+        {#if choosingFissures}
+          <div class="fzpick" id="side-fissure-choice" role="group" aria-label="This column's fissures (Home's board keeps its own)">
+            {#if settings.fissureRules.length}<Chip on={fz.only} label="Only my alerts" title="Only the fissures your fissure alerts (on Home) match, every kind together, soonest to close first; kind, era and mission don't apply while it's on" onchange={(v: boolean) => (settings.side.fissures.only = v)} />{/if}
+            <fieldset disabled={mine} title={mine ? "Not used while Only my alerts is on" : undefined}>
+              <legend class="register">Kind</legend>
+              <div class="opts">{#each FISSURE_MODES as k (k)}{@const last = fz.kinds.length === 1 && fz.kinds[0] === k}<Chip on={fz.kinds.includes(k)} locked={last} label="{MODE_LABEL[k]} · {counts[k]}" title="{MODE_LABEL[k]} fissures in this column{last ? ' (one kind stays on: tick another to drop this one)' : ''}" onchange={(v: boolean) => setKind(k, v)} />{/each}</div>
+            </fieldset>
+            <fieldset disabled={mine} title={mine ? "Not used while Only my alerts is on" : undefined}>
+              <legend class="register">Era <span class="any">{fz.eras.length ? "" : "· every era"}</span></legend>
+              <div class="opts">{#each TIERS as t (t)}<Chip on={fz.eras.includes(t)} label={t} title="{t} fissures in this column; no era ticked is every era" onchange={(v: boolean) => setEra(t, v)} />{/each}</div>
+            </fieldset>
+            <fieldset disabled={mine} title={mine ? "Not used while Only my alerts is on" : undefined}>
+              <legend class="register">Mission</legend>
+              <PickMany bind:value={settings.side.fissures.missions} label="This column's fissures, mission" any="Any mission" noun="missions" options={missionTypes(live.fissures, fz.missions).map((m) => ({ v: m, label: m }))} />
+            </fieldset>
+            {#if mine}<p class="dim small">Only my alerts is on: kind, era and mission don't apply.</p>{/if}
+          </div>
+        {/if}
         {#if mine}
           <!-- Just your alerts' matches: few enough to read as one list, soonest to close first. -->
-          {#if soonest.length}<ul class="cards">{#each soonest as f (f.id)}{@render fissureCard(f)}{/each}</ul>{/if}
+          {#if listed.soonest.length}<ul class="cards">{#each listed.soonest as f (f.id)}{@render fissureCard(f)}{/each}</ul>{/if}
         {:else}
-          {#each eras as e (e.era)}
+          {#each listed.eras as e (e.era)}
             <div class="eh" style:--tint={eraTint(e.era)}><GameIcon name={eraIcon(e.era)} size={16} /><b>{e.era}</b><span class="dim small">{e.list.length}</span></div>
             <ul class="cards">{#each e.list as f (f.id)}{@render fissureCard(f)}{/each}</ul>
           {/each}
         {/if}
-        {#if !(mine ? soonest.length : eras.length)}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : "None open right now."}</p>{/if}
+        {#if !listed.count}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : counts.normal + counts.steel + counts.storm === 0 ? "None open right now." : "No open fissure matches what's chosen here."}</p>{/if}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>
@@ -175,6 +222,29 @@
   .hmark { gap: .35rem; }
   .hmark > :global(.helpmark) { margin-left: auto; }
   h3 { display: flex; align-items: center; gap: .35rem; margin: 0; font-size: 11px; color: var(--platinum-dim); }
+  /* The Fissures card's heading: what is listed (ending in … rather than wrapping), then its two buttons and the "?". */
+  .fzhead { gap: .15rem; }
+  /* Spaced a little closer than the other headings, so two kinds' names fit ("Steel Path + Void Storms · 12"). */
+  .fzhead h3 { flex: 1; min-width: 0; letter-spacing: .07em; }
+  /* Narrowed: by what, and × to list every era and mission again. */
+  .narrow { display: flex; align-items: center; gap: .35rem; color: var(--gold); font-size: .76rem; }
+  .narrow .by { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--platinum-dim); }
+  .narrow .ib { width: 20px; height: 20px; flex: none; font-size: .8rem; }
+  .fzhead .what { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fzhead .ib { width: 22px; height: 22px; flex: none; }
+  /* Narrowed by era or mission: the funnel lit, as a chosen menu is. */
+  .ib.lit { color: var(--gold); border-color: var(--gold-dim); }
+  /* The card's own choices, folded under its heading. */
+  .fzpick { display: grid; gap: .45rem; padding: .5rem .55rem; background: var(--well); border: 1px solid var(--rule); }
+  .fzpick > :global(.chip), .opts :global(.chip) { padding: .28rem .45rem; gap: .35rem; font-size: 10.5px; letter-spacing: .08em; }
+  .fzpick > :global(.chip) { justify-self: start; }
+  fieldset { margin: 0; padding: 0; border: 0; min-width: 0; display: grid; gap: .25rem; }
+  fieldset:disabled { opacity: .5; }
+  legend { padding: 0; font-size: 11px; margin-bottom: .2rem; }
+  legend .any { color: var(--platinum-deep); text-transform: none; letter-spacing: normal; }
+  .opts { display: flex; flex-wrap: wrap; gap: .25rem; }
+  fieldset :global(.pm) { justify-self: start; max-width: 100%; }
+  fieldset :global(.pmb) { padding: .35rem 1.7rem .35rem .55rem; font-size: 10.5px; max-width: 100%; }
   ul { list-style: none; margin: 0; padding: 0; display: grid; gap: .3rem; }
   li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .5rem; align-items: center; font-size: .82rem; }
   /* One thing per card: an Orokin plate, the wash of its era or kind (app.css, .era-wash). */

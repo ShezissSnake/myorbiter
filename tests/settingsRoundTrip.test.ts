@@ -82,7 +82,7 @@ function full(now = Date.now()): Settings {
     homeHidden: ["baro"],
     homeFissures: "steel",
     homeFissuresOnly: true,
-    side: { on: false, cards: ["alerts"] },
+    side: { on: false, cards: ["alerts"], fissures: { kinds: ["normal", "storm"], eras: ["Lith", "Axi"], missions: ["Capture", "Survival"], only: true } },
     homeDismissed: ["welcome"],
     notify: Object.fromEntries(Object.keys(defaultNotify()).map((k) => [k, false])) as unknown as Settings["notify"],
     notifyOptions: { paused: true, pausedUntil: now + HOUR, pausedHow: "hour", toasts: false, desktop: false, quietInFissure: true, quiet: ["deals"], discord: { url: "https://discord.com/api/webhooks/1/example", kinds: ["sold"] } },
@@ -209,4 +209,37 @@ test("an older file from before the page sections starts with an empty page orde
   const loaded = await loadSettings();
   assert.deepEqual(loaded.pageOrder, []);
   assert.deepEqual(json(loaded), json({ ...file, pageOrder: [] }), "nothing else reset");
+});
+
+test("an older file from before the Watching column's own fissure choice: the column shows what it did, and nothing else changes", async () => {
+  const file = full();
+  for (const homeFissures of ["normal", "steel", "storm"] as const) {
+    for (const homeFissuresOnly of [false, true]) {
+      const old = { ...file, homeFissures, homeFissuresOnly, side: { on: false, cards: ["alerts"] } };
+      stored.set("orbiter-settings", JSON.stringify(old));
+      const loaded = await loadSettings();
+      assert.deepEqual(loaded.side.fissures, { kinds: [homeFissures], eras: [], missions: [], only: homeFissuresOnly }, `${homeFissures}, only ${homeFissuresOnly}`);
+      assert.deepEqual(json({ ...loaded, side: { ...loaded.side, fissures: null } }), json({ ...old, side: { ...old.side, fissures: null } }), "nothing else changed");
+    }
+  }
+});
+
+test("the Watching column's fissure choice is taken on no trust: a part that isn't valid starts as an older file would", async () => {
+  const file = full();
+  const good = file.side.fissures;
+  const load = async (fissures: unknown) => {
+    stored.set("orbiter-settings", JSON.stringify({ ...file, homeFissures: "storm", homeFissuresOnly: false, side: { ...file.side, fissures } }));
+    return (await loadSettings()).side.fissures;
+  };
+  assert.deepEqual(await load(good), good, "a valid one is kept");
+  assert.deepEqual((await load({ ...good, kinds: [] })).kinds, ["storm"], "never no kind");
+  assert.deepEqual((await load({ ...good, kinds: ["steel", "railjack"] })).kinds, ["storm"], "only the three kinds");
+  assert.deepEqual((await load({ ...good, eras: ["Lith", "Vanguard"] })).eras, [], "only the eras in TIERS");
+  assert.deepEqual((await load({ ...good, missions: ["Capture", null] })).missions, [], "only strings");
+  assert.deepEqual((await load({ ...good, missions: Array.from({ length: 41 }, (_, i) => `Mission ${i}`) })).missions, [], "at most 40");
+  assert.deepEqual((await load({ ...good, missions: ["M".repeat(61)] })).missions, [], "at most 60 characters each");
+  assert.equal((await load({ ...good, only: 1 })).only, false, "only true or false");
+  assert.deepEqual(await load("all"), { kinds: ["storm"], eras: [], missions: [], only: false }, "not an object: the start, whole");
+  // A valid part is kept beside one that isn't.
+  assert.deepEqual(await load({ ...good, eras: 5 }), { ...good, eras: [] });
 });
