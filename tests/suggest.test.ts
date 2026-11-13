@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
+import { lacking, readCatalogFile } from "./support/catalogFiles";
 import {
   bonusIn,
   canSuggest,
@@ -424,29 +425,28 @@ test("every name the engine can pick is in the fixture catalog", () => {
   assert.deepEqual(missing, []);
 });
 
-// ---------------------------------------------------------------- against the real catalog and inventory (when present)
+// ---------------------------------------------------------------- against the catalog and inventory: the player's own (public/dev-bundle.json) when it is there, else the demo's
 
-const bundlePath = new URL("../public/dev-bundle.json", import.meta.url);
-const hasBundle = existsSync(bundlePath);
-const bundle = hasBundle ? (JSON.parse(readFileSync(bundlePath, "utf8")) as { catalog: CatalogItem[]; inventory: InventoryRow[] }) : null;
+const bundleRead = readCatalogFile<{ catalog: CatalogItem[]; inventory: InventoryRow[] }>("dev-bundle.json");
+const bundle = bundleRead.data;
+const from = `${bundleRead.source}dev-bundle.json`;
 
-test("real catalog: every name the engine can pick exists, as a full copy", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const idx = modIndex(bundle!.catalog);
-  const missing = suggestionNames().filter((n) => !idx.byName.has(n));
-  assert.deepEqual(missing, []);
-  for (const n of suggestionNames()) assert.ok(!/\/(Beginner|Intermediate)\//.test(idx.byName.get(n)!.uniqueName), `${n} is not a starter copy`);
+test(`catalog (${from}): every name the engine can pick exists, as a full copy`, () => {
+  const idx = modIndex(bundle.catalog);
+  assert.deepEqual(lacking(bundleRead.source, suggestionNames(), idx.byName, fixture.catalog), []);
+  for (const n of suggestionNames()) assert.ok(!/\/(Beginner|Intermediate)\//.test(idx.byName.get(n)?.uniqueName ?? ""), `${n} is not a starter copy`);
 });
 
-test("real catalog: the curated table covers every warframe", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const frames = bundle!.catalog.filter((x) => x.category === "Warframes" && x.type === "Warframe" && x.name !== "Helminth");
+test(`catalog (${from}): the curated table covers every warframe`, () => {
+  const frames = bundle.catalog.filter((x) => x.category === "Warframes" && x.type === "Warframe" && x.name !== "Helminth");
   assert.deepEqual(frames.filter((f) => !frameInfo(f.name)).map((f) => f.name), []);
 });
 
-test("real inventory: every suggestable item at every tier fits, from owned mods only", { skip: !hasBundle && "public/dev-bundle.json not present" }, () => {
-  const idx = modIndex(bundle!.catalog);
-  const owned = ownedFrom(bundle!.inventory);
+test(`inventory (${from}): every suggestable item at every tier fits, from owned mods only`, () => {
+  const idx = modIndex(bundle.catalog);
+  const owned = ownedFrom(bundle.inventory);
   let n = 0;
-  for (const x of bundle!.catalog) {
+  for (const x of bundle.catalog) {
     if (x.category === "Mods" || x.category === "Arcanes" || !canSuggest(x)) continue;
     for (const tier of TIERS) checkWhole(suggest(x, tier, owned, idx), owned, idx);
     n++;
