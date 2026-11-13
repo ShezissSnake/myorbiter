@@ -123,8 +123,9 @@ export interface MarketSettings {
   autoRep: boolean;
   /**
    * While someone whispers you, hide listings down to their last copy so a second buyer doesn't
-   * find one already promised; each comes back after `minutes` unless it sold. `hidden`: the ones
-   * MyOrbiter hid, and when.
+   * find one already promised; each comes back after `minutes`, and only if an inventory read
+   * newer than its hide still has the copy (core/lastCopy.ts). `hidden`: the ones MyOrbiter hid,
+   * and when; one shown or hidden by hand leaves it.
    */
   /** optIn, not the first version's `on`: that one was on for everyone, and hid nearly every listing on any whisper. */
   lastCopy: { optIn: boolean; minutes: number; hidden: HiddenForWhisper[] };

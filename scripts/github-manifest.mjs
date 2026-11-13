@@ -15,7 +15,10 @@
 //   node scripts/github-manifest.mjs manifest --dir DIR --version 0.2.120 --repo OWNER/REPO
 //        [--commit SHA] [--notes-file notes.txt] [--config src-tauri/tauri.conf.json] [--out latest.json]
 //   node scripts/github-manifest.mjs check --manifest latest.json --version 0.2.120 --repo OWNER/REPO
-//        [--require linux-x86_64,windows-x86_64]
+//        --require linux-x86_64,windows-x86_64
+//
+// Flags without brackets are required: check stops with an error rather than leave out the check
+// a missing flag stands for.
 //
 // Plain Node (no dependencies), so the workflow runs it with Node alone.
 
@@ -120,9 +123,10 @@ function main(argv) {
       return;
     }
     case "check": {
-      for (const k of ["manifest", "version", "repo"]) if (!a[k]) throw new Error(`check needs --${k}`);
+      for (const k of ["manifest", "version", "require", "repo"]) if (!a[k]) throw new Error(`check needs --${k}`);
+      const require = a.require.split(",").filter(Boolean);
+      if (!require.length) throw new Error(`check needs --require to name a system, not "${a.require}"`);
       const manifest = JSON.parse(readFileSync(a.manifest, "utf8"));
-      const require = a.require ? a.require.split(",").filter(Boolean) : [];
       console.log(checkGithubManifest(manifest, { version: a.version, require, repo: a.repo }).join(","));
       return;
     }

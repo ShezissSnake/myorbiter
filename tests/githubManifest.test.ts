@@ -1,5 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { createHash, generateKeyPairSync, randomBytes, sign as edSign } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -106,6 +107,45 @@ test("a channel's manifest is refused unless every download is that build's own 
     assert.throws(() => checkGithubManifest(linuxOnly, opts), /no windows-x86_64 build/);
     const extra = { ...good, platforms: { ...good.platforms, "darwin-aarch64": good.platforms["linux-x86_64"] } };
     assert.throws(() => checkGithubManifest(extra, opts), /darwin-aarch64: not a system the updater serves/);
+  } finally {
+    rmSync(dir, { recursive: true });
+  }
+});
+
+/** The script run as the workflow runs it: its exit code and what it printed. */
+function cli(...argv: string[]) {
+  const r = spawnSync(process.execPath, ["scripts/github-manifest.mjs", ...argv], { encoding: "utf8" });
+  return { status: r.status, out: r.stdout, err: r.stderr };
+}
+
+test("from the command line, check needs --version and --require", () => {
+  const k = signer();
+  const dir = release([APPIMAGE, SETUP], k.sign, "0.2.120");
+  try {
+    const manifest = join(dir, "latest.json");
+    writeFileSync(manifest, JSON.stringify(buildGithubManifest({ dir, version: "0.2.120", repo: REPO, pubkey: k.pub })));
+    const check = ["check", "--manifest", manifest, "--repo", REPO];
+    const version = ["--version", "0.2.120"];
+    const require = ["--require", "linux-x86_64,windows-x86_64"];
+
+    // With every flag, as the workflow calls it: as before.
+    let r = cli(...check, ...version, ...require);
+    assert.equal(r.status, 0, r.err);
+    assert.deepEqual(r.out.trim().split(",").sort(), ["linux-x86_64", "windows-x86_64"]);
+    r = cli(...check, "--version", "0.2.121", ...require);
+    assert.equal(r.status, 1);
+    assert.match(r.err, /0\.2\.121/);
+    for (const argv of [[...check, ...require], [...check, ...require, "--version", ""]]) {
+      r = cli(...argv);
+      assert.equal(r.status, 1);
+      assert.match(r.err, /check needs --version/);
+    }
+    // No --require, or one that names no system, would require nothing.
+    for (const req of [[], ["--require"], ["--require", ""], ["--require", ","], ["--require", ",,"]]) {
+      r = cli(...check, ...version, ...req);
+      assert.equal(r.status, 1, req.join(" "));
+      assert.match(r.err, /check needs --require/);
+    }
   } finally {
     rmSync(dir, { recursive: true });
   }
