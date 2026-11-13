@@ -6,6 +6,7 @@
 
 import type { Walkthrough } from "./types";
 import { guideOf } from "./guide";
+import { AUTO_FLOOR_SHARE } from "../core/approved";
 
 /** The element whose own "?" is `part`'s: a part's head bar or box. */
 const holder = (part: string) => `.pane.shown :has(> [data-help="${part}"])`;
@@ -107,7 +108,7 @@ const ORDERS: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: "Apply automatically is off unless you turn it on. Unattended, it never goes under 70% of the price you last set or approved in MyOrbiter.",
+    text: `Apply automatically is off unless you turn it on. Unattended, it never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved in MyOrbiter.`,
   },
   covers: {
     "orders.tiles": 1,

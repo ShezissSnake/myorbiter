@@ -49,6 +49,7 @@
   import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, KIND_LABEL as FISSURE_KIND, tidyRule, type FissureRule } from "../core/timers";
   import PickMany from "../ui/PickMany.svelte";
   import { details } from "../details.svelte";
+  import { DEAL_MIN_REF, DEAL_SHARE } from "../core/deals";
   import { bountyBoards, type BountyTable } from "../core/board";
   import { scoreCards } from "../core/pick";
   import { homeCardsChosen } from "../core/homeCards";
@@ -410,7 +411,7 @@
     { key: "world", label: "World clocks", hint: "Day and night on the open worlds, Duviri's mood, and the daily and weekly resets" },
     { key: "market", label: "Your orders", hint: "Your warframe.market status, what you have listed, and what sold" },
     { key: "ready", label: "Ready to list", hint: "Your spares worth listing, in the kinds ticked on Sell spares, at or over your minimum" },
-    { key: "fissures", label: "Fissures now", hint: "Every open fissure (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "Every open fissure (normal, Steel Path or Void Storms), and your fissure alerts" },
+    { key: "fissures", label: "Fissures now", hint: "The open fissures, one kind at a time (normal, Steel Path or Void Storms), your best relic for each era, and your fissure alerts", consoleHint: "The open fissures, one kind at a time (normal, Steel Path or Void Storms), and your fissure alerts" },
     { key: "bounties", label: "Bounties", hint: "The bounties in Cetus, Fortuna, the Necralisk, the Zariman, Cavia and Höllvania, and what each pays" },
     { key: "events", label: "Events", hint: "Events running in game (Tactical Alerts, operations, seasonal ones): where, until when, and what they pay" },
     { key: "today", label: "Worth doing today", hint: "The Duviri Circuit, Darvo's deal, Teshin, the Sortie (its missions, modifiers and reward chances), the Archon Hunt and Nightwave" },
@@ -595,7 +596,7 @@
           {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales: since your local midnight (Trades left counts from 00:00 UTC)"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
-          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; Founders get 2 more), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while MyOrbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
+          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; extra trades from Founder status are not added), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while MyOrbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length || hiddenShort}
           <ul class="mini">
@@ -687,7 +688,7 @@
         <div class="bboard" in:arrive={{ y: 0 }}><BountyBoard {boards} {now} imageOf={(n) => model.imageOf(n)} {need} opens={rewardOpens} /></div>
         <button class="link fold" aria-expanded="true" onclick={() => (openBounties = false)}>Fewer</button>
       {:else}
-        <!-- One line a place: its best (or wanted) reward; the boards a click away. -->
+        <!-- One line a place: its wanted reward, else its rarest; the boards a click away. -->
         <ul class="bsum" in:arrive={{ y: 0 }}>
           {#each boards as b (b.label)}
             {@const j = b.jobs.find((x) => x.wanted) ?? b.jobs.reduce((best, x) => ((x.headline?.chance ?? 101) < (best.headline?.chance ?? 101) ? x : best), b.jobs[0])}
@@ -879,7 +880,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? "Couldn't reach warframe.market; it tries again in 10 minutes." : mkt.dealsAt ? `Nothing under ${Math.round(0.6 * 100)}% of its usual price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting.` : "Checking warframe.market…"}</p>
+        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? "Couldn't reach warframe.market; it tries again in 10 minutes." : mkt.dealsAt ? `Nothing listed at ${Math.round(DEAL_SHARE * 100)}% or less of its usual (daily median) price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting. Medians under ${DEAL_MIN_REF}p are skipped; a price alert goes by your own price.` : "Checking warframe.market…"}</p>
       {/if}
       <!-- Price alerts you set from Post a buy order (Alert me): watched with the rest. -->
       {#if settings.market.buyAlerts.length}

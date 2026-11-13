@@ -137,7 +137,7 @@
             <button class="stamp gold" onclick={() => { close(); go("market"); }}>Sign in on Orders</button>
           </div>
           {:else}
-          <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to change or take down.</p>
+          <p class="dim small foot">Sellers see it on warframe.market and whisper you in game. Your buy orders are on Orders, to take down.</p>
           <div class="row end">
             <button onclick={close}>Cancel</button>
             {#if onalert}{@render alertButton(d)}{/if}

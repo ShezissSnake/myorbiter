@@ -15,7 +15,7 @@
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { DRIFT_RULES, GREY_AREA } from "../core/drift";
   import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "../core/automation";
-  import { AUTO_FLOOR_SHARE } from "../core/approved";
+  import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -695,7 +695,7 @@
       </div>
       {#if !console && trades.limit != null}
         {@const resets = until(new Date(trades.resets).toISOString(), minute)}
-        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. Trades a day are your Mastery Rank (${trades.limit}; Founders get 2 more), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
+        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. Trades a day are your Mastery Rank (${trades.limit}; extra trades from Founder status are not added), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
           <span class="register">Trades left</span>
           {#if trades.left != null}
             <div class="fv"><span class="mark fig" class:gold={trades.left <= 3}>{trades.left}</span>
@@ -866,12 +866,12 @@
           <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
           {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
           <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-          <Chip bind:on={settings.auto} label="Apply automatically" title={`Automatic repricing: also send new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} />
+          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, without asking. The rules are written below" onchange={(on) => { if (on) settings.autoCheck = true; }} />
           <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
             {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
           </select>
         </div>
-        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}; never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set, nor under your floors. {GREY_AREA}.</p>
+        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}. {console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.</p>
         <!-- The other automatic actions, the same switches and lines as Settings, Trades. -->
         {#if !console}
           <div class="grp autos">

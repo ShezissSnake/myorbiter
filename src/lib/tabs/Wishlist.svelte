@@ -300,7 +300,7 @@
                       {:else if p.vaulted}<span class="dim small">Vaulted</span>
                       {:else}<span class="dim small">–</span>{/if}
                     </td>
-                    <td class="r"><span class="buycell"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Post a buy order on warframe.market for {p.name}: sellers whisper you" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have), known: p.price })}>Buy order</button></span></td>
+                    <td class="r"><span class="buycell"><P v={p.price == null ? null : Math.round(p.price)} /><button class="link buyo" title="Open the buy order form for {p.name}: nothing is posted until you confirm" onclick={() => mkt.startBuy(p.name, { quantity: Math.max(1, p.required - p.have), known: p.price })}>Buy order</button></span></td>
                   </tr>
                 {/each}
               </tbody>

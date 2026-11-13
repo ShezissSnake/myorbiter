@@ -129,7 +129,7 @@ const WORLD: Walkthrough = {
       },
     },
     {
-      title: "Every fissure open now",
+      title: "Fissures open now, by kind",
       lines: [
         "Normal, Steel Path or Void Storms, and how many of each are open.",
         "Each era: your relic worth most to crack there, and the plat you'd average.",
