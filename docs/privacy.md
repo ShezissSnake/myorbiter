@@ -60,7 +60,8 @@ mode, without asking again. With Full mode on:
 
 ## Overlay mode: the game's screen
 
-Until a mode is chosen, TennoScope runs in Companion mode and doesn't look at the game at all. In
+Until a mode is chosen, TennoScope runs in Companion mode and doesn't look at the game at all, but
+for one corner: it looks for the game's window to show MyOrbiter's riven cycle over it (below). In
 Overlay mode (the first-run "Not now", or Full mode turned off), and in Full mode, it reads the
 game's log and captures the game's screen: every 2 seconds during a void fissure mission (from when
 the log shows the relics loaded until the reward screen closes, at most 45 minutes), more often
@@ -73,6 +74,13 @@ each overlay it places. Each look reads the titles of the open windows and takes
 named "Warframe". On Linux, when none is, the look also runs `xwininfo -root -tree` to find the game
 inside a Wine virtual desktop: at most every 5 seconds while that finds nothing, and at each look
 once it has found the game that way.
+
+The riven cycle's overlay is the corner: in every mode, Companion included, TennoScope checks
+MyOrbiter's request for it every 0.7 seconds, and while MyOrbiter asks for it (only with that
+overlay on in MyOrbiter, and for at most two minutes per request), TennoScope looks for the game's
+window to place it: once when the request comes, then about every 2.8 seconds for as long as the
+overlay isn't showing (on Linux it shows only once the game's window is found). These looks read
+the same window titles, and on Linux run `xwininfo` the same way.
 
 What is captured depends on the system:
 
