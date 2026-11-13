@@ -185,12 +185,16 @@ fn github_text_never_contains_ee_log_lines() {
         !text.contains("session secrets"),
         "EE.log content must never reach report text"
     );
+    // The note passes through `sanitize`, which writes a free-standing user name as `<user>`;
+    // these checks leave out the words a user name could be ("user", "name").
+    let notes = text.split("\nNotes\n").nth(1).expect("a Notes part when EE.log is included");
     assert!(
-        text.contains("Other players' names, account ids, trades, and your user and computer name"),
+        notes.contains("Other players' names, account ids, trades,")
+            && notes.contains("in its first lines stay in it"),
         "the note on the EE.log copy names what stays in it"
     );
     assert!(
-        !text.to_lowercase().contains("safe") && !text.contains("You can attach it"),
+        !notes.to_lowercase().contains("safe") && !notes.contains("You can attach it"),
         "the note on the EE.log copy never calls it safe to attach"
     );
 }
