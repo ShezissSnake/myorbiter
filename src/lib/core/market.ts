@@ -11,6 +11,7 @@ import type { Model } from "./model";
 import { baseId, gearSetParts, heldCount } from "./model";
 import type { Sale, TradeLogEntry } from "../backend";
 import { baitProof, drifted } from "./drift";
+import { copiesInCommon, sameSaleItem } from "./sameSale";
 
 export interface MarketItem {
   id: string;
@@ -485,38 +486,36 @@ export const HAND_SALE_MS = 24 * 3_600_000;
 
 /**
  * The sales whose platinum a sale trade from the game log counts already, so revenue doesn't
- * count them twice. A sale a trade logged (or matched) names it in `trade`. One logged by hand
- * pairs with the nearest sale trade of the same item, within a day, that no other sale has: each
- * trade stands for one sale at most.
+ * count them twice, with how many of each sale's copies it counts. A sale a trade logged (or
+ * matched) names it in `trade`: all of it. One logged by hand pairs with the nearest line of a
+ * sale trade, within a day, of the same item at the same rank (sameSaleItem, as the trade marking
+ * asks it) in a trade no sale names: as many copies as both have (copiesInCommon). Each line's
+ * copies are counted once; the hand-logged sale's other copies are sales of their own.
  */
-export function salesCoveredByTrades(sales: readonly Sale[], saleTrades: readonly TradeLogEntry[]): Set<Sale> {
-  const out = new Set<Sale>();
+export function salesCoveredByTrades(sales: readonly Sale[], saleTrades: readonly TradeLogEntry[]): Map<Sale, number> {
+  const out = new Map<Sale, number>();
   const keys = new Set(saleTrades.map((t) => t.key));
   const used = new Set<string>();
   for (const s of sales) {
     if (s.trade == null) continue;
     used.add(s.trade);
-    if (keys.has(s.trade)) out.add(s);
+    if (keys.has(s.trade)) out.set(s, s.quantity);
   }
-  // The log and warframe.market sometimes name a thing differently ("… Blueprint", "… Relic").
-  const norm = (n: string) => n.toLowerCase().replace(/ (blueprint|relic)$/, "");
-  const byItem = new Map<string, TradeLogEntry[]>();
-  for (const t of saleTrades) {
-    if (used.has(t.key)) continue;
-    for (const name of new Set(t.offered.map((x) => norm(x.name)))) byItem.set(name, [...(byItem.get(name) ?? []), t]);
-  }
-  const pairs: { s: Sale; key: string; gap: number }[] = [];
+  // Every line of a trade no sale names, with the copies it has left to cover.
+  const lines = saleTrades.filter((t) => !used.has(t.key)).flatMap((t) => t.offered.map((x) => ({ t, x, left: x.count })));
+  const pairs: { s: Sale; line: (typeof lines)[number]; gap: number }[] = [];
   for (const s of sales) {
     if (s.trade != null) continue;
-    for (const t of byItem.get(norm(s.item)) ?? []) {
-      const gap = Math.abs(t.at - s.at);
-      if (gap < HAND_SALE_MS) pairs.push({ s, key: t.key, gap });
+    for (const line of lines) {
+      const gap = Math.abs(line.t.at - s.at);
+      if (gap < HAND_SALE_MS && sameSaleItem(s, line.x)) pairs.push({ s, line, gap });
     }
   }
   for (const p of pairs.sort((a, b) => a.gap - b.gap)) {
-    if (out.has(p.s) || used.has(p.key)) continue;
-    out.add(p.s);
-    used.add(p.key);
+    if (out.has(p.s) || !p.line.left) continue;
+    const n = copiesInCommon(p.s, { count: p.line.left });
+    out.set(p.s, n);
+    p.line.left -= n;
   }
   return out;
 }

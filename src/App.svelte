@@ -4,7 +4,7 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, loggedForTrade, repCandidates, salesFromTrade, takeLogged, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -79,7 +79,7 @@
   import PaneId from "./lib/ui/PaneId.svelte";
   import { inBackground } from "./lib/progress.svelte";
   import { afterPaint } from "./lib/ui/soon";
-  import { backoff, handLoggedSale, keepSeen, thinHistory } from "./lib/core/upkeep";
+  import { backoff, keepSeen, thinHistory } from "./lib/core/upkeep";
   // Pages load when first opened (or by the warm-up below), so the app starts on less: only Home
   // is in the first bundle.
   // One import per page, kept; one that failed is tried again (Retry below, `lazyTry`).
@@ -1522,25 +1522,23 @@
         const logged = loggedForTrade(settings.market.sales, key);
         const lines: SoldLine[] = [];
         for (const s of sales) {
-          // Logged by hand within ten minutes of the trade: already counted. Only by hand: a sale
-          // this logged from an earlier trade (the same item to another buyer) is a sale of its own.
-          const hand = handLoggedSale(settings.market.sales, s.name, at);
-          if (hand >= 0) {
-            settings.market.sales[hand] = { ...settings.market.sales[hand], trade: key };
-            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
-            continue;
-          }
-          // This trade's sale of it is logged already (the trade handled once before): not again,
-          // and its listing isn't closed a second time.
-          if (takeLogged(logged, s)) {
+          // Copies this trade logged before (handled again), and copies logged by hand within ten
+          // minutes of it (the same item and rank), are counted already and not marked sold again;
+          // only the rest are. Only by hand: a sale this logged from an earlier trade (the same
+          // item to another buyer) is a sale of its own.
+          const placed = placeTradeLine(settings.market.sales, logged, s, at, key);
+          if (placed.sales !== settings.market.sales) settings.market.sales = placed.sales;
+          if (!placed.left) {
             lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
             continue;
           }
           // Matched against the listings as they were when the trade was read: one an earlier sale
           // in this trade (or a Sold click) closed meanwhile isn't listed any more.
-          const order = s.order && mkt.orders.some((o) => o.id === s.order!.id) ? s.order : null;
-          const marked = order ? await mkt.sold(order, s.count, { quiet: true }) : null;
-          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: s.count, platinum: s.platinumEach, trade: key }, ...settings.market.sales].slice(0, 2000);
+          const order = stillListed(s.order, mkt.orders);
+          const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
+          // Which listing this lowered, by how much: a Sold click on it soon after asks first.
+          const lowered = order && marked ? { lowered: { listing: order.id, count: marked.quantity, at: Date.now() } } : {};
+          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key, ...lowered }, ...settings.market.sales].slice(0, 2000);
           lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
           done++;
         }

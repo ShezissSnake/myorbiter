@@ -6,6 +6,8 @@ import { imprintSale, type ImprintNaming, type ImprintRaw } from "./imprints";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
 import { recentTrade } from "./saleNotice";
+import { handLoggedSale } from "./upkeep";
+import { sameSaleItem } from "./sameSale";
 
 /** What makes a trade unique: the game session's start and the trade's time in it. */
 export const tradeKey = (sessionStart: number | null | undefined, t: Trade) => `${sessionStart ?? "?"}|${t.uptime}`;
@@ -129,13 +131,49 @@ export function tradesToMark(trades: Trade[], session: number | null, seen: Iter
  */
 export const loggedForTrade = (sales: Sale[], key: string): Sale[] => sales.filter((s) => s.trade === key);
 
-/** Takes this line's sale from `logged` (loggedForTrade) if it's there: true when it was logged already. */
-export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): boolean {
-  const i = logged.findIndex((s) => s.item === line.name && (s.rank ?? null) === (line.rank ?? null) && s.quantity === line.count);
-  if (i < 0) return false;
-  logged.splice(i, 1);
-  return true;
+/**
+ * Takes this line's copies from `logged` (loggedForTrade): how many of them this trade logged
+ * before, as one sale or split between a sale logged by hand and the rest (placeTradeLine).
+ */
+export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): number {
+  let copies = 0;
+  for (let i = 0; i < logged.length && copies < line.count; ) {
+    const s = logged[i];
+    if (sameSaleItem(s, line)) {
+      copies += s.quantity;
+      logged.splice(i, 1);
+    } else i++;
+  }
+  return Math.min(copies, line.count);
 }
+
+/**
+ * One line of a sale trade, put in the sales log before its listing is marked sold. Copies this
+ * trade logged before (it's handled again) and copies you logged by hand around then
+ * (handLoggedSale: the same item and rank) are not logged again; the hand-logged sale is
+ * claimed with the trade's key. A hand-logged sale of more copies than the trade is split: the
+ * trade's copies take its key, the rest stay a sale of their own. Returns the log as it now is
+ * and `left`, the copies still to log and mark sold.
+ */
+export function placeTradeLine(sales: Sale[], logged: Sale[], line: { name: string; rank: number | null; count: number }, at: number, key: string): { sales: Sale[]; left: number } {
+  let left = line.count - takeLogged(logged, line);
+  if (left <= 0) return { sales, left: 0 };
+  const hand = handLoggedSale(sales, { ...line, count: left }, at);
+  if (!hand) return { sales, left };
+  const h = sales[hand.index];
+  const out = [...sales];
+  if (h.quantity > left) {
+    // The closed order's id stays with the claimed part, so an import doesn't add it again.
+    const rest: Sale = { ...h, quantity: h.quantity - left };
+    delete rest.wfm;
+    out.splice(hand.index, 1, { ...h, quantity: left, trade: key }, rest);
+  } else out[hand.index] = { ...h, trade: key };
+  left -= hand.copies;
+  return { sales: out, left };
+}
+
+/** The listing a trade's line is to lower, if it is still listed (one an earlier line or a Sold click closed is not). */
+export const stillListed = (order: MyOrder | null, orders: MyOrder[]): MyOrder | null => (order && orders.some((o) => o.id === order.id) ? order : null);
 
 /**
  * Every part of a prime set handed over in one trade is a set sale ("Styanax Prime Set"), when you
@@ -199,7 +237,12 @@ function gearSetsOf(m: Model, index: MarketIndex) {
 /**
  * Sales logged before MyOrbiter knew a trade could be a whole set: every part of a set, sold in one
  * trade and logged as one sale each, becomes one "X Prime Set" sale at the platinum they made
- * together. Null when there's nothing to fold.
+ * together, under the trade's key. Null when there's nothing to fold.
+ *
+ * Only part sales without a trade's key: a trade logs its parts one by one only when they were
+ * listed one by one (foldSets), so those sold as parts and closed part listings on
+ * warframe.market. The closed orders' ids the parts had (an import made first) go with the set
+ * sale (`wfmParts`), so importing again doesn't add the parts back.
  */
 export function foldSetSales(sales: Sale[], trades: TradeLogEntry[], m: Model): Sale[] | null {
   let out: Sale[] | null = null;
@@ -211,12 +254,14 @@ export function foldSetSales(sales: Sale[], trades: TradeLogEntry[], m: Model): 
       const parts = parent ? (m.partsByParent.get(parent.uniqueName) ?? []) : [];
       if (!parts.length) continue;
       const list: Sale[] = out ?? sales;
-      // This trade's part sales: logged by the trade itself, at its time.
-      const near = (x: Sale) => x.rank == null && Math.abs(x.at - t.at) < 60_000 && (x.trade == null || x.trade === t.key);
+      // This trade's part sales, at its time, logged before sales carried their trade's key.
+      const near = (x: Sale) => x.rank == null && Math.abs(x.at - t.at) < 60_000 && x.trade == null;
       const mine = parts.map((p) => list.find((x) => near(x) && x.item === p.fullName && x.quantity === p.required * set.count));
-      if (mine.some((x) => !x) || list.some((x) => near(x) && x.item === set.name)) continue;
+      const setSale = (x: Sale) => x.item === set.name && (x.trade === t.key || (x.trade == null && Math.abs(x.at - t.at) < 60_000));
+      if (mine.some((x) => !x) || list.some(setSale)) continue;
       const platinum = Math.round(mine.reduce((n, x) => n + x!.platinum * x!.quantity, 0) / set.count);
-      const folded: Sale = { at: t.at, item: set.name, rank: null, quantity: set.count, platinum, ...(mine[0]!.trade ? { trade: mine[0]!.trade } : {}) };
+      const ids = mine.flatMap((x) => [...(x!.wfm ? [x!.wfm] : []), ...(x!.wfmParts ?? [])]);
+      const folded: Sale = { at: t.at, item: set.name, rank: null, quantity: set.count, platinum, trade: t.key, ...(ids.length ? { wfmParts: ids } : {}) };
       const drop = new Set(mine);
       const at = list.indexOf(mine[0]!);
       out = list.filter((x) => !drop.has(x));
@@ -224,6 +269,15 @@ export function foldSetSales(sales: Sale[], trades: TradeLogEntry[], m: Model): 
     }
   }
   return out;
+}
+
+/** A prime set's parts by name and how many of each it takes ("Nekros Prime Set"), or null: for importClosed. */
+export function setPartsOf(m: Model): (set: string) => { name: string; required: number }[] | null {
+  return (set) => {
+    const parent = m.primeParents.find((p) => `${p.name} Set` === set);
+    const parts = parent ? m.partsByParent.get(parent.uniqueName) : null;
+    return parts?.length ? parts.map((p) => ({ name: p.fullName, required: p.required })) : null;
+  };
 }
 
 /** How far back automatic +rep reaches: the game log only holds this game session's trades anyway. */

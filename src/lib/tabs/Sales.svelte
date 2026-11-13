@@ -22,7 +22,7 @@
   import { salesCsv } from "../core/exportCsv";
   import { importClosed } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
-  import { imprintNaming } from "../core/trades";
+  import { imprintNaming, setPartsOf } from "../core/trades";
   import { imprintSaleName } from "../core/imprints";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
@@ -68,7 +68,7 @@
     importFailed = false;
     try {
       const closed = await wfm.closedOrders(me);
-      const r = importClosed(settings.market.sales, closed);
+      const r = importClosed(settings.market.sales, closed, setPartsOf(model));
       if (r.added || r.matched) settings.market.sales = r.sales.slice(0, 2000);
       const sells = closed.filter((c) => c.kind === "sell").length;
       imported = !sells ? "warframe.market has no closed sales on your profile." : r.added ? `Added ${r.added} sale${r.added === 1 ? "" : "s"} from warframe.market; the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.` : `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;

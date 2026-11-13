@@ -2,6 +2,7 @@
 // Auto-match, or by MyOrbiter after a trade) is in your profile's statistics. Importing them fills
 // in sales from before MyOrbiter logged them, and ones you marked sold on the website.
 import type { Sale } from "../backend";
+import { saleName } from "./sameSale";
 
 /** One closed order, as src-tauri/src/market.rs `ClosedOrder` reads it. */
 export interface ClosedOrder {
@@ -22,12 +23,33 @@ const SAME_SALE_MS = 6 * 3_600_000;
  * Your closed sell orders that the sale log doesn't have yet. A sale already logged for the same
  * item (and rank) within six hours is the same sale (one of the same quantity first, then the
  * nearest): it gets the order's id, so it's never imported twice, and keeps the platinum you
- * actually got. Returns the new log (newest first) and
- * how many were added and matched.
+ * actually got. A part's closed order with no sale of that part is matched to a set sale of the
+ * same trade time (within six hours) that the part is in (`setParts`): the parts were listed one
+ * by one and sold together in one trade, which MyOrbiter logs as the set (foldSetSales). Its id
+ * goes in the set sale's `wfmParts`. Returns the new log (newest first) and how many were added
+ * and matched.
  */
-export function importClosed(sales: Sale[], closed: ClosedOrder[]): { sales: Sale[]; added: number; matched: number } {
-  const out = sales.map((s) => ({ ...s }));
-  const known = new Set(out.flatMap((s) => (s.wfm ? [s.wfm] : [])));
+export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (set: string) => { name: string; required: number }[] | null = () => null): { sales: Sale[]; added: number; matched: number } {
+  const out = sales.map((s) => ({ ...s, ...(s.wfmParts ? { wfmParts: [...s.wfmParts] } : {}) }));
+  const known = new Set(out.flatMap((s) => [...(s.wfm ? [s.wfm] : []), ...(s.wfmParts ?? [])]));
+  // Copies of each part a set sale can still take, by sale and part name (saleName).
+  const room = new Map<Sale, Map<string, number>>();
+  const roomOf = (s: Sale) => {
+    let r = room.get(s);
+    if (!r) {
+      r = new Map();
+      for (const p of setParts(s.item) ?? []) r.set(saleName(p.name), (r.get(saleName(p.name)) ?? 0) + p.required * s.quantity);
+      // Parts matched by an earlier import: the set has that many fewer to take, whichever they were.
+      let taken = s.wfmParts?.length ?? 0;
+      for (const [k, n] of r) {
+        const t = Math.min(n, taken);
+        r.set(k, n - t);
+        taken -= t;
+      }
+      room.set(s, r);
+    }
+    return r;
+  };
   const fresh: { c: ClosedOrder; at: number }[] = [];
   for (const c of closed) {
     if (c.kind !== "sell" || known.has(c.id)) continue;
@@ -48,11 +70,19 @@ export function importClosed(sales: Sale[], closed: ClosedOrder[]): { sales: Sal
       const same = out
         .filter((s) => !s.wfm && s.item.toLowerCase() === c.name.toLowerCase() && (c.rank == null || s.rank == null || s.rank === c.rank) && Math.abs(s.at - at) < SAME_SALE_MS && (!exact || s.quantity === Math.max(1, c.quantity)))
         .sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
+      const name = saleName(c.name);
+      const set = same || exact || c.rank != null ? null : out
+        .filter((s) => !s.wfm && / set$/i.test(s.item) && Math.abs(s.at - at) < SAME_SALE_MS && (roomOf(s).get(name) ?? 0) >= Math.max(1, c.quantity))
+        .sort((a, b) => Math.abs(a.at - at) - Math.abs(b.at - at))[0];
       if (same) {
         same.wfm = c.id;
         matched++;
       } else if (exact) left.push(f);
-      else {
+      else if (set) {
+        roomOf(set).set(name, roomOf(set).get(name)! - Math.max(1, c.quantity));
+        set.wfmParts = [...(set.wfmParts ?? []), c.id];
+        matched++;
+      } else {
         out.push({ at, item: c.name, rank: c.rank, quantity: Math.max(1, c.quantity), platinum: Math.round(c.platinum), wfm: c.id });
         added++;
       }
