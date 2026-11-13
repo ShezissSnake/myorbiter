@@ -1,12 +1,12 @@
 // The world board on Home: every open void fissure, by kind and era, and the bounties on offer in
-// each open world and hub, with what each pays.
+// each open world and hub, with what each pays; and the fissures the Watching column lists.
 //
 // Bounties come from two places. Cetus, Fortuna and the Necralisk list their bounties in the
 // worldstate, each with its own reward table. The Zariman, Albrecht's Laboratories (Cavia) and
 // Höllvania (1999) don't: their missions rotate in game, but each level tier always pays from the
 // same table, which the official drop tables carry (relicdata.rs keeps them).
 import type { Fissure } from "./types";
-import { TIERS } from "./timers";
+import { TIERS, matchedFissures, type FissureRule } from "./timers";
 
 // ---------------------------------------------------------------- fissures
 
@@ -40,6 +40,87 @@ export function fissuresByEra(fs: Fissure[] | null, mode: FissureMode | "all", n
   return eras
     .map((era) => ({ era, list: mine.filter((f) => f.tier === era).sort((a, b) => Number(isQuickMission(b.missionType)) - Number(isQuickMission(a.missionType)) || Date.parse(a.expiry) - Date.parse(b.expiry)) }))
     .filter((e) => e.list.length > 0);
+}
+
+/** The kinds in the order Home names them: Normal, Steel Path, Void Storms. */
+export const FISSURE_MODES: readonly FissureMode[] = ["normal", "steel", "storm"];
+/** Each kind's name, as Home's board names it. */
+export const MODE_LABEL: Record<FissureMode, string> = { normal: "Normal", steel: "Steel Path", storm: "Void Storms" };
+
+/** The mission types a fissure runs on, for the lists to choose from (the fissure alert form on Home, the Watching column). */
+export const MISSIONS = ["Capture", "Defense", "Disruption", "Excavation", "Extermination", "Hijack", "Interception", "Mobile Defense", "Rescue", "Sabotage", "Spy", "Survival", "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy", "Skirmish", "Volatile", "Orphix"];
+
+/**
+ * The mission types to offer, sorted: MISSIONS, every type open now (the worldstate may name one
+ * the list lacks), and `chosen` (one picked before that isn't open now stays there to untick).
+ */
+export const missionTypes = (fs: Fissure[] | null, chosen: string[] = []) => [...new Set([...MISSIONS, ...(fs ?? []).map((f) => f.missionType), ...chosen])].sort();
+
+/**
+ * What the Watching column's Fissures card lists (settings.side.fissures), kept apart from Home's
+ * board: the kinds (one at least), the eras and mission types (none chosen is every one), or only
+ * the fissures the fissure alerts match.
+ */
+export interface FissureChoice {
+  kinds: FissureMode[];
+  /** Eras, from TIERS. */
+  eras: string[];
+  missions: string[];
+  /** Only the fissures the alerts match, of every kind: the three choices above don't apply. */
+  only: boolean;
+}
+
+/** What an older settings file starts from: what the column showed then, Home's board's kind and its Only my alerts. */
+export const choiceFromHome = (mode: FissureMode, only: boolean): FissureChoice => ({ kinds: [mode], eras: [], missions: [], only });
+
+/** Mission types kept for the column: at most this many, each at most MISSION_CHARS long. */
+export const MISSIONS_KEPT = 40;
+export const MISSION_CHARS = 60;
+
+/**
+ * A saved choice taken on no trust. Each part that isn't what this version writes (kinds: only the
+ * three, never none; eras: only TIERS; missions: only strings, at most MISSIONS_KEPT of at most
+ * MISSION_CHARS each; only: true or false) is `start`'s instead, as a whole: one stray value drops
+ * that list, not just the value.
+ */
+export function fissureChoiceOf(raw: unknown, start: FissureChoice): FissureChoice {
+  const r = raw && typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {};
+  const every = <T,>(v: unknown, ok: (x: unknown) => x is T): v is T[] => Array.isArray(v) && v.every(ok);
+  const isMode = (x: unknown): x is FissureMode => x === "normal" || x === "steel" || x === "storm";
+  const isEra = (x: unknown): x is string => (TIERS as readonly unknown[]).includes(x);
+  const isMission = (x: unknown): x is string => typeof x === "string" && x.length <= MISSION_CHARS;
+  const kinds = every(r.kinds, isMode) && r.kinds.length ? FISSURE_MODES.filter((k) => (r.kinds as FissureMode[]).includes(k)) : [...start.kinds];
+  const eras = every(r.eras, isEra) ? TIERS.filter((t) => (r.eras as string[]).includes(t)) : [...start.eras];
+  const missions = every(r.missions, isMission) && r.missions.length <= MISSIONS_KEPT ? [...new Set(r.missions as string[])] : [...start.missions];
+  return { kinds, eras, missions, only: typeof r.only === "boolean" ? r.only : start.only };
+}
+
+export interface ChosenFissures {
+  /** Only my alerts applies (it's on, and there is an alert to go by): `soonest` is the list. */
+  mine: boolean;
+  /** Without `mine`: the chosen fissures by era, as fissuresByEra orders them. */
+  eras: { era: string; list: Fissure[] }[];
+  /** With `mine`: the alerts' matches, of every kind, soonest to close first. */
+  soonest: Fissure[];
+  /** How many are listed. */
+  count: number;
+  /** An era or a mission type is chosen and applies: fewer are listed than the kinds alone would. */
+  narrowed: boolean;
+}
+
+/**
+ * The open fissures the Watching column lists for a choice: with Only my alerts (and an alert to go
+ * by), the ones the alerts match, soonest to close first; else those of the chosen kinds, eras and
+ * mission types, by era (fissuresByEra).
+ */
+export function chosenFissures(fs: Fissure[] | null, choice: FissureChoice, rules: FissureRule[], now: number): ChosenFissures {
+  if (choice.only && rules.length > 0) {
+    const soonest = matchedFissures(rules, fs, now).map((w) => w.fissure).sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry));
+    return { mine: true, eras: [], soonest, count: soonest.length, narrowed: false };
+  }
+  const picked = (fs ?? []).filter((f) => choice.kinds.includes(modeOf(f)) && (!choice.eras.length || choice.eras.includes(f.tier)) && (!choice.missions.length || choice.missions.includes(f.missionType)));
+  const eras = fissuresByEra(picked, "all", now);
+  return { mine: false, eras, soonest: [], count: eras.reduce((n, e) => n + e.list.length, 0), narrowed: choice.eras.length > 0 || choice.missions.length > 0 };
 }
 
 // ---------------------------------------------------------------- bounties

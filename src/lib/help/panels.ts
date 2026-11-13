@@ -61,19 +61,21 @@ const WATCHING: Walkthrough = {
     {
       title: "Open fissures, era by era",
       lines: [
-        "The kind Home shows, Normal, Steel Path or Void Storms, and how many are open.",
-        "Grouped by era, with how many of each.",
-        "Each: the mission, where, against whom, and the time left, red under 10 minutes.",
-        "A bell marks one your alerts match; Only my alerts, on Home, shows just those.",
+        "What's listed and how many: Fissures, Steel Path, Void Storms, or My alerts.",
+        "The funnel chooses, for this column only: kinds, eras, missions, Only my alerts.",
+        "By era; each card: mission, where, against whom, time left (red under 10 minutes).",
+        "A bell marks one your alerts match; narrowed, × puts every era and mission back.",
       ],
       shot: {
         open: "relics",
         size: WIDE,
-        part: `${card("watching.fissures")} > .hmark, ${card("watching.fissures")} > .hmark + div.eh, ${card("watching.fissures")} > .hmark + div.eh + ul.cards > li:nth-child(-n+3)`,
+        // The funnel only opens the card's choices (its own state, not a setting); no chip is clicked.
+        steps: [{ click: `${card("watching.fissures")} > .fzhead button[aria-label^="Choose this column"]` }],
+        part: `${card("watching.fissures")} > .fzhead, ${card("watching.fissures")} > .fzpick, ${card("watching.fissures")} > .fzpick + div.eh, ${card("watching.fissures")} > .fzpick + div.eh + ul.cards > li:nth-child(-n+2)`,
         marks: [
-          { at: `${card("watching.fissures")} > .hmark`, is: "n", n: 1, from: "corner" },
-          { at: `${card("watching.fissures")} > .hmark + div.eh`, is: "n", n: 2, from: "corner" },
-          { at: `${card("watching.fissures")} > .hmark + div.eh + ul.cards > li:first-child .end`, is: "n", n: 3, from: "corner" },
+          { at: `${card("watching.fissures")} > .fzhead h3`, is: "n", n: 1, from: "corner" },
+          { at: `${card("watching.fissures")} > .fzhead button[aria-label^="Choose this column"]`, is: "n", n: 2, from: "corner" },
+          { at: `${card("watching.fissures")} > .fzpick + div.eh`, is: "n", n: 3, from: "corner" },
         ],
       },
     },
