@@ -515,7 +515,7 @@
     f.busy = true;
     f.error = null;
     try {
-      // No bidding stays no bidding; bids from where they were, never above the new buyout; hidden stays hidden.
+      // No bidding stays no bidding; bids from where they were, never above the new buyout; the minimum reputation, note and private setting as read.
       await rivens.reprice(a, buyout);
       auctionPrice = null;
     } catch (e) {
