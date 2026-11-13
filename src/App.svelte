@@ -1822,7 +1822,7 @@
     if (untold.length) {
       const names = untold.map((h) => mkt.item(mkt.orders.find((o) => o.id === h.id)?.itemId ?? "")?.name ?? "a listing");
       const one = names.length === 1;
-      mkt.note(`Still hidden: ${names.join(", ")}. ${one ? "It comes" : "They come"} back once TennoScope reads your inventory again and ${one ? "it's" : "they're"} still there, in case ${one ? "it" : "they"} sold in game meanwhile`, "info");
+      mkt.note(`Still hidden: ${names.join(", ")}. ${one ? "It comes" : "They come"} back once your inventory is read again (Sync reads it now) and ${one ? "it's" : "they're"} still there, in case ${one ? "it" : "they"} sold in game meanwhile`, "info");
     }
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
