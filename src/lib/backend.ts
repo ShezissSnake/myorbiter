@@ -1652,7 +1652,7 @@ export const market = {
   myAuctions: async (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : ((await devMarket()) as { auctions?: unknown } | null)?.auctions ?? []),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>
     inTauri ? invoke("market_create_auction", { auction }) : needApp(),
-  updateAuction: (id: string, change: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string }): Promise<unknown> =>
+  updateAuction: (id: string, change: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; visible: boolean; note: string }): Promise<unknown> =>
     inTauri ? invoke("market_update_auction", { id, change }) : needApp(),
   closeAuction: (id: string): Promise<void> => (inTauri ? invoke("market_close_auction", { id }) : needApp()),
   /** Which platform's market to use from now on. */
