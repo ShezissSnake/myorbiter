@@ -15,7 +15,7 @@ path beside each.
 | The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the rest stays on your PC | only in Full mode, which is off until you choose it |
 | Pictures of the game's screen (the monitor it's on, its own window, or whole monitors, by system: below), captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
 | Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
-| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold on warframe.market (off unless you turn it on); each player you traded with in the last 24 hours, whatever the trade, gets +rep there unless they aren't on it or already have your review, a review in your name (off unless you turn it on, whether or not sales are marked); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
+| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold on warframe.market (off unless you turn it on); each player you traded with in the last 24 hours, whatever the trade, gets +rep there, a review in your name, unless they aren't on it or already have a review from you (off unless you turn it on, whether or not sales are marked); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
 | Order books, prices, the live feed of new orders; signed in: your profile, orders, auctions, chats, status and your changes | warframe.market | while MyOrbiter runs (below) |
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
@@ -135,10 +135,10 @@ warframe.market, and TennoScope is asked to read your inventory again. When you'
 *Give +rep by itself after a trade* is on (it is off unless you turn it on), each player you traded
 with in the last 24 hours gets +rep, once per player, whatever the trade was (a sale, a purchase, a
 swap or a gift), whether marking sales is on or not; a player who isn't on warframe.market, or who
-already has a +rep or a negative review from you there, gets none. A +rep is a positive review, with your +rep
-message, posted on the other player's warframe.market profile in your name. The names of players
-you trade with, and of a player who whispers you (with whisper notifications on), are looked up on
-warframe.market to show their reputation.
+already has a +rep or a negative review from you there, gets none. A +rep is a positive review,
+with your +rep message, posted on the other player's warframe.market profile in your name. The
+names of players you trade with, and of a player who whispers you (with whisper notifications on),
+are looked up on warframe.market to show their reputation.
 
 MyOrbiter reads `EE.cfg` beside the log and keeps only the display mode (`Graphics.WindowMode`): at
 start, every 5 minutes, and when you change the log's path (not on console).
