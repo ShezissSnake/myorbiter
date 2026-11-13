@@ -13,6 +13,24 @@ UB Mannheim's build (https://github.com/UB-Mannheim/tesseract).
 
 - `leptonica-license.txt`: Leptonica's licence, from its repository at tag 1.84.1.
 - Tesseract: Apache-2.0, its `LICENSE` (from the installer) beside this file in a build.
+- `LGPL-2.1-or-later.txt`: the text of the GNU Lesser General Public License, version 2.1, for the
+  table's LGPL-2.1 libraries (cairo, GLib, libiconv, libintl, FriBidi, libthai, libdatrie,
+  Graphite2).
+- `LGPL-2.0-or-later.txt`: the text of the GNU Library General Public License, version 2, for
+  Pango.
+- `GPL-2.0-or-later.txt`: the text of the GNU General Public License, version 2, for JBIG-KIT
+  (and FreeType and Graphite2, which offer it as one choice).
+
+Where the three licence texts were copied from, unchanged:
+
+| File | Copied from | SHA-256 |
+|---|---|---|
+| `LGPL-2.1-or-later.txt` | Arch Linux's `licenses` package 20240728-1, `/usr/share/licenses/spdx/LGPL-2.1-or-later.txt` (the SPDX License List's text) | `5749785c8bdefafcb5d798270ed0a967036fe2ca63dcedade1627565dfef81d2` |
+| `LGPL-2.0-or-later.txt` | Arch Linux's `licenses` package 20240728-1, `/usr/share/licenses/spdx/LGPL-2.0-or-later.txt` (the SPDX License List's text) | `86dc99d7e5060915ab1dfc1378b7dd351c62088bfa74067e8aa1868c6fdba7d8` |
+| `GPL-2.0-or-later.txt` | libgpg-error 1.61, its `COPYING` (the Free Software Foundation's text, whole), at `/usr/share/licenses/libgpg-error/COPYING` | `231f7edcc7352d7734a96eef0b8030f77982678c516876fcb81e25b32d68564c` |
+
+Every DLL kept must have its row in the table below: `scripts/check-windows-dlls.sh` stops the
+build when one has none.
 
 | DLL | Project | Licence |
 |---|---|---|

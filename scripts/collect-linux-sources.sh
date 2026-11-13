@@ -18,12 +18,18 @@
 # With NOTICES_DIR set, each package's copyright file is also copied there (<package>.copyright),
 # for bundles whose libraries collect-linux-notices.sh didn't see (linuxdeploy's).
 #
+# A package without its copyright file (/usr/share/doc/<package>/copyright) stops it, as it stops
+# collect-linux-notices.sh: every such package is named, and SOURCES.md isn't written. The download
+# must not carry a library without its notice. A file no package owns doesn't stop it (see above).
+# COPYRIGHT_DOC_DIR stands in for /usr/share/doc (the tests' made-up packages).
+#
 # Needs dpkg (Debian, Ubuntu: what the release builds run on). Without it, it writes a SOURCES.md
 # that says so, rather than an empty list.
 set -euo pipefail
 
 out=${1:?usage: collect-linux-sources.sh <SOURCES.md> <file or folder>...}
 shift
+doc_dir=${COPYRIGHT_DOC_DIR:-/usr/share/doc}
 mkdir -p "$(dirname "$out")"
 
 offer() {
@@ -110,9 +116,11 @@ done
 
 rows=()
 gpl=()
+nocopyright=()
 for p in $(printf '%s\n' "${!pkgs[@]}" | sort); do
   read -r name version src srcver < <(dpkg-query -W -f='${Package} ${Version} ${source:Package} ${source:Version}\n' "$p" | head -n 1)
-  doc="/usr/share/doc/${name%%:*}/copyright"
+  doc="$doc_dir/${name%%:*}/copyright"
+  [ -f "$doc" ] || { nocopyright+=("$name"); continue; }
   lic=$(licences "$doc")
   [ -n "$lic" ] || lic="(see its copyright file)"
   link="https://launchpad.net/ubuntu/+source/$src/$srcver"
@@ -125,6 +133,11 @@ for p in $(printf '%s\n' "${!pkgs[@]}" | sort); do
     install -m 644 "$doc" "$NOTICES_DIR/${name%%:*}.copyright"
   fi
 done
+if [ ${#nocopyright[@]} -gt 0 ]; then
+  echo "${#nocopyright[@]} bundled package(s) have no copyright file in $doc_dir/<package>/, so their licence can't be shipped:" >&2
+  printf '  %s\n' "${nocopyright[@]}" >&2
+  exit 1
+fi
 
 . /etc/os-release 2>/dev/null || true
 {
