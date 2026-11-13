@@ -1,0 +1,1630 @@
+{
+ "fissures": [
+  {
+   "id": "demo-fissure-1",
+   "activation": "2026-11-04T17:40:00.000Z",
+   "expiry": "2026-11-04T18:52:00.000Z",
+   "node": "Hepit (Void)",
+   "missionType": "Capture",
+   "enemy": "Orokin",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-2",
+   "activation": "2026-11-04T17:25:00.000Z",
+   "expiry": "2026-11-04T19:08:00.000Z",
+   "node": "Ukko (Void)",
+   "missionType": "Capture",
+   "enemy": "Orokin",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-3",
+   "activation": "2026-11-04T17:50:00.000Z",
+   "expiry": "2026-11-04T19:41:00.000Z",
+   "node": "Lares (Mercury)",
+   "missionType": "Defense",
+   "enemy": "Grineer",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-4",
+   "activation": "2026-11-04T17:55:00.000Z",
+   "expiry": "2026-11-04T20:12:00.000Z",
+   "node": "Gaia (Earth)",
+   "missionType": "Interception",
+   "enemy": "Grineer",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-5",
+   "activation": "2026-11-04T17:30:00.000Z",
+   "expiry": "2026-11-04T18:58:00.000Z",
+   "node": "Olympus (Mars)",
+   "missionType": "Disruption",
+   "enemy": "Grineer",
+   "tier": "Meso",
+   "tierNum": 2,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-6",
+   "activation": "2026-11-04T17:45:00.000Z",
+   "expiry": "2026-11-04T19:25:00.000Z",
+   "node": "Io (Jupiter)",
+   "missionType": "Defense",
+   "enemy": "Corpus",
+   "tier": "Meso",
+   "tierNum": 2,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-7",
+   "activation": "2026-11-04T17:52:00.000Z",
+   "expiry": "2026-11-04T19:50:00.000Z",
+   "node": "Gabii (Ceres)",
+   "missionType": "Survival",
+   "enemy": "Grineer",
+   "tier": "Meso",
+   "tierNum": 2,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-8",
+   "activation": "2026-11-04T17:35:00.000Z",
+   "expiry": "2026-11-04T19:03:00.000Z",
+   "node": "Draco (Ceres)",
+   "missionType": "Survival",
+   "enemy": "Grineer",
+   "tier": "Neo",
+   "tierNum": 3,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-9",
+   "activation": "2026-11-04T17:48:00.000Z",
+   "expiry": "2026-11-04T19:34:00.000Z",
+   "node": "Kappa (Sedna)",
+   "missionType": "Exterminate",
+   "enemy": "Grineer",
+   "tier": "Neo",
+   "tierNum": 3,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-10",
+   "activation": "2026-11-04T17:57:00.000Z",
+   "expiry": "2026-11-04T20:20:00.000Z",
+   "node": "Xini (Eris)",
+   "missionType": "Interception",
+   "enemy": "Infested",
+   "tier": "Neo",
+   "tierNum": 3,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-11",
+   "activation": "2026-11-04T17:20:00.000Z",
+   "expiry": "2026-11-04T18:47:00.000Z",
+   "node": "Ani (Void)",
+   "missionType": "Survival",
+   "enemy": "Orokin",
+   "tier": "Axi",
+   "tierNum": 4,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-12",
+   "activation": "2026-11-04T17:42:00.000Z",
+   "expiry": "2026-11-04T19:30:00.000Z",
+   "node": "Hydron (Sedna)",
+   "missionType": "Defense",
+   "enemy": "Grineer",
+   "tier": "Axi",
+   "tierNum": 4,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-13",
+   "activation": "2026-11-04T17:38:00.000Z",
+   "expiry": "2026-11-04T19:15:00.000Z",
+   "node": "Taveuni (Kuva Fortress)",
+   "missionType": "Survival",
+   "enemy": "Grineer",
+   "tier": "Requiem",
+   "tierNum": 5,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-14",
+   "activation": "2026-11-04T17:54:00.000Z",
+   "expiry": "2026-11-04T20:05:00.000Z",
+   "node": "Rotuma (Kuva Fortress)",
+   "missionType": "Sabotage",
+   "enemy": "Grineer",
+   "tier": "Requiem",
+   "tierNum": 5,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-15",
+   "activation": "2026-11-04T17:46:00.000Z",
+   "expiry": "2026-11-04T19:44:00.000Z",
+   "node": "Tuvul Commons (Zariman)",
+   "missionType": "Void Cascade",
+   "enemy": "Crossfire",
+   "tier": "Omnia",
+   "tierNum": 6,
+   "isStorm": false,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-16",
+   "activation": "2026-11-04T17:32:00.000Z",
+   "expiry": "2026-11-04T19:02:00.000Z",
+   "node": "Mot (Void)",
+   "missionType": "Survival",
+   "enemy": "Orokin",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": false,
+   "isHard": true
+  },
+  {
+   "id": "demo-fissure-17",
+   "activation": "2026-11-04T17:51:00.000Z",
+   "expiry": "2026-11-04T19:38:00.000Z",
+   "node": "Kiliken (Venus)",
+   "missionType": "Capture",
+   "enemy": "Corpus",
+   "tier": "Meso",
+   "tierNum": 2,
+   "isStorm": false,
+   "isHard": true
+  },
+  {
+   "id": "demo-fissure-18",
+   "activation": "2026-11-04T17:44:00.000Z",
+   "expiry": "2026-11-04T19:22:00.000Z",
+   "node": "Hieracon (Pluto)",
+   "missionType": "Excavation",
+   "enemy": "Corpus",
+   "tier": "Neo",
+   "tierNum": 3,
+   "isStorm": false,
+   "isHard": true
+  },
+  {
+   "id": "demo-fissure-19",
+   "activation": "2026-11-04T17:56:00.000Z",
+   "expiry": "2026-11-04T20:31:00.000Z",
+   "node": "Grimaldi (Lua)",
+   "missionType": "Rescue",
+   "enemy": "Corpus",
+   "tier": "Axi",
+   "tierNum": 4,
+   "isStorm": false,
+   "isHard": true
+  },
+  {
+   "id": "demo-fissure-20",
+   "activation": "2026-11-04T17:49:00.000Z",
+   "expiry": "2026-11-04T19:47:00.000Z",
+   "node": "Tamu (Kuva Fortress)",
+   "missionType": "Disruption",
+   "enemy": "Grineer",
+   "tier": "Requiem",
+   "tierNum": 5,
+   "isStorm": false,
+   "isHard": true
+  },
+  {
+   "id": "demo-fissure-21",
+   "activation": "2026-11-04T17:41:00.000Z",
+   "expiry": "2026-11-04T19:12:00.000Z",
+   "node": "Korm's Belt (Earth Proxima)",
+   "missionType": "Skirmish",
+   "enemy": "Grineer",
+   "tier": "Lith",
+   "tierNum": 1,
+   "isStorm": true,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-22",
+   "activation": "2026-11-04T17:53:00.000Z",
+   "expiry": "2026-11-04T19:55:00.000Z",
+   "node": "Bendar Cluster (Saturn Proxima)",
+   "missionType": "Volatile",
+   "enemy": "Grineer",
+   "tier": "Meso",
+   "tierNum": 2,
+   "isStorm": true,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-23",
+   "activation": "2026-11-04T17:36:00.000Z",
+   "expiry": "2026-11-04T19:06:00.000Z",
+   "node": "Sover Strait (Pluto Proxima)",
+   "missionType": "Orphix",
+   "enemy": "Corpus",
+   "tier": "Neo",
+   "tierNum": 3,
+   "isStorm": true,
+   "isHard": false
+  },
+  {
+   "id": "demo-fissure-24",
+   "activation": "2026-11-04T17:58:00.000Z",
+   "expiry": "2026-11-04T20:44:00.000Z",
+   "node": "Calabash (Veil Proxima)",
+   "missionType": "Exterminate",
+   "enemy": "Corpus",
+   "tier": "Axi",
+   "tierNum": 4,
+   "isStorm": true,
+   "isHard": false
+  }
+ ],
+ "invasions": [
+  {
+   "id": "demo-invasion-1",
+   "activation": "2026-11-04T13:00:00.000Z",
+   "node": "Cerberus (Pluto)",
+   "desc": "Grineer Offensive",
+   "completed": false,
+   "completion": 38.4,
+   "vsInfestation": false,
+   "attacker": {
+    "faction": "Grineer",
+    "reward": {
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/Types/Recipes/Weapons/WeaponParts/StrunWraithBarrel",
+       "type": "Strun Wraith Barrel",
+       "count": 1
+      }
+     ]
+    }
+   },
+   "defender": {
+    "faction": "Corpus",
+    "reward": {
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/Types/Recipes/Weapons/WeaponParts/LatronWraithStock",
+       "type": "Latron Wraith Stock",
+       "count": 1
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "demo-invasion-2",
+   "activation": "2026-11-04T09:00:00.000Z",
+   "node": "Ophelia (Uranus)",
+   "desc": "Corpus Siege",
+   "completed": false,
+   "completion": 71.2,
+   "vsInfestation": false,
+   "attacker": {
+    "faction": "Corpus",
+    "reward": {
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/StoreItems/Types/Recipes/Components/OrokinCatalystBlueprint",
+       "type": "Orokin Catalyst Blueprint",
+       "count": 1
+      }
+     ]
+    }
+   },
+   "defender": {
+    "faction": "Grineer",
+    "reward": {
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/StoreItems/Types/Items/MiscItems/OrokinCell",
+       "type": "Orokin Cell",
+       "count": 2
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "demo-invasion-3",
+   "activation": "2026-11-04T15:00:00.000Z",
+   "node": "Selkie (Sedna)",
+   "desc": "Infested Outbreak",
+   "completed": false,
+   "completion": 22.9,
+   "vsInfestation": true,
+   "attacker": {
+    "faction": "Infested",
+    "reward": null
+   },
+   "defender": {
+    "faction": "Grineer",
+    "reward": {
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/StoreItems/Types/Items/MiscItems/Fieldron",
+       "type": "Fieldron",
+       "count": 3
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "alerts": [
+  {
+   "id": "demo-alert-1",
+   "activation": "2026-11-04T16:00:00.000Z",
+   "expiry": "2026-11-05T22:00:00.000Z",
+   "tag": "DemoAlert",
+   "mission": {
+    "node": "Stöfler (Lua)",
+    "type": "Spy",
+    "faction": "Corpus",
+    "description": "Recovered intelligence",
+    "reward": {
+     "items": [],
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/StoreItems/Types/Recipes/Weapons/WeaponParts/LatronWraithReceiver",
+       "type": "Latron Wraith Receiver",
+       "count": 1
+      }
+     ],
+     "credits": 15000
+    }
+   }
+  },
+  {
+   "id": "demo-alert-2",
+   "activation": "2026-11-04T12:00:00.000Z",
+   "expiry": "2026-11-07T00:00:00.000Z",
+   "tag": "DemoAlert",
+   "mission": {
+    "node": "Helene (Saturn)",
+    "type": "Defense",
+    "faction": "Grineer",
+    "description": "Hold the line",
+    "reward": {
+     "items": [
+      "Orokin Reactor Blueprint"
+     ],
+     "countedItems": [],
+     "credits": 10000
+    }
+   }
+  },
+  {
+   "id": "demo-alert-3",
+   "activation": "2026-11-04T17:00:00.000Z",
+   "expiry": "2026-11-04T23:00:00.000Z",
+   "tag": "DemoAlert",
+   "mission": {
+    "node": "Teshub (Void)",
+    "type": "Exterminate",
+    "faction": "Orokin",
+    "description": "Endo cache",
+    "reward": {
+     "items": [],
+     "countedItems": [
+      {
+       "uniqueName": "/Lotus/StoreItems/Types/Items/MiscItems/FusionBundleLarge",
+       "type": "Endo",
+       "count": 1500
+      }
+     ],
+     "credits": 5000
+    }
+   }
+  }
+ ],
+ "voidTrader": {
+  "id": "demo-baro",
+  "activation": "2026-11-03T16:00:00.000Z",
+  "expiry": "2026-11-05T16:00:00.000Z",
+  "character": "Baro Ki'Teer",
+  "location": "Kronia Relay (Saturn)",
+  "inventory": [
+   {
+    "uniqueName": "/Lotus/StoreItems/Weapons/Corpus/Bow/Longbow/PrismaLenz/PrismaLenzWeapon",
+    "item": "Prisma Lenz",
+    "ducats": 525,
+    "credits": 250000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Weapons/VoidTrader/PrismaSkana",
+    "item": "Prisma Skana",
+    "ducats": 300,
+    "credits": 175000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Upgrades/Mods/Rifle/Expert/PrimedWeaponFactionDamageCorpus",
+    "item": "Primed Bane Of Corpus",
+    "ducats": 350,
+    "credits": 110000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Upgrades/Mods/Rifle/Expert/WeaponFreezeDamageModExpert",
+    "item": "Primed Cryo Rounds",
+    "ducats": 350,
+    "credits": 125000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Upgrades/Mods/Pistol/Expert/WeaponPistolFactionDamageGrineerExpert",
+    "item": "Primed Expel Grineer",
+    "ducats": 300,
+    "credits": 110000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Upgrades/Mods/Warframe/Expert/AvatarAbilityDurationModExpert",
+    "item": "Primed Continuity",
+    "ducats": 350,
+    "credits": 100000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Upgrades/Skins/VoidTrader/DemoTraderSyandana",
+    "item": "Ki'Teer Demo Syandana",
+    "ducats": 400,
+    "credits": 150000
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Items/ShipDecos/DemoTraderGlyph",
+    "item": "Void Trader Demo Glyph",
+    "ducats": 50,
+    "credits": 25000
+   }
+  ]
+ },
+ "vaultTrader": {
+  "id": "demo-varzia",
+  "activation": "2026-10-26T18:00:00.000Z",
+  "expiry": "2026-11-09T21:00:00.000Z",
+  "character": "Varzia",
+  "location": "Maroo's Bazaar (Mars)",
+  "inventory": [
+   {
+    "uniqueName": "/Lotus/StoreItems/Powersuits/Gauss/GaussPrime",
+    "item": "Gauss Prime",
+    "ducats": 3,
+    "credits": null
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Powersuits/Vauban/VaubanPrime",
+    "item": "Vauban Prime",
+    "ducats": 3,
+    "credits": null
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionGaussPrimeABronze",
+    "item": "Axi B7 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionGaussPrimeDBronze",
+    "item": "Axi A18 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T1VoidProjectionGaussPrimeABronze",
+    "item": "Lith C11 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T2VoidProjectionGaussPrimeCBronze",
+    "item": "Meso A5 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionAtlasVaubanVaultABronze",
+    "item": "Axi F1 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T1VoidProjectionAtlasVaubanVaultABronze",
+    "item": "Lith A5 Relic",
+    "ducats": null,
+    "credits": 1
+   },
+   {
+    "uniqueName": "/Lotus/StoreItems/Types/Game/Projections/T4VoidProjectionAshVaubanVaultABronze",
+    "item": "Axi A7 Relic",
+    "ducats": null,
+    "credits": 1
+   }
+  ]
+ },
+ "nightwave": {
+  "id": "demo-nightwave",
+  "activation": "2026-09-25T18:00:00.000Z",
+  "expiry": "2027-01-03T18:00:00.000Z",
+  "season": 99,
+  "tag": "DemoSeason",
+  "phase": 0,
+  "activeChallenges": [
+   {
+    "id": "demo-nw-1",
+    "activation": "2026-11-04T00:00:00.000Z",
+    "expiry": "2026-11-05T00:00:00.000Z",
+    "title": "Sprinter",
+    "desc": "Sprint for a long distance",
+    "reputation": 1000,
+    "isDaily": true,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-2",
+    "activation": "2026-11-04T00:00:00.000Z",
+    "expiry": "2026-11-05T00:00:00.000Z",
+    "title": "Mercenary",
+    "desc": "Complete a Bounty",
+    "reputation": 1000,
+    "isDaily": true,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-3",
+    "activation": "2026-11-05T00:00:00.000Z",
+    "expiry": "2026-11-06T00:00:00.000Z",
+    "title": "Pacifist",
+    "desc": "Put 20 enemies to sleep",
+    "reputation": 1000,
+    "isDaily": true,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-4",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Fissure Closer",
+    "desc": "Complete 8 Void Fissure missions",
+    "reputation": 4500,
+    "isDaily": false,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-5",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Earth Bounty Hunter",
+    "desc": "Complete 5 bounties in the Plains of Eidolon",
+    "reputation": 4500,
+    "isDaily": false,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-6",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Cache Hunter",
+    "desc": "Complete a Sabotage mission and find all the caches",
+    "reputation": 4500,
+    "isDaily": false,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-7",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Rescuer",
+    "desc": "Complete 3 Rescue missions",
+    "reputation": 4500,
+    "isDaily": false,
+    "isElite": false
+   },
+   {
+    "id": "demo-nw-8",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Elite Exterminator",
+    "desc": "Kill 500 enemies on the Steel Path",
+    "reputation": 7000,
+    "isDaily": false,
+    "isElite": true
+   },
+   {
+    "id": "demo-nw-9",
+    "activation": "2026-11-02T00:00:00.000Z",
+    "expiry": "2026-11-09T00:00:00.000Z",
+    "title": "Elite Sortie",
+    "desc": "Complete a Sortie",
+    "reputation": 7000,
+    "isDaily": false,
+    "isElite": true
+   }
+  ]
+ },
+ "sortie": {
+  "id": "demo-sortie",
+  "activation": "2026-11-04T16:00:00.000Z",
+  "expiry": "2026-11-05T16:00:00.000Z",
+  "rewardPool": "Sortie Rewards",
+  "boss": "Lephantis",
+  "faction": "Infested",
+  "variants": [
+   {
+    "missionType": "Exterminate",
+    "node": "Akkad (Eris)",
+    "modifier": "Enemy Elemental Enhancement: Toxin",
+    "modifierDescription": "Enemies deal increased Toxin damage."
+   },
+   {
+    "missionType": "Survival",
+    "node": "Zabala (Eris)",
+    "modifier": "Eximus Stronghold",
+    "modifierDescription": "Eximus units are much more common."
+   },
+   {
+    "missionType": "Assassination",
+    "node": "Oestrus (Eris)",
+    "modifier": "Augmented Enemy Armor",
+    "modifierDescription": "Enemies have improved armor."
+   }
+  ]
+ },
+ "archonHunt": {
+  "id": "demo-archon",
+  "activation": "2026-11-02T00:00:00.000Z",
+  "expiry": "2026-11-09T00:00:00.000Z",
+  "rewardPool": "Archon Hunt Rewards",
+  "boss": "Archon Nira",
+  "faction": "Narmer",
+  "missions": [
+   {
+    "type": "Extermination",
+    "node": "Cytherean (Venus)"
+   },
+   {
+    "type": "Mobile Defense",
+    "node": "Tessera (Venus)"
+   },
+   {
+    "type": "Assassination",
+    "node": "Montes (Venus)"
+   }
+  ]
+ },
+ "steelPath": {
+  "activation": "2026-11-02T00:00:00.000Z",
+  "expiry": "2026-11-09T00:00:00.000Z",
+  "currentReward": {
+   "name": "3x Forma",
+   "cost": 75
+  },
+  "rotation": [
+   {
+    "name": "Umbra Forma Blueprint",
+    "cost": 150
+   },
+   {
+    "name": "50,000 Kuva",
+    "cost": 55
+   },
+   {
+    "name": "Kitgun Riven Mod",
+    "cost": 75
+   },
+   {
+    "name": "3x Forma",
+    "cost": 75
+   },
+   {
+    "name": "Zaw Riven Mod",
+    "cost": 75
+   },
+   {
+    "name": "30,000 Endo",
+    "cost": 150
+   },
+   {
+    "name": "Rifle Riven Mod",
+    "cost": 75
+   },
+   {
+    "name": "Shotgun Riven Mod",
+    "cost": 75
+   }
+  ]
+ },
+ "earthCycle": {
+  "id": "demo-cycle-earth",
+  "activation": "2026-11-04T16:14:00.000Z",
+  "expiry": "2026-11-04T20:14:00.000Z",
+  "state": "day",
+  "isDay": true
+ },
+ "cetusCycle": {
+  "id": "demo-cycle-cetus",
+  "activation": "2026-11-04T17:41:00.000Z",
+  "expiry": "2026-11-04T18:31:00.000Z",
+  "state": "night",
+  "isDay": false,
+  "isCetus": true
+ },
+ "vallisCycle": {
+  "id": "demo-cycle-vallis",
+  "activation": "2026-11-04T17:53:00.000Z",
+  "expiry": "2026-11-04T18:13:00.000Z",
+  "state": "cold",
+  "isWarm": false
+ },
+ "cambionCycle": {
+  "id": "demo-cycle-cambion",
+  "activation": "2026-11-04T17:52:00.000Z",
+  "expiry": "2026-11-04T18:42:00.000Z",
+  "state": "vome"
+ },
+ "zarimanCycle": {
+  "id": "demo-cycle-zariman",
+  "activation": "2026-11-04T17:22:00.000Z",
+  "expiry": "2026-11-04T19:52:00.000Z",
+  "state": "grineer",
+  "isCorpus": false
+ },
+ "duviriCycle": {
+  "id": "demo-cycle-duviri",
+  "activation": "2026-11-04T18:00:00.000Z",
+  "expiry": "2026-11-04T20:00:00.000Z",
+  "state": "joy",
+  "choices": [
+   {
+    "category": "normal",
+    "categoryKey": "EXC_NORMAL",
+    "choices": [
+     "Temple",
+     "Kullervo",
+     "Ash",
+     "Nidus",
+     "Khora"
+    ]
+   },
+   {
+    "category": "hard",
+    "categoryKey": "EXC_HARD",
+    "choices": [
+     "Braton",
+     "Lato",
+     "Skana",
+     "Paris",
+     "Kunai"
+    ]
+   }
+  ]
+ },
+ "dailyDeals": [
+  {
+   "id": "demo-darvo",
+   "activation": "2026-11-04T08:00:00.000Z",
+   "expiry": "2026-11-05T08:00:00.000Z",
+   "item": "Latron Wraith",
+   "uniqueName": "/Lotus/StoreItems/Weapons/Tenno/Rifle/LatronWraith",
+   "originalPrice": 225,
+   "salePrice": 146,
+   "total": 150,
+   "sold": 61,
+   "discount": 35
+  }
+ ],
+ "syndicateMissions": [
+  {
+   "id": "demo-bounties-cetus",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "Ostrons",
+   "syndicateKey": "Ostrons",
+   "nodes": [],
+   "jobs": [
+    {
+     "id": "demo-job-1",
+     "type": "Capture the Grineer Commander",
+     "enemyLevels": [
+      5,
+      15
+     ],
+     "standingStages": [
+      430,
+      430,
+      430
+     ],
+     "minMR": 0,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierATableARewards",
+     "rewardPool": [
+      "Endo",
+      "Lens Blueprint",
+      "Vitality",
+      "Kuva"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Endo",
+       "rarity": "Common",
+       "chance": 32
+      },
+      {
+       "item": "Lens Blueprint",
+       "rarity": "Uncommon",
+       "chance": 17.5
+      },
+      {
+       "item": "Vitality",
+       "rarity": "Uncommon",
+       "chance": 17.5
+      },
+      {
+       "item": "Kuva",
+       "rarity": "Rare",
+       "chance": 9.4
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-2",
+     "type": "Free the Ostron Captives",
+     "enemyLevels": [
+      15,
+      25
+     ],
+     "standingStages": [
+      620,
+      620,
+      620
+     ],
+     "minMR": 1,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierBTableBRewards",
+     "rewardPool": [
+      "Credits Cache",
+      "Carving Mantis",
+      "Furax Wraith Left Gauntlet"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Credits Cache",
+       "rarity": "Common",
+       "chance": 30
+      },
+      {
+       "item": "Carving Mantis",
+       "rarity": "Uncommon",
+       "chance": 18
+      },
+      {
+       "item": "Furax Wraith Left Gauntlet",
+       "rarity": "Rare",
+       "chance": 6.7
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-3",
+     "type": "Assassinate the Grineer Commander",
+     "enemyLevels": [
+      30,
+      40
+     ],
+     "standingStages": [
+      1040,
+      1040,
+      1040,
+      1040
+     ],
+     "minMR": 5,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierDTableCRewards",
+     "rewardPool": [
+      "Riven Sliver",
+      "Sentient Core",
+      "Kuva Bramma Blueprint"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Riven Sliver",
+       "rarity": "Uncommon",
+       "chance": 12.5
+      },
+      {
+       "item": "Sentient Core",
+       "rarity": "Common",
+       "chance": 30
+      },
+      {
+       "item": "Kuva Bramma Blueprint",
+       "rarity": "Rare",
+       "chance": 3
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-4",
+     "type": "Ghoul Purge",
+     "enemyLevels": [
+      40,
+      50
+     ],
+     "standingStages": [
+      1220,
+      1220,
+      1220,
+      1220,
+      1220
+     ],
+     "minMR": 10,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/EidolonJobMissionRewards/TierETableARewards",
+     "rewardPool": [
+      "Exodia Contagion",
+      "Arcane Energize",
+      "Endo"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Exodia Contagion",
+       "rarity": "Rare",
+       "chance": 4.6
+      },
+      {
+       "item": "Arcane Energize",
+       "rarity": "Rare",
+       "chance": 2.4
+      },
+      {
+       "item": "Endo",
+       "rarity": "Common",
+       "chance": 28
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z",
+     "timeBound": "night"
+    }
+   ]
+  },
+  {
+   "id": "demo-bounties-fortuna",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "Solaris United",
+   "syndicateKey": "Solaris United",
+   "nodes": [],
+   "jobs": [
+    {
+     "id": "demo-job-5",
+     "type": "Recover the Data",
+     "enemyLevels": [
+      5,
+      15
+     ],
+     "standingStages": [
+      480,
+      480,
+      480
+     ],
+     "minMR": 0,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/VenusJobMissionRewards/TierATableBRewards",
+     "rewardPool": [
+      "Endo",
+      "Gyromag Systems",
+      "Repeller Systems"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Endo",
+       "rarity": "Common",
+       "chance": 32
+      },
+      {
+       "item": "Gyromag Systems",
+       "rarity": "Uncommon",
+       "chance": 15
+      },
+      {
+       "item": "Repeller Systems",
+       "rarity": "Rare",
+       "chance": 7.1
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-6",
+     "type": "Exterminate the Corpus",
+     "enemyLevels": [
+      20,
+      30
+     ],
+     "standingStages": [
+      780,
+      780,
+      780
+     ],
+     "minMR": 3,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/VenusJobMissionRewards/TierCTableARewards",
+     "rewardPool": [
+      "Mod Drop Chance Booster",
+      "Virtuos Strike"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Mod Drop Chance Booster",
+       "rarity": "Uncommon",
+       "chance": 13.5
+      },
+      {
+       "item": "Virtuos Strike",
+       "rarity": "Rare",
+       "chance": 5.8
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-7",
+     "type": "Spy on the Corpus",
+     "enemyLevels": [
+      40,
+      60
+     ],
+     "standingStages": [
+      1300,
+      1300,
+      1300,
+      1300
+     ],
+     "minMR": 10,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/VenusJobMissionRewards/TierETableCRewards",
+     "rewardPool": [
+      "Pax Charge",
+      "Fass Residue"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Pax Charge",
+       "rarity": "Rare",
+       "chance": 3.3
+      },
+      {
+       "item": "Fass Residue",
+       "rarity": "Common",
+       "chance": 25
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    }
+   ]
+  },
+  {
+   "id": "demo-bounties-necralisk",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "Entrati",
+   "syndicateKey": "Entrati",
+   "nodes": [],
+   "jobs": [
+    {
+     "id": "demo-job-8",
+     "type": "Scour the Drift",
+     "enemyLevels": [
+      15,
+      25
+     ],
+     "standingStages": [
+      580,
+      580,
+      580
+     ],
+     "minMR": 0,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/DeimosJobMissionRewards/TierATableARewards",
+     "rewardPool": [
+      "Theorem Contagion",
+      "Ayatan Valana Sculpture"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Theorem Contagion",
+       "rarity": "Uncommon",
+       "chance": 10
+      },
+      {
+       "item": "Ayatan Valana Sculpture",
+       "rarity": "Rare",
+       "chance": 4.2
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-9",
+     "type": "Purge the Infestation",
+     "enemyLevels": [
+      30,
+      40
+     ],
+     "standingStages": [
+      850,
+      850,
+      850,
+      850
+     ],
+     "minMR": 5,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/DeimosJobMissionRewards/TierCTableBRewards",
+     "rewardPool": [
+      "Residual Shock",
+      "Necramech Vitality"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Residual Shock",
+       "rarity": "Rare",
+       "chance": 4.1
+      },
+      {
+       "item": "Necramech Vitality",
+       "rarity": "Uncommon",
+       "chance": 12
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z"
+    },
+    {
+     "id": "demo-job-10",
+     "type": "Isolation Vault",
+     "enemyLevels": [
+      40,
+      50
+     ],
+     "standingStages": [
+      1000,
+      1000,
+      1000
+     ],
+     "minMR": 10,
+     "uniqueName": "/Lotus/Types/Game/MissionDecks/DeimosJobMissionRewards/TierDTableARewards",
+     "rewardPool": [
+      "Necramech Pressure Point",
+      "Bonewidow Capsule"
+     ],
+     "rewardPoolDrops": [
+      {
+       "item": "Necramech Pressure Point",
+       "rarity": "Rare",
+       "chance": 5
+      },
+      {
+       "item": "Bonewidow Capsule",
+       "rarity": "Rare",
+       "chance": 3.2
+      }
+     ],
+     "expiry": "2026-11-04T19:26:00.000Z",
+     "isVault": true
+    }
+   ]
+  },
+  {
+   "id": "demo-bounties-zariman",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "The Holdfasts",
+   "syndicateKey": "The Holdfasts",
+   "nodes": [],
+   "jobs": []
+  },
+  {
+   "id": "demo-bounties-cavia",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "Cavia",
+   "syndicateKey": "Cavia",
+   "nodes": [],
+   "jobs": []
+  },
+  {
+   "id": "demo-bounties-hex",
+   "activation": "2026-11-04T16:56:00.000Z",
+   "expiry": "2026-11-04T19:26:00.000Z",
+   "syndicate": "The Hex",
+   "syndicateKey": "The Hex",
+   "nodes": [],
+   "jobs": []
+  }
+ ],
+ "events": [
+  {
+   "id": "demo-event-1",
+   "activation": "2026-11-01T18:00:00.000Z",
+   "expiry": "2026-11-13T22:00:00.000Z",
+   "description": "Operation: Glass Tide",
+   "tooltip": "Hold the coolant towers on the Orb Vallis.",
+   "node": "Orb Vallis (Venus)",
+   "maximumScore": 100,
+   "currentScore": 64,
+   "rewards": [
+    {
+     "items": [
+      "Opticor Vandal"
+     ],
+     "countedItems": [],
+     "credits": 0
+    }
+   ],
+   "interimSteps": [
+    {
+     "goal": 25,
+     "reward": {
+      "items": [],
+      "countedItems": [
+       {
+        "type": "Endo",
+        "count": 2000
+       }
+      ]
+     }
+    },
+    {
+     "goal": 50,
+     "reward": {
+      "items": [
+       "Exodia Might"
+      ],
+      "countedItems": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "demo-event-2",
+   "activation": "2026-11-03T18:00:00.000Z",
+   "expiry": "2026-11-06T21:00:00.000Z",
+   "description": "Tactical Alert: Hollow Echoes",
+   "tooltip": "Clear the derelict at a set level.",
+   "node": "Derelict (Void)",
+   "rewards": [
+    {
+     "items": [
+      "Orokin Catalyst Blueprint"
+     ],
+     "countedItems": [
+      {
+       "type": "Endo",
+       "count": 1500
+      }
+     ],
+     "credits": 30000
+    }
+   ]
+  }
+ ],
+ "archimedeas": [
+  {
+   "id": "demo-deep",
+   "activation": "2026-11-02T00:00:00.000Z",
+   "expiry": "2026-11-09T00:00:00.000Z",
+   "type": "C T_ L A B",
+   "typeKey": "C T_ L A B",
+   "missions": [
+    {
+     "faction": "Corpus",
+     "missionType": "Extermination",
+     "deviation": {
+      "name": "Lethal Lockdown",
+      "description": "Locked doors deal damage when touched."
+     },
+     "risks": [
+      {
+       "name": "Commanding Culverins",
+       "description": "Culverins appear in greater numbers.",
+       "isHard": false
+      },
+      {
+       "name": "Ironclad Foes",
+       "description": "Enemy armor is increased.",
+       "isHard": true
+      }
+     ]
+    },
+    {
+     "faction": "Corpus",
+     "missionType": "Disruption",
+     "deviation": {
+      "name": "Volatile Conduits",
+      "description": "Conduits explode when destroyed."
+     },
+     "risks": [
+      {
+       "name": "Shielded Foes",
+       "description": "Enemies gain overshields.",
+       "isHard": false
+      },
+      {
+       "name": "Fortified Foes",
+       "description": "Enemies take less damage.",
+       "isHard": true
+      }
+     ]
+    },
+    {
+     "faction": "Corpus",
+     "missionType": "Defense",
+     "deviation": {
+      "name": "Unpowered Capsules",
+      "description": "The capsule loses power over time."
+     },
+     "risks": [
+      {
+       "name": "Energy Starved",
+       "description": "Energy regenerates more slowly.",
+       "isHard": false
+      }
+     ]
+    }
+   ],
+   "personalModifiers": [
+    {
+     "name": "Fragile Nerves",
+     "description": "Status effects last longer on you."
+    }
+   ]
+  },
+  {
+   "id": "demo-temporal",
+   "activation": "2026-11-02T00:00:00.000Z",
+   "expiry": "2026-11-09T00:00:00.000Z",
+   "type": "C T_ H E X",
+   "typeKey": "C T_ H E X",
+   "missions": [
+    {
+     "faction": "Murmur",
+     "missionType": "Survival",
+     "deviation": {
+      "name": "Time Dilation",
+      "description": "The clock runs faster."
+     },
+     "risks": [
+      {
+       "name": "Eximus Reinforcements",
+       "description": "More Eximus units.",
+       "isHard": false
+      },
+      {
+       "name": "Vampire Leech",
+       "description": "Enemies drain health.",
+       "isHard": true
+      }
+     ]
+    },
+    {
+     "faction": "Murmur",
+     "missionType": "Mirror Defense",
+     "deviation": {
+      "name": "Phantom Signal",
+      "description": "Terminals switch at random."
+     },
+     "risks": [
+      {
+       "name": "Undersupplied",
+       "description": "Fewer ammo drops.",
+       "isHard": false
+      }
+     ]
+    }
+   ],
+   "personalModifiers": []
+  }
+ ],
+ "calendar": {
+  "id": "demo-calendar",
+  "activation": "2026-11-02T00:00:00.000Z",
+  "expiry": "2026-11-09T00:00:00.000Z",
+  "season": "CST_WINTER",
+  "yearIteration": 1,
+  "version": 1,
+  "days": [
+   {
+    "date": "1999-11-03T00:00:00.000Z",
+    "events": [
+     {
+      "type": "To Do",
+      "challenge": {
+       "title": "Eximus Takedown",
+       "description": "Defeat 20 Eximus enemies"
+      }
+     }
+    ]
+   },
+   {
+    "date": "1999-11-06T00:00:00.000Z",
+    "events": [
+     {
+      "type": "Big Prize!",
+      "reward": "Orokin Reactor"
+     },
+     {
+      "type": "Big Prize!",
+      "reward": "6000 x Kuva"
+     }
+    ]
+   },
+   {
+    "date": "1999-11-10T00:00:00.000Z",
+    "events": [
+     {
+      "type": "Override",
+      "upgrade": "Lethal Lockdown"
+     }
+    ]
+   },
+   {
+    "date": "1999-11-14T00:00:00.000Z",
+    "events": [
+     {
+      "type": "Big Prize!",
+      "reward": "Weapon Primary Arcane Unlocker"
+     },
+     {
+      "type": "Big Prize!",
+      "reward": "Ayatan Amber Star"
+     }
+    ]
+   },
+   {
+    "date": "1999-11-19T00:00:00.000Z",
+    "events": [
+     {
+      "type": "Big Prize!",
+      "reward": "Forma"
+     },
+     {
+      "type": "Big Prize!",
+      "reward": "Endo"
+     }
+    ]
+   }
+  ]
+ },
+ "descendia": {
+  "id": "demo-descendia",
+  "activation": "2026-11-02T00:00:00.000Z",
+  "expiry": "2026-11-09T00:00:00.000Z",
+  "challenges": [
+   {
+    "index": 1,
+    "typeKey": "DT_EXTERMINATE",
+    "challenge": "Speed run"
+   },
+   {
+    "index": 2,
+    "typeKey": "DT_SURVIVAL",
+    "challenge": "Low gravity"
+   },
+   {
+    "index": 3,
+    "typeKey": "DT_DEFENSE",
+    "challenge": "Overcharged foes"
+   },
+   {
+    "index": 4,
+    "typeKey": "DT_CAPTURE",
+    "challenge": "Melee only"
+   },
+   {
+    "index": 5,
+    "typeKey": "DT_SABOTAGE",
+    "challenge": "No abilities"
+   },
+   {
+    "index": 6,
+    "typeKey": "DT_SPY",
+    "challenge": "No shields"
+   },
+   {
+    "index": 7,
+    "typeKey": "DT_RESCUE",
+    "challenge": "Fragile frame"
+   },
+   {
+    "index": 8,
+    "typeKey": "DT_EXTERMINATE",
+    "challenge": "Speed run"
+   },
+   {
+    "index": 9,
+    "typeKey": "DT_SURVIVAL",
+    "challenge": "Low gravity"
+   },
+   {
+    "index": 10,
+    "typeKey": "DT_DEFENSE",
+    "challenge": "Overcharged foes"
+   },
+   {
+    "index": 11,
+    "typeKey": "DT_CAPTURE",
+    "challenge": "Melee only"
+   },
+   {
+    "index": 12,
+    "typeKey": "DT_SABOTAGE",
+    "challenge": "No abilities"
+   },
+   {
+    "index": 13,
+    "typeKey": "DT_SPY",
+    "challenge": "No shields"
+   },
+   {
+    "index": 14,
+    "typeKey": "DT_RESCUE",
+    "challenge": "Fragile frame"
+   },
+   {
+    "index": 15,
+    "typeKey": "DT_EXTERMINATE",
+    "challenge": "Speed run"
+   },
+   {
+    "index": 16,
+    "typeKey": "DT_SURVIVAL",
+    "challenge": "Low gravity"
+   },
+   {
+    "index": 17,
+    "typeKey": "DT_DEFENSE",
+    "challenge": "Overcharged foes"
+   },
+   {
+    "index": 18,
+    "typeKey": "DT_CAPTURE",
+    "challenge": "Melee only"
+   },
+   {
+    "index": 19,
+    "typeKey": "DT_SABOTAGE",
+    "challenge": "No abilities"
+   },
+   {
+    "index": 20,
+    "typeKey": "DT_SPY",
+    "challenge": "No shields"
+   },
+   {
+    "index": 21,
+    "typeKey": "DT_RESCUE",
+    "challenge": "Fragile frame"
+   }
+  ]
+ }
+}

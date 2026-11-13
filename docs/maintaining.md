@@ -268,9 +268,10 @@ folder, once). Then it starts the demo dev server (`npm run dev:demo`'s, on port
 one on 1421 isn't in the way; `npm run screenshots -- --port <n>` picks another), stops if anything
 else answers on that port or the server isn't the demo one, opens each page in Chromium, and
 writes the WebP files over the ones in the repository. It needs ImageMagick (`magick`) too. The
-demo's order books and price histories are files in `demo/`; the worldstate (fissures, Baro, the
-clocks) is read live, so Home and Current fissure change from one run to the next
-(`demo/README.md`). Nothing but GET requests would reach warframe.market. In a clone whose
+demo's order books, price histories and world state (fissures, Baro, the clocks and the rest) are
+files in `demo/`, so Home and Current fissure show the same world on every run, online or not
+(`demo/README.md`); any request to a world-state service is stopped and counted, and fails the run.
+Nothing but GET requests would reach warframe.market. In a clone whose
 `node_modules` is a link to another folder, Vite refuses to serve the fonts and the pictures come
 out in fallback fonts: run it where `node_modules` is a real folder.
 

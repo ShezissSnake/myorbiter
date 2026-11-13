@@ -39,6 +39,26 @@ tests say which rule now reads differently.
 rest of the account. It lists Requiem and Antivirus mods as untradable, and the demo leaves them so:
 their prices on warframe.market are what make them tradable, as with a real catalog.
 
+## The world state
+
+`dev-worldstate.json` is the demo's world: what `npm run dev` reads live from api.warframestat.us,
+invented. With `MYORBITER_DEMO=1` the page reads it (`loadLive` in `src/lib/backend.ts`) and asks
+no world-state service, so the screenshots, the help pictures, the help-picture check and the sweep
+see the same world on every run, online or not. Its times move up with the rest, so nothing in it
+has ended and every countdown reads the same whenever the demo is started (to within a minute).
+The 1999 Calendar's own dates (in 1999) are left as they are.
+
+It has every part the pages show: 24 fissures (normal, Steel Path and Void Storms, every era),
+three invasions and three alerts (Strun Wraith and Latron Wraith parts the account needs, an Orokin
+Catalyst and an Orokin Reactor), Baro here with eight items (two Prisma weapons, Primed mods, two
+invented cosmetics), Varzia with Gauss Prime, Vauban Prime and seven of their relics, the six
+clocks (Earth, Cetus, Orb Vallis, the Cambion Drift, the Zariman, Duviri's mood), the Circuit's
+picks (Temple and Kullervo not mastered), Darvo's deal (Latron Wraith), bounties for Cetus,
+Fortuna and the Necralisk, two events, the Sortie, the Archon Hunt, Nightwave, Teshin's offer,
+both Archimedeas, the 1999 Calendar and the Descendia. Node, mission and item names are the
+game's; which of them appear where, the ids, rewards, chances, challenge texts and the two events
+are invented for the pictures, not taken from a day's real answer. Only its shape is the service's.
+
 ## Regenerating
 
 The files are built by `scripts/demo-data.mjs` (plain Node, no dependencies, no network) from a copy
@@ -50,8 +70,12 @@ mkdir -p /tmp/wfcd && cd /tmp/wfcd && npm pack @wfcd/items@1.1276.48 && tar xzf 
 cd - && node scripts/demo-data.mjs /tmp/wfcd/package
 ```
 
-Still read from the network in the browser dev mode: the worldstate (api.warframestat.us) and item
-pictures (raw.githubusercontent.com).
+`dev-worldstate.json` is not made by the script: it is written by hand, in the shape
+api.warframestat.us answers, with invented values (see "The world state" above). Edit it directly;
+keep its times as of `meta.json`'s `now`.
+
+Still read from the network in the demo: item pictures (raw.githubusercontent.com). Without the
+network they are left blank and everything else is the same.
 
 ## @wfcd/items's licence
 
