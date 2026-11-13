@@ -423,6 +423,24 @@ export function masteryCategory(item: { category: string; type?: string | null; 
 /** Inventory rows filed as weapons/companions that are really consumables or tools. */
 const NOT_GEAR = /Genetic Code|Heartcell|Arcane Adapter|Training Amp|Pulsar Mk/i;
 /**
+ * Railjack armaments (Carcinnox, Apoc, Cryophon, Photor, Laith, Milati, Vort, the ordnance), every
+ * make of each: TennoScope reads them from the ship's weapon section and files them as weapons. They
+ * give no mastery, and the catalog may not list a new one yet, so the path says it.
+ */
+const ARMAMENT = /^\/Lotus\/Weapons\/CrewShip\//;
+
+/**
+ * Whether ranking an inventory row filed as a frame, weapon or companion gives mastery. The catalog
+ * decides where it knows the item: the Gravimag (typed "Rifle" under Misc), MOA, hound and zaw parts
+ * and Infested mutagens are filed the same way and say they are not masterable. Only an item the
+ * catalog does not list is taken for gear to level (a new weapon the catalog hasn't caught up with).
+ */
+function levels(m: Model, unique: string, name: string): boolean {
+  if (NOT_GEAR.test(name) || ARMAMENT.test(unique)) return false;
+  const item = m.catalogByUnique.get(unique);
+  return !item || !!item.masterable;
+}
+/**
  * Built modular gear the inventory names by its path ("Lotus Modular Primary Shotgun", a zaw, an
  * amp, a MOA): its mastery goes by the chamber, strike, prism or model, which has a row of its own.
  */
@@ -445,7 +463,7 @@ function masteryRowsFresh(m: Model): MasteryRow[] {
   for (const [unique, invRows] of m.inventoryByBase) {
     const r = invRows[0];
     if (seen.has(unique) || !(r.category in INVENTORY_KIND) || m.isMastered(unique)) continue;
-    if (r.quantity <= 0 || NOT_GEAR.test(r.name) || BUILT_MODULAR.test(unique)) continue;
+    if (r.quantity <= 0 || !levels(m, unique, r.name) || BUILT_MODULAR.test(unique)) continue;
     rows.push({
       name: r.name,
       unique,
@@ -1072,6 +1090,8 @@ export interface InventoryItem {
   rank: number | null;
   maxRank: number | null;
   mastered: boolean;
+  /** Gear only: ranking it up gives mastery. False for a part filed as gear (the Gravimag, a MOA gyro, a zaw link, a Railjack armament). */
+  levels: boolean;
   /** Each, at this rank where the market prices ranks. */
   price: number | null;
   ducats: number | null;
@@ -1115,6 +1135,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         continue;
       }
       const item = m.catalogByUnique.get(unique);
+      const gearLevels = kind === "gear" && levels(m, unique, r.name);
       const relic = kind === "relic" ? splitRelicName(name) : null;
       const maxRank = ranked ? (r.max_rank ?? item?.maxRank ?? null) : null;
       const atMax = maxRank != null && rank != null && rank >= maxRank && maxRank > 0;
@@ -1132,11 +1153,12 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         name,
         unique,
         kind,
-        type: built ? "Built part" : kind === "gear" ? (item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
+        type: built ? "Built part" : kind === "gear" ? (!gearLevels ? (ARMAMENT.test(unique) ? "Railjack armament" : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
         quantity: r.quantity,
         rank,
         maxRank,
         mastered: kind === "gear" ? m.isMastered(unique) || r.mastered : false,
+        levels: gearLevels,
         price,
         ducats: part?.ducats ?? null,
         worth: price == null ? null : price * r.quantity,
@@ -1163,6 +1185,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
       rank: null,
       maxRank: null,
       mastered: false,
+      levels: false,
       price,
       ducats: null,
       worth: price == null ? null : price * quantity,
