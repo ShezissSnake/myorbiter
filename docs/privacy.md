@@ -79,7 +79,7 @@ The riven cycle's overlay is the corner: in every mode, Companion included, Tenn
 MyOrbiter's request for it every 0.7 seconds, and while MyOrbiter asks for it (only with that
 overlay on in MyOrbiter, and for at most two minutes per request), TennoScope looks for the game's
 window to place it: once when the request comes, then about every 2.8 seconds for as long as the
-overlay isn't showing (on Linux it shows only once it knows where the game is: its window found, or where a reward screen was last read). These looks read
+overlay isn't showing (on Linux it shows only once it knows where the game is: its window found, or where a reward screen or Baro's kiosk was last read). These looks read
 the same window titles, and on Linux run `xwininfo` the same way.
 
 What is captured depends on the system:
@@ -471,8 +471,9 @@ writes `settings.json` as it runs):
 - TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
   Linux `screencast.token`.
 
-Clearing the Discord address in Notifications leaves the address you confirmed in `discord-webhook`
-in the config folder: delete that file to remove it. The trade log (other players' names, items and
+Emptying the Discord address in Notifications removes `discord-webhook`, the address you confirmed,
+from the config folder (pausing notifications or unticking kinds keeps it, and one emptied in an
+older MyOrbiter stays until you delete the file). The trade log (other players' names, items and
 platinum, up to 2000 trades) has no removal in the app: nothing there takes out a trade, a player or
 the whole log. `settings.json` can be edited by hand (the log is `trades`, under `market`) or deleted.
 

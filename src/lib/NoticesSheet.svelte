@@ -1,7 +1,7 @@
 <script lang="ts">
   // The bell in the sidebar: what MyOrbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
-  import { discordConfirm, discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { discordConfirm, discordForget, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, outcomeText, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeKindInfo, type NoticeOutcome } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -137,6 +137,12 @@
       testing = false;
     }
   }
+  // A pasted webhook is confirmed; an emptied field removes the confirmed address MyOrbiter kept.
+  function discordChanged() {
+    const url = settings.notifyOptions.discord.url;
+    if (url.trim() === "") void discordForget(url).catch(() => {});
+    else if (isDiscordWebhook(url)) void discordConfirm(url).catch(() => {});
+  }
   // The test: working while it posts (a second click does nothing), then "Sent" or why not.
   const discordJob = new Job(4000);
   function testDiscord() {
@@ -234,7 +240,7 @@
       <div class="discord">
         <span class="register">Discord</span>
         <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. MyOrbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there. No notification goes to Discord either while notifications are paused (even for a kind you picked here), or for a kind that is switched off below.</p>
-        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} onchange={() => isDiscordWebhook(settings.notifyOptions.discord.url) && void discordConfirm(settings.notifyOptions.discord.url).catch(() => {})} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
+        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} onchange={discordChanged} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
           <span class="small dim">Send these to Discord:</span>

@@ -453,6 +453,15 @@ export async function discordConfirm(url: string): Promise<boolean> {
   return inTauri ? invoke<boolean>("discord_confirm", { url: url.trim() }) : true;
 }
 
+/**
+ * The Discord address field emptied: the confirmed address leaves MyOrbiter's config folder.
+ * `field` is the field's value; nothing is removed unless it is empty.
+ */
+export async function discordForget(field: string): Promise<void> {
+  if (field.trim() !== "") return;
+  if (inTauri) await invoke("discord_forget", { field });
+}
+
 /** Posts a notification to your Discord webhook. */
 export async function discordPost(url: string, content: string): Promise<void> {
   if (!isDiscordWebhook(url)) throw new Error("Not a Discord webhook address");
