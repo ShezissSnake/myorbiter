@@ -224,9 +224,87 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// HTTPS_PROXY and HTTP_PROXY as they were at startup (ureq doesn't read NO_PROXY); tests, which
 /// only talk to this machine, use none. Only `request` uses it, so no request leaves without the
 /// User-Agent.
+///
+/// Redirects are followed only where `REDIRECTS_FOLLOWED` names them: following any other would
+/// send the request (and its User-Agent) to whatever host the answer names. A redirect not
+/// followed comes back as an error with its status (`redirect_policy`), as a 404 would, so no
+/// caller takes its empty body for the answer.
 fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT.get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).build()).clone()
+    AGENT
+        .get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).redirects(0).middleware(redirect_policy(REDIRECTS_FOLLOWED)).build())
+        .clone()
+}
+
+/// The redirects MyOrbiter follows, each from one address to one other and nothing wider (https,
+/// that host, its default port). cdn.warframestat.us answers a picture with a 301 to WFCD's
+/// repository on raw.githubusercontent.com (seen in November 2026), which `images.rs` asks first
+/// anyway: refused, a picture neither has would count as a failure rather than as missing, and be
+/// asked for again every time it is shown instead of once a day.
+const REDIRECTS_FOLLOWED: &[(&str, &str)] = &[("https://cdn.warframestat.us/", "https://raw.githubusercontent.com/")];
+
+/// The time limit of a followed redirect's request. The first request's own limit can't be read
+/// back from it; the one caller a followed redirect serves (`images.rs`) allows this.
+const REDIRECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Whether a redirect from `url` to `location` is one of `followed`: both addresses start with the
+/// pair's (scheme, host and the slash after it, so no other port, user name or longer host name).
+fn redirect_listed(followed: &[(&str, &str)], url: &str, location: &str) -> bool {
+    let starts = |s: &str, p: &str| s.get(..p.len()).is_some_and(|h| h.eq_ignore_ascii_case(p));
+    followed.iter().any(|(from, to)| starts(url, from) && starts(location, to))
+}
+
+/// A redirect (3xx) the agent doesn't follow, as an error; one `followed` names, for a GET, asked
+/// once more at its new address through `request` (so a second redirect gets the same treatment),
+/// with the first request's headers but its Authorization and Cookie. The log names the hosts
+/// only: a Discord webhook's address is a secret.
+fn redirect_policy(followed: &'static [(&'static str, &'static str)]) -> impl Fn(ureq::Request, ureq::MiddlewareNext) -> Result<ureq::Response, ureq::Error> + Send + Sync + 'static {
+    move |req: ureq::Request, next: ureq::MiddlewareNext| {
+        let first = req.clone();
+        let resp = next.handle(req)?;
+        let code = resp.status();
+        if !(300..400).contains(&code) {
+            return Ok(resp);
+        }
+        let from = host_of(resp.get_url()).to_string();
+        let location = resp.header("location").unwrap_or("").to_string();
+        let to = Some(host_of(&location)).filter(|h| !h.is_empty()).unwrap_or(&from).to_string();
+        if first.method() == "GET" && redirect_listed(followed, resp.get_url(), &location) {
+            log::debug!(target: "myorbiter::http", "{from} answered {code}, a redirect to {to}: followed");
+            let mut hop = request("GET", &location).timeout(REDIRECT_TIMEOUT);
+            for name in first.header_names() {
+                if name.eq_ignore_ascii_case("authorization") || name.eq_ignore_ascii_case("cookie") {
+                    continue;
+                }
+                if let Some(value) = first.header(&name) {
+                    hop = hop.set(&header_case(&name), value);
+                }
+            }
+            return hop.call();
+        }
+        log::warn!(target: "myorbiter::http", "{from} answered {code}, a redirect to {to}: not followed");
+        Err(ureq::Error::Status(code, resp))
+    }
+}
+
+/// A header name as `request` writes it, each word capitalised (User-Agent): ureq gives names back
+/// lowercased, and `set` replaces a header only under the same case, so the User-Agent copied
+/// onto a followed redirect's request would otherwise go out twice.
+fn header_case(name: &str) -> String {
+    let word = |w: &str| {
+        let mut c = w.chars();
+        c.next().map_or(String::new(), |f| f.to_ascii_uppercase().to_string() + &c.as_str().to_ascii_lowercase())
+    };
+    name.split('-').map(word).collect::<Vec<_>>().join("-")
+}
+
+/// The host (and port) of an absolute address; "" for a relative one.
+fn host_of(url: &str) -> &str {
+    let Some((_, rest)) = url.split_once("://") else { return "" };
+    let end = rest.find(['/', '?', '#']).unwrap_or(rest.len());
+    let authority = &rest[..end];
+    // Never the user name or password an address might carry.
+    authority.rsplit_once('@').map_or(authority, |(_, h)| h)
 }
 
 /// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`.
@@ -1778,6 +1856,137 @@ mod tests {
         request("GET", &format!("{addr}/x")).call().expect("answered");
         let head = served.join().unwrap();
         assert_eq!(test_http::header(&head, "user-agent"), Some(user_agent()), "{head}");
+    }
+
+    /// A listener on 127.0.0.1 that answers `reply` to every connection for 3 s, and gives the
+    /// heads of the requests it got.
+    fn answering(reply: String) -> (u16, std::thread::JoinHandle<Vec<String>>) {
+        use std::io::{Read, Write};
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = l.local_addr().unwrap().port();
+        l.set_nonblocking(true).unwrap();
+        let h = std::thread::spawn(move || {
+            let mut seen = Vec::new();
+            let end = Instant::now() + Duration::from_secs(3);
+            while Instant::now() < end {
+                match l.accept() {
+                    Ok((mut s, _)) => {
+                        s.set_nonblocking(false).unwrap();
+                        s.set_read_timeout(Some(Duration::from_secs(2))).unwrap();
+                        let mut buf = [0u8; 4096];
+                        let n = s.read(&mut buf).unwrap_or(0);
+                        seen.push(String::from_utf8_lossy(&buf[..n]).into_owned());
+                        let _ = s.write_all(reply.as_bytes());
+                    }
+                    Err(_) => std::thread::sleep(Duration::from_millis(10)),
+                }
+            }
+            seen
+        });
+        (port, h)
+    }
+
+    /// A redirect to another host (here another port) is not followed, so a request carrying
+    /// warframe.market's sign-in never reaches that host at all; it ends as an error with the
+    /// redirect's status. The same goes for one back to the same host.
+    #[test]
+    fn redirects_are_not_followed() {
+        let (b, at_b) = answering("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into());
+        let (a, at_a) = answering(format!("HTTP/1.1 302 Found\r\nLocation: http://127.0.0.1:{b}/elsewhere\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"));
+        let r = request("GET", &format!("http://127.0.0.1:{a}/start")).set("Authorization", "Bearer example-token").call();
+        let ended = match r {
+            Err(ureq::Error::Status(code, _)) => Some(code),
+            _ => None,
+        };
+        let (sa, sb) = (at_a.join().unwrap(), at_b.join().unwrap());
+        assert!(sb.is_empty() && sa.len() == 1 && ended == Some(302), "A saw {sa:?}; B saw {sb:?}; the call ended {ended:?}");
+
+        let (c, at_c) = answering("HTTP/1.1 301 Moved Permanently\r\nLocation: /again\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        let r = request("GET", &format!("http://127.0.0.1:{c}/start")).call();
+        assert!(matches!(r, Err(ureq::Error::Status(301, _))));
+        assert_eq!(at_c.join().unwrap().len(), 1, "asked once, not again at /again");
+    }
+
+    #[test]
+    fn a_redirect_is_logged_by_its_hosts_only() {
+        assert_eq!(host_of("https://discord.com/api/webhooks/1/secret"), "discord.com");
+        assert_eq!(host_of("http://127.0.0.1:8080?x=1"), "127.0.0.1:8080");
+        assert_eq!(host_of("https://user:pass@example.com/x"), "example.com");
+        assert_eq!(host_of("/relative/path"), "");
+    }
+
+    /// The one redirect followed is cdn.warframestat.us's on to raw.githubusercontent.com, over
+    /// https: not another host, scheme, port or user name, not the other way round.
+    #[test]
+    fn only_the_listed_redirect_is_followed() {
+        let ok = |url: &str, location: &str| redirect_listed(REDIRECTS_FOLLOWED, url, location);
+        let cdn = "https://cdn.warframestat.us/img/ash.png";
+        assert!(ok(cdn, "https://raw.githubusercontent.com/wfcd/warframe-items/master/data/img/ash.png"));
+        assert!(ok("https://CDN.warframestat.us/img/ash.png", "https://raw.githubusercontent.com/x"));
+        for elsewhere in [
+            "http://raw.githubusercontent.com/x",
+            "https://raw.githubusercontent.com:8443/x",
+            "https://raw.githubusercontent.com@example.invalid/x",
+            "https://raw.githubusercontent.com.example.invalid/x",
+            "https://example.invalid/x",
+            "/img/ash.png",
+            "",
+        ] {
+            assert!(!ok(cdn, elsewhere), "{elsewhere}");
+        }
+        assert!(!ok("https://raw.githubusercontent.com/x", "https://cdn.warframestat.us/img/ash.png"));
+        assert!(!ok("https://api.warframestat.us/pc", "https://raw.githubusercontent.com/x"));
+        assert!(!ok("http://cdn.warframestat.us/img/ash.png", "https://raw.githubusercontent.com/x"));
+        assert_eq!(header_case("user-agent"), "User-Agent");
+        assert_eq!(header_case("accept-language"), "Accept-Language");
+    }
+
+    /// An agent like `http_agent`'s, following the redirects `followed` names (127.0.0.1 ones here).
+    fn agent_following(followed: Vec<(String, String)>) -> ureq::Agent {
+        let pairs: Vec<(&'static str, &'static str)> = followed.into_iter().map(|(a, b)| (&*a.leak(), &*b.leak())).collect();
+        ureq::AgentBuilder::new().try_proxy_from_env(false).redirects(0).middleware(redirect_policy(pairs.leak())).build()
+    }
+
+    /// A listed redirect is asked once at its new address, with the same User-Agent and without
+    /// the sign-in; what that address answers is the answer, a 404 included. A further redirect
+    /// from there, or one the list doesn't name, is not followed.
+    #[test]
+    fn a_listed_redirect_is_followed_once_without_the_sign_in() {
+        let moved = |to: String| format!("HTTP/1.1 301 Moved Permanently\r\nLocation: {to}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let ask = |agent: &ureq::Agent, url: String| agent.get(&url).set("User-Agent", "Example/1").set("Authorization", "Bearer example-token").call();
+        let status = |r: Result<ureq::Response, ureq::Error>| match r {
+            Ok(resp) => (resp.status(), resp.into_string().unwrap_or_default()),
+            Err(ureq::Error::Status(code, _)) => (code, String::new()),
+            Err(e) => panic!("{e}"),
+        };
+
+        // Followed: B's answer is the answer, asked once, without the Authorization header.
+        let (b, at_b) = answering("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into());
+        let (a, at_a) = answering(moved(format!("http://127.0.0.1:{b}/img/x.png")));
+        let agent = agent_following(vec![(format!("http://127.0.0.1:{a}/"), format!("http://127.0.0.1:{b}/"))]);
+        assert_eq!(status(ask(&agent, format!("http://127.0.0.1:{a}/img/x.png"))), (200, "ok".to_string()));
+        let (sa, sb) = (at_a.join().unwrap(), at_b.join().unwrap());
+        assert!(sa.len() == 1 && sb.len() == 1 && sb[0].starts_with("GET /img/x.png "), "A saw {sa:?}; B saw {sb:?}");
+        assert_eq!(test_http::header(&sb[0], "user-agent").as_deref(), Some("Example/1"));
+        assert_eq!(test_http::header(&sb[0], "authorization"), None, "{}", sb[0]);
+
+        // A 404 at the new address stays a 404.
+        let (b, at_b) = answering("HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".into());
+        let (a, _) = answering(moved(format!("http://127.0.0.1:{b}/gone.png")));
+        let agent = agent_following(vec![(format!("http://127.0.0.1:{a}/"), format!("http://127.0.0.1:{b}/"))]);
+        assert_eq!(status(ask(&agent, format!("http://127.0.0.1:{a}/gone.png"))).0, 404);
+        assert_eq!(at_b.join().unwrap().len(), 1);
+
+        // B redirecting again (to C), or A to an address the list doesn't name: not followed.
+        let (c, at_c) = answering("HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok".into());
+        let (b, at_b) = answering(moved(format!("http://127.0.0.1:{c}/x")));
+        let (a, _) = answering(moved(format!("http://127.0.0.1:{b}/x")));
+        let (d, _) = answering(moved(format!("http://127.0.0.1:{c}/x")));
+        let agent = agent_following(vec![(format!("http://127.0.0.1:{a}/"), format!("http://127.0.0.1:{b}/"))]);
+        assert_eq!(status(ask(&agent, format!("http://127.0.0.1:{a}/x"))).0, 301);
+        assert_eq!(status(ask(&agent, format!("http://127.0.0.1:{d}/x"))).0, 301);
+        assert_eq!(at_b.join().unwrap().len(), 1, "B asked once, by A's redirect");
+        assert!(at_c.join().unwrap().is_empty(), "C never asked");
     }
 
     /// Every request goes through `request` (and every warframe.market socket through

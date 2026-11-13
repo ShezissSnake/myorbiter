@@ -101,10 +101,15 @@ pub fn is_turned_away(status: u16, body: &str) -> bool {
 
 /// One public page, as text. GET only, spaced, with a timeout and a size cap.
 fn get_page(url: &str) -> Result<String, String> {
+    let waiting = |left: Duration| format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1);
     if let Some(left) = cooling() {
-        return Err(format!("Nox's Frame asked MyOrbiter to wait; trying again in {} min", left.as_secs() / 60 + 1));
+        return Err(waiting(left));
     }
     SPACER.turn();
+    // Again after the turn: the request before this one may have been turned away meanwhile.
+    if let Some(left) = cooling() {
+        return Err(waiting(left));
+    }
     let resp = crate::request("GET", url)
         .set("User-Agent", &user_agent())
         .set("Accept", "text/html")
@@ -315,6 +320,31 @@ pub fn read_list(html: &str) -> Vec<Value> {
     out
 }
 
+/// What an item's list page has to show for MyOrbiter to read it: at least one build card (what
+/// `read_list` looks for: a `href="/builds/<id>-<slug>"` link holding an `<h3>` title), or, with
+/// none, the page's own data (the Next.js flight `flight` reads) naming the item asked for, as
+/// the site's list pages carry the address they answer. A page with neither (a consent or error
+/// page served as 200, another page of the site) can't be told from "nobody has posted one", so
+/// it is an error, and not kept. Not caught: the item's own list page with card markup changed
+/// past what `read_list` knows still names the item, so it reads as none.
+pub const UNREADABLE_LIST: &str = "the page didn't look like a list of builds; Nox's Frame may have changed it";
+
+/// An item's builds from its list page (`read_list`), or an error when the page isn't one
+/// MyOrbiter can read (see `UNREADABLE_LIST`).
+pub fn read_item_list(html: &str, item: &str) -> Result<Vec<Value>, String> {
+    let list = read_list(html);
+    if !list.is_empty() {
+        return Ok(list);
+    }
+    let data = flight(html);
+    let named = !data.is_empty() && [item.to_string(), item.replace('/', "%2F"), item.replace('/', "%2f")].iter().any(|n| data.contains(n.as_str()));
+    if named {
+        Ok(list)
+    } else {
+        Err(UNREADABLE_LIST.into())
+    }
+}
+
 /// The build code on a build page: a `code` prop, given inline or as a text row (`$a5` pointing
 /// at `a5:T<hex length>,NFB1:…`).
 pub fn code_in(flight: &str) -> Option<String> {
@@ -514,7 +544,10 @@ pub fn item_builds(cache_dir: &Path, item: &str, refresh: bool) -> Result<Value,
         return Err("not an item MyOrbiter looks up".into());
     }
     let path = cache_file(&cache_dir.join("noxsframe"), "list", item);
-    cached_or_fetch(&path, refresh, false, || get_page(&list_url(item)).map(|html| Value::Array(read_list(&html))))
+    cached_or_fetch(&path, refresh, false, || {
+        let html = get_page(&list_url(item))?;
+        read_item_list(&html, item).map(Value::Array).inspect_err(|e| log::warn!(target: "myorbiter::noxsframe", "the list for {item}: {e}"))
+    })
 }
 
 /// One build (see `read_build`).
@@ -561,6 +594,47 @@ mod tests {
         }
     }
 
+    /// A request already waiting its turn when Nox's Frame answers 429 doesn't go out after it.
+    /// Against a listener on 127.0.0.1 that answers every request with a 429, half a second late.
+    /// The only test that calls `get_page` (the cool-off it sets is process-wide, and cleared here).
+    #[test]
+    fn a_request_waiting_its_turn_does_not_go_after_a_429() {
+        use std::io::Write;
+        use std::sync::Arc;
+        let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        l.set_nonblocking(true).unwrap();
+        let port = l.local_addr().unwrap().port();
+        let seen = Arc::new(Mutex::new(Vec::<String>::new()));
+        let got = seen.clone();
+        std::thread::spawn(move || {
+            let end = Instant::now() + Duration::from_secs(8);
+            while Instant::now() < end {
+                match l.accept() {
+                    Ok((mut s, _)) => {
+                        s.set_nonblocking(false).unwrap();
+                        let mut buf = [0u8; 2048];
+                        let n = s.read(&mut buf).unwrap_or(0);
+                        got.lock().unwrap().push(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or("").to_string());
+                        std::thread::sleep(Duration::from_millis(500));
+                        let _ = s.write_all(b"HTTP/1.1 429 Too Many Requests\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+                    }
+                    Err(_) => std::thread::sleep(Duration::from_millis(20)),
+                }
+            }
+        });
+        let a_url = format!("http://127.0.0.1:{port}/a");
+        let b_url = format!("http://127.0.0.1:{port}/b");
+        let a = std::thread::spawn(move || get_page(&a_url));
+        // B asks while A is out, before its answer: it passes the first check and waits its turn.
+        std::thread::sleep(Duration::from_millis(200));
+        let b = std::thread::spawn(move || get_page(&b_url));
+        let (ra, rb) = (a.join().unwrap(), b.join().unwrap());
+        *COOL_UNTIL.lock().unwrap() = None;
+        let s = seen.lock().unwrap().clone();
+        assert_eq!(s.len(), 1, "requests: {s:?}; A: {ra:?}; B: {rb:?}");
+        assert!(rb.is_err_and(|e| e.contains("asked MyOrbiter to wait")));
+    }
+
     #[test]
     fn a_refusal_or_a_browser_check_stops_reads() {
         assert!(is_turned_away(429, ""));
@@ -597,6 +671,45 @@ mod tests {
         assert_eq!(list[1]["title"], "Kuva Nukor - Starkes Allrounder Build");
         assert_eq!(list[1]["tags"], json!(["All-round", "Endurance", "Farming"]));
         assert_eq!(list[3]["url"], "https://noxsframe.com/builds/02OZ99LT_8kP-mirage-prime-glaive-prime-build");
+    }
+
+    /// A list page MyOrbiter can't read is an error, never "nobody has posted a build", and isn't
+    /// kept; a list page that really lists none still reads as none. The stand-ins are written by
+    /// hand, not saved from the site (no page with no builds was saved): `list-none.html` carries
+    /// the site's page data naming the item, as its list pages do, and no card.
+    #[test]
+    fn a_list_page_that_cant_be_read_is_an_error_and_not_kept() {
+        const NONE: &str = include_str!("../../tests/fixtures/noxsframe/list-none.html");
+        const NOT_A_LIST: &str = include_str!("../../tests/fixtures/noxsframe/list-not-a-list.html");
+        const OTHER: &str = include_str!("../../tests/fixtures/noxsframe/list-other-page.html");
+        let item = "/Lotus/Powersuits/Example/ExampleFrame";
+        assert_eq!(read_item_list(LIST, "/Lotus/Powersuits/Ember/EmberPrime").map(|l| l.len()), Ok(4), "cards: read whatever item");
+        assert_eq!(read_item_list(NONE, item), Ok(vec![]), "the list page for this item, with none posted");
+        assert_eq!(read_item_list(NONE, "/Lotus/Powersuits/Example/OtherFrame"), Err(UNREADABLE_LIST.into()), "another item's page");
+        for (page, what) in [(NOT_A_LIST, "a consent page"), (OTHER, "another page of the site"), ("", "nothing"), ("<html><body><main></main></body></html>", "an empty main")] {
+            assert_eq!(read_item_list(page, item), Err(UNREADABLE_LIST.into()), "{what}");
+        }
+        // Not kept: the next open asks again; a copy kept from before is shown, said to be old.
+        let dir = std::env::temp_dir().join(format!("myorbiter-nox-unreadable-{}", std::process::id()));
+        let path = cache_file(&dir, "list", item);
+        let fetches = std::cell::Cell::new(0);
+        let fetch = |page: &'static str| {
+            let fetches = &fetches;
+            move || {
+                fetches.set(fetches.get() + 1);
+                read_item_list(page, item).map(Value::Array)
+            }
+        };
+        assert_eq!(cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)), Err(UNREADABLE_LIST.into()));
+        assert!(read_cache(&path).is_none(), "nothing kept");
+        assert!(cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)).is_err());
+        assert_eq!(fetches.get(), 2, "asked again");
+        let none = cached_or_fetch(&path, false, false, fetch(NONE)).unwrap();
+        assert_eq!(none["data"], json!([]), "really none: kept as none");
+        write_cache(&path, now_ms() - 8 * 86_400_000, &json!([{ "path": "kept" }]));
+        let old = cached_or_fetch(&path, false, false, fetch(NOT_A_LIST)).unwrap();
+        assert_eq!((old["stale"].as_bool(), old["error"].as_str(), old["data"][0]["path"].as_str()), (Some(true), Some(UNREADABLE_LIST), Some("kept")));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -765,6 +878,7 @@ mod fuzz {
             let url = b["url"].as_str().unwrap_or("");
             assert!(url.starts_with("https://www.noxsframe.com/builds/") || url.starts_with(&build_url("")), "{label}: {url}");
         }
+        let _ = read_item_list(html, "/Lotus/Powersuits/Harlequin/MiragePrime");
         let f = flight(html);
         if let Some(code) = code_in(&f) {
             let _ = decode_code(&code);
