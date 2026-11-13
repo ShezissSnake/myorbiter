@@ -8,6 +8,7 @@
   import type { Model } from "../core/model";
   import { masteryRows, type MasteryRow } from "../core/views";
   import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
+  import { buildTag } from "../core/buildPlan";
   import Effort from "../ui/Effort.svelte";
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import Browse from "../ui/Browse.svelte";
@@ -199,7 +200,7 @@
     {#if r.acq.difficulty > 0}<p class="chow" data-card={familyOf(r.unique) ? "next-step" : undefined} title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.stepBrief ?? r.acq.how}</p>{/if}
     {#snippet foot()}
       <!-- One tone per state, as on Foundry and Wishlist: teal filled for one you have (level it), gold outline for a step to take, plain for waiting. -->
-      {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build" && r.buildTier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {r.buildShort}, from an open world or an event">Parts ready · rare resources</span>{:else if r.status === "build" && r.buildTier === "farm"}<span class="tag warn" title="Every part in hand; still to farm: {r.buildShort}">Parts ready · farm</span>{:else if r.status === "build"}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build"}{@const tier = r.buildTier === "hard" || r.buildTier === "farm" ? r.buildTier : "now"}{@const t = buildTag(tier)}<span class="tag {t.tone}" title={tier === "hard" ? `Every part in hand, but building needs ${r.buildShort}, from an open world or an event` : tier === "farm" ? `Every part in hand; still to farm: ${r.buildShort}` : "Every part and resource in hand: build it in your foundry"}>{t.label}</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />
@@ -215,7 +216,7 @@
 
 {#snippet detail(r: MasteryRow)}
   <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}{#if r.acq.players}<span class="players">{r.acq.players}</span>{/if}</span></p>
-  {#if !r.acq.available}<p class="small warn">Can't be obtained right now.</p>{/if}
+  {#if !r.acq.available}<p class="small cant">Can't be obtained right now.</p>{/if}
   {#if r.missingParts.length}
     <p class="small dim legend">Relics that drop each missing part; yours first, vaulted ones dashed.</p>
     <div class="missing">
@@ -313,7 +314,7 @@
   :global(html[data-room~="lt1100"]) .how { min-width: 12rem; }
   :global(html[data-room~="lt950"]) .how { min-width: 8rem; }
   .fullhow { display: flex; gap: 1rem; align-items: baseline; margin: 0 0 .8rem; max-width: 80ch; line-height: 1.45; }
-  .warn { color: var(--gold); }
+  .cant { color: var(--gold); }
   .links { display: flex; gap: 1.2rem; margin-top: .9rem; }
   .star { display: inline-grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; background: none; line-height: 0; color: var(--platinum-deep); }
   .star:active:not(:disabled) { background: none; }
