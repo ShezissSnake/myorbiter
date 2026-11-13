@@ -199,7 +199,7 @@ const PARTS: Walkthrough = {
         open: "parts",
         part: ".pane.shown #ducat-buys header, .pane.shown #ducat-buys table.dt thead, .pane.shown #ducat-buys table.dt tbody tr:nth-child(-n+3)",
         marks: [
-          { at: ".pane.shown #ducat-buys table.dt thead th:nth-child(4)", is: "n", n: 1, from: "top" },
+          { at: ".pane.shown #ducat-buys table.dt thead th:nth-child(4)", is: "n", n: 1, from: "bottom" },
           { at: ".pane.shown #ducat-buys table.dt tbody tr:first-child button.link", is: "n", n: 2, from: "right" },
         ],
       },

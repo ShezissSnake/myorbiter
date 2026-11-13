@@ -157,7 +157,7 @@
   const spareColumns: Column<SpareArcane>[] = [
     { key: "name", label: "Arcane", value: (x) => x.row.name, defaultDesc: false, cell: spareName },
     { key: "have", label: "Spare", value: (x) => x.maxed * 1000 + x.unranked, cell: spareHave, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies" },
-    { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Priced as maxed arcanes: maxed copies at the max-rank price, loose ones at their share of one (a maxed arcane is 21 copies). Unranked copies sell a few at a time, so their own price overstates them" },
+    { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Priced as maxed arcanes: maxed copies at the max-rank price, loose ones at their share of one (a maxed arcane is 21 copies, 10 for one that maxes at R3) or their own price, whichever is less" },
     { key: "vosfor", label: "Dissolve for", value: (x) => x.vosfor, cell: vosforCell, align: "right", title: "Vosfor from Loid's Arcane Dissolution, and what it's worth through the best pack" },
     { key: "best", label: "Best as", value: (x) => x.verdict, sortValue: (x) => (x.verdict === "sell" ? (x.sellPlat ?? 0) : (x.dissolvePlat ?? 0)), cell: verdictCell },
     { key: "trades", minor: true, label: "Sold/day", value: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true },
@@ -185,7 +185,7 @@
   ] as Column<ArcaneRow>[]));
   /** How the sale price adds up, for its tooltip. */
   const sellWhy = (x: SpareArcane) =>
-    [x.maxed ? `${x.maxed} maxed at ${x.row.priceMax ?? "?"}p` : "", x.unranked ? `${x.unranked} loose at ${x.each == null ? "?" : Math.round(x.each * 10) / 10}p each (1/${x.row.needed} of a maxed one${x.row.price != null ? `; ${x.row.price}p unranked` : ""})` : ""].filter(Boolean).join(" + ");
+    [x.maxed ? `${x.maxed} maxed at ${x.row.priceMax ?? "?"}p` : "", x.unranked ? `${x.unranked} loose at ${x.each == null ? "?" : Math.round(x.each * 10) / 10}p each (${x.row.price != null ? `the lower of its own ${x.row.price}p and ` : ""}1/${x.row.needed} of a maxed one)` : ""].filter(Boolean).join(" + ");
   const things = (n: number, one = "thing", many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 </script>
 
@@ -287,7 +287,7 @@
       <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No arcanes read yet: press Sync while Warframe is running, and they go on display here." />
     {/snippet}
     {#snippet band()}
-      <Stat label="Maxed" note="Arcanes you have at max rank"><Count value={completeCount} /><span class="of">/{all.length}</span></Stat>
+      <Stat label="Maxed" note="Arcanes at max rank, or with enough copies to max one"><Count value={completeCount} /><span class="of">/{all.length}</span></Stat>
       <Stat label="Worth selling" note={`${things(toSell.length, "arcane")} marked Sell · no more of each than sells in a month`} title="Worth selling: the spare arcanes marked Sell (not the ones worth more dissolved, or under a trade's worth), maxed copies at the max-rank price and loose ones at their share of one, no more of each than the market sells in a month. Counted the same way on Prime parts, Mods and Home"><PTick v={sellWorth} /></Stat>
       <Stat label="Vosfor held" note={gain ? `+${gain.toLocaleString("en")} from the ${toDissolve.length} marked Dissolve` : "Nothing marked Dissolve"}><GameIcon name="vosfor" size={30} /><Count value={held} /></Stat>
     {/snippet}
@@ -305,8 +305,8 @@
     <header>
       <span class="register"><GameIcon name="vosfor" size={18} /> Loid's arcane packs · 200 Vosfor each</span>
       <Seg label="Value Vosfor by" bind:value={advice.vosforLens} options={[
-        { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, at what buying those copies would cost" },
-        { v: "market", label: "Market price", title: "A pack is worth all three arcanes at their unranked market price" },
+        { v: "need", label: "Arcanes I'm collecting", title: "A pack is worth the arcanes in it you haven't finished, each copy at its own price or its share of a maxed one, whichever is less" },
+        { v: "market", label: "Market price", title: "A pack is worth its three arcanes, each copy at its own price or its share of a maxed one, whichever is less; arcanes trading under 5 a day count as nothing" },
       ]} />
       <HelpMark part="arcanes.packs" />
     </header>
@@ -315,7 +315,7 @@
     <div class="packs">
       {#each rankedPacks as p (p.name)}
         <div class="pack" class:best={p === worth.best}>
-          <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="All three arcanes at their unranked market price">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth what buying those copies would cost">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
+          <div class="ph"><b class="mark">{short(p.name)}</b>{#if lens === "market"}<span class="dim small" title="Its three arcanes, each copy at its own price or its share of a maxed one, whichever is less; arcanes trading under 5 a day count as nothing">≈ {Math.round(p.plat)}p / pack</span>{:else if p.needCopies}<span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting, worth each copy's own price or its share of a maxed one, whichever is less">{p.needPlat < 0.5 ? "under 1p" : `≈ ${Math.round(p.needPlat)}p`} / pack</span>{/if}</div>
           {#if p.wanted.length}
             <div class="wanted">{#each p.wanted.slice(0, 4) as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}{#if p.wanted.length > 4}<span class="dim small" title={p.wanted.slice(4).map((w) => w.name).join(", ")}>+{p.wanted.length - 4}</span>{/if}</div>
           {:else}<span class="dim small">Nothing you still need</span>{/if}

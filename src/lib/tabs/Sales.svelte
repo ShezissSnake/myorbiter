@@ -234,7 +234,7 @@
       {#if settings.market.platform !== "pc"}
       <p class="prose">Press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button> when it sells, or import your warframe.market sales below.</p>
       {:else}
-      <p class="prose">Sales log themselves when you trade items for platinum in game. For anything else, press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button>, or add it below.</p>
+      <p class="prose">Signed in, with Mark sales sold from the game on (Settings, Trades), a platinum sale in game logs itself. Otherwise press <span class="ic"><Icon name="sold" size={13} /></span> on a listing in <button class="link" onclick={() => go("market")}>Orders</button>, or add it below.</p>
       {/if}
       {#if maybeSold}<p><button class="link" title="Listings for more than you hold now: on Orders, answer Sold? and a Yes logs the sale here" onclick={() => go("market")}>{maybeSold} possible sale{maybeSold === 1 ? "" : "s"} waiting on Orders →</button></p>{/if}
     </section>

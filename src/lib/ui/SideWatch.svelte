@@ -36,8 +36,8 @@
     { key: "fissures", label: "Fissures", hint: "Every open fissure of the kind Home shows (normal, Steel Path or Void Storms); with Only my alerts on there, just the ones your alerts match" },
     { key: "clocks", label: "Clocks", hint: "Day and night on the open worlds" },
     { key: "foundry", label: "Foundry", hint: "What's building and when it's ready", pc: true },
-    { key: "bounties", label: "Bounties", hint: "Each place's best bounty reward" },
-    { key: "market", label: "Market", hint: "Your listings and today's sales on warframe.market" },
+    { key: "bounties", label: "Bounties", hint: "Each place's bounty reward you need, else its rarest" },
+    { key: "market", label: "Market", hint: "How many listings you show on warframe.market, and today's sales from the sales MyOrbiter has recorded" },
   ];
   let choosing = $state(false);
   const on = (k: string) => settings.side.cards.includes(k) && !(console && SIDE_CARDS.find((c) => c.key === k)?.pc);

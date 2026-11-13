@@ -138,15 +138,15 @@
     Keep: "You need these to build and master the item",
     Save: "Waiting for its set: the set sells for more than its parts one by one, and you can still get the parts it's missing",
     Set: "Part of a complete set you can sell: sell the set",
-    Sell: "Worth more on warframe.market than its ducats",
-    Ducats: "Worth more to you as ducats at Baro Ki’Teer",
+    Sell: "Sells for more than its ducats are worth to you, and the sale is worth a trade",
+    Ducats: "Better as ducats at Baro Ki’Teer: they are worth as much to you as it sells for, it has no price, a sale is under what a trade is worth, or it sells slowly and the ducats come close",
   };
   const LABEL: Record<Verdict, string> = { Keep: "Keep", Save: "Save for set", Set: "Sell as set", Sell: "Sell", Ducats: "Ducats" };
 
   const allColumns: Column<PartRow>[] = [
     { key: "name", label: "Part", value: (r) => r.name, defaultDesc: false, cell: nameCell, width: "min(26rem, 32%)" },
     { key: "qty", label: "Have", value: (r) => r.quantity, align: "right" },
-    { key: "spare", minor: true, label: "Spare", value: (r) => r.spare, align: "right", title: "Copies beyond what you'd need to build an item you haven't mastered or built" },
+    { key: "spare", minor: true, label: "Spare", value: (r) => r.spare, align: "right", title: "Copies beyond what you'd need to build an item you haven't mastered or built, and beyond the ones saved for a set" },
     { key: "price", spare: true, label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "value", label: "Total", value: (r) => (r.price ?? 0) * qty(r), align: "right", cell: totalCell },
     { key: "ducats", spare: true, label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
@@ -249,8 +249,8 @@
   <!-- The filter box, what each part is best as, spares: what most visits need. The rest folds. -->
   {#snippet filters()}
     <input type="search" aria-label="Filter prime parts by name" title="Shows only what matches what you type" placeholder="Filter parts…" bind:value={query} />
-    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Worth more traded to Baro, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Sell spares)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
-    {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered" />{/if}
+    <Seg label="Best as" bind:value={best} options={[{ v: "all", label: "All", title: "Whatever is best for each part" }, { v: "Sell", label: "Sell", title: "Worth more sold on its own" }, { v: "Set", label: "Set", title: "Worth more sold in a complete set" }, { v: "Ducats", label: "Ducats", title: "Better traded to Baro for ducats, at your ducat rate" }, { v: "Save", label: "Save", title: "Waiting for its set, which sells for more than its parts and whose missing parts you can still get (Sell spares)" }, { v: "Keep", label: "Keep", title: "You need it to build something you haven't mastered" }]} />
+    {#if spareMatters}<Chip bind:on={spareOnly} label="Spare only" title="Leave out the copies you need to build something you haven't mastered and the ones saved for a set" />{/if}
     <Fold on={[parent === "mastered" ? "mastered items" : parent === "unmastered" ? "not mastered" : "", avail !== "all" ? avail : ""].filter(Boolean).join(", ")} active={(parent !== "mastered" ? 1 : 0) + (avail !== "all" ? 1 : 0)} reset={() => { parent = "mastered"; avail = "all"; }}>
       <Seg
         label="Item"
@@ -288,7 +288,7 @@
   <section class="dbuy" id="ducat-buys">
     <header>
       <div class="hmark"><h2 class="register lead">Ducats for less</h2><HelpMark part="parts.ducats-for-less" /></div>
-      <span class="dim small">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at least {Math.round(1 / advice.platPerDucat)} ducats a platinum, your rate (above).</span>
+      <span class="dim small" title="Gold is judged against your exact rate, not the rounded figures shown">{baro ? (baroHere ? `Baro is here: leaves in ${until(baro.expiry)}` : `Baro arrives in ${until(baro.activation)}`) : ""}{baro ? " · " : ""}parts that sell daily, most ducats per platinum at the daily median. Gold: at or above your rate, about {Math.round(10 / advice.platPerDucat) / 10} ducats a platinum.</span>
     </header>
     <table class="dt">
       <thead><tr><th>Part</th><th class="r">Ducats</th><th class="r">Price</th><th class="r" title="Ducats per platinum at the daily median">Per plat</th><th class="r" title="How many sell a day on warframe.market">Sold/day</th><th></th></tr></thead>
@@ -300,7 +300,7 @@
             <td class="r"><P v={b.price} /></td>
             <td class="r"><b class:good={b.rate >= 1 / advice.platPerDucat}>{Math.round(b.rate * 10) / 10}</b></td>
             <td class="r dim">{b.tradesPerDay == null ? "–" : Math.round(b.tradesPerDay * 10) / 10}</td>
-            <td class="r"><button class="link" title="Post a buy order on warframe.market for {b.name}: sellers whisper you" onclick={() => mkt.startBuy(b.name, { quantity: 5, known: b.price })}>Buy order</button></td>
+            <td class="r"><button class="link" title="Open the buy order form for {b.name}: nothing is posted until you confirm" onclick={() => mkt.startBuy(b.name, { quantity: 5, known: b.price })}>Buy order</button></td>
           </tr>
         {/each}
       </tbody>
