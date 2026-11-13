@@ -157,7 +157,7 @@
         sub: spares ? `×${spareN.toLocaleString("en")} spare · ${spareOf(r)?.type ?? r.type}` : priceOf(r) == null ? `${r.type} · its set` : `×${heldN.toLocaleString("en")} held · each`,
         value: Math.round(value),
         title: spares ? `${shown(r)}: ${spareN.toLocaleString("en")} spare, about ${Math.round(value).toLocaleString("en")}p (no more than the market sells in a month: its part of Spare value). Click for its details` : priceOf(r) == null ? `${shown(r)}: built gear can't be traded; its set sells for ${Math.round(value).toLocaleString("en")}p. Click for its details` : `${shown(r)}: ${Math.round(value).toLocaleString("en")}p each, ${heldN.toLocaleString("en")} held. Click for its details`,
-        open: () => (r.kind === "gear" && c ? details.open(r.unique) : (opened = r)),
+        open: () => (r.kind === "gear" && r.levels && c ? details.open(r.unique) : (opened = r)),
         image: imageFor(r),
         look: r.kind === "mod" ? "mod" : r.kind === "arcane" ? "arcane" : "art",
         fallback: kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name) ?? "foundry",
@@ -189,7 +189,7 @@
 {#snippet nameCell(r: InventoryItem)}
   <Named file={model.imageOf(r.name) ?? model.imageOf(shown(r))} name={shown(r)}>
     {#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}
-    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
+    {#if r.kind === "gear" && r.levels}{#if r.mastered}<span class="tag good">✓ mastered</span>{:else}<span class="tag mastery" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
   </Named>
 {/snippet}
 {#snippet qtyCell(r: InventoryItem)}{r.quantity.toLocaleString("en")}{#if otherRanks(r)}<span class="dim small ranks" title="The same {r.kind} held at other ranks: each rank is a row of its own"> {otherRanks(r)}</span>{/if}{/snippet}
@@ -210,12 +210,12 @@
 {#snippet card(r: InventoryItem, open: () => void)}
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
-    {#if r.kind === "gear"}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
+    {#if r.kind === "gear" && r.levels}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
     {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
     {@render listCell(r, true)}
   {/snippet}
-  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && !r.mastered} ownedNote="Not mastered" onopen={open} foot={r.kind === "gear" || perDay(r) != null || spareOf(r) ? foot : undefined}>
+  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && r.levels && !r.mastered} ownedNote="Not mastered" onopen={open} foot={(r.kind === "gear" && r.levels) || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}
       {#if r.kind === "mod" || r.kind === "arcane"}
         {@const c = model.catalogByUnique.get(r.unique)}
@@ -324,7 +324,7 @@
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
-  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
+  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
 </div></div>
 
 <style>

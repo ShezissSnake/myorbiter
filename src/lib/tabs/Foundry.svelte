@@ -10,6 +10,7 @@
   import { collection, GROUPS, type CollectionItem, type Group } from "../core/collection";
   import { details } from "../details.svelte";
   import { foundryBuilds } from "../core/foundry";
+  import { buildTag, type TagForm } from "../core/buildPlan";
   import { describe } from "../core/describe";
   import { until } from "../core/traders";
   import Thumb from "../ui/Thumb.svelte";
@@ -140,15 +141,16 @@
 {#snippet nameCell(c: CollectionItem)}<Named file={c.image} name={c.name}>{#if favs.has(c.unique)}<span class="star" title="On your wishlist">★</span>{/if}</Named>{/snippet}
 {#snippet pointsCell(c: CollectionItem)}<span class="pts" class:dim={c.mastered}><GameIcon name="mastery" size={12} />{c.points.toLocaleString("en")}</span>{/snippet}
 {#snippet priceCell(c: CollectionItem)}{#if c.setPrice != null}<P v={Math.round(c.setPrice)} />{/if}{/snippet}
-{#snippet stateCell(c: CollectionItem)}
+{#snippet stateCell(c: CollectionItem, form: TagForm = "row")}
   {#if c.mastered}<span class="tag good">✓ Mastered</span>
   {:else if c.step === "level"}<span class="tag mastery" title={c.stepHow}>{c.stepTag}</span>
   {:else if c.step}<span class="tag ok" title={c.stepHow}>{c.stepTag}</span>
   {:else if c.owned}<span class="tag mastery">Owned · level it</span>
   {:else if c.building}<span class="tag">Building</span>
-  {:else if c.buildable && c.tier === "hard"}<span class="tag bad" title="Every part in hand, but building needs {c.short.join(', ')}: from an open world or an event. Open it for what each part takes">Parts ready · needs {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
-  {:else if c.buildable && c.short.length}<span class="tag warn" title="Every part in hand; still to farm: {c.short.join(', ')}. Open it for what each part takes">Parts ready · farm {c.short[0]}{c.short.length > 1 ? ` +${c.short.length - 1}` : ""}</span>
-  {:else if c.buildable}<span class="tag ok" title="Every part and resource in hand: build it in your foundry">Can build now</span>
+  {:else if c.buildable}
+    {@const tier = c.tier === "hard" ? "hard" : c.short.length ? "farm" : "now"}
+    {@const t = buildTag(tier, c.short, form)}
+    <span class="tag {t.tone}" title={tier === "hard" ? `Every part in hand, but building needs ${c.short.join(", ")}: from an open world or an event. Open it for what each part takes` : tier === "farm" ? `Every part in hand; still to farm: ${c.short.join(", ")}. Open it for what each part takes` : "Every part and resource in hand: build it in your foundry"}>{t.label}</span>
   {:else if c.parts.some((p) => !p.resource)}<span class="tag" title="Parts or blueprints you don't hold yet: open it for where each comes from">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
   {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
 {/snippet}
@@ -178,7 +180,7 @@
     </div>
     {/if}
     {#snippet foot()}
-      {@render stateCell(c)}
+      {@render stateCell(c, "card")}
       <span class="grow"></span>
       {#if c.setPrice != null}<P v={Math.round(c.setPrice)} />{:else if !c.mastered}<span class="pts" title="The mastery points it gives"><GameIcon name="mastery" size={12} />{c.points.toLocaleString("en")}</span>{/if}
     {/snippet}
