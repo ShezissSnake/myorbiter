@@ -15,7 +15,7 @@ path beside each.
 | The game's memory, read only | your login session goes to Digital Extremes, for your inventory; the rest stays on your PC | only in Full mode, which is off until you choose it |
 | Pictures of the game's screen (the monitor it's on, its own window, or whole monitors, by system: below), captured and read on your PC | the pictures stay on your PC; the item names on them are priced on warframe.market | in TennoScope's Overlay mode (what the first start's "Not now" picks) and Full mode, during void fissure missions and at Baro's kiosk |
 | Running programs' names; on Linux, the memory maps of Chromium-based apps while the game is closed | stays on your PC | while TennoScope watches for the game, to find it and its launcher |
-| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold on warframe.market (off unless you turn it on); each player you traded with in the last 24 hours, whatever the trade, gets +rep there, a review in your name (off unless you turn it on, whether or not sales are marked); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
+| The game's log (`EE.log`) | a trade that sold one of your listings marks it sold on warframe.market (off unless you turn it on); each player you traded with in the last 24 hours, whatever the trade, gets +rep there unless they aren't on it or already have your review, a review in your name (off unless you turn it on, whether or not sales are marked); the names of players you trade with or who whisper you are looked up there, and appear in your Discord notifications if you set them up; the rest stays on your PC | while MyOrbiter runs, on PC |
 | Order books, prices, the live feed of new orders; signed in: your profile, orders, auctions, chats, status and your changes | warframe.market | while MyOrbiter runs (below) |
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
@@ -64,10 +64,16 @@ Until a mode is chosen, TennoScope runs in Companion mode and doesn't look at th
 Overlay mode (the first-run "Not now", or Full mode turned off), and in Full mode, it reads the
 game's log and captures the game's screen: every 2 seconds during a void fissure mission (from when
 the log shows the relics loaded until the reward screen closes, at most 45 minutes), more often
-once the cards show, and at Baro's kiosk. To find the game's window it reads the titles of the open
-windows and takes the largest one named "Warframe"; on Linux, when none is, it also runs
-`xwininfo -root -tree` to look for the game inside a Wine virtual desktop (at most every 5 seconds
-while that finds nothing, and at each capture once it has found the game that way).
+once the cards show, and at Baro's kiosk.
+
+While the game runs, in Overlay and in Full mode, TennoScope also looks for the game's window, and
+not only when it captures: about every 3 seconds for the status it gives MyOrbiter, about every
+2.5 seconds more while its own window is showing, when its mode is changed, and at each capture and
+each overlay it places. Each look reads the titles of the open windows and takes the largest one
+named "Warframe". On Linux, when none is, the look also runs `xwininfo -root -tree` to find the game
+inside a Wine virtual desktop: at most every 5 seconds while that finds nothing, and at each look
+once it has found the game that way.
+
 What is captured depends on the system:
 
 - **Windows, and Linux on an X11 desktop:** the whole monitor the game's window is on, cut in memory
@@ -78,8 +84,9 @@ What is captured depends on the system:
   where another program's window is, so whole monitors are captured, nothing is cut away, and each
   is read in turn as the game's screen. On desktops that offer wlroots' screen copy, every monitor,
   with no permission asked. On KDE, every monitor with no permission asked, but only for a
-  TennoScope that doesn't run from an AppImage; the TennoScope inside MyOrbiter is an AppImage, so
-  it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
+  TennoScope that doesn't run from an AppImage, and only if KWin accepts the installed program (one
+  it refuses is left with the screen-share dialog below); the TennoScope inside MyOrbiter is an
+  AppImage, so it doesn't capture this way. Otherwise, the monitors you choose (one or more) in the desktop's
   screen-share dialog, which *Allow screen capture* opens (in MyOrbiter's TennoScope panel, or in
   TennoScope's own window) while the game runs and nothing else can capture it; the desktop shows a screen being shared while that capture is open,
   and the permission is kept in `screencast.token` (below).
@@ -127,7 +134,8 @@ minutes that sold one of your listings goes into your sales log, the listing is 
 warframe.market, and TennoScope is asked to read your inventory again. When you're signed in and
 *Give +rep by itself after a trade* is on (it is off unless you turn it on), each player you traded
 with in the last 24 hours gets +rep, once per player, whatever the trade was (a sale, a purchase, a
-swap or a gift), whether marking sales is on or not. A +rep is a positive review, with your +rep
+swap or a gift), whether marking sales is on or not; a player who isn't on warframe.market, or who
+already has a +rep or a negative review from you there, gets none. A +rep is a positive review, with your +rep
 message, posted on the other player's warframe.market profile in your name. The names of players
 you trade with, and of a player who whispers you (with whisper notifications on), are looked up on
 warframe.market to show their reputation.
@@ -151,7 +159,7 @@ your user name and computer name) among them.
 Every request MyOrbiter makes to warframe.market says who it is, with the User-Agent
 `MyOrbiter/<version> (+https://github.com/ShezissSnake/myorbiter)`. Its API calls also carry your
 platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and riven lists (only
-`Language: en`) and signing in with an email and password (neither).
+`Language: en`) and signing in with an email and password (none of them).
 
 - **Read without signing in:**
   - the item list and the riven lists (weapons and stats), when MyOrbiter starts or a page needs

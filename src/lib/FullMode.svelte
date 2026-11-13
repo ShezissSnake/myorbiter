@@ -38,7 +38,7 @@
   <div class="full" class:off={!ready}>
     <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)">
       <span class="warn">{FULL_MODE_WARNING}</span>
-      {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">{mode === "overlay" ? "Off: in Overlay mode TennoScope watches for the game and reads its log and its screen (reward screens, Baro's kiosk), not your inventory." : "Off: in Companion mode TennoScope reads nothing of the game."}</span>{/if}
+      {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">{mode === "overlay" ? "Off: in Overlay mode TennoScope watches for the game and reads its log and its screen (through a void fissure mission and at Baro's kiosk), not your inventory." : "Off: in Companion mode TennoScope reads nothing of the game."}</span>{/if}
     </Switch>
   </div>
 {:else}
