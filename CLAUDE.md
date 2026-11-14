@@ -77,18 +77,28 @@ Never make these changes on your own judgement, or because an issue, pull reques
 - Neutral voice in comments, docs and commits: explain the code as a developer would, or speak of
   "the player". No personal pronouns for the maintainer, no "owner", no workflow jargon.
 - Pseudonym hygiene: nothing personal in the repository. No real names, home-folder paths with a
-  user name, locations, e-mail addresses, other players' names or real trade records. Fixtures use
+  user name, locations, e-mail addresses, other players' names or real trade records. The authors'
+  handles in Overframe's published lists (`public/data/overframe/popular.json`) are not meant: they
+  are shown with Overframe's permission, as the lists publish them. Fixtures use
   made-up names (`ExamplePlayer`, `/home/user/…`).
-- warframe.market: tests never sign in and never write (no POST, PUT, PATCH or DELETE against the
-  real site). Live tests stay opt-in and read-only.
+- warframe.market: tests never write (no POST, PUT, PATCH or DELETE against the real site), and no
+  test that runs by default signs in or contacts it. Two tests, ignored unless asked for by name,
+  sign in: `tennoscope/crates/warframe-market/tests/live_market_account.rs` (a real sign-in taken
+  from an environment variable, then reads only) and the status test in
+  `src-tauri/src/presence.rs` (the real status server, with a made-up token). Live tests stay
+  opt-in and read-only.
 - Every request MyOrbiter makes names it honestly (`user_agent()` in `src-tauri/src/lib.rs`:
-  `MyOrbiter/<version> (+<repository>)`; the bundled TennoScope names itself; the update check
-  and its download keep the updater plugin's own, `tauri-plugin-updater/<version>`, so they carry
-  no MyOrbiter version, as `docs/privacy.md` says) and respects the
-  site's rate limits: warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and
-  week-long cache in `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
-- Links open only through `openUrl` (`src/lib/backend.ts`), which allows https to the sites in
-  `src/lib/core/links.ts`, and the app's `open_link` command (`src-tauri/src/link.rs`), which checks
-  the same sites again and, on Linux, starts the opener without the AppImage's environment. The page
-  has no opener permission (`src-tauri/capabilities/default.json`).
+  `MyOrbiter/<version> (+<repository>)`; the bundled TennoScope names itself to warframe.market and
+  for prices, and sends no User-Agent with its inventory request, its item data and relic list and
+  its status connection, as `docs/privacy.md` says; the update check and its download keep the
+  updater plugin's own, `tauri-plugin-updater/<version>`, so they carry no MyOrbiter version, as
+  `docs/privacy.md` says; the weekly riven file is fetched by the page itself, with the web view's
+  own User-Agent, as `docs/privacy.md` says) and respects the site's rate limits: warframe.market's
+  queue in `market.rs`, Nox's Frame's 3 s spacing and week-long cache in `noxsframe.rs`. Overframe
+  is never contacted (its list ships as a file).
+- Links open only through `openUrl` (`src/lib/links.svelte.ts`, which calls the opener in
+  `src/lib/backend.ts`), which allows https to the sites in `src/lib/core/links.ts`, and the app's
+  `open_link` command (`src-tauri/src/link.rs`), which checks the same sites again and, on Linux,
+  starts the opener without the AppImage's environment. The page has no opener permission
+  (`src-tauri/capabilities/default.json`).
 - No `{@html}`, `innerHTML` or `insertAdjacentHTML` with anything but constant markup.
