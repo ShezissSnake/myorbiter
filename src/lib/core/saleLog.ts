@@ -19,6 +19,14 @@ export function salesOf(raw: unknown): Sale[] {
     if (s.median !== undefined && !fine(s.median)) delete s.median;
     if (s.trade !== undefined && typeof s.trade !== "string") delete s.trade;
     if (s.wfm !== undefined && typeof s.wfm !== "string") delete s.wfm;
+    // Fields newer records carry; an older record has neither and loads as it was.
+    if (s.wfmParts !== undefined) {
+      const ids = Array.isArray(s.wfmParts) ? s.wfmParts.filter((id): id is string => typeof id === "string") : [];
+      if (ids.length) s.wfmParts = ids;
+      else delete s.wfmParts;
+    }
+    const l = s.lowered as unknown;
+    if (l !== undefined && !(obj(l) && typeof l.listing === "string" && Number.isInteger(l.count) && (l.count as number) >= 1 && fine(l.at))) delete s.lowered;
     out.push(s);
   }
   return out;

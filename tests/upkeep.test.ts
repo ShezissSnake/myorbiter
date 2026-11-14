@@ -55,13 +55,14 @@ const sale = (at: number, item: string, trade?: string): Sale => ({ at, item, ra
 
 test("a sale logged by hand is matched once; a sale from an earlier trade isn't a match", () => {
   const t0 = 1_800_000_000_000;
+  const line = { name: "Arcane Energize", rank: null, count: 1 };
   // You sold Energize to one buyer (logged from the trade), then another 4 minutes later.
-  assert.equal(handLoggedSale([sale(t0, "Arcane Energize", "s|1")], "Arcane Energize", t0 + 4 * 60_000), -1);
+  assert.equal(handLoggedSale([sale(t0, "Arcane Energize", "s|1")], line, t0 + 4 * 60_000), null);
   // You pressed Sold on Orders, then the trade showed up in the log: that's the same sale.
-  assert.equal(handLoggedSale([sale(t0, "Arcane Energize")], "Arcane Energize", t0 + 60_000), 0);
+  assert.deepEqual(handLoggedSale([sale(t0, "Arcane Energize")], line, t0 + 60_000), { index: 0, copies: 1 });
   // Too far apart, or another item.
-  assert.equal(handLoggedSale([sale(t0, "Arcane Energize")], "Arcane Energize", t0 + 11 * 60_000), -1);
-  assert.equal(handLoggedSale([sale(t0, "Arcane Grace")], "Arcane Energize", t0), -1);
+  assert.equal(handLoggedSale([sale(t0, "Arcane Energize")], line, t0 + 11 * 60_000), null);
+  assert.equal(handLoggedSale([sale(t0, "Arcane Grace")], line, t0), null);
 });
 
 test("why TennoScope won't start, in words, with what to do when it's known", async () => {
