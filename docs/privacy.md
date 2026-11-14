@@ -346,9 +346,15 @@ Those shapes are `/a/b`, `\a\b`, `~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\
 either slash, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a
 computer's name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's
 name, the root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and
-MyOrbiter make stay. A folder name with spaces is hidden whole; the words after a hidden last one
-go with it up to the end of the sentence, a mark such as `:`, `>` or `|`, or the next path, so a word
-too many may be hidden.
+MyOrbiter make stay. A user name with spaces in it becomes `[user]` whole. Another folder name with
+spaces is hidden whole when a slash follows it, or when it is the last one and its first word is
+not one of those kept folders, a number or a file's name; the words after such a last name go with it up to
+the end of the sentence, a mark such as `:`, `>` or `|`, or the next path, so a word too many may be
+hidden, and none of them is kept as the file's name. Left as written: a last folder name whose
+first word is a kept folder, a number or a file's name, with no slash after it (`D:\Games\Dev Name`,
+`~/Steam Name`, `D:\Games\2024 Name`), as it can't be told from a kept folder followed by other
+words; a name with an apostrophe in a path in single quotes (`'D:\a\O'Name'`), where the apostrophe
+reads as the closing quote; and `//computer/share` straight after `://`, which reads as an address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
 `file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a

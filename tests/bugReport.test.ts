@@ -93,6 +93,10 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   assert.match(para, /a path of an unusual shape can pass/i);
   // The encoded forms: what works, and the gap beside it (both held by the tests below).
   assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
+  // The known gaps the path tests pin ("known gaps, pinned as they are").
+  assert.match(para, /Left as written: a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
+  assert.match(para, /a name with an apostrophe in a path in single quotes/);
+  assert.match(para, /`\/\/computer\/share` straight after `:\/\/`/);
   assert.match(para, /prices of listings and sales are kept/);
   assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
@@ -199,6 +203,69 @@ test("paths: no word of a spaced last name passes, whatever follows it", () => {
   // A kept name or a file's name before a space ends the path there: the words after stay.
   assert.equal(redact("found at D:\\Games\\Warframe and more"), "found at D:\\Games\\Warframe and more");
   assert.equal(redact("opened D:\\Orren\\EE.log and more"), "opened D:\\[folder]\\EE.log and more");
+});
+
+test("paths: a user name with a space in it, as the last name of a home shape, is hidden whole", () => {
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    // Windows, with either slash, and as an address.
+    ["C:/Users/Orren Taskwell", "C:/Users/[user]"],
+    ["C:/Users/Orren Taskwell -> E:\\x", "C:/Users/[user] -> E:\\[folder]"],
+    ["file:///C:/Users/Orren Taskwell", "file:///C:/Users/[user]"],
+    ["C:\\Users\\Orren Taskwell: denied", "C:\\Users\\[user]: denied"],
+    // The home shapes.
+    ["/home/Orren Taskwell", "/home/[user]"],
+    ["/var/home/Orren Taskwell", "/var/home/[user]"],
+    ["/Users/Orren Taskwell", "/Users/[user]"],
+    ["/media/Orren Taskwell", "/media/[user]"],
+    ["/run/media/Orren Taskwell", "/run/media/[user]"],
+    ["Z:\\home\\Orren Taskwell", "Z:\\home\\[user]"],
+    // Wine's users folder, in a path and on its own, with and without a slash after it.
+    ["/home/x/pfx/drive_c/users/Orren Taskwell", "/home/[user]/pfx/drive_c/users/[user]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell/Documents", "/home/[user]/pfx/drive_c/users/[user]/Documents"],
+    ["drive_c\\users\\Orren Taskwell\\Documents", "drive_c\\users\\[user]\\Documents"],
+    ["drive_c/users/Orren Taskwell", "drive_c/users/[user]"],
+    ["drive_c/users/Orren Taskwell -> E:\\x", "drive_c/users/[user] -> E:\\[folder]"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Proton's own user stays.
+  assert.equal(redact("drive_c/users/steamuser/Documents"), "drive_c/users/steamuser/Documents");
+});
+
+test("paths: a bare name taken over spaces is never kept as a file's name; in quotes it is", () => {
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    ["copied D:\\Games\\Orren Taskwell to backup.zip", "copied D:\\Games\\[folder]"],
+    ["D:\\Games\\Orren Taskwell missing config.json", "D:\\Games\\[folder]"],
+    ["/srv/x/Orren Taskwell see EE.log", "/srv/[folder]/[folder]"],
+    ["/mnt/Orren Taskwell has EE.log", "/mnt/[drive]"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+  }
+  assert.equal(redact('opened "E:\\x\\EE log copy.txt" ok'), 'opened "E:\\[folder]\\EE log copy.txt" ok');
+});
+
+test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
+  // A two-word folder name whose first word is a kept one (Games, Steam, Dev, a number) passes
+  // when no slash follows it: the rule can't tell a kept word that ends a path from one that
+  // starts a name ("found at D:\Games\Warframe and more").
+  assert.equal(redact("D:\\Games\\Dev Orren"), "D:\\Games\\Dev Orren");
+  assert.equal(redact("~/Steam Orren Taskwell"), "~/Steam Orren Taskwell");
+  assert.equal(redact("D:\\Games\\2024 Orren Taskwell"), "D:\\Games\\2024 Orren Taskwell");
+  // With a slash after it, it is hidden.
+  assert.equal(redact("D:\\Games\\Dev Orren\\x"), "D:\\Games\\[folder]\\[folder]");
+  // In single quotes, an apostrophe in a name reads as the closing quote.
+  assert.equal(redact("'D:\\Games\\Orren O'Taskwell'"), "'D:\\Games\\[folder]'Taskwell'");
+  // "//host" straight after a scheme's "://" is an address, not a share.
+  assert.equal(redact("path://EXAMPLE-PC/share/Orren"), "path://EXAMPLE-PC/share/Orren");
 });
 
 test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {
