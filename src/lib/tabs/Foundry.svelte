@@ -10,7 +10,7 @@
   import { collection, GROUPS, type CollectionItem, type Group } from "../core/collection";
   import { details } from "../details.svelte";
   import { foundryBuilds } from "../core/foundry";
-  import { buildTag, type TagForm } from "../core/buildPlan";
+  import { readyTag, type TagForm } from "../core/buildPlan";
   import { describe } from "../core/describe";
   import { until } from "../core/traders";
   import Thumb from "../ui/Thumb.svelte";
@@ -90,10 +90,11 @@
   const mastered = $derived(all.filter((c) => c.mastered).length);
   const ownedOnly = $derived(all.filter((c) => c.owned && !c.mastered).length);
   // Only what would still give mastery: a part set for something mastered is just spares.
-  // Can build now means everything in hand: parts with resources still to farm count apart.
-  const canBuild = (c: CollectionItem) => c.buildable && !c.mastered && (c.tier == null || c.tier === "now");
-  const buildable = $derived(all.filter(canBuild).length);
-  const partsReady = $derived(all.filter((c) => c.buildable && !c.mastered && c.tier != null && c.tier !== "now").length);
+  // Can build now means everything in hand, resources too: parts with resources still to farm, or
+  // with the recipes not read yet (so no resource counted), are named apart.
+  const canBuild = (c: CollectionItem) => c.buildable && !c.mastered;
+  const buildable = $derived(all.filter((c) => canBuild(c) && readyTag(c).tier === "now").length);
+  const partsReady = $derived(all.filter((c) => canBuild(c) && readyTag(c).tier !== "now").length);
   const groupLabel = $derived(GROUPS.find((g) => g.v === group)?.label ?? "");
 
   function toggleFav(u: string) {
@@ -148,9 +149,8 @@
   {:else if c.owned}<span class="tag mastery">Owned · level it</span>
   {:else if c.building}<span class="tag">Building</span>
   {:else if c.buildable}
-    {@const tier = c.tier === "hard" ? "hard" : c.short.length ? "farm" : "now"}
-    {@const t = buildTag(tier, c.short, form)}
-    <span class="tag {t.tone}" title={tier === "hard" ? `Every part in hand, but building needs ${c.short.join(", ")}: from an open world or an event. Open it for what each part takes` : tier === "farm" ? `Every part in hand; still to farm: ${c.short.join(", ")}. Open it for what each part takes` : "Every part and resource in hand: build it in your foundry"}>{t.label}</span>
+    {@const t = readyTag(c, form)}
+    <span class="tag {t.tone}" title={t.title}>{t.label}</span>
   {:else if c.parts.some((p) => !p.resource)}<span class="tag" title="Parts or blueprints you don't hold yet: open it for where each comes from">{missing(c)} part{missing(c) === 1 ? "" : "s"} missing</span>{/if}
   {#if c.resurgence}<Avail v="resurgence" />{:else if c.vaulted}<Avail v="vaulted" />{/if}
 {/snippet}
@@ -192,7 +192,7 @@
     {#snippet band()}
       <Stat label="Mastered" note={`Of all ${all.length.toLocaleString("en")}, every category`}><GameIcon name="mastery" size={30} /><Count value={mastered} /><span class="of">/{all.length}</span></Stat>
       <Stat label="Owned, not mastered" tone="gold" note="Every category · level these"><Count value={ownedOnly} /></Stat>
-      <Stat label="Can build now" note={partsReady ? `Every category · ${partsReady} more with resources to farm` : "Every category · every part and resource in hand"}><Count value={buildable} /></Stat>
+      <Stat label="Can build now" note={partsReady ? `Every category · ${partsReady} more with every part, resources short or not checked` : "Every category · every part and resource in hand"}><Count value={buildable} /></Stat>
       <Stat label="Ready to claim" spot={builds.length ? null : "queue"} tone={readyToClaim ? "gold" : "dim"} note={builds.length ? `Of ${builds.length} in your foundry` : "Nothing building"}><Count value={readyToClaim} /></Stat>
     {/snippet}
     {#snippet hero()}<CodexRings {rings} lit={group === "all" ? null : group} onpick={(g) => (group = group === g ? "all" : g)} all={{ onpick: () => (group = "all"), action: "Click to show every category" }} action={(r) => (group === r.group ? "Click to show every category" : `Click to show only ${r.label.toLowerCase()}`)} line={nextLine} />{/snippet}

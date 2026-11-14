@@ -57,7 +57,7 @@ export function rowGroups(m: Model, unique: string, category: string): Group[] {
     const groups = groupsOf(item);
     return groups.length ? groups : ["other"];
   }
-  return [category === "Warframe" ? "warframes" : category === "Companion" ? "companions" : "other"];
+  return [category === "Warframe" || category === "Necramech" ? "warframes" : category === "Companion" ? "companions" : "other"];
 }
 
 /** Every ring added up: mastered of all, across the categories shown (the "All" ring), each item once. */

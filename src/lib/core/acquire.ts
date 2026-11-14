@@ -288,6 +288,8 @@ export interface AcquireContext {
   /** `need`: copies still to get (two Blades), 1 when not given. */
   missingParts: { name: string; need?: number; availability: string; sources: { owned: number }[] }[];
   ownedRelicsForIt: number;
+  /** Primes built from other weapons (Akbronco Prime takes two Bronco Primes): the ones still short, with how many it takes and how many you hold. */
+  lackingWeapons?: { name: string; need: number; have: number }[];
   /** Plat for the parts you're missing, at the daily median, if all are priced. */
   buyFor: number | null;
   /** Not relic primes: the blueprint and parts you hold, and the ones still to get ("Chassis"). */
@@ -359,6 +361,20 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
   const base = { icon: "relic-axi-intact", tradable: true, researched: false, wiki: item.wikiaUrl ?? null };
   if (ctx.buildable) return { ...base, ...buildAcquisition(ctx) };
   const missing = ctx.missingParts;
+  // The weapons it is built from that you don't hold enough of count as missing too.
+  const lacking = ctx.lackingWeapons ?? [];
+  const weapons = list(lacking.map((w) => `${w.need > 1 ? `${w.need}× ` : ""}${w.name} (you have ${w.have > 0 ? w.have : "none"})`));
+  if (!missing.length && lacking.length) {
+    return {
+      ...base,
+      method: "relics",
+      // Every relic part is in hand: what is left is the weapons, each a prime of its own (a guess at 3).
+      difficulty: 3,
+      how: `You have every part from relics, but it is built from ${weapons} too: get the rest of those first.`,
+      available: true,
+    };
+  }
+  const also = lacking.length ? ` It is also built from ${weapons}.` : "";
   const vaulted = missing.filter((p) => p.availability === "vaulted");
   const resurgence = missing.filter((p) => p.availability === "resurgence");
   const covered = missing.filter((p) => p.sources.some((s) => s.owned > 0)).length;
@@ -369,15 +385,16 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
       ...base,
       method: "relics",
       difficulty: covered === missing.length ? 3 : 4,
-      how: `${vaulted.length === missing.length ? "Vaulted" : `${vaulted.length} of ${missing.length} missing parts vaulted`}: ${covered ? `your relics cover ${covered} of ${missing.length}` : "only from relics you'd have to trade for"}.${buy}`,
+      how: `${vaulted.length === missing.length ? "Vaulted" : `${vaulted.length} of ${missing.length} missing parts vaulted`}: ${covered ? `your relics cover ${covered} of ${missing.length}` : "only from relics you'd have to trade for"}.${buy}${also}`,
       available: covered > 0 || resurgence.length > 0,
     };
   }
   return {
     ...base,
     method: "relics",
-    difficulty: covered === missing.length ? 2 : 3,
-    how: `${missing.length} missing part${missing.length === 1 ? "" : "s"} from ${resurgence.length ? "relics, some only from Varzia" : "relics still in the drop tables"}${covered ? `; you own relics for ${covered === missing.length ? "all of them" : `${covered} of ${missing.length}`}` : ""}.${buy}`,
+    // Never easier than the one with every relic part in hand and the weapons missing (3).
+    difficulty: Math.max(lacking.length ? 3 : 0, covered === missing.length ? 2 : 3),
+    how: `${missing.length} missing part${missing.length === 1 ? "" : "s"} from ${resurgence.length ? "relics, some only from Varzia" : "relics still in the drop tables"}${covered ? `; you own relics for ${covered === missing.length ? "all of them" : `${covered} of ${missing.length}`}` : ""}.${buy}${also}`,
     available: true,
   };
 }

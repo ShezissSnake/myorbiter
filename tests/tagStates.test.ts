@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildTag, type BuildTier, type TagForm } from "../src/lib/core/buildPlan";
+import { buildTag, type ReadyTier, type TagForm } from "../src/lib/core/buildPlan";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const css = readFileSync(join(root, "src/app.css"), "utf8");
@@ -47,7 +47,7 @@ function toneColours(tone: string): { color: string; background: string } {
 }
 
 test("every build state's tag has words and a tone app.css draws readably (4.5:1)", () => {
-  const tiers: BuildTier[] = ["now", "farm", "hard", "parts"];
+  const tiers: ReadyTier[] = ["now", "farm", "hard", "parts", "unchecked"];
   const forms: TagForm[] = ["card", "row", "sheet"];
   const shorts = [[], ["Orokin Cell"], ["Narmer Isoplast", "Anomaly Shard"], ["A", "B", "C"]];
   for (const tier of tiers) for (const form of forms) for (const short of shorts) {
@@ -69,6 +69,7 @@ test("the card's own wording: the gold farm tag says it", () => {
   assert.equal(buildTag("farm").tone, "warn");
   assert.equal(buildTag("hard").label, "Parts ready · rare resources");
   assert.equal(buildTag("now").label, "Can build now");
+  assert.equal(buildTag("unchecked").label, "Parts ready", "every part in hand, resources not counted: it doesn't say 'Can build now'");
   assert.equal(buildTag("farm", ["Orokin Cell", "Morphics"], "row").label, "Parts ready · farm Orokin Cell +1");
   assert.equal(buildTag("hard", [], "row").label, "Parts ready · rare resources", "a row with nothing named still has words");
 });
