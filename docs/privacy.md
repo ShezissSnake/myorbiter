@@ -337,8 +337,13 @@ github.com's page does with what you type or paste there before you press Submit
 it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
-and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your
-user name in paths and players' names hidden.
+and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids and
+players' names hidden. In a path, wherever it points (your home folder, another drive, a mount or a
+network share), every folder name in a path that could name you, your computer or a drive is hidden
+(`/mnt/[drive]/[folder]/Warframe/EE.log`); the file's name, the kind of place (a drive letter,
+`/mnt`, `~`) and the folders Steam, Proton, the game and MyOrbiter make stay. The prices of listings
+and sales are kept: they are public on warframe.market and help find a repricing fault. Your
+balance (the platinum, credits or Endo you hold) is never in them.
 
 ## Links
 

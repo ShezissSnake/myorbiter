@@ -4,7 +4,8 @@
 // survives the cleaning.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
@@ -78,6 +79,95 @@ test("Open on GitHub opens the issue form with only the version, system and arch
   assert.match(ui, /const reading = \$derived\(\(env == null && !envFailed\)/, "not opened before the version is read");
 });
 
+test("docs/privacy.md names the address as newIssuePage builds it", () => {
+  const doc = readFileSync("docs/privacy.md", "utf8");
+  const from = doc.indexOf("\n## Reporting a bug\n");
+  assert.ok(from >= 0, "privacy.md has its Reporting a bug section");
+  const para = doc.slice(from, doc.indexOf("\n## ", from + 1)).replace(/\s+/g, " ");
+  // What the page's address carries, written with placeholders: built by the app with the same ones.
+  const u = new URL(newIssuePage({ version: "<version>", os: "<system>", arch: "<architecture>" }));
+  assert.deepEqual([...u.searchParams.keys()], ["template", "build"]);
+  assert.ok(para.includes(`\`template=${u.searchParams.get("template")}\``), "the template parameter");
+  assert.ok(para.includes(`(\`build=${u.searchParams.get("build")}\`)`), `the build parameter, as ${u.searchParams.get("build")}`);
+  // And what the details leave out, as redact.ts does it.
+  assert.match(para, /every folder name in a path that could name you, your computer or a drive is hidden/);
+  assert.match(para, /prices of listings and sales are kept/);
+  assert.match(para, /your balance .*is never in them/i);
+});
+
+test("paths anywhere: the name part is hidden, what a bug hunter needs stays", () => {
+  const cases: [string, string][] = [
+    // Linux, another drive or mount: the label and any folder of the player's own go.
+    ["found at /mnt/ExampleDisk/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log", "found at /mnt/[drive]/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log"],
+    ["couldn't open /run/media/someone/EXAMPLE 64/Games/stuff: No such file", "couldn't open /run/media/[user]/[drive]/Games/[folder]: No such file"],
+    ["copied /srv/examplebox/orbiter-data to /data2/someone/myorbiter (the folder before the rename stays as it was)", "copied /srv/[folder]/[folder] to /[folder]/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    ["/Volumes/Example SSD/Warframe/EE.log", "/Volumes/[drive]/Warframe/EE.log"],
+    ["~/Games/ExampleStuff/Warframe/EE.log", "~/Games/[folder]/Warframe/EE.log"],
+    ["started /tmp/.mount_orbitAbC123/usr/bin/tennoscope, the one inside MyOrbiter", "started /tmp/[folder]/usr/bin/tennoscope, the one inside MyOrbiter"],
+    // Windows, either slash, with spaces, bare and in quotes.
+    ["found at D:\\Example Games\\Warframe\\Downloaded\\Public\\EE.log", "found at D:\\[folder]\\Warframe\\Downloaded\\Public\\EE.log"],
+    ["found at D:/ExampleStuff/Warframe/EE.log.", "found at D:/[folder]/Warframe/EE.log."],
+    ['opened "E:\\Example Person Backup\\Warframe Stuff\\EE log copy.txt" ok', 'opened "E:\\[folder]\\[folder]\\EE log copy.txt" ok'],
+    ["opened 'E:/Example Person/Program Files (x86)/Steam/x' ok", "opened 'E:/[folder]/Program Files (x86)/Steam/[folder]' ok"],
+    ["C:\\Program Files (x86)\\Steam\\steamapps\\common\\Warframe\\Tools\\Launcher.exe", "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Warframe\\Tools\\Launcher.exe"],
+    // A network share's computer, a JSON string's doubled backslashes, file addresses.
+    ["\\\\EXAMPLE-PC\\Games\\Warframe\\EE.log", "\\\\[host]\\Games\\Warframe\\EE.log"],
+    ['{"path":"C:\\\\Games\\\\Someone\\\\EE.log"}', '{"path":"C:\\\\Games\\\\[folder]\\\\EE.log"}'],
+    ["file:///C:/Users/Someone/Desktop/x.html and file:///mnt/ExampleDisk/x.txt", "file:///C:/Users/[user]/Desktop/x.html and file:///mnt/[drive]/x.txt"],
+    // Wine's own folders keep Proton's user name; another prefix's is hidden.
+    ["/prefix/drive_c/users/someone/AppData and Z:\\home\\someone\\Games\\Warframe", "/prefix/drive_c/users/[user]/AppData and Z:\\home\\[user]\\Games\\Warframe"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Not files' paths: addresses, the game's item paths, chat commands, a line and column, prose.
+  for (const kept of [
+    "PATCH /v2/order/[id]: ok",
+    "GET /v1/profile/[player]/reviews: 429, slowing down",
+    "couldn't open https://warframe.market/items/ash_prime_set: refused",
+    "Error at https://tauri.localhost/assets/index-AbC.js:1:2 (Orders.svelte:120)",
+    "no price for /Lotus/Types/Items/MiscItems/PrimeBucks",
+    "type the name after /w, and/or 3/4 of R5/6 / done",
+  ])
+    assert.equal(redact(kept), kept, kept);
+  // A name of the player's own in a folder of a bigger path, wherever it is.
+  assert.ok(!redact("game at /media/someone/ExampleLabel/ExampleFolder/Warframe/EE.log").match(/someone|Example/));
+});
+
+test("a balance never reaches the details; listing and sale prices stay", () => {
+  // No line that goes into the log is written with the player's balance (the wallet the inventory
+  // read gives: settings.game.platinum, credits, endo): every call that writes the log, a notice or
+  // a note, here and in the Rust, is read for it.
+  const files = (dir: string, ext: RegExp): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name), ext) : ext.test(e.name) ? [join(dir, e.name)] : []));
+  const writers = /\blogLine\(|\blog::(?:info|warn|error|debug|log)!\(|\bnotify\(|\bnotice\(|\bthis\.note\(/;
+  const wallet = /\b(?:game|g)\.(?:platinum|credits|endo)\b|\bPremiumCredits|\bRegularCredits|\bFusionPoints|statusNow\.plat\b/;
+  const found: string[] = [];
+  for (const f of [...files("src", /\.(?:ts|svelte)$/), ...files("src-tauri/src", /\.rs$/), ...files("crates/myorbiter-data/src", /\.rs$/)]) {
+    readFileSync(f, "utf8").split("\n").forEach((line, i) => {
+      if (writers.test(line) && wallet.test(line)) found.push(`${f}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(found, [], "a log line built from the balance");
+  // And any line that says one anyway is cleaned.
+  const cases: [string, string][] = [
+    ["you have 1,234 platinum", "you have [balance] platinum"],
+    ["You now hold 12k credits", "You now hold [balance] credits"],
+    ["your credits: 3,000,000; your platinum is 512", "your credits: [balance]; your platinum is [balance]"],
+    ['{"PremiumCredits": 512, "RegularCredits":1200, "FusionPoints":"40000"}', '{"PremiumCredits": [balance], "RegularCredits":[balance], "FusionPoints":"[balance]"}'],
+    ["balance=99 wallet: 12", "balance=[balance] wallet: [balance]"],
+    ["1234 platinum, as of the last inventory read", "[balance] platinum, as of the last inventory read"],
+  ];
+  for (const [input, want] of cases) assert.equal(redact(input), want, input);
+  for (const kept of ["You sold Mesa Prime Set to [player] for 120 platinum", "Ash Prime Set: 20p from [player] (usually 40p)", "Platinum x 17", "You have 3 listings up on warframe.market", "Listed 2× Ash Prime Set at 30p", "Ash Prime Set: 30p → 25p, down to the cheapest seller", "listing: 2 at 30p; 5 held, 3 spare"])
+    assert.equal(redact(kept), kept, kept);
+  // The whole block, from the fixture's log with a balance and paths on other drives in it.
+  const extra = ["[2026-11-04][10:00:09][inventory][INFO] you have 1,234 platinum", "[2026-11-04][10:00:10][ee_log][INFO] found at /mnt/ExampleDisk/Games/Warframe/EE.log", "[2026-11-04][10:00:11][app][WARN] couldn't open D:\\Example Games\\Warframe\\EE.log: denied"];
+  const text = detailsText(buildReport({ what: "x", steps: "", expected: "" }, details([...LOG, ...extra]), NAMES).details!);
+  for (const gone of ["1,234", "ExampleDisk", "Example Games"]) assert.ok(!text.includes(gone), `${gone} is hidden`);
+  for (const kept of ["for 120 platinum", "found at /mnt/[drive]/Games/Warframe/EE.log", "couldn't open D:\\[folder]\\Warframe\\EE.log: denied"]) assert.ok(text.includes(kept), `keeps: ${kept}`);
+});
+
 test("the text to paste: the form's sections and the details as text", () => {
   const r = buildReport({ what: "Orders froze.\nAfter Reprice.", steps: "1. Open Orders\n2. Reprice", expected: "Prices change" }, details());
   assert.equal(r.title, "Orders froze");
@@ -119,7 +209,8 @@ test("hostile text: tokens, cookies, e-mails, webhooks, ids and IPs in any shape
     ["hook https://hooks.slack.com/services/T000/B000/XXXX and https://example.com/api/webhooks/1/2", /^hook \[redacted webhook\] and \[redacted webhook\]$/],
     ["from 10.0.0.12 and 2001:db8:85a3::8a2e:370:7334", /^from \[ip\] and \[ip\]$/],
     ["C:\\Users\\Jane Doe\\AppData\\Local", /^C:\\Users\\\[user\]\\AppData\\Local$/],
-    ["/Users/jane/Library and /var/home/jane/x", /^\/Users\/\[user\]\/Library and \/var\/home\/\[user\]\/x$/],
+    // A folder name that isn't one everybody has is hidden too, the last one included ("x").
+    ["/Users/jane/Library and /var/home/jane/x", /^\/Users\/\[user\]\/Library and \/var\/home\/\[user\]\/\[folder\]$/],
     ["id 5f1e2d3c4b5a69788796a5b4 and opaque Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5", /^id \[id\] and opaque \[id\]$/],
     ["/invite SomeFriend and /w OtherOne hi", /^\/invite \[player\] and \/w \[player\] hi$/],
     [".../pfx/drive_c/users/steamuser/AppData and /prefix/drive_c/users/alice/AppData", /^\.\.\.\/pfx\/drive_c\/users\/steamuser\/AppData and \/prefix\/drive_c\/users\/\[user\]\/AppData$/],

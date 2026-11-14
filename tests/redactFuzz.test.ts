@@ -30,6 +30,7 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
   const ip = `${r.int(11, 223)}.${r.int(0, 255)}.${r.int(0, 255)}.${r.int(1, 254)}`;
   const jwt = `eyJ${hex(r, 12)}.${hex(r, 20)}.${hex(r, 16)}`;
   const token = hex(r, 8) + "Zq" + hex(r, 8);
+  const balance = `${r.int(10, 99)},${r.int(100, 999)}`;
   return [
     { text: casing(r, self), must: [self.toLowerCase()] },
     { text: `sold Ash Prime Set to ${casing(r, other)}`, must: [other.toLowerCase()] },
@@ -44,6 +45,14 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
     { text: hex(r, 24), must: [] }, // checked as "no 16+ hex run" below
     { text: `/home/${user}/.local/share/x`, must: [`/home/${user}`] },
     { text: `C:\\Users\\${user} Name\\AppData`, must: [`Users\\${user}`] },
+    // Paths outside a home folder: a drive's label, a folder of the player's own, a share's computer.
+    { text: `/mnt/${user}/SteamLibrary/steamapps/common/Warframe/EE.log`, must: [user] },
+    { text: `D:${r.pick(["\\", "/"])}${user} Games${r.pick(["\\", "/"])}Warframe${r.pick(["\\", "/"])}EE.log`, must: [user] },
+    { text: `"E:/${user} Stuff/x y/EE.log"`, must: [user] },
+    { text: `\\\\${user}-PC\\Games\\Warframe`, must: [user] },
+    { text: `~/Games/${user}/Warframe/EE.log`, must: [user] },
+    // A balance, in a shape it could take.
+    { text: `you have ${balance} platinum`, must: [balance] },
     { text: `/profile/${other}`, must: [other.toLowerCase()] },
   ];
 }
