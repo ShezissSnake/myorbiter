@@ -61,6 +61,13 @@ These are bundled with MyOrbiter but are not covered by its licence:
   copies them from Ubuntu), and those inside the TennoScope AppImage that the `.deb` carries: each
   under its own licence, with its copyright file in the download's `THIRD-PARTY-NOTICES/linux/`.
 
+## The riven price model
+
+`src/lib/data/riven-model.json`, which the Rivens page's Estimate uses, is MyOrbiter's own and under
+its licence. It was fitted on about 80,000 public riven listings read from warframe.market
+(`scripts/riven-model/README.md`). It holds the numbers the fitting produced and six sample listings
+used to test it, with no seller's name or id.
+
 ## Source of the bundled GPL and LGPL libraries
 
 Some of those libraries are under the GPL or the LGPL (JBIG-KIT, GLib, the GCC runtime and others).
