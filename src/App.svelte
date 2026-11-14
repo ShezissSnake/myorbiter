@@ -358,7 +358,7 @@
   });
   // The market follows your platform; a new one means new order books and prices.
   $effect(() => {
-    void mkt.usePlatform(settings.market.platform).catch(() => {});
+    void mkt.usePlatform(settings.market.platform, settings.market).catch(() => {});
   });
   // Switching to or from a console changes what an empty TennoScope folder means.
   let wasConsole: boolean | null = null;
@@ -3397,6 +3397,10 @@
   .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); padding: 0 8px; }
   .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
+  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
+     picture without pointing at it; its name is the picture and the tooltip. */
+  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 8px; padding: 0 10px; }
+  .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   .tools.grid :global(.tool.on) { box-shadow: inset 0 -2px 0 var(--platinum); }
   .tools.grid .bell .count { position: absolute; top: -2px; right: 4px; margin: 0; }
   .tools.grid .bell.paused::after { left: 50%; }

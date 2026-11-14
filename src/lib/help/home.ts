@@ -54,7 +54,7 @@ const CARDS: Walkthrough = {
       title: "Needs you",
       lines: [
         "Alerts and invasions paying toward gear you haven't mastered, in gold; rare rewards too.",
-        "Marks as on the reward screen: need, completes set, wishlist, held; none for resources.",
+        "Each reward marked: need, completes set, wishlist, held. Resources get none.",
         "× dismisses one for good, with a few seconds to undo.",
         "Listings for more than you hold, a status problem and Varzia's rotation ending show too.",
       ],

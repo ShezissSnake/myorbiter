@@ -394,10 +394,10 @@ const ORDERS_AUTO: Walkthrough = {
     {
       title: "Checking and changing prices",
       lines: [
-        "Check automatically only reads prices, every minute to once a week.",
-        "Apply automatically sends past a 2p and 5% gap, or up to a floor.",
+        "Check automatically only reads prices, every minute to weekly.",
+        "Apply automatically sends past a 2p/5% gap, or up to your own floor or Never under.",
         `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, nor your floors; never more than halved.`,
-        "Per listing: hourly at most, six a day. A missed check runs once after restart.",
+        "Per listing: hourly at most, six a day. Missed checks run once after restart.",
       ],
       shot: {
         open: "market",

@@ -11,6 +11,11 @@
 // that went back) counts as due, as no saved time does: one check, as on every start before.
 
 /** The intervals offered, in minutes: every 1, 2, 5, 10, 15 and 30 minutes, every hour, 2, 6 and 12 hours, once a day, once a week. */
+/** Only intervals over this many minutes save the time of the last check in the settings: a save
+ *  (and the redraw of hidden pages it brings) then comes at most once an hour. */
+export const SAVED_ABOVE_MIN = 60;
+export const savesCheck = (every: number | undefined): boolean => every != null && every > SAVED_ABOVE_MIN;
+
 export const EVERY_CHOICES = [1, 2, 5, 10, 15, 30, 60, 120, 360, 720, 1440, 10080] as const;
 
 /** The interval from a saved file: one of the choices, or `fallback`. */

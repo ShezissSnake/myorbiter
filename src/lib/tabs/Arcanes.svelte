@@ -145,8 +145,9 @@
   const toDissolve = $derived(spares.filter((x) => x.verdict === "dissolve"));
   const held = $derived(vosforHeld(model));
   const gain = $derived(toDissolve.reduce((n, x) => n + (x.vosfor ?? 0), 0));
-  /** Still collecting: the packs that can give arcanes you still need, most of them first; and those with none. */
-  const toOpen = $derived([...packs].filter((p) => p.wanted.length).sort((a, b) => b.wanted.length - a.wanted.length || b.needCopies - a.needCopies));
+  /** Still collecting: the packs that can give arcanes you still need, by how many of a pack's three are
+   *  ones you need on average (packValues' needCopies, the figure each row shows); and those with none. */
+  const toOpen = $derived([...packs].filter((p) => p.wanted.length).sort((a, b) => b.needCopies - a.needCopies || b.wanted.length - a.wanted.length));
   const done = $derived(packs.filter((p) => !p.wanted.length));
   const rankedPacks = $derived([...packs].sort((a, b) => (lens === "need" ? b.needPlat - a.needPlat || b.needCopies - a.needCopies : b.plat - a.plat)));
   const short = (pack: string) => pack.replace(/ Arcane Collection$/, "");
@@ -309,8 +310,8 @@
       <HelpMark part="arcanes.open" />
     </header>
     {#if toOpen.length}
-      <p class="lead">Open <b>{short(toOpen[0].name)}</b> packs first: {toOpen[0].wanted.length} of the arcanes you're still collecting come from them{toOpen.length > 1 ? `, then ${toOpen.slice(1, 3).map((p) => `${short(p.name)} (${p.wanted.length})`).join(", ")}` : ""}.</p>
-      <p class="small dim">Each pack at Loid costs 200 Vosfor and gives 3 arcanes from its collection, so the more of a collection you still need, the likelier a pack holds one. You hold {held.toLocaleString("en")} Vosfor: {Math.floor(held / 200)} pack{Math.floor(held / 200) === 1 ? "" : "s"}.</p>
+      <p class="lead">Open <b>{short(toOpen[0].name)}</b> packs first: about {toOpen[0].needCopies.toFixed(1)} of each pack's 3 arcanes are ones you're still collecting{toOpen.length > 1 ? `, then ${toOpen.slice(1, 3).map((p) => `${short(p.name)} (${p.needCopies.toFixed(1)})`).join(", ")}` : ""}.</p>
+      <p class="small dim">Each pack at Loid costs 200 Vosfor and gives 3 arcanes from its collection, so the larger the share of a collection you still need, the more of each pack you can use. You hold {held.toLocaleString("en")} Vosfor: {Math.floor(held / 200)} pack{Math.floor(held / 200) === 1 ? "" : "s"}.</p>
       <ol class="openlist">
         {#each toOpen as p (p.name)}
           <li>

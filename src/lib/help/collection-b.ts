@@ -144,7 +144,7 @@ const ARCANES_OPEN: Walkthrough = {
     {
       title: "Which packs to open",
       lines: [
-        "First: the pack that can give the most arcanes you're still collecting.",
+        "First: the pack whose three arcanes are most often ones you're still collecting.",
         "Each pack: how many you still need from it, and those arcanes.",
         "About n of each pack's 3: on average, how many of its arcanes you need.",
         "Packs with nothing you need are named at the foot. Each costs 200 Vosfor.",

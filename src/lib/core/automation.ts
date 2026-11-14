@@ -12,8 +12,8 @@ export const AUTO_REP_LINE =
   "Off unless you turn it on. On: each player you trade with in game gets +rep on warframe.market, a review on their profile with your +rep message, posted as you, once per player. Off: a +rep button shows after each trade instead.";
 
 /** The two lines above, short enough for Orders' automatic panel (the full lines are the switches' tooltips). */
-export const AUTO_TRADES_SHORT = "Off unless you turn it on. A trade in game that gave items for platinum marks its listing sold on warframe.market and logs the sale.";
-export const AUTO_REP_SHORT = "Off unless you turn it on. Each trade partner gets +rep on warframe.market, posted as you, once per player; off, a +rep button shows instead.";
+export const AUTO_TRADES_SHORT = "Off unless you turn it on. A sale in game marks its listing sold on warframe.market and logs it.";
+export const AUTO_REP_SHORT = "Off unless you turn it on. Each partner gets +rep on warframe.market once, posted as you.";
 
 /** `lastCopy.optIn`: listings with one copy hidden on warframe.market while someone whispers you. */
 export const LAST_COPY_LINE =

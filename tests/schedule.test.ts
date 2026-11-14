@@ -85,3 +85,10 @@ test("Next check: the time today, the day too when it isn't today", () => {
   assert.match(whenWords(now + DAY, now), /^\D+ /);
   assert.notEqual(whenWords(now + DAY, now), whenWords(now + 2 * HOUR, now));
 });
+
+test("Next check: a week away names the date too, not only a weekday that reads as today's", () => {
+  const now = new Date(2026, 10, 14, 9, 0).getTime();
+  assert.match(whenWords(now + 7 * DAY, now), /\b21\b/, "the 21st");
+  // Within six days, the weekday alone.
+  assert.doesNotMatch(whenWords(now + 3 * DAY, now), /\b17\b/);
+});

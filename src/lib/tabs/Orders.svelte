@@ -908,7 +908,7 @@
           <section class="pg" aria-labelledby="auto-apply-h">
             <h3 class="register" id="auto-apply-h">Changing prices</h3>
             <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
-            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under a floor: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under your own floor or Never under: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
             <p class="dim small why">Never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved, nor under the floors below; more than halving waits for Reprice. {GREY_AREA}.</p>
             <div class="grp">
               <span class="register">Floor</span>
