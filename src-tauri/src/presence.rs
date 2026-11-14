@@ -236,56 +236,103 @@ fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receive
     clear_heartbeat(id);
 }
 
-/// How the sockets reach warframe.market: straight, or through the proxy set in the environment,
-/// the one the HTTP agent uses (`http_agent` in lib.rs: ureq reads ALL_PROXY, HTTPS_PROXY and
-/// HTTP_PROXY, upper case then lower, the first it accepts, and not NO_PROXY).
+/// How MyOrbiter reaches the network: straight, or through the proxy set in the environment. One
+/// choice for the HTTP agent (`http_agent` in lib.rs) and the sockets, so they can't differ: from
+/// ALL_PROXY, HTTPS_PROXY and HTTP_PROXY, upper case then lower (ureq's order); NO_PROXY isn't read.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum Route {
     Direct,
     /// An HTTP proxy, asked for a tunnel (CONNECT), with `user:password` if the address gives them.
     Http { host: String, port: u16, login: Option<String> },
-    /// A proxy MyOrbiter can't use (SOCKS: the HTTP agent can't either, so no request goes out at
-    /// all). The sockets don't go around it.
+    /// A proxy set that MyOrbiter can't use: nothing is sent, neither through it nor around it.
+    /// The reason, as the log and the page give it (`unusable`).
     Unusable(String),
 }
 
 const PROXY_VARS: [&str; 6] = ["ALL_PROXY", "all_proxy", "HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy"];
 
-/// The route from the environment's variables (`var` reads one), chosen as ureq chooses the HTTP
-/// agent's proxy: the first variable whose address ureq accepts.
-pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
-    for name in PROXY_VARS {
-        let Some(value) = var(name) else { continue };
-        if ureq::Proxy::new(&value).is_err() {
-            continue;
-        }
-        let v = value.trim_end_matches('/');
-        let (scheme, rest) = v.split_once("://").unwrap_or(("http", v));
-        if scheme != "http" {
-            return Route::Unusable(scheme.to_string());
-        }
-        let (login, address) = match rest.rsplit_once('@') {
-            Some((l, a)) => (Some(l.to_string()), a),
-            None => (None, rest),
-        };
-        let mut parts = address.split(':');
-        let host = parts.next().unwrap_or_default().to_string();
-        let port = match parts.next().map(str::parse::<u32>) {
-            Some(Ok(p)) => p,
-            _ => 80,
-        };
-        return match u16::try_from(port) {
-            Ok(port) => Route::Http { host, port, login },
-            Err(_) => Route::Unusable(format!("port {port}")),
-        };
-    }
-    Route::Direct
+/// Why an address set can't be used: a few fixed words, never the address itself (it may carry a
+/// login).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unfit {
+    Https,
+    Socks,
+    NoPassword,
+    Unreadable,
 }
 
-/// The route as the environment had it at start, like the HTTP agent's.
-fn route() -> Route {
+/// The reason a route stops on: the variable, what it holds, and what works instead.
+fn unusable(name: &str, unfit: Unfit) -> String {
+    let what = match unfit {
+        Unfit::Https => "an https:// proxy",
+        Unfit::Socks => "a SOCKS proxy",
+        Unfit::NoPassword => "a proxy address with a user name but no password",
+        Unfit::Unreadable => "an address MyOrbiter can't read as a proxy",
+    };
+    format!(
+        "{name} is set to {what}, so MyOrbiter sends nothing: only an http:// proxy works (http://host:port, with user:password@ before the host if it asks for a sign-in). Change or remove {name}, then start MyOrbiter again."
+    )
+}
+
+/// One address read as an HTTP proxy, or why it can't be used.
+fn read_proxy(value: &str) -> Result<Route, Unfit> {
+    let (scheme, rest) = match value.split_once("://") {
+        Some((s, r)) => (Some(s.to_ascii_lowercase()), r),
+        None => (None, value),
+    };
+    match scheme.as_deref() {
+        None | Some("http") => {}
+        Some("https") => return Err(Unfit::Https),
+        Some("socks" | "socks4" | "socks4a" | "socks5" | "socks5h") => return Err(Unfit::Socks),
+        Some(_) => return Err(Unfit::Unreadable),
+    }
+    let rest = rest.trim_end_matches('/');
+    let (login, address) = match rest.rsplit_once('@') {
+        // ureq sends a login only as `user:password`.
+        Some((l, _)) if !l.contains(':') => return Err(Unfit::NoPassword),
+        Some((l, a)) => (Some(l.to_string()), a),
+        None => (None, rest),
+    };
+    let (host, port) = match address.split_once(':') {
+        Some((h, p)) => (h, p.parse::<u16>().map_err(|_| Unfit::Unreadable)?),
+        None => (address, 80),
+    };
+    if host.is_empty() || port == 0 || !host.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_')) {
+        return Err(Unfit::Unreadable);
+    }
+    Ok(Route::Http { host: host.to_string(), port, login })
+}
+
+/// The route from the environment's variables (`var` reads one; an empty value counts as not
+/// set). The first usable HTTP proxy, as ureq took it before; a SOCKS one stops there, as it
+/// did. Any other address set that can't be used (https://, one that doesn't read) is passed over
+/// for a usable one that follows, but never for going straight: with none, the route stops on
+/// the first.
+pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
+    let mut first_unfit = None;
+    for name in PROXY_VARS {
+        let Some(value) = var(name) else { continue };
+        let value = value.trim();
+        if value.is_empty() {
+            continue;
+        }
+        match read_proxy(value) {
+            Ok(route) => return route,
+            Err(Unfit::Socks) => return Route::Unusable(unusable(name, Unfit::Socks)),
+            Err(unfit) => {
+                first_unfit.get_or_insert((name, unfit));
+            }
+        }
+    }
+    first_unfit.map_or(Route::Direct, |(name, unfit)| Route::Unusable(unusable(name, unfit)))
+}
+
+/// The route as the environment had it at start: the HTTP agent's and the sockets'.
+pub(crate) fn route() -> Route {
     static ROUTE: std::sync::OnceLock<Route> = std::sync::OnceLock::new();
-    ROUTE.get_or_init(|| route_from(|name| std::env::var(name).ok())).clone()
+    // A value that isn't Unicode is set all the same: read as one that can't be used ("\0" never
+    // reads as an address), not as none.
+    ROUTE.get_or_init(|| route_from(|name| std::env::var_os(name).map(|v| v.into_string().unwrap_or_else(|_| "\0".into())))).clone()
 }
 
 /// Opens a WebSocket with time limits: `tungstenite::connect` has none, so a connection or TLS
@@ -363,9 +410,7 @@ pub(crate) fn connect_by(
             tunnel(&mut s, &format!("{host}:{port}"), agent, login.as_deref())?;
             s
         }
-        Route::Unusable(what) => {
-            return Err(tungstenite::Error::Io(std::io::Error::new(std::io::ErrorKind::Unsupported, format!("the proxy set ({what}) isn't one MyOrbiter can use"))))
-        }
+        Route::Unusable(why) => return Err(tungstenite::Error::Io(std::io::Error::new(std::io::ErrorKind::Unsupported, why.clone()))),
     };
     match tungstenite::client_tls_with_config(request, stream, None, None) {
         Ok((ws, _)) => Ok(ws),
@@ -559,7 +604,42 @@ mod tests {
         assert_eq!(route_from(env(&[("ALL_PROXY", "https://tls.example:443"), ("HTTPS_PROXY", "http://b:2")])), http("b", 2, None));
         assert_eq!(route_from(env(&[("ALL_PROXY", "http://nopassword@proxy.example:1"), ("HTTP_PROXY", "http://b:2")])), http("b", 2, None));
         // SOCKS: the agent can't use it, and the sockets don't go around it.
-        assert_eq!(route_from(env(&[("ALL_PROXY", "socks5://127.0.0.1:1080"), ("HTTPS_PROXY", "http://b:2")])), Route::Unusable("socks5".into()));
+        let why = stops(route_from(env(&[("ALL_PROXY", "socks5://127.0.0.1:1080"), ("HTTPS_PROXY", "http://b:2")]))).expect("SOCKS stops");
+        assert!(why.contains("ALL_PROXY") && why.contains("SOCKS"), "{why}");
+    }
+
+    /// The reason a route stops on, if it does.
+    fn stops(route: Route) -> Option<String> {
+        match route {
+            Route::Unusable(why) => Some(why),
+            _ => None,
+        }
+    }
+
+    #[test]
+    fn a_proxy_set_that_cant_be_used_stops_everything_and_says_why() {
+        let env = |pairs: &'static [(&'static str, &'static str)]| move |name: &str| pairs.iter().find(|(k, _)| *k == name).map(|(_, v)| v.to_string());
+        // An https:// proxy (TLS to the proxy): neither the agent nor the sockets speak it.
+        let why = stops(route_from(env(&[("HTTPS_PROXY", "https://tls.example:443")]))).expect("https:// stops");
+        assert!(why.contains("HTTPS_PROXY") && why.contains("https://") && why.contains("http://host:port"), "{why}");
+        // SOCKS with the name looked up by the proxy.
+        let why = stops(route_from(env(&[("all_proxy", "socks5h://127.0.0.1:1080")]))).expect("socks5h:// stops");
+        assert!(why.contains("all_proxy") && why.contains("SOCKS"), "{why}");
+        // Addresses that don't read as a proxy: never taken as port 80, never passed over.
+        for bad in ["http://", "proxy.example:notaport", "http://proxy.example:99999", "[::1]:3128", "ftp://proxy.example:21", "http://nopassword@proxy.example:1"] {
+            let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([("HTTP_PROXY", bad)]));
+            let why = stops(route_from(env(pairs))).unwrap_or_else(|| panic!("{bad} stops"));
+            assert!(why.contains("HTTP_PROXY") && why.contains("http://host:port"), "{bad}: {why}");
+        }
+        // The login never shows, whether the address reads or not.
+        for with_login in ["https://user:secret@tls.example:443", "socks5://user:secret@127.0.0.1:1080", "http://user:secret@proxy.example:port"] {
+            let pairs: &'static [(&'static str, &'static str)] = Box::leak(Box::new([("HTTPS_PROXY", with_login)]));
+            let why = stops(route_from(env(pairs))).unwrap_or_else(|| panic!("{with_login} stops"));
+            assert!(!why.contains("secret"), "{why}");
+        }
+        // An empty value counts as not set.
+        assert_eq!(route_from(env(&[("HTTPS_PROXY", "")])), Route::Direct);
+        assert_eq!(route_from(env(&[("ALL_PROXY", ""), ("HTTP_PROXY", "http://b:2")])), Route::Http { host: "b".into(), port: 2, login: None });
     }
 
     /// A stand-in proxy on 127.0.0.1: answers each CONNECT with `answer` and, on 200, joins the
@@ -636,7 +716,8 @@ mod tests {
         assert!(server.accept().is_err(), "nothing reached the target straight");
         // And a proxy MyOrbiter can't use: no connection at all.
         let request = format!("ws://127.0.0.1:{target}/socket").into_client_request().unwrap();
-        assert!(connect_by(request, &Route::Unusable("socks5".into())).is_err());
+        let e = connect_by(request, &route_from(|name| (name == "HTTPS_PROXY").then(|| "https://127.0.0.1:1".to_string()))).err().map(|e| e.to_string()).unwrap_or_default();
+        assert!(e.contains("HTTPS_PROXY is set to an https:// proxy"), "the reason, as given: {e}");
         assert!(server.accept().is_err());
     }
 

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { shownPage, whileShown, whileShownEvery } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
+  import { proxy } from "../proxy.svelte";
   import Opening from "../ui/Opening.svelte";
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
@@ -766,6 +767,11 @@
         <h2 class="mark">warframe.market refused the sign-in</h2>
         <p class="prose">It no longer accepts MyOrbiter's sign-in (it expired, or was signed out elsewhere). Sign out, then sign in again: listing and repricing wait until you do.</p>
         <div class="row"><button class="stamp" onclick={() => mkt.signOut()}>Sign out</button></div>
+      {:else if proxy.problem}
+        <!-- Nothing is sent while the proxy set can't be used: trying again would change nothing. -->
+        <h2 class="mark">Can't reach warframe.market</h2>
+        <p class="prose">You're signed in, but nothing is sent: {proxy.problem}</p>
+        <div class="row">{@render signOut()}</div>
       {:else}
         <h2 class="mark">Can't reach warframe.market</h2>
         <p class="prose">You're signed in, but warframe.market didn't answer: {mkt.accountError}. MyOrbiter tries again every minute; your listings and the repricer come back on their own.</p>

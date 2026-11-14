@@ -359,8 +359,22 @@ Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.wa
 hands an update download to `release-assets.githubusercontent.com` or
 `objects.githubusercontent.com`, gitlab.com may hand one to its file storage, and the Windows
 installer fetches Microsoft's WebView2 installer when WebView2 is missing; gitlab.com's and
-Microsoft's hosts are theirs to choose and weren't audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page
-covers what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK)
+Microsoft's hosts are theirs to choose and weren't audited.
+
+If you set a proxy (`ALL_PROXY`, `HTTPS_PROXY` or `HTTP_PROXY`, in capitals or not, read in that
+order), MyOrbiter's requests and its connections to warframe.market go through it. Only an
+`http://` proxy works (`http://host:port`, with `user:password@` before the host if it asks for a
+sign-in). When none set is one it can use (`https://`, SOCKS, an address that can't be read), or a
+SOCKS one comes before the first it can use, MyOrbiter sends nothing at all and says why, on the page and in its log, rather than going around it. `NO_PROXY` isn't read:
+nothing skips the proxy. The update check and its download, and TennoScope's web requests, choose
+for themselves from the same variables: they use `HTTPS_PROXY`, else `ALL_PROXY` (never
+`HTTP_PROXY`, their addresses all being https), take an `https://` proxy too, skip the proxy for
+the hosts `NO_PROXY` names, and go straight when the address can't be read; the update check also
+follows Windows' and macOS's own proxy settings when no variable is set. TennoScope's status
+connection, which opens only when you switch your status in TennoScope's own window, never goes
+through a proxy.
+
+This page covers what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK)
 does on its own wasn't audited. No telemetry, analytics or crash reporting is built in, and your
 records (sales, trades, value over time, settings) stay on this computer, in `settings.json`
 (below); single events reach warframe.market or Discord only as described above.

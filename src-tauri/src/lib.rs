@@ -220,10 +220,10 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 }
 
 /// One HTTP client for the whole app: connections (and TLS sessions) are kept and reused, and
-/// the system's certificates are loaded once instead of on every request. Honours ALL_PROXY,
-/// HTTPS_PROXY and HTTP_PROXY as they were at startup (ureq doesn't read NO_PROXY); tests, which
-/// only talk to this machine, use none. Only `request` uses it, so no request leaves without the
-/// User-Agent.
+/// the system's certificates are loaded once instead of on every request. Goes the way the
+/// sockets go (`presence::route`: the proxy set in the environment at startup, NO_PROXY unread);
+/// tests, which only talk to this machine, go straight. Only `request` uses it, so no request
+/// leaves without the User-Agent.
 ///
 /// Redirects are followed only where `REDIRECTS_FOLLOWED` names them: following any other would
 /// send the request (and its User-Agent) to whatever host the answer names. A redirect not
@@ -231,9 +231,43 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// caller takes its empty body for the answer.
 fn http_agent() -> ureq::Agent {
     static AGENT: OnceLock<ureq::Agent> = OnceLock::new();
-    AGENT
-        .get_or_init(|| ureq::AgentBuilder::new().try_proxy_from_env(!cfg!(test)).redirects(0).middleware(redirect_policy(REDIRECTS_FOLLOWED)).build())
-        .clone()
+    AGENT.get_or_init(|| agent_for(&if cfg!(test) { presence::Route::Direct } else { presence::route() })).clone()
+}
+
+/// The agent for `route`: through the HTTP proxy it names, straight, or, for a proxy set that
+/// can't be used, refusing every request before anything is looked up or sent, with the reason.
+/// ureq's own reading of the environment stays off, so the agent and the sockets can't differ.
+fn agent_for(route: &presence::Route) -> ureq::Agent {
+    let mut agent = ureq::AgentBuilder::new().try_proxy_from_env(false).redirects(0);
+    match route {
+        presence::Route::Direct => {}
+        presence::Route::Http { host, port, login } => {
+            let login = login.as_ref().map(|l| format!("{l}@")).unwrap_or_default();
+            match ureq::Proxy::new(format!("http://{login}{host}:{port}")) {
+                Ok(proxy) => agent = agent.proxy(proxy),
+                // `route_from` only gives addresses ureq reads; never straight all the same.
+                Err(_) => agent = agent.middleware(refuse("the proxy set couldn't be read, so MyOrbiter sends nothing".into())),
+            }
+        }
+        presence::Route::Unusable(why) => agent = agent.middleware(refuse(why.clone())),
+    }
+    agent.middleware(redirect_policy(REDIRECTS_FOLLOWED)).build()
+}
+
+/// A middleware that sends nothing: every request fails at once with `why`.
+fn refuse(why: String) -> impl Fn(ureq::Request, ureq::MiddlewareNext) -> Result<ureq::Response, ureq::Error> + Send + Sync + 'static {
+    move |_: ureq::Request, _: ureq::MiddlewareNext| Err(std::io::Error::other(why.clone()).into())
+}
+
+/// Why nothing is sent, when a proxy set in the environment can't be used (`presence::route`);
+/// none when no proxy is set or it can be used. For the page, which says it where it says a
+/// service can't be reached.
+#[tauri::command]
+fn proxy_problem() -> Option<String> {
+    match presence::route() {
+        presence::Route::Unusable(why) => Some(why),
+        _ => None,
+    }
 }
 
 /// The redirects MyOrbiter follows, each from one address to one other and nothing wider (https,
@@ -1606,6 +1640,10 @@ pub fn run() {
             }
             datamove::log_outcome();
             log::info!(target: "myorbiter::app", "MyOrbiter {} started on {} {}", app.package_info().version, std::env::consts::OS, std::env::consts::ARCH);
+            // Once a start: every request and connection then fails with these words.
+            if let Some(why) = proxy_problem() {
+                log::warn!(target: "myorbiter::app", "{why}");
+            }
             rendering::started();
             // Ctrl+C in a terminal, logout, `kill`: close the TennoScope MyOrbiter started, then exit
             // (Ctrl+Q and the window's X go through `quit` and RunEvent::Exit below instead).
@@ -1679,6 +1717,7 @@ pub fn run() {
             open_link,
             log_tail,
             report_env,
+            proxy_problem,
             tennoscope_failure,
             reward_cards,
             notify,
@@ -1975,6 +2014,37 @@ mod tests {
         assert!(!ok("http://cdn.warframestat.us/img/ash.png", "https://raw.githubusercontent.com/x"));
         assert_eq!(header_case("user-agent"), "User-Agent");
         assert_eq!(header_case("accept-language"), "Accept-Language");
+    }
+
+    /// The agent takes the route the sockets take (`presence::route_from`): a proxy set that can't
+    /// be used stops every request, with the reason, before anything is sent; a usable one is
+    /// asked; an empty value is no proxy.
+    #[test]
+    fn the_agent_stops_on_a_proxy_set_that_cant_be_used() {
+        let only = |name: &'static str, value: &'static str| move |n: &str| (n == name).then(|| value.to_string());
+        // A listener on 127.0.0.1 the request would reach if it went straight.
+        let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        target.set_nonblocking(true).unwrap();
+        let url = format!("http://{}/x", target.local_addr().unwrap());
+        for (name, value, words) in [
+            ("HTTPS_PROXY", "https://user:secret@127.0.0.1:1", "HTTPS_PROXY is set to an https:// proxy"),
+            ("ALL_PROXY", "socks5h://127.0.0.1:1", "ALL_PROXY is set to a SOCKS proxy"),
+            ("HTTP_PROXY", "127.0.0.1:notaport", "HTTP_PROXY is set to an address MyOrbiter can't read"),
+        ] {
+            let agent = agent_for(&presence::route_from(only(name, value)));
+            let e = agent.get(&url).call().err().map(|e| e.to_string()).unwrap_or_default();
+            assert!(e.contains(words) && e.contains("only an http:// proxy works") && !e.contains("secret"), "{value}: {e}");
+            assert!(target.accept().is_err(), "{value}: nothing went straight");
+        }
+        // Empty: no proxy, straight to the address.
+        let (straight, seen) = test_http::serve_once("{}");
+        assert!(agent_for(&presence::route_from(only("HTTPS_PROXY", ""))).get(&format!("{straight}/x")).call().is_ok());
+        assert!(seen.join().unwrap().starts_with("GET /x HTTP/1.1"));
+        // A usable one is asked for the address, by name: nothing looks the name up here.
+        let (proxy, seen) = test_http::serve_once("{}");
+        let proxy: &'static str = proxy.leak();
+        assert!(agent_for(&presence::route_from(only("http_proxy", proxy))).get("http://myorbiter-proxy-test.invalid/x").call().is_ok());
+        assert!(seen.join().unwrap().starts_with("GET http://myorbiter-proxy-test.invalid/x HTTP/1.1"));
     }
 
     /// An agent like `http_agent`'s, following the redirects `followed` names (127.0.0.1 ones here).

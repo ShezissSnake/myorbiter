@@ -9,6 +9,7 @@
   import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
   import { defaultAdvice } from "../backend";
+  import { proxy } from "../proxy.svelte";
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
@@ -68,7 +69,8 @@
   let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
-  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes.");
+  // A proxy set that can't be used: nothing is asked, and asking again won't change that.
+  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : (proxy.problem ?? "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes."));
 
   // Countdowns tick once a minute.
   let now = $state(Date.now());
@@ -610,7 +612,8 @@
       {:else if mkt.signInRefused}
         <p class="dim">warframe.market refused MyOrbiter's sign-in. Sign out on <button class="link" onclick={() => go("market")}>Orders</button>, then sign in again.</p>
       {:else if mkt.accountError}
-        <p class="dim">Signed in, but warframe.market can't be reached right now. MyOrbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
+        {#if proxy.problem}<p class="dim">Signed in, but warframe.market can't be reached: {proxy.problem}</p>
+        {:else}<p class="dim">Signed in, but warframe.market can't be reached right now. MyOrbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>{/if}
       {:else}
         <p class="dim">Not signed in to warframe.market. Sign in on <button class="link" onclick={() => go("market")}>Orders</button> to list, reprice and go online from here.</p>
       {/if}
@@ -644,7 +647,7 @@
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
-        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. MyOrbiter asks again every few minutes.</p>
+        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. {proxy.problem ?? "MyOrbiter asks again every few minutes."}</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
       {/if}
