@@ -358,7 +358,7 @@ const SELL: Walkthrough = {
         "Price each: the cheapest seller in game, raised to your minimum and floors; else blank.",
         "Sellers' asks in game, the daily median, and how many you can spare.",
         "Listed already? Add to it, not a second; a hidden one stays hidden.",
-        "Sending checks again: not under its minimum, not over what your inventory says is spare.",
+        "Sending checks again: its minimum, and what's spare, less copies your other listings already offer.",
       ],
       shot: {
         open: "market",
@@ -373,7 +373,7 @@ const SELL: Walkthrough = {
       },
     },
   ],
-  good: { warn: true, text: "Something on your never-sell list (Sell spares) isn't listed from here either." },
+  good: { warn: true, text: "Something on your never-sell list (Sell spares) isn't listed from here either, nor a set with a part on it, nor a part of a set on it." },
   covers: { sell: 1 },
 };
 
