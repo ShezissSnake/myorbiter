@@ -23,11 +23,11 @@ const SAME_SALE_MS = 6 * 3_600_000;
  * Your closed sell orders that the sale log doesn't have yet. A sale already logged for the same
  * item (and rank) within six hours is the same sale (one of the same quantity first, then the
  * nearest): it gets the order's id, so it's never imported twice, and keeps the platinum you
- * actually got. A part's closed order with no sale of that part is matched to a set sale of the
- * same trade time (within six hours) that the part is in (`setParts`): the parts were listed one
- * by one and sold together in one trade, which MyOrbiter logs as the set (foldSetSales). Its id
- * goes in the set sale's `wfmParts`. Returns the new log (newest first) and how many were added
- * and matched.
+ * actually got. A part's closed order with no sale of that part is matched to a set sale within
+ * six hours that the part is in (`setParts`), while the set has room for that part: part sales
+ * the fold turned into a set sale (foldSetSales: ones logged without a trade's key, by an older
+ * version or by hand) closed part listings that are now that one sale. Its id goes in the set
+ * sale's `wfmParts`. Returns the new log (newest first) and how many were added and matched.
  */
 export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (set: string) => { name: string; required: number }[] | null = () => null): { sales: Sale[]; added: number; matched: number } {
   const out = sales.map((s) => ({ ...s, ...(s.wfmParts ? { wfmParts: [...s.wfmParts] } : {}) }));

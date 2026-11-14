@@ -487,10 +487,11 @@ export const HAND_SALE_MS = 24 * 3_600_000;
 /**
  * The sales whose platinum a sale trade from the game log counts already, so revenue doesn't
  * count them twice, with how many of each sale's copies it counts. A sale a trade logged (or
- * matched) names it in `trade`: all of it. One logged by hand pairs with the nearest line of a
- * sale trade, within a day, of the same item at the same rank (sameSaleItem, as the trade marking
- * asks it) in a trade no sale names: as many copies as both have (copiesInCommon). Each line's
- * copies are counted once; the hand-logged sale's other copies are sales of their own.
+ * matched) names it in `trade`: all of it. One logged by hand pairs with the lines of sale
+ * trades, within a day, of the same item at the same rank (sameSaleItem, as the trade marking
+ * asks it) in trades no sale names, nearest first, for as many copies as both still have
+ * (copiesInCommon). Each line's copies and each sale's copies are counted once; the
+ * hand-logged sale's copies no line takes are sales of their own.
  */
 export function salesCoveredByTrades(sales: readonly Sale[], saleTrades: readonly TradeLogEntry[]): Map<Sale, number> {
   const out = new Map<Sale, number>();
@@ -511,10 +512,13 @@ export function salesCoveredByTrades(sales: readonly Sale[], saleTrades: readonl
       if (gap < HAND_SALE_MS && sameSaleItem(s, line.x)) pairs.push({ s, line, gap });
     }
   }
+  // Nearest first, each pair takes the copies both still have: a hand-logged sale of 2 can be
+  // one copy of each of two trades, as the trade marking splits it (placeTradeLine).
   for (const p of pairs.sort((a, b) => a.gap - b.gap)) {
-    if (out.has(p.s) || !p.line.left) continue;
-    const n = copiesInCommon(p.s, { count: p.line.left });
-    out.set(p.s, n);
+    const had = out.get(p.s) ?? 0;
+    const n = copiesInCommon({ quantity: p.s.quantity - had }, { count: p.line.left });
+    if (!n) continue;
+    out.set(p.s, had + n);
     p.line.left -= n;
   }
   return out;

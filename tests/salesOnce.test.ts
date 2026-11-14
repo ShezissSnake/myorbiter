@@ -3,7 +3,7 @@
 // click soon after a trade's own mark.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { foldSetSales, loggedForTrade, placeTradeLine, salesFromTrade, setPartsOf, tradeKey } from "../src/lib/core/trades";
+import { foldSetSales, loggedForTrade, placeTradeLine, salesFromTrade, setPartsOf, tradeKey, tradesReady, tradesToMark } from "../src/lib/core/trades";
 import { importClosed, type ClosedOrder } from "../src/lib/core/closedOrders";
 import { handLoggedSale } from "../src/lib/core/upkeep";
 import { buildModel } from "../src/lib/core/model";
@@ -96,6 +96,16 @@ test("a set sale's parts imported over two runs: each part's order is matched on
   assert.equal(importClosed(second.sales, [closedParts[2], closedParts[0], { ...closedParts[2], id: "c7" }], setPartsOf(m)).added, 1);
 });
 
+test("a set sale's room: an order no longer listed still takes a part's room, and an order's copies count", () => {
+  // All three parts matched before, one of their orders gone from the profile since: the set is full.
+  const full: Sale[] = [{ at, item: "Nekros Prime Set", rank: null, quantity: 1, platinum: 48, trade: "7|1", wfmParts: ["gone", "c1", "c2"] }];
+  assert.equal(importClosed(full, [closedParts[1], closedParts[2], closedParts[0]], setPartsOf(m)).added, 1, "a fourth part order is a sale of its own");
+  // Two sets in one trade; one order closed both Blueprints, so a third Blueprint isn't the set's.
+  const two: Sale[] = [{ at, item: "Nekros Prime Set", rank: null, quantity: 2, platinum: 48, trade: "7|1", wfmParts: ["c0"] }];
+  const both = { ...closedParts[0], quantity: 2 };
+  assert.deepEqual(importClosed(two, [both, { ...closedParts[0], id: "c9" }], setPartsOf(m)).added, 1);
+});
+
 test("a hand-logged sale of another rank is not the trade's sale", () => {
   // Sold ×1 of a maxed arcane on Orders, then three unranked copies traded in game.
   const hand: Sale[] = [{ at: 0, item: "Arcane Energize", rank: 5, quantity: 1, platinum: 60 }];
@@ -138,6 +148,31 @@ test("two Sold clicks of one each, then the trade of 2: both are the trade's, no
   assert.equal(revenue(sold, [trade]), 40, "and the same with marking off");
 });
 
+{
+  const line = (count: number) => ({ name: "Serration", rank: 10, count });
+  const trade = (key: string, t: number, count: number): TradeLogEntry => ({ key, at: t, partner: "Buyer1", offered: [line(count)], received: [], platOut: 0, platIn: 20 * count });
+  // [hand-logged copies and time, the trades (key, time, copies)], and the platinum they made.
+  const cases: [string, Sale, TradeLogEntry[], number][] = [
+    // "Sold several: 2", then two trades of 1 (one before it, one after).
+    ["Sold several: 2, then two trades of 1", { at: at + 5 * 60_000, item: "Serration", rank: 10, quantity: 2, platinum: 20 }, [trade("s|1", at, 1), trade("s|2", at + 10 * 60_000, 1)], 40],
+    // A sale of 3 by hand, then trades of 2 and 1.
+    ["3 logged by hand, then trades of 2 and 1", { at, item: "Serration", rank: 10, quantity: 3, platinum: 20 }, [trade("s|1", at + 60_000, 2), trade("s|2", at + 2 * 60_000, 1)], 60],
+  ];
+  for (const [name, hand, trades, platinum] of cases) test(`one hand-logged sale across two trades (${name}): the marking and Stats agree, marking on or off`, () => {
+    // Marking off: nothing claimed the sale; Stats pairs it itself.
+    assert.equal(revenue([hand], trades), platinum, `marking off, ${hand.quantity} by hand`);
+    // Marking on: each trade claims its copies, nothing is left to mark.
+    let sales: Sale[] = [hand];
+    for (const t of trades) {
+      const r = placeTradeLine(sales, loggedForTrade(sales, t.key), t.offered[0], t.at, t.key);
+      assert.equal(r.left, 0, `${t.key} marks nothing`);
+      sales = r.sales;
+    }
+    assert.equal(revenue(sales, trades), platinum, `marking on, ${hand.quantity} by hand`);
+    assert.equal(sales.reduce((n, s) => n + s.quantity, 0), hand.quantity, "no copy logged twice");
+  });
+}
+
 test("Stats pairs a hand-logged sale with a trade by the same rule: rank and copies", () => {
   // Marking off, so nothing claimed the hand-logged sale: Stats pairs it itself.
   const t = (offered: TradeLogEntry["offered"], platIn: number): TradeLogEntry => ({ key: "s|1", at: at + 5 * 60_000, partner: "Buyer1", offered, received: [], platOut: 0, platIn });
@@ -174,4 +209,15 @@ test("saved sales: an older record without the new fields loads as it was; damag
   assert.deepEqual(salesOf([fresh]), [fresh]);
   const bad = salesOf([{ ...fresh, wfmParts: "c0", lowered: { listing: 5, count: 0, at: "x" } }]);
   assert.deepEqual(bad, [{ at, item: "Nekros Prime Set", rank: null, quantity: 1, platinum: 48 }]);
+});
+
+test("trades wait for the collection: none is acted on before the model is built, and one 20 minutes old still is", () => {
+  const ready = { linked: true, ordersAt: at, items: 3 };
+  assert.equal(tradesReady({ ...ready, model: null }), false, "no model: wait, or a set handed over part by part is logged as parts");
+  assert.equal(tradesReady({ ...ready, model: m }), true);
+  assert.equal(tradesReady({ ...ready, ordersAt: null, model: m }), false, "listings not read yet: wait, as before");
+  // The model built 20 minutes after the trade: the trade is still acted on, as a set.
+  const t: Trade = { uptime: 1, at: at / 1000, partner: "Buyer1", offered: setTrade.offered, received: [], platinum_offered: 0, platinum_received: 48 };
+  assert.equal(tradesToMark([t], 7, [], at + 20 * 60_000, true).recent.length, 1);
+  assert.deepEqual(salesFromTrade(t, [], indexItems(items), m)!.map((s) => s.name), ["Nekros Prime Set"]);
 });

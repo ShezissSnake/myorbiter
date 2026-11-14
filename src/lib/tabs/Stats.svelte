@@ -128,8 +128,8 @@
       for (const x of xs) add(groupOf(x.name), k === "sale" ? "revenue" : "spent", ((k === "sale" ? t.platIn : t.platOut) * x.count) / n);
     }
     // Plus the copies sold that no logged trade covers: a sale names its trade when one logged or
-    // matched it; one logged by hand pairs with the nearest unclaimed trade of that item at that
-    // rank, within a day, for as many copies as both have.
+    // matched it; one logged by hand pairs with unclaimed trades of that item at that rank,
+    // within a day, nearest first, for as many copies as both have.
     const covered = salesCoveredByTrades(settings.market.sales, settings.market.trades.filter((t) => kindOf(t) === "sale"));
     for (const s of settings.market.sales) {
       const copies = s.quantity - (covered.get(s) ?? 0);
