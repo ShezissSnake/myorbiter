@@ -1,6 +1,7 @@
 // Bookkeeping for a session that stays open for hours: how long to wait after failures, how the
 // remembered lists stay bounded, and which hand-logged sale a trade from the game log stands for.
 import type { Sale, ValuePoint } from "../backend";
+import { copiesInCommon, sameSaleItem } from "./sameSale";
 
 /** `base`, doubled for each failure in a row (up to 2^6 times), never more than `cap`. */
 export const backoff = (base: number, failures: number, cap: number) => Math.min(cap, base * 2 ** Math.min(Math.max(0, failures), 6));
@@ -43,12 +44,20 @@ export function thinHistory(points: ValuePoint[], now = Date.now(), fullDays = 3
 export const SAME_SALE_MS = 10 * 60_000;
 
 /**
- * The sale you logged yourself (not from a trade) that this trade's sale already counts, or -1.
- * A hand-logged sale stands for one trade only: once a trade claims it (its `trade` is set), a
- * second sale of the same item minutes later is a sale of its own.
+ * The sale you logged yourself (not from a trade) that this trade's line already counts, or null:
+ * the nearest one of the same item at the same rank within ten minutes (sameSaleItem), and how
+ * many of the line's copies it stands for (copiesInCommon). A hand-logged sale stands for one
+ * trade only: once a trade claims it (its `trade` is set), a second sale of the same item minutes
+ * later is a sale of its own.
  */
-export function handLoggedSale(sales: Sale[], item: string, at: number): number {
-  return sales.findIndex((x) => x.trade == null && x.item === item && Math.abs(x.at - at) < SAME_SALE_MS);
+export function handLoggedSale(sales: Sale[], line: { name: string; rank: number | null; count: number }, at: number): { index: number; copies: number } | null {
+  let best = -1;
+  for (let i = 0; i < sales.length; i++) {
+    const x = sales[i];
+    if (x.trade != null || !sameSaleItem(x, line) || Math.abs(x.at - at) >= SAME_SALE_MS) continue;
+    if (best < 0 || Math.abs(x.at - at) < Math.abs(sales[best].at - at)) best = i;
+  }
+  return best < 0 ? null : { index: best, copies: copiesInCommon(sales[best], line) };
 }
 
 /** TennoScope's reason for not starting, and what to do about it where that's known. */

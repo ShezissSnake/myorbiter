@@ -298,6 +298,16 @@ export interface Sale {
   trade?: string;
   /** The warframe.market order this sale closed (imported from, or matched to, your profile's closed orders). */
   wfm?: string;
+  /**
+   * A set sale made of parts sold in one trade: the closed orders of those parts on
+   * warframe.market (listed one by one there), so importing them doesn't log the parts again.
+   */
+  wfmParts?: string[];
+  /**
+   * The listing the trade's marking lowered for this sale: its id, by how many copies, and when
+   * (milliseconds). A Sold click on that listing soon after asks first (soldAfterTrade).
+   */
+  lowered?: { listing: string; count: number; at: number };
 }
 
 export interface GameState {
