@@ -14,7 +14,9 @@
 // (findStretched); a last view, Current fissure's reward cards with the demo's Forma Blueprint and
 // every item picture swapped for a wide one, makes sure a picture well is tried with a picture
 // that isn't square. It also checks every tag drawn (`.tag`) for words, and for 4.5:1 between them
-// and their fill (findTags). Exits 1 when it finds any of these.
+// and their fill (findTags). At 1280×800 it sorts Orders by each column, both ways, and checks
+// that no part of the table is left with a transform or an animation (sortCheck), and that the
+// rows read the same at rest with reduced motion on. Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -452,8 +454,8 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 const pause = (p, ms) => p.waitForTimeout(ms);
 
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
-async function open(size, { firstRun = false, noInventory = false, widePictures = false } = {}) {
-  const p = await browser.newPage({ viewport: { width: size.w, height: size.h } });
+async function open(size, { firstRun = false, noInventory = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
+  const p = await browser.newPage({ viewport: { width: size.w, height: size.h }, reducedMotion });
   await p.route(/warframe\.market/, (r) => r.abort());
   await stopWorldState(p);
   // No inventory read yet: TennoScope's setup steps.
@@ -647,6 +649,72 @@ async function tabThrough(p, size, view) {
   await cdp.detach();
 }
 
+/**
+ * Runs in the page: each part of a table on the shown page (the table, a body, a row, a cell) that
+ * has a transform or a running animation now. The app's engines (WebKitGTK, WebView2) may leave a
+ * cell's text undrawn once a transform on its row or body ends (motion.ts), so none may have one.
+ */
+function movingTableParts() {
+  const parts = document.querySelectorAll(".pane.shown :is(table, thead, tbody, tfoot, tr, td, th)");
+  const found = [];
+  for (const el of parts) {
+    const transform = getComputedStyle(el).transform;
+    const running = el.getAnimations().length;
+    if ((transform && transform !== "none") || running) {
+      const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 2).join(".") : "";
+      found.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${transform !== "none" ? ` transform ${transform}` : ""}${running ? ` ${running} animation${running > 1 ? "s" : ""}` : ""}`);
+    }
+  }
+  return found;
+}
+
+/** Table parts found moving after a sort on Orders, and how many sorts were tried. */
+const sortFindings = [];
+let sortsTried = 0;
+/**
+ * Orders, sorted by each column in turn, both ways, with the pointer off the table: no part of the
+ * table may move (a transform or an animation) just after the click or once the list's close-up
+ * time (240 ms) has passed, and with reduced motion on the rows read the same at rest as with it
+ * off. Each page is its own browser context, so the sort chosen here isn't kept for other views.
+ */
+async function sortCheck(size) {
+  const pages = [];
+  for (const reducedMotion of ["no-preference", "reduce"]) {
+    const p = await open(size, { reducedMotion });
+    await p.locator("button.nav", { hasText: "Orders" }).first().click();
+    await pause(p, 2500);
+    pages.push(p);
+  }
+  const [moving, calm] = pages;
+  const heads = await moving.locator(".pane.shown table.orders th.sortable").count();
+  if (!heads || (await moving.locator(".pane.shown table.orders tbody tr.order").count()) < 2) {
+    sortFindings.push("Orders: no listings to sort, not checked");
+  }
+  for (let h = 0; h < heads; h++) {
+    for (let k = 0; k < 2; k++) {
+      const views = [];
+      for (const p of pages) {
+        const th = p.locator(".pane.shown table.orders th.sortable").nth(h);
+        const name = ((await th.textContent()) ?? "").replace(/[▴▾]/g, "").trim();
+        await th.click();
+        await p.mouse.move(size.w - 5, size.h - 5);
+        const when = `${name}, click ${k + 1}${p === calm ? ", reduced motion" : ""}`;
+        await pause(p, 40);
+        for (const f of await p.evaluate(movingTableParts)) sortFindings.push(`${when}, just after: ${f}`);
+        await pause(p, 300);
+        for (const f of await p.evaluate(movingTableParts)) sortFindings.push(`${when}, after 340 ms: ${f}`);
+        await p.waitForFunction(() => [...document.querySelectorAll(".pane.shown table.orders img")].every((i) => i.complete), null, { timeout: 5000 }).catch(() => {});
+        views.push({ when, order: await p.locator(".pane.shown table.orders tbody tr.order .c-item").allTextContents(), png: await p.locator(".pane.shown table.orders").screenshot() });
+      }
+      sortsTried++;
+      const [a, b] = views;
+      if (a.order.join("|") !== b.order.join("|")) sortFindings.push(`${a.when}: the rows come in another order with reduced motion on`);
+      else if (!a.png.equals(b.png)) sortFindings.push(`${a.when}: the table at rest isn't drawn the same with reduced motion on`);
+    }
+  }
+  for (const p of pages) await p.close();
+}
+
 /** Every view of the demo at one size, `look` called on each. Settings is one view per section
  *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
  *  same whichever section is in view). */
@@ -808,6 +876,11 @@ try {
     console.log(`keyboard, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
     await walk(KEYS_SIZE, tabThrough, { settingsOnce: true, widePictures: false });
   }
+  // Orders sorted by each column: no table part left moving (motion.ts), the same at rest with reduced motion.
+  if (keys) {
+    console.log(`sorting Orders, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
+    await sortCheck(KEYS_SIZE);
+  }
   if (out) {
     mkdirSync(out, { recursive: true });
     for (const size of SIZES) {
@@ -850,10 +923,14 @@ try {
   for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
   for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
+  if (keys) {
+    for (const f of sortFindings) console.log(`SORT ${f}`);
+    console.log(`${sortFindings.length} sort findings, ${sortsTried} sorts on Orders tried both ways of motion`);
+  }
   for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
   console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
   console.log(requestsLine());
-  if (worldStateAsked.count || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;

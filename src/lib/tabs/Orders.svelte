@@ -921,10 +921,12 @@
           {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the market price, the second-cheapest seller online or in game (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
-      <!-- One body a listing (its row, and the rows under it), so it can leave and the rest close up. -->
+      <!-- One body a listing (its row, and the rows under it), so it can leave whole. It fades in its
+           place and the rest close up once it has gone; a sort snaps to the new order: no transform on
+           a table part (motion.ts). -->
       {#each rows as o (o.id)}
         {@const it = mkt.item(o.itemId)}
-        <tbody out:leave={{ duration: SETTLE }} animate:flip>
+        <tbody out:leave={{ duration: SETTLE }}>
           {#if ghostIds.has(o.id)}
             <!-- Sold out or removed: the listing is gone, this row stays to say how it went, then leaves. -->
             <tr class="order ghost" class:done={rowBusy.get(o.id).state === "done"}>
