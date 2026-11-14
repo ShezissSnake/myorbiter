@@ -48,6 +48,9 @@ const ARCANES: Walkthrough = {
       ],
       shot: {
         open: "arcanes",
+        // All arcanes: no packs between the tabs and the filters (Still collecting opens with which
+        // packs to open, a page of its own; Sell or dissolve with Loid's packs).
+        steps: [{ click: ".pane.shown .modes button[role=tab]:has-text('All arcanes')" }, { wait: 1200 }],
         part: `.pane.shown .modes, ${holder("arcanes.filters")}`,
         marks: [
           { at: ".pane.shown .modes [role=tablist]", is: "n", n: 1, from: "corner" },
@@ -67,6 +70,7 @@ const ARCANES: Walkthrough = {
       ],
       shot: {
         open: "arcanes",
+        steps: [{ click: ".pane.shown .modes button[role=tab]:has-text('Still collecting')" }, { wait: 1200 }],
         part: `${holder("arcanes.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${CARDS}:first-child .coll`, is: "n", n: 1, from: "left" },
