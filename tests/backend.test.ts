@@ -177,18 +177,19 @@ test("only Discord webhook addresses are posted to", async () => {
   assert.ok(!isDiscordWebhook("https://discord.com/api/webhooks/1/x?wait=true"));
 });
 
-test("the Discord field removes the kept address only when emptied, and confirms only a webhook on change", async () => {
+test("the Discord field removes the kept address only when emptied, and asks about a webhook only when left", async () => {
   const { discordFieldAction } = await import("../src/lib/backend");
   const hook = "https://discord.com/api/webhooks/1234567890/AbC_dEf-123";
-  for (const event of ["input", "change"] as const) {
+  for (const event of ["input", "change", "blur"] as const) {
     assert.equal(discordFieldAction("", event), "forget", `empty, on ${event}`);
     assert.equal(discordFieldAction("   ", event), "forget", `blank, on ${event}`);
     assert.equal(discordFieldAction("https://discord.com/api/webhooks/", event), "none", `half an address, on ${event}`);
     assert.equal(discordFieldAction("not an address", event), "none", `not an address, on ${event}`);
     assert.equal(discordFieldAction("https://evil.example/api/webhooks/1/x", event), "none", `another site, on ${event}`);
   }
-  assert.equal(discordFieldAction(hook, "change"), "confirm", "a webhook is confirmed on change");
-  assert.equal(discordFieldAction(hook, "input"), "none", "and not while it is being typed");
+  assert.equal(discordFieldAction(hook, "change"), "confirm", "a webhook is asked about when the field changes");
+  assert.equal(discordFieldAction(hook, "blur"), "confirm", "and when the field is left, changed or not");
+  assert.equal(discordFieldAction(hook, "input"), "none", "but not while it is typed or pasted");
 });
 
 test("a kept worldstate part whose end has passed isn't kept", async () => {

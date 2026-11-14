@@ -717,8 +717,9 @@ fn forget_discord_address(dir: &Path, field: &str) -> std::io::Result<bool> {
 /// Notifications → Choose → Discord, the address field emptied: the confirmed address
 /// (`discord-webhook`, with its token) leaves the config folder. The page passes the field's value
 /// and nothing is removed unless it is empty. Pausing notifications or unticking kinds never calls
-/// this. A turned-down address stays turned down until a restart, as in `discord_confirm`.
-#[tauri::command]
+/// this. A turned-down address stays turned down until a restart, as in `discord_confirm`. Off the
+/// main thread, like every command that touches the disk.
+#[tauri::command(async)]
 fn discord_forget(app: tauri::AppHandle, field: String) -> Result<(), String> {
     let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
     match forget_discord_address(&dir, &field) {

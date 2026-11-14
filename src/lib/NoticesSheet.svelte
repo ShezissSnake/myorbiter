@@ -137,13 +137,21 @@
       testing = false;
     }
   }
-  // An emptied field removes the confirmed address MyOrbiter kept as soon as it is empty; a pasted
-  // webhook is confirmed on change. A failed removal is logged on the Rust side.
-  function discordField(event: "input" | "change") {
-    const url = settings.notifyOptions.discord.url;
-    const action = discordFieldAction(url, event);
-    if (action === "forget") void discordForget(url).catch(() => {});
-    else if (action === "confirm") void discordConfirm(url).catch(() => {});
+  // An emptied field removes the confirmed address MyOrbiter kept as soon as it is empty; a webhook
+  // address is asked about when the field is left. The event's own value is read, so this doesn't
+  // rest on when the binding writes the setting. A yes that comes back after the field was emptied
+  // (the dialog doesn't hold MyOrbiter's window) is removed again. A failed removal is logged on
+  // the Rust side.
+  function discordField(event: "input" | "change" | "blur", value: string) {
+    const action = discordFieldAction(value, event);
+    if (action === "forget") void discordForget(value).catch(() => {});
+    else if (action === "confirm")
+      void discordConfirm(value)
+        .then((yes) => {
+          const now = settings.notifyOptions.discord.url;
+          if (yes && discordFieldAction(now, "input") === "forget") return discordForget(now);
+        })
+        .catch(() => {});
   }
   // The test: working while it posts (a second click does nothing), then "Sent" or why not.
   const discordJob = new Job(4000);
@@ -242,7 +250,7 @@
       <div class="discord">
         <span class="register">Discord</span>
         <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. MyOrbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there. No notification goes to Discord either while notifications are paused (even for a kind you picked here), or for a kind that is switched off below.</p>
-        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} oninput={() => discordField("input")} onchange={() => discordField("change")} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
+        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} oninput={(e) => discordField("input", e.currentTarget.value)} onchange={(e) => discordField("change", e.currentTarget.value)} onblur={(e) => discordField("blur", e.currentTarget.value)} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
           <span class="small dim">Send these to Discord:</span>

@@ -455,12 +455,15 @@ export async function discordConfirm(url: string): Promise<boolean> {
 
 /**
  * What the Discord address field does with its value: an empty or blank field removes the
- * confirmed address at once (on input, and again on change), a webhook address is confirmed when
- * the field changes (pasted, or left), and anything else does neither.
+ * confirmed address at once (on input, and again when the field changes or is left); a webhook
+ * address is asked about when the field is left (its change event, or focus out, which also
+ * covers an address taken out and put back unchanged), never while it is typed or pasted; and
+ * anything else does neither. Asking about the address already confirmed reads one file and shows
+ * no dialog.
  */
-export function discordFieldAction(value: string, event: "input" | "change"): "forget" | "confirm" | "none" {
+export function discordFieldAction(value: string, event: "input" | "change" | "blur"): "forget" | "confirm" | "none" {
   if (value.trim() === "") return "forget";
-  return event === "change" && isDiscordWebhook(value) ? "confirm" : "none";
+  return event !== "input" && isDiscordWebhook(value) ? "confirm" : "none";
 }
 
 /**
