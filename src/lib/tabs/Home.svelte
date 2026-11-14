@@ -882,7 +882,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? "Couldn't reach warframe.market; it tries again in 10 minutes." : mkt.dealsAt ? `Nothing listed at ${Math.round(DEAL_SHARE * 100)}% or less of its usual (daily median) price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting. Medians under ${DEAL_MIN_REF}p are skipped; a price alert goes by your own price.` : "Checking warframe.market…"}</p>
+        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? (proxy.problem ? `Couldn't reach warframe.market: ${proxy.problem}` : "Couldn't reach warframe.market; it tries again in 10 minutes.") : mkt.dealsAt ? `Nothing listed at ${Math.round(DEAL_SHARE * 100)}% or less of its usual (daily median) price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting. Medians under ${DEAL_MIN_REF}p are skipped; a price alert goes by your own price.` : "Checking warframe.market…"}</p>
       {/if}
       <!-- Price alerts you set from Post a buy order (Alert me): watched with the rest. -->
       {#if settings.market.buyAlerts.length}

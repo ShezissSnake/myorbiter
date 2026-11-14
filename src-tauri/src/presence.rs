@@ -256,7 +256,10 @@ const PROXY_VARS: [&str; 6] = ["ALL_PROXY", "all_proxy", "HTTPS_PROXY", "https_p
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Unfit {
     Https,
+    /// SOCKS of a kind ureq reads (socks, socks4, socks4a, socks5): it stopped everything before.
     Socks,
+    /// socks5h://, which ureq never read: passed over before, as https:// was.
+    SocksByName,
     NoPassword,
     Unreadable,
 }
@@ -265,7 +268,7 @@ enum Unfit {
 fn unusable(name: &str, unfit: Unfit) -> String {
     let what = match unfit {
         Unfit::Https => "an https:// proxy",
-        Unfit::Socks => "a SOCKS proxy",
+        Unfit::Socks | Unfit::SocksByName => "a SOCKS proxy",
         Unfit::NoPassword => "a proxy address with a user name but no password",
         Unfit::Unreadable => "an address MyOrbiter can't read as a proxy",
     };
@@ -283,7 +286,8 @@ fn read_proxy(value: &str) -> Result<Route, Unfit> {
     match scheme.as_deref() {
         None | Some("http") => {}
         Some("https") => return Err(Unfit::Https),
-        Some("socks" | "socks4" | "socks4a" | "socks5" | "socks5h") => return Err(Unfit::Socks),
+        Some("socks" | "socks4" | "socks4a" | "socks5") => return Err(Unfit::Socks),
+        Some("socks5h") => return Err(Unfit::SocksByName),
         Some(_) => return Err(Unfit::Unreadable),
     }
     let rest = rest.trim_end_matches('/');
@@ -304,8 +308,9 @@ fn read_proxy(value: &str) -> Result<Route, Unfit> {
 }
 
 /// The route from the environment's variables (`var` reads one; an empty value counts as not
-/// set). The first usable HTTP proxy, as ureq took it before; a SOCKS one stops there, as it
-/// did. Any other address set that can't be used (https://, one that doesn't read) is passed over
+/// set). The order is ureq's, and so is what passes over what, as before this rule: the first
+/// usable HTTP proxy is taken; a SOCKS one ureq reads (socks5:// and the like) stops there; any
+/// other address that can't be used (https://, socks5h://, one that doesn't read) is passed over
 /// for a usable one that follows, but never for going straight: with none, the route stops on
 /// the first.
 pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
@@ -606,6 +611,8 @@ mod tests {
         // SOCKS: the agent can't use it, and the sockets don't go around it.
         let why = stops(route_from(env(&[("ALL_PROXY", "socks5://127.0.0.1:1080"), ("HTTPS_PROXY", "http://b:2")]))).expect("SOCKS stops");
         assert!(why.contains("ALL_PROXY") && why.contains("SOCKS"), "{why}");
+        // socks5h://, which ureq never read, is passed over as https:// is.
+        assert_eq!(route_from(env(&[("ALL_PROXY", "socks5h://127.0.0.1:1080"), ("HTTPS_PROXY", "http://b:2")])), http("b", 2, None));
     }
 
     /// The reason a route stops on, if it does.
