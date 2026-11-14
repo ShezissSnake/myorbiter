@@ -148,7 +148,11 @@ test("the pages draw the build state from readyTag, not a rule of their own", as
     assert.doesNotMatch(src, />Can build now</, `${f} writes its own 'Can build now' tag`);
     assert.doesNotMatch(src, /\bbuildTag\(/, `${f} builds the tag by hand`);
   }
-  assert.doesNotMatch(readFileSync(new URL("../src/lib/tabs/Wishlist.svelte", import.meta.url), "utf8"), /!w\.missing\.length \? "Can build|else if !w\.missing\.length\}<span class="tag/);
+  const wish = readFileSync(new URL("../src/lib/tabs/Wishlist.svelte", import.meta.url), "utf8");
+  assert.doesNotMatch(wish, /!w\.missing\.length \? "Can build|else if !w\.missing\.length\}<span class="tag/);
+  // "Next step" is the sentence of its own, not the tooltip's text (which ends in "Open it for what each part takes").
+  assert.match(wish, /if \(w\.c\.buildable\) return readyTag\(w\.c\)\.sentence;/);
+  assert.doesNotMatch(wish, /readyTag\([^)]*\)\.title/);
 });
 
 test("a huge relic count is counted up to a couple of hundred copies, not one array entry each", () => {
