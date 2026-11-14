@@ -21,7 +21,7 @@ import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from 
 import { recentPrice, type PricePoint } from "./core/priceTrend";
 import type { RelicMarket } from "./core/model";
 import { aboveCrack, relicCrackFor } from "./core/spares";
-import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, minimumForItem, planSignature, resolve, sellTargets, toApply, type BulkAction } from "./core/bulk";
+import { KIND_LABEL, LISTING_LIMIT, aboveDucats, bulkPlan, cheapByMedian, ducatWorth, minimumForItem, planSignature, resolve, sellTargets, neverTest, toApply, type BulkAction, type Listed } from "./core/bulk";
 import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
@@ -915,7 +915,7 @@ class MarketStore {
     }
     // The keep rules, checked again: what the form offers can be more than you can spare. Against
     // the newest inventory read, not the one the form opened with: copies traded away since are gone.
-    if (it && d.quantity > 0 && !this.allowed(this.model ?? this.draftModel, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), manual: true, minimum }, (l) => (why = l))) {
+    if (it && d.quantity > 0 && !this.allowed(this.model ?? this.draftModel, { item: it, rank: d.rank, subtype: d.subtype, quantity: d.quantity, platinum: d.platinum, listedElsewhere: this.listedOf(it, d.rank, d.subtype), listed: this.orders, manual: true, minimum }, (l) => (why = l))) {
       this.draftError = this.log[0]?.text ?? "Not listed";
       return;
     }
@@ -975,7 +975,7 @@ class MarketStore {
       let why = "";
       if (visible && !o.visible) {
         const minimum = it ? this.minimumOf(it) : undefined;
-        if (!it || !this.allowed(this.model, { item: it, rank: o.rank, subtype: o.subtype, quantity: o.quantity, platinum: o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), minimum }, (l) => (why = l))) continue;
+        if (!it || !this.allowed(this.model, { item: it, rank: o.rank, subtype: o.subtype, quantity: o.quantity, platinum: o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), listed: this.orders.filter((x) => x.id !== o.id), minimum }, (l) => (why = l))) continue;
       }
       try {
         await market.update(o.id, { visible });
@@ -1037,7 +1037,7 @@ class MarketStore {
     // More copies, or shown again, at an unchanged price: still never under the minimum (the
     // listing may have been made before the minimum was raised).
     if (raising && it) {
-      const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), manual: true, minimum: this.minimumOf(it) };
+      const req = { item: it, rank: o.rank, subtype: o.subtype, quantity: change.quantity ?? o.quantity, platinum: change.platinum ?? o.platinum, listedElsewhere: this.listedOf(it, o.rank, o.subtype, o.id), listed: this.orders.filter((x) => x.id !== o.id), manual: true, minimum: this.minimumOf(it) };
       if (!this.allowed(this.model, req, (l) => (why = l))) {
         this.error = this.log[0]?.text ?? "Not listed";
         return false;
@@ -1455,14 +1455,17 @@ class MarketStore {
     let changed = false;
     // Removals first, so new listings have room under the 100-listing limit.
     const ORDER = { remove: 0, update: 1, create: 2, skip: 3 } as const;
-    // Without the lines skipped this time, or put on the never-sell list while looking it over.
-    const never = new Set(s.spares.neverSell.map((n) => n.id));
+    // Without the lines skipped this time, or put on the never-sell list while looking it over (a
+    // part on it holds back its set, and a set its parts).
+    const never = neverTest(s.spares, m, this.index);
     const todo = toApply(shown.actions, shown.skipped, never).filter((a) => a.type !== "skip").sort((a, b) => ORDER[a.type] - ORDER[b.type]);
     const sent = new Set<BulkAction>();
     let failed = 0;
     // Held back by the last check (listGuard.ts): told one by one, counted apart from refusals.
     let blocked = 0;
     let writeFailing = 0;
+    /** Why the run stopped part way when warframe.market refused changes in a row; null otherwise. */
+    let stopped: string | null = null;
     await this.guard("Updating your listings", async () => {
       // The copies already listed cap what may go up (listGuard.ts): counted from an older read of
       // your listings, the cap could be too high, so nothing is sent without a fresh one.
@@ -1481,10 +1484,18 @@ class MarketStore {
       this.progress = { done: 0, total: todo.length };
       this.applying = { now: null, sent: new Set(), failed: new Set() };
       const refused = new Set<BulkAction>();
-      // Copies this run has put up, by item, rank and variant: a second listing of the same thing
-      // counts them as already listed.
-      const listedNow = new Map<string, number>();
+      // Your listings as this run leaves them (a new or raised one from the moment it passes the
+      // check, a lowered or removed one once warframe.market took it): a later listing counts the
+      // copies these offer (the same thing, an arcane at another rank, a set and its parts) as
+      // already listed.
+      let live: (Listed & { id: string })[] = this.orders.map((o) => ({ id: o.id, itemId: o.itemId, rank: o.rank, subtype: o.subtype, quantity: o.quantity }));
       const keyOf = (it: MarketItem, rank: number | null, subtype: string | null) => `${it.id}|${it.maxRank != null ? (rank ?? 0) : ""}|${subtype ?? it.subtypes?.[0] ?? ""}`;
+      let made = 0;
+      const took = (a: BulkAction) => {
+        if (a.type === "create") live.push({ id: `+${made++}`, itemId: a.item.id, rank: a.rank, subtype: a.subtype, quantity: a.quantity });
+        else if (a.type === "update") live = live.map((o) => (o.id === a.order.id ? { ...o, quantity: a.quantity } : o));
+        else if (a.type === "remove") live = live.filter((o) => o.id !== a.order.id);
+      };
       for (const a of todo) {
         this.applying = { now: a, sent: new Set(sent), failed: new Set(refused) };
         const tag = (name: string, rank: number | null) => `${name}${rank != null ? ` R${rank}` : ""}`;
@@ -1495,14 +1506,16 @@ class MarketStore {
           const rank = a.type === "create" ? a.rank : a.order.rank;
           const subtype = a.type === "create" ? a.subtype : a.order.subtype;
           const k = keyOf(a.item, rank, subtype);
-          const elsewhere = this.listedOf(a.item, rank, subtype, a.type === "update" ? a.order.id : null) + (listedNow.get(k) ?? 0);
-          if (!this.allowed(m, { item: a.item, rank, subtype, quantity: a.quantity, platinum: a.platinum, listedElsewhere: elsewhere, minimum: minimumForItem(s, m, a.item) }, (l) => (why = l))) {
+          const others = live.filter((o) => a.type !== "update" || o.id !== a.order.id);
+          const elsewhere = others.filter((o) => o.itemId === a.item.id && keyOf(a.item, o.rank, o.subtype) === k).reduce((n, o) => n + o.quantity, 0);
+          if (!this.allowed(m, { item: a.item, rank, subtype, quantity: a.quantity, platinum: a.platinum, listedElsewhere: elsewhere, listed: others, minimum: minimumForItem(s, m, a.item) }, (l) => (why = l))) {
             refused.add(a);
             blocked++;
             this.progress = { done: sent.size + failed + blocked, total: todo.length };
             continue;
           }
-          listedNow.set(k, (listedNow.get(k) ?? 0) + a.quantity);
+          // Counted from here, sent or not: a create with no answer in time may still have been made.
+          took(a);
         } else if (a.type === "update" && a.platinum !== a.order.platinum) {
           const under = ducatRefusal({ model: m, index: this.index, sell: s.sellable, advice, drops: drops.recent, rules: s.spares }, a.item, a.platinum) ?? minimumRefusal(a.platinum, minimumForItem(s, m, a.item));
           if (under) {
@@ -1533,14 +1546,16 @@ class MarketStore {
             this.audit(`Spares plan removed ${a.order.id}`, `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.why}`);
           }
           sent.add(a);
+          if (a.type === "remove" || (a.type === "update" && a.quantity <= a.order.quantity)) took(a);
           writeFailing = 0;
         } catch (e) {
           if (isAuthError(e)) throw e;
           failed++;
           refused.add(a);
           this.note(`${a.item.name}: couldn't ${a.type} (${clean(e)})`, "warn");
+          // Stopped, and ended below as a sign-in that ran out ends it: the lines not sent stay in the plan.
           if (++writeFailing >= WRITE_FAILS) {
-            this.note(`warframe.market refused ${WRITE_FAILS} changes in a row, so MyOrbiter stopped: apply again in a minute`, "warn");
+            stopped = `warframe.market refused ${WRITE_FAILS} changes in a row, so MyOrbiter stopped: apply again in a minute`;
             break;
           }
         }
@@ -1556,12 +1571,12 @@ class MarketStore {
       this.applying = null;
       return { sent: 0, failed: 0, outcome: "changed" };
     }
-    if (this.error) {
-      // Stopped part way (the sign-in expired): keep only what wasn't sent, so a second Apply
-      // doesn't list things twice.
+    if (this.error || stopped) {
+      // Stopped part way (the sign-in expired, or warframe.market refused changes in a row): keep
+      // only what wasn't sent, refused lines included, so a second Apply lists nothing twice.
       const left = shown.actions.filter((a) => !sent.has(a));
       this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books, skipped: shown.skipped } : null;
-      this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
+      this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error ?? stopped}`, "warn");
       this.applying = null;
       return { sent: sent.size, failed, outcome: "stopped" };
     }

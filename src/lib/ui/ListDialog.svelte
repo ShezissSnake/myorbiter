@@ -8,7 +8,8 @@
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
-  import { aboveDucats, catOfItem, ducatWorth, minimumForItem } from "../core/bulk";
+  import { aboveDucats, catOfItem, ducatWorth, minimumForItem, neverHeld, neverWhy } from "../core/bulk";
+  import { KEEP_UNCHECKED_WARNING, keepUnchecked } from "../core/listGuard";
   import { mkt } from "../marketStore.svelte";
   import { proxy } from "../proxy.svelte";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
@@ -18,7 +19,7 @@
   import ProgressButton from "./ProgressButton.svelte";
   import { trap } from "./trap";
   import { opens, pulse, shade } from "../motion";
-  import { CATEGORY_WORD, neverSells } from "../core/sparesRules";
+  import { CATEGORY_WORD } from "../core/sparesRules";
 
   // market: your Orders settings, so the form can say when a price is under the floor the
   // repricer holds listings at.
@@ -115,13 +116,17 @@
 
   // Whole numbers only: warframe.market takes whole platinum and copies, and an empty box isn't 0.
   const badNumber = $derived(d ? amountProblem(d.quantity, d.platinum, merging ? 0 : 1) : null);
-  // On the never-sell list (Sell spares): refused by the last check too; Sell again takes it off.
-  const neverSold = $derived(!!d && !!market?.spares && neverSells(market.spares, d.itemId));
+  // On the never-sell list (Sell spares), or a set with a part on it, or a part of a set on it:
+  // refused by the last check too; Sell again takes the entry off.
+  const never = $derived(d && item && market?.spares ? neverHeld(market.spares, model, mkt.index, item) : null);
+  const neverSold = $derived(!!never);
   function sellAgain() {
-    if (!d || !market?.spares) return;
-    onsellagain([d.itemId]);
+    if (!d || !never) return;
+    onsellagain(never.by.map((b) => b.id));
     mkt.draftError = null;
   }
+  /** Full mode before the first inventory read: the listing goes as typed, nothing can be checked. */
+  const unchecked = $derived(keepUnchecked(model, mkt.fullMode));
   const ready = $derived(
     !!d && wholeIn(d.platinum, 1, MAX_PLAT) && wholeIn(d.quantity, merging ? 0 : 1, MAX_QTY) && !oversell && !underMinimum && !(repriceOnly && existing?.platinum === d.platinum) && !mkt.busy,
   );
@@ -224,7 +229,8 @@
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}
-          {#if neverSold && !repriceOnly}<p class="warn small never">On your never-sell list (Sell spares), so MyOrbiter won't list it. <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
+          {#if unchecked && !repriceOnly}<p class="warn small unchecked">{KEEP_UNCHECKED_WARNING}</p>{/if}
+          {#if neverSold && !repriceOnly}<p class="warn small never">{never && !never.self ? `${neverWhy(never)}, so MyOrbiter won't list it.` : "On your never-sell list (Sell spares), so MyOrbiter won't list it."} <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
 
           {#if existing}
             <label class="merge small">

@@ -3,13 +3,14 @@
 // from the inventory as it is now, whatever path asked (the spares plan, the listing form, Orders,
 // the last-copy timer), and refuses anything it can't prove is spare. Pure: the store sends or
 // doesn't, and writes the line it returns to the log.
-import { KIND_LABEL, ducatWorth, ducatsBeat, kindOfItem, platToBeat, provenSpare, type SpareContext } from "./bulk";
+import { KIND_LABEL, ducatWorth, ducatsBeat, freeToList, kindOfItem, neverHeld, neverWhy, platToBeat, provenSpare, type Listed, type SpareContext } from "./bulk";
 import { heldFor, type MarketItem } from "./market";
 import type { Model } from "./model";
-import { neverSells } from "./sparesRules";
 
 /** The refusal for something on the never-sell list, after "Didn't list Khra R0: ". */
 export const NEVER_SOLD_REFUSAL = "it's on your never-sell list (Sell spares). Sell again takes it off the list, then it can be listed";
+/** The refusal for a set held back by a part on the never-sell list, or a part by its set. */
+const neverAcrossRefusal = (why: string, n: number) => `${why}. Sell again takes ${n === 1 ? "it" : "them"} off the list`;
 
 /**
  * An inventory read older than this proves nothing for a listing MyOrbiter makes by itself: copies
@@ -24,6 +25,17 @@ export const MAX_INVENTORY_AGE_MS = 3 * 60 * 60_000;
 export const MAX_CLOCK_AHEAD_MS = 10 * 60_000;
 
 export type Trust = { ok: true } | { ok: false; why: string };
+
+/** No inventory read at all: on a console, or on PC before TennoScope's first read. */
+export const noInventoryRead = (m: Model) => !m.observedAt && m.inventoryByBase.size === 0;
+
+/**
+ * A listing made by hand before the first inventory read, in Full mode (on PC): it goes as typed,
+ * since nothing can be checked, and the listing form says so before it's sent. Nothing MyOrbiter
+ * lists by itself goes up then: an automatic listing needs a trusted read (inventoryTrust).
+ */
+export const keepUnchecked = (m: Model, fullMode: boolean | null) => fullMode === true && noInventoryRead(m);
+export const KEEP_UNCHECKED_WARNING = "MyOrbiter hasn't read your inventory yet, so it can't check what you keep: list only copies you know you can spare.";
 
 /**
  * Whether the inventory read can prove anything spare: there is one, with the item catalog the keep
@@ -68,8 +80,16 @@ export interface GuardRequest {
   /** Copies this listing would offer once sent. */
   quantity: number;
   platinum: number | null;
-  /** Copies of the same item, rank and variant already up in your other listings. */
+  /**
+   * Copies of the same item, rank and variant already up in your other listings (hidden ones
+   * included). Counted from `listed` when left out.
+   */
   listedElsewhere?: number;
+  /**
+   * Your other listings, every item, hidden ones included (not the one being changed): the copies
+   * they offer are counted once, across an arcane's ranks and between a set and its parts.
+   */
+  listed?: readonly Listed[];
   /**
    * The item's minimum price (its Sell spares category's, or the global one): a price under it is
    * refused, asked for by hand or not. Left out where a price isn't being chosen (shown again as listed).
@@ -124,30 +144,41 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   if (!Number.isInteger(r.quantity)) return refuse(`${r.quantity} isn't a whole number of copies`);
   if (r.platinum == null ? !r.manual : !(Number.isInteger(r.platinum) && r.platinum >= 1)) return refuse(r.platinum == null ? "it has no price" : `${r.platinum}p isn't a price warframe.market takes`);
   if (r.listedElsewhere != null && !Number.isFinite(r.listedElsewhere)) return refuse("your other listings of it couldn't be counted");
-  const elsewhere = Math.max(0, r.listedElsewhere ?? 0);
+  const def = r.item.subtypes?.[0] ?? null;
+  const sameKey = (o: Listed) => o.itemId === r.item.id && (r.item.maxRank == null || (o.rank ?? 0) === (r.rank ?? 0)) && (o.subtype ?? def) === (r.subtype ?? def);
+  const listed = r.listed ?? [];
+  const elsewhere = Math.max(0, r.listedElsewhere ?? listed.filter(sameKey).reduce((n, o) => n + o.quantity, 0));
   // Never sold, whoever asks (the plan, the listing form, Orders): Sell again takes it off the list.
-  if (c.rules && neverSells(c.rules, r.item.id)) return refuse(NEVER_SOLD_REFUSAL);
+  // A part on the list holds back the sets it goes into, and a set its parts.
+  const never = neverHeld(c.rules, c.model, c.index, r.item);
+  if (never) return refuse(never.self ? NEVER_SOLD_REFUSAL : neverAcrossRefusal(neverWhy(never), never.by.length));
   // Never under the minimum, typed in by hand or not, inventory or none.
   const cheap = minimumRefusal(r.platinum, r.minimum);
   if (cheap) return refuse(cheap);
   const m = c.model;
-  const noInventory = !m.observedAt && m.inventoryByBase.size === 0;
-  if (r.manual && noInventory) return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked (no inventory read to check against)` };
+  // By hand with no inventory read (a console, or Full mode before its first read, where the form
+  // warns first): what you typed goes. Nothing automatic: inventoryTrust refuses below.
+  if (r.manual && noInventoryRead(m)) {
+    const why = c.fullMode === true ? "Full mode, before the first inventory read: what you keep wasn't checked" : "no inventory read to check against";
+    return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked (${why})` };
+  }
   const trust = inventoryTrust(m, c.now ?? Date.now(), c.fullMode ?? null);
   if (!trust.ok && !r.manual) return refuse(`MyOrbiter can't prove it's spare: ${trust.why}`);
   const kind = kindOfItem(m, r.item);
   const held = heldFor(m, r.item, { rank: r.rank, subtype: r.subtype });
-  const proven = kind ? provenSpare(c, kind, r.item, r.rank, r.subtype) : null;
+  const proven = kind ? provenSpare(c, kind, r.item, r.rank, r.subtype, r.manual === true) : null;
   const stale = trust.ok ? "" : ` (${trust.why})`;
   if (!kind || !proven) {
     if (!r.manual) return refuse("MyOrbiter has no keep rule to count it by");
     if (held != null && r.quantity + elsewhere > held) return refuse(`you hold ${held}${elsewhere ? `, ${elsewhere} already listed` : ""}`);
     return { ok: true, audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p, as asked; ${held ?? "?"} held, no keep rule applies${stale}` };
   }
-  const allowed = Math.max(0, proven.spare - elsewhere);
+  // Copies counted once: what your other listings offer of the same copies is taken off.
+  const { free, across } = freeToList(c, kind, r.item, r.rank, proven, elsewhere, listed.filter((o) => !sameKey(o)));
+  const allowed = Math.max(0, free);
   if (r.quantity > allowed) {
-    const counts = `${held ?? "?"} held, ${proven.spare} spare${elsewhere ? `, ${elsewhere} already listed` : ""}`;
-    return refuse(allowed > 0 ? `only ${allowed} can go (${counts}): ${proven.short}` : `${proven.short} (${counts})`);
+    const counts = `${held ?? "?"} held, ${proven.spare} spare${elsewhere ? `, ${elsewhere} already listed` : ""}${across ? `, ${across}` : ""}`;
+    return refuse(allowed > 0 ? `only ${allowed} can go (${counts}): ${proven.short}` : across && proven.spare > elsewhere ? `its spare copies are listed already (${counts})` : `${proven.short} (${counts})`);
   }
   if (!r.manual) {
     const ducats = ducatRefusal(c, r.item, r.platinum);
@@ -155,6 +186,6 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   }
   return {
     ok: true,
-    audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p; ${held ?? "?"} held, ${proven.spare} spare${elsewhere ? `, ${elsewhere} already listed` : ""}; kept: ${proven.kept} (${KIND_LABEL[kind].toLowerCase()} rule)${stale}`,
+    audit: `${tag}: ${r.quantity} at ${r.platinum ?? "?"}p; ${held ?? "?"} held, ${proven.spare} spare${elsewhere ? `, ${elsewhere} already listed` : ""}${across ? `, ${across}` : ""}; kept: ${proven.kept} (${KIND_LABEL[kind].toLowerCase()} rule)${stale}`,
   };
 }

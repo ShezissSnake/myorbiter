@@ -157,6 +157,28 @@ test("sets that aren't prime: whole spare sets are sold as the set, only the loo
   assert.match(spareRows(m, items).find((r) => r.name === "Mandonel Barrel")!.why, /2 of the spare ones make whole sets/);
 });
 
+test("sets that aren't prime: a listed set takes its loose parts' copies, and parts listed on their own leave fewer sets", async () => {
+  const { guardListing } = await import("../src/lib/core/listGuard");
+  const BP = "/Lotus/Types/Recipes/Weapons/TnConcreteArchgunBlueprint";
+  const m = buildModel(bundle([...held, inv(BP, "Tn Concrete Archgun Blueprint", "blueprint", 3)]));
+  const items = indexItems([
+    { id: "ms", slug: "mandonel_set", gameRef: "/Lotus/Weapons/Mandonel", name: "Mandonel Set", maxRank: null, subtypes: null, tags: ["archwing", "primary", "weapon", "set"] },
+    { id: "mb", slug: "mandonel_barrel", gameRef: `${PARTS}TnConcreteArchgunBarrel`, name: "Mandonel Barrel", maxRank: null, subtypes: null, tags: ["weapon", "component"] },
+    { id: "mp", slug: "mandonel_blueprint", gameRef: BP, name: "Mandonel Blueprint", maxRank: null, subtypes: null, tags: ["weapon", "blueprint"] },
+  ] as MarketItem[]);
+  const c = { model: m, index: items, advice: defaultAdvice(), now: 1_700_000_000_000 + 60_000 };
+  const go = (id: string, quantity: number, listed: { itemId: string; quantity: number }[]) =>
+    guardListing(c, { item: items.byId.get(id)!, rank: null, subtype: null, quantity, platinum: 20, manual: true, listed: listed.map((o) => ({ ...o, rank: null, subtype: null })) });
+  // 16 barrels, one kept to build: 15 spare, 2 of them inside the 2 listed sets.
+  assert.equal(go("mb", 13, [{ itemId: "ms", quantity: 2 }]).ok, true);
+  const g = go("mb", 14, [{ itemId: "ms", quantity: 2 }]);
+  assert.match(!g.ok ? g.why : "", /Only 13 can go \(16 held, 15 spare, 2 inside your Mandonel Set listing\)/);
+  // 3 blueprints, one kept to build: with both spare ones listed alone, no set can be made.
+  assert.equal(go("ms", 2, []).ok, true);
+  assert.equal(go("ms", 1, [{ itemId: "mp", quantity: 2 }]).ok, false);
+  assert.equal(go("ms", 1, [{ itemId: "mp", quantity: 1 }]).ok, true);
+});
+
 test("a relic's crack counts each reward's ducats at your rate when they're worth more than its price", async () => {
   const { relicRows, rewardPlat } = await import("../src/lib/core/views");
   const b = bundle([]) as Bundle & { catalog: unknown[]; prices: { prices: Record<string, number> } };
