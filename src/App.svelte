@@ -314,6 +314,8 @@
   let firstRun = $state<((access: TennoscopeAccess) => void) | null>(null);
   /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
   let tick = $state(Date.now());
+  /** The hour `tick` is in: what the 30-day drop totals are worked out again by. */
+  const dropsHour = $derived(Math.floor(tick / 3_600_000));
   let bundle = $state.raw<Bundle | null>(null);
   /** The content key of `bundle` (core/sameRead.ts): a read with the same key keeps it. */
   let bundleKey: string | null = null;
@@ -2112,6 +2114,8 @@
   $effect(() => {
     const log = settings.game.drops;
     const trades = settings.market.trades;
+    // Again every hour as well: a drop older than 30 days leaves the totals while the app stays open.
+    void dropsHour;
     // Rebuilt only when it differs: the pages and the bulk sale read it, and most reads change nothing.
     const next = recentDrops(log, trades);
     if (!sameDrops(drops.recent, next)) drops.recent = next;

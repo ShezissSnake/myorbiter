@@ -11,7 +11,7 @@
 // you (`forma`, 3p by default; twice that for a 2X Forma Blueprint).
 
 import type { Model } from "./model";
-import { partAvailability, setRows } from "./views";
+import { partAvailability, partNeeded, primeToBuild, setRows } from "./views";
 
 export interface PickWeights {
   plat: number;
@@ -104,13 +104,10 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
     const price = forma && formaValue ? forma * formaValue : market;
     const ducats = part?.ducats ?? 0;
     let needed = false;
-    if (part) {
-      const done = m.isMastered(part.parentUnique) || m.owned(part.parentUnique) > 0;
-      needed = !done && m.partHave(name) < part.required;
-    }
+    if (part) needed = partNeeded(m, part);
     const gap = gaps.get(name);
     const set = gap ? (gap.missing === 1 ? 1 : 0.5) : 0;
-    return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? part.parentName : null, set, setName: gap?.set ?? null };
+    return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? primeToBuild(m, part.parentUnique).for || part.parentName : null, set, setName: gap?.set ?? null };
   });
   const best = Math.max(0, ...base.map((c) => c.price ?? 0));
   const total = w.plat + w.needed + w.ducats + w.set || 1;

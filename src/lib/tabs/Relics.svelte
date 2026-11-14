@@ -132,7 +132,7 @@
     }, defaultDesc: false, cell: baseCell },
     { key: "owned", width: "21%", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
     { key: "vault", width: "11%", label: "Vault", value: (r) => (r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"), cell: vaultCell, defaultDesc: false },
-    { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered, and you don't have yet" },
+    { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered (or of a weapon made from it: Akbronco Prime takes two Bronco Primes), and you don't have yet" },
     { key: "evI", width: "8%", label: squad === 1 ? "Intact" : "Intact ×4", value: evI, align: "right", cell: evICell, title: squad === 1 ? "Average platinum from one crack of the intact relic" : "Average platinum of the best of four intact cracks (a radshare where everyone brings this relic)" },
     { key: "evR", width: "8%", label: squad === 1 ? "Radiant" : "Radiant ×4", value: evR, align: "right", cell: evRCell, title: squad === 1 ? "Average platinum from one crack of the radiant relic" : "Average platinum of the best of four radiant cracks" },
     { key: "gain", width: "12%", label: "Radiant gain", value: gain, align: "right", cell: gainCell, title: "How much more a radiant crack is worth than an intact one, on average. Refining costs 100 Void Traces." },
@@ -283,7 +283,7 @@
   </section>
   {#snippet filters()}
   <Seg label="Show" bind:value={vault} options={[{ v: "all", label: "All", title: "Every relic you hold" }, { v: "vaulted", label: "Vaulted", title: "Relics that drop nowhere now: no new copies, so they tend to sell for more" }, { v: "farmable", label: "Farmable", title: "Relics that still drop in missions" }, { v: "resurgence", label: "Varzia", title: "Relics Varzia sells this rotation (Prime Resurgence), for Aya or Regal Aya" }]} />
-  <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered" />
+  <Chip bind:on={neededOnly} label="Has parts I need" title="Only relics that drop a part for something you haven't built or mastered, or for a weapon made from it (Akbronco Prime takes two Bronco Primes)" />
   <Seg label="Squad" bind:value={advice.squad} options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
   <input type="search" aria-label="Filter relics by name or reward" title="Shows only what matches what you type" placeholder="Relic or reward…" bind:value={query} />
   <HelpMark part="relics.filters" />

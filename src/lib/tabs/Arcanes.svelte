@@ -32,12 +32,8 @@
   import Segments from "../ui/Segments.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
-  /** Your copies of an arcane by rank. */
-  const ranksOf = (r: ArcaneRow) => {
-    const by = new Map<number, number>();
-    for (const x of model.inventoryByBase.get(r.unique) ?? []) by.set(x.rank ?? 0, (by.get(x.rank ?? 0) ?? 0) + x.quantity);
-    return [...by].map(([rank, count]) => ({ rank, count }));
-  };
+  /** Your copies of an arcane by rank, under every path its row merges (arcaneRows). */
+  const ranksOf = (r: ArcaneRow) => r.ranks;
 
 
   let query = $state("");

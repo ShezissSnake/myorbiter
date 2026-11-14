@@ -31,7 +31,16 @@ export interface DropLog {
   gone?: string[];
   /** What was being built of each tracked part in the foundry then: one claimed since isn't a drop. */
   building?: Record<string, number>;
+  /**
+   * How the counts were made (DROP_TRACKING). A log saved before parts listed by their built path
+   * counted their blueprints too has none: its next read is a new baseline, so blueprints already
+   * held don't show up as drops.
+   */
+  tracks?: number;
 }
+
+/** 2: a part listed by its built path (`…RhinoChassisComponent`) also counts its blueprint. */
+export const DROP_TRACKING = 2;
 
 export const emptyDropLog = (): DropLog => ({ at: 0, counts: {}, windows: [] });
 
@@ -54,22 +63,36 @@ function gearParts(m: Model): Map<string, string> {
   return out;
 }
 
-/** What you hold of every tracked part, by name; parts you hold none of are left out. */
+/**
+ * A part the catalog lists by its built path (`…/WarframeRecipes/RhinoChassisComponent`) drops as
+ * its blueprint (`…RhinoChassisBlueprint`), which is also the foundry's recipe for it. Null for a
+ * part listed by the path that drops (a Lato Vandal Barrel).
+ */
+const componentBlueprint = (u: string) => (/Component$/.test(u) ? u.replace(/Component$/, "Blueprint") : null);
+
+/**
+ * What you hold of every tracked part, by name; parts you hold none of are left out. A part listed
+ * by its built path counts its blueprint, what drops, and the built part, what a craft gives: the
+ * foundry (dropBuilding) tells a claimed craft from a drop.
+ */
 export function dropCounts(m: Model): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [name, n] of m.ownedPartQty) if (n > 0) out[name] = n;
-  for (const [u, name] of gearParts(m)) {
-    const n = heldCount(m, u);
+  const gear = gearParts(m);
+  for (const [u, name] of gear) {
+    const bp = componentBlueprint(u);
+    const n = heldCount(m, u) + (bp && !gear.has(bp) ? heldCount(m, bp) : 0);
     if (n > 0) out[name] = (out[name] ?? 0) + n;
   }
   return out;
 }
 
-/** What's being built in the foundry of each tracked part (a Duviri weapon's barrel, say), by name. */
+/** What's being built in the foundry of each tracked part (a Duviri weapon's barrel, a Rhino Chassis), by name. */
 export function dropBuilding(m: Model): Record<string, number> {
   const out: Record<string, number> = {};
   for (const [u, name] of gearParts(m)) {
-    const n = m.inFoundry(`${u}Blueprint`) + m.inFoundry(u);
+    const bp = componentBlueprint(u);
+    const n = bp ? m.inFoundry(bp) : m.inFoundry(`${u}Blueprint`) + m.inFoundry(u);
     if (n > 0) out[name] = (out[name] ?? 0) + n;
   }
   return out;
@@ -92,10 +115,19 @@ const same = (a: Record<string, number>, b: Record<string, number>) => {
  * changes (an older or the same read).
  */
 export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}, tradedAway: string[] = []): DropLog | null {
-  if (at <= log.at) return null;
+  // The same read again (the model rebuilt) changes nothing.
+  if (at === log.at) return null;
   const sum = total(counts);
-  const withBuilding = (l: DropLog): DropLog => (Object.keys(building).length ? { ...l, building } : l);
+  const withBuilding = (l: DropLog): DropLog => {
+    const out: DropLog = { ...l, tracks: DROP_TRACKING };
+    if (Object.keys(building).length) out.building = building;
+    return out;
+  };
   if (!log.at) return sum > 0 ? withBuilding({ at, counts, windows: [] }) : null;
+  // A read older than the last one (the computer's clock was set back), or a log that counted
+  // parts another way: this read is the new baseline. Nothing in it is a gain, and the reads after
+  // it count from it.
+  if (at < log.at || (log.tracks ?? 1) < DROP_TRACKING) return sum > 0 ? withBuilding({ at, counts, windows: log.windows }) : null;
   const before = total(log.counts);
   // The same read again (the model rebuilt) isn't a second one.
   if (sum < before / 2) return log.lowAt != null && at > log.lowAt ? withBuilding({ at, counts, windows: log.windows }) : log.lowAt === at ? null : { ...log, lowAt: at };
