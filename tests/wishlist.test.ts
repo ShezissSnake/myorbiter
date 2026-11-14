@@ -110,6 +110,10 @@ test("every part in hand but a resource short: Wishlist, Foundry and Mastery say
   const tag = readyTag(w.c);
   assert.equal(tag.label, "Parts ready · rare resources");
   assert.match(tag.title, /building needs Narmer Isoplast/);
+  // The card's "Next step" is a sentence of its own: a full stop, no pointer to the tooltip's "open it".
+  assert.match(tag.sentence, /^Every part in hand, but building needs Narmer Isoplast, from an open world or an event\.$/);
+  for (const t of ["now", "farm", "hard", null] as const) assert.doesNotMatch(readyTag({ tier: t, short: t === "now" || t === null ? [] : ["X"] }).sentence, /Open it/);
+  assert.match(readyTag({ tier: "now", short: [] }).sentence, /\.$/);
   const foundry = collection(m).find((c) => c.name === "Testblade")!;
   assert.deepEqual(readyTag(foundry), tag);
   const row = masteryRows(m).find((r) => r.name === "Testblade")!;

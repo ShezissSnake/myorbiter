@@ -183,6 +183,18 @@ test("a dual-pistol prime with every part in hand but not the two pistols names 
   assert.match(both.acq.how, /build it in the Foundry/);
 });
 
+test("holding more parts of a dual-pistol prime never makes it look harder", () => {
+  const d = dual();
+  const relic = { uniqueName: "/R/X", name: "Axi A1 Intact", vaulted: false, rewards: [{ name: "Akbronco Prime Blueprint", rarity: "Common", chance: 25 }] };
+  const row = (inventory: InventoryRow[], relics: unknown[]) =>
+    masteryRows(buildModel({ observed_at: 1, inventory, catalog: d.catalog, relics, prices: {} } as unknown as Bundle)).find((r) => r.name === "Akbronco Prime")!.acq.difficulty;
+  const every = row([d.blueprint, d.link], []);
+  // A relic part missing, with and without a relic of yours that drops it: never below having every part.
+  assert.ok(row([d.link], []) >= every, "missing part, no relic held");
+  assert.ok(row([d.link, inv("/R/X", "Axi A1 Intact", "relic", 1)], [relic]) >= every, "missing part, relic held for it");
+  assert.ok(row([], []) >= every, "no part held");
+});
+
 test("a dual-pistol prime short a relic part and the pistols says both", () => {
   const d = dual();
   const r = akbronco([d.blueprint], d.catalog);

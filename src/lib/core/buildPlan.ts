@@ -71,7 +71,7 @@ export type ReadyTier = BuildTier | "unchecked";
  * page has it. Without the plan only the resources the catalog lists for the item itself are
  * known (the farm tag), and nothing claims the rest is in hand.
  */
-export function readyTag(b: { tier: BuildTier | null; short: readonly string[] }, form: TagForm = "card", line?: string): { tier: ReadyTier; label: string; tone: TagTone; title: string } {
+export function readyTag(b: { tier: BuildTier | null; short: readonly string[] }, form: TagForm = "card", line?: string): { tier: ReadyTier; label: string; tone: TagTone; title: string; sentence: string } {
   const tier: ReadyTier = b.tier === "hard" ? "hard" : b.tier === "farm" || b.short.length ? "farm" : b.tier === "now" ? "now" : "unchecked";
   const what = line || b.short.join(", ");
   const title =
@@ -79,7 +79,13 @@ export function readyTag(b: { tier: BuildTier | null; short: readonly string[] }
     : tier === "farm" ? `Every part in hand; still to farm: ${what}. Open it for what each part takes`
     : tier === "now" ? "Every part and resource in hand: build it in your foundry"
     : "Every part in hand: build it in your foundry. MyOrbiter hasn't read the recipes yet, so the resources it takes aren't checked";
-  return { tier, ...buildTag(tier, b.short, form), title };
+  // The same as a sentence of its own, for a card's "Next step" (no pointer to the tooltip's "open it").
+  const sentence =
+    tier === "hard" ? `Every part in hand, but building needs ${what}, from an open world or an event.`
+    : tier === "farm" ? `Every part in hand; still to farm: ${what}.`
+    : tier === "now" ? "Every part and resource in hand: build it in your foundry."
+    : "Every part in hand: build it in your foundry. MyOrbiter hasn't read the recipes yet, so the resources it takes aren't checked.";
+  return { tier, ...buildTag(tier, b.short, form), title, sentence };
 }
 
 export interface ResourceNeed {

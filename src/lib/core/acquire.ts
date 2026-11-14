@@ -392,7 +392,8 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
   return {
     ...base,
     method: "relics",
-    difficulty: covered === missing.length ? 2 : 3,
+    // Never easier than the one with every relic part in hand and the weapons missing (3).
+    difficulty: Math.max(lacking.length ? 3 : 0, covered === missing.length ? 2 : 3),
     how: `${missing.length} missing part${missing.length === 1 ? "" : "s"} from ${resurgence.length ? "relics, some only from Varzia" : "relics still in the drop tables"}${covered ? `; you own relics for ${covered === missing.length ? "all of them" : `${covered} of ${missing.length}`}` : ""}.${buy}${also}`,
     available: true,
   };

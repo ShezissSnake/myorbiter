@@ -176,7 +176,7 @@
     if (w.c.stepHow) return w.c.stepHow;
     if (w.c.owned) return "In your arsenal: rank it to max for the mastery.";
     if (w.c.building) return "Building in your Foundry: claim it once it's done, then rank it to max.";
-    if (w.c.buildable) return readyTag(w.c).title;
+    if (w.c.buildable) return readyTag(w.c).sentence;
     if (!w.missing.length) return w.how;
     return null;
   };
