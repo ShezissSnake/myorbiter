@@ -9,6 +9,7 @@
   import type { Live, MissionState } from "../core/types";
   import type { Settings } from "../backend";
   import { defaultAdvice } from "../backend";
+  import { proxy } from "../proxy.svelte";
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
@@ -68,7 +69,8 @@
   let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
-  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes.");
+  // A proxy set that can't be used: nothing is asked, and asking again won't change that.
+  const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : (proxy.problem ?? "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes."));
 
   // Countdowns tick once a minute.
   let now = $state(Date.now());
@@ -610,7 +612,8 @@
       {:else if mkt.signInRefused}
         <p class="dim">warframe.market refused MyOrbiter's sign-in. Sign out on <button class="link" onclick={() => go("market")}>Orders</button>, then sign in again.</p>
       {:else if mkt.accountError}
-        <p class="dim">Signed in, but warframe.market can't be reached right now. MyOrbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
+        {#if proxy.problem}<p class="dim">Signed in, but warframe.market can't be reached: {proxy.problem}</p>
+        {:else}<p class="dim">Signed in, but warframe.market can't be reached right now. MyOrbiter tries again every minute; see <button class="link" onclick={() => go("market")}>Orders</button>.</p>{/if}
       {:else}
         <p class="dim">Not signed in to warframe.market. Sign in on <button class="link" onclick={() => go("market")}>Orders</button> to list, reprice and go online from here.</p>
       {/if}
@@ -644,7 +647,7 @@
       {#if live.fissures == null}
         <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
-        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. MyOrbiter asks again every few minutes.</p>
+        {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. {proxy.problem ?? "MyOrbiter asks again every few minutes."}</p>
         {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
         <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
       {/if}
@@ -880,7 +883,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? "Couldn't reach warframe.market; it tries again in 10 minutes." : mkt.dealsAt ? `Nothing listed at ${Math.round(DEAL_SHARE * 100)}% or less of its usual (daily median) price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting. Medians under ${DEAL_MIN_REF}p are skipped; a price alert goes by your own price.` : "Checking warframe.market…"}</p>
+        <p class="dim small">{mkt.dealsAt && !mkt.dealsChecked ? (proxy.problem ? `Couldn't reach warframe.market: ${proxy.problem}` : "Couldn't reach warframe.market; it tries again in 10 minutes.") : mkt.dealsAt ? `Nothing listed at ${Math.round(DEAL_SHARE * 100)}% or less of its usual (daily median) price right now, among the parts you're missing for nearly complete sets and the arcanes you've started collecting. Medians under ${DEAL_MIN_REF}p are skipped; a price alert goes by your own price.` : "Checking warframe.market…"}</p>
       {/if}
       <!-- Price alerts you set from Post a buy order (Alert me): watched with the rest. -->
       {#if settings.market.buyAlerts.length}
@@ -894,8 +897,10 @@
           {/each}
         </div>
       {/if}
+      <!-- A proxy set that can't be used: the feed's thread has ended and nothing is tried, so
+           not "Connecting": the reason, as Home's other lines give it. -->
       <p class="live small" title={mkt.feed?.error ?? "Every new listing on warframe.market is checked as it goes up"}>
-        {#if mkt.feed?.connected}<i class="dot" aria-hidden="true"></i>Watching new listings live{mkt.liveDeals ? ` · ${mkt.liveDeals} caught` : ""}{:else if mkt.feed?.running}Connecting to the live feed…{/if}
+        {#if mkt.feed?.connected}<i class="dot" aria-hidden="true"></i>Watching new listings live{mkt.liveDeals ? ` · ${mkt.liveDeals} caught` : ""}{:else if mkt.feed?.running && proxy.problem}New listings aren't watched: {proxy.problem}{:else if mkt.feed?.running}Connecting to the live feed…{/if}
       </p>
     </section>
 

@@ -359,11 +359,32 @@ Those are all the hosts MyOrbiter and its TennoScope contact themselves: `api.wa
 hands an update download to `release-assets.githubusercontent.com` or
 `objects.githubusercontent.com`, gitlab.com may hand one to its file storage, and the Windows
 installer fetches Microsoft's WebView2 installer when WebView2 is missing; gitlab.com's and
-Microsoft's hosts are theirs to choose and weren't audited. If you set a proxy (`HTTPS_PROXY` and the like), requests go through it. This page
-covers what MyOrbiter's and TennoScope's code does; what the system's web view (WebView2, WebKitGTK)
-does on its own wasn't audited. No telemetry, analytics or crash reporting is built in, and your
-records (sales, trades, value over time, settings) stay on this computer, in `settings.json`
-(below); single events reach warframe.market or Discord only as described above.
+Microsoft's hosts are theirs to choose and weren't audited.
+
+If you set a proxy (`ALL_PROXY`, `HTTPS_PROXY` or `HTTP_PROXY`, in capitals or not, read in that
+order), MyOrbiter's requests and its connections to warframe.market go through it; the read of
+last week's riven trades is made by the window itself and goes the way the system's web view
+goes. Only an `http://` proxy works (`http://host:port`, with `user:password@` before the host if
+it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an address that can't
+be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
+can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
+paragraph, and says why, on the page and in its log, rather than going around the proxy; the
+window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: none
+of MyOrbiter's own requests and connections skips the proxy.
+
+The update check and its download, and TennoScope's web requests, choose for themselves: they use
+`HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
+never `HTTP_PROXY`, their addresses all being https. They take an `https://` proxy too, skip the
+proxy for the hosts `NO_PROXY` names, and go straight when the address set can't be read and no
+other is set. TennoScope's status connection never goes through a proxy. It opens only when you
+switch your status in TennoScope's own window, or start TennoScope with `--presence=`; never at
+MyOrbiter's request, and never while MyOrbiter holds your status.
+
+This page covers what MyOrbiter's and TennoScope's code does; what the system's web view
+(WebView2, WebKitGTK) does on its own wasn't audited. No telemetry, analytics or crash reporting
+is built in, and your records (sales, trades, value over time, settings) stay on this computer,
+in `settings.json` (below); single events reach warframe.market or Discord only as described
+above.
 
 ## Files on this computer
 
