@@ -338,12 +338,19 @@ it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
 and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids and
-players' names hidden. In a path, wherever it points (your home folder, another drive, a mount or a
-network share), every folder name in a path that could name you, your computer or a drive is hidden
-(`/mnt/[drive]/[folder]/Warframe/EE.log`); the file's name, the kind of place (a drive letter,
-`/mnt`, `~`) and the folders Steam, Proton, the game and MyOrbiter make stay. The prices of listings
-and sales are kept: they are public on warframe.market and help find a repricing fault. Your
-balance (the platinum, credits or Endo you hold) is never in them.
+players' names hidden, and so are the folder names in the paths of the shapes MyOrbiter recognises,
+wherever they point (`/mnt/[drive]/[folder]/Warframe/EE.log`). Those shapes are `/a/b`, `\a\b`,
+`~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\a` (any variable), `D:\a` and `D:/a`, `\\?\D:\a`,
+a network share (`\\computer\share`, `\\?\UNC\computer\share`, `//computer/share`,
+`smb://computer/share`, `file://computer/share`) and `file:///` addresses, with either slash, `%5C` or
+`%2F`, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a computer's
+name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's name, the
+root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and MyOrbiter
+make stay. Left as written: a lone `/word` or `\word`, `D:word`, a relative path (`./a/b`), a path
+broken over two lines, and an address's path (`/v2/…`, `/api/…`, after `GET` and the like). A path
+of an unusual shape can pass, which is why the report is shown to you in full before anything is
+sent. The prices of listings and sales are kept: they are public on warframe.market and help find
+a repricing fault.
 
 ## Links
 

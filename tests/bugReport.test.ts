@@ -4,8 +4,7 @@
 // survives the cleaning.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync } from "node:fs";
 import { buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
@@ -90,9 +89,10 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   assert.ok(para.includes(`\`template=${u.searchParams.get("template")}\``), "the template parameter");
   assert.ok(para.includes(`(\`build=${u.searchParams.get("build")}\`)`), `the build parameter, as ${u.searchParams.get("build")}`);
   // And what the details leave out, as redact.ts does it.
-  assert.match(para, /every folder name in a path that could name you, your computer or a drive is hidden/);
+  assert.match(para, /the folder names in the paths of the shapes MyOrbiter recognises/);
+  assert.match(para, /a path of an unusual shape can pass/i);
   assert.match(para, /prices of listings and sales are kept/);
-  assert.match(para, /your balance .*is never in them/i);
+  assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
 
 test("paths anywhere: the name part is hidden, what a bug hunter needs stays", () => {
@@ -136,36 +136,86 @@ test("paths anywhere: the name part is hidden, what a bug hunter needs stays", (
   assert.ok(!redact("game at /media/someone/ExampleLabel/ExampleFolder/Warframe/EE.log").match(/someone|Example/));
 });
 
-test("a balance never reaches the details; listing and sale prices stay", () => {
-  // No line that goes into the log is written with the player's balance (the wallet the inventory
-  // read gives: settings.game.platinum, credits, endo): every call that writes the log, a notice or
-  // a note, here and in the Rust, is read for it.
-  const files = (dir: string, ext: RegExp): string[] => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(join(dir, e.name), ext) : ext.test(e.name) ? [join(dir, e.name)] : []));
-  const writers = /\blogLine\(|\blog::(?:info|warn|error|debug|log)!\(|\bnotify\(|\bnotice\(|\bthis\.note\(/;
-  const wallet = /\b(?:game|g)\.(?:platinum|credits|endo)\b|\bPremiumCredits|\bRegularCredits|\bFusionPoints|statusNow\.plat\b/;
-  const found: string[] = [];
-  for (const f of [...files("src", /\.(?:ts|svelte)$/), ...files("src-tauri/src", /\.rs$/), ...files("crates/myorbiter-data/src", /\.rs$/)]) {
-    readFileSync(f, "utf8").split("\n").forEach((line, i) => {
-      if (writers.test(line) && wallet.test(line)) found.push(`${f}:${i + 1}`);
-    });
-  }
-  assert.deepEqual(found, [], "a log line built from the balance");
-  // And any line that says one anyway is cleaned.
+test("paths: apostrophes and spaces don't cut a name short", () => {
   const cases: [string, string][] = [
-    ["you have 1,234 platinum", "you have [balance] platinum"],
-    ["You now hold 12k credits", "You now hold [balance] credits"],
-    ["your credits: 3,000,000; your platinum is 512", "your credits: [balance]; your platinum is [balance]"],
-    ['{"PremiumCredits": 512, "RegularCredits":1200, "FusionPoints":"40000"}', '{"PremiumCredits": [balance], "RegularCredits":[balance], "FusionPoints":"[balance]"}'],
-    ["balance=99 wallet: 12", "balance=[balance] wallet: [balance]"],
-    ["1234 platinum, as of the last inventory read", "[balance] platinum, as of the last inventory read"],
+    ["found at D:\\Games\\Jo's Stuff\\Example Person\\Warframe\\EE.log", "found at D:\\Games\\[folder]\\[folder]\\Warframe\\EE.log"],
+    ["E:\\Example Person's Games\\Warframe\\EE.log", "E:\\[folder]\\Warframe\\EE.log"],
+    // A spaced last name: hidden up to where the line goes on (": ", " (", the end).
+    ["couldn't open D:\\Games\\Example Person: denied", "couldn't open D:\\Games\\[folder]: denied"],
+    ["/mnt/My Passport", "/mnt/[drive]"],
+    ["copied /mnt/Example Disk Two (the folder", "copied /mnt/[drive] (the folder"],
+    ["/home/someone/Jo's Files/x.txt", "/home/[user]/[folder]/x.txt"],
   ];
-  for (const [input, want] of cases) assert.equal(redact(input), want, input);
-  for (const kept of ["You sold Mesa Prime Set to [player] for 120 platinum", "Ash Prime Set: 20p from [player] (usually 40p)", "Platinum x 17", "You have 3 listings up on warframe.market", "Listed 2× Ash Prime Set at 30p", "Ash Prime Set: 30p → 25p, down to the cheapest seller", "listing: 2 at 30p; 5 held, 3 spare"])
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // A run of words longer than a folder name can be (255) is not taken as one folder.
+  const long = "word ".repeat(51) + "end";
+  assert.equal(redact(`D:\\Games\\${"x".repeat(240)} y\\EE.log`), "D:\\Games\\[folder]\\EE.log");
+  assert.equal(redact(`D:\\Games\\${long}\\EE.log`), `D:\\Games\\[folder] ${"word ".repeat(50)}end\\EE.log`);
+});
+
+test("paths: shares and Windows' long-path prefixes", () => {
+  const cases: [string, string][] = [
+    ["//EXAMPLE-PC/share/EE.log", "//[host]/share/EE.log"],
+    ["mounted //EXAMPLE-PC/Games at /mnt/x", "mounted //[host]/Games at /mnt/[drive]"],
+    ["smb://EXAMPLE-PC/share/Warframe/EE.log", "smb://[host]/share/Warframe/EE.log"],
+    ["file://EXAMPLE-PC/share/EE.log", "file://[host]/share/EE.log"],
+    ["\\\\?\\UNC\\EXAMPLE-PC\\share\\EE.log", "\\\\?\\UNC\\[host]\\share\\EE.log"],
+    ["\\\\?\\D:\\ExampleStuff\\EE.log", "\\\\?\\D:\\[folder]\\EE.log"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // An address's "//" stays: it isn't a share.
+  assert.equal(redact("see https://warframe.market/items/x"), "see https://warframe.market/items/x");
+});
+
+test("paths: a file's extension counts on the last name only; Steam's account id is hidden", () => {
+  assert.equal(redact("D:\\Example Person.bak\\Warframe\\EE.log"), "D:\\[folder]\\Warframe\\EE.log");
+  assert.equal(redact("/home/someone/someone.app/x.desktop"), "/home/[user]/[folder]/x.desktop");
+  assert.equal(redact("/mnt/Games/Steam/userdata/123456789/230410/remote/x.dat"), "/mnt/Games/Steam/userdata/[id]/230410/remote/x.dat");
+  // Numbers elsewhere are kept (Steam's app ids), and so are . and ..
+  assert.equal(redact("D:\\Games\\..\\ExampleStuff\\.\\230410\\EE.log"), "D:\\Games\\..\\[folder]\\.\\230410\\EE.log");
+});
+
+test("paths: after a colon, a backtick, { or |, from a variable or ~name, or with %2F for a slash", () => {
+  const cases: [string, string][] = [
+    ["found at:/mnt/ExampleDisk/EE.log", "found at:/mnt/[drive]/EE.log"],
+    ["cwd:/srv/someone/x", "cwd:/srv/[folder]/[folder]"],
+    ["see `/mnt/ExampleDisk/x` here", "see `/mnt/[drive]/[folder]` here"],
+    ["{/mnt/ExampleDisk/x}", "{/mnt/[drive]/[folder]}"],
+    ["a|/mnt/ExampleDisk/x", "a|/mnt/[drive]/[folder]"],
+    ["$HOME/someone/Warframe", "$HOME/[folder]/Warframe"],
+    ["${HOME}/someone/Warframe", "${HOME}/[folder]/Warframe"],
+    ["%USERPROFILE%\\someone\\EE.log", "%USERPROFILE%\\[folder]\\EE.log"],
+    ["~someone/Games/EE.log", "~[user]/Games/EE.log"],
+    ["~/ExampleStuff", "~/[folder]"],
+    ["path=%2Fhome%2Fsomeone%2FEE.log", "path=%2Fhome%2F[user]%2FEE.log"],
+    ["C:%5CUsers%5Csomeone%5CEE.log", "C:%5CUsers%5C[user]%5CEE.log"],
+    ["file:///D:/ExampleStuff/x.txt", "file:///D:/[folder]/x.txt"],
+    ["\\ExampleStuff\\x", "\\[folder]\\[folder]"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Left as written, as docs/privacy.md says: a lone /word or \word, D:word, a relative path, a path over two lines.
+  for (const kept of ["/ExampleStuff", "\\ExampleStuff", "D:ExampleStuff\\x", "./someone/x", "someone/x"]) assert.equal(redact(kept), kept, kept);
+});
+
+test("paths: an address's path is told from a file's, and amounts pass as written", () => {
+  // The APIs MyOrbiter calls start /v1/, /v2/ or /api/; no system has those folders at its root.
+  for (const kept of ["429 from /v2/orders/item/ash_prime_set", "429 from /v1/items/ash_prime_set/orders", "GET /api/v4/projects: 200"]) assert.equal(redact(kept), kept, kept);
+  // Prices and amounts: nothing hides them.
+  for (const kept of ["You sold Mesa Prime Set to [player] for 120 platinum", "Ash Prime Set: 20p from [player] (usually 40p)", "Platinum x 17", "Listed 2× Ash Prime Set at 30p", "Ash Prime Set: 30p → 25p, down to the cheapest seller", "you hold 2", "you have 30p", "you have 1,234 platinum"])
     assert.equal(redact(kept), kept, kept);
-  // The whole block, from the fixture's log with a balance and paths on other drives in it.
-  const extra = ["[2026-11-04][10:00:09][inventory][INFO] you have 1,234 platinum", "[2026-11-04][10:00:10][ee_log][INFO] found at /mnt/ExampleDisk/Games/Warframe/EE.log", "[2026-11-04][10:00:11][app][WARN] couldn't open D:\\Example Games\\Warframe\\EE.log: denied"];
+  // The whole block, from the fixture's log with paths on other drives in it.
+  const extra = ["[2026-11-04][10:00:10][ee_log][INFO] found at /mnt/ExampleDisk/Games/Warframe/EE.log", "[2026-11-04][10:00:11][app][WARN] couldn't open D:\\Example Games\\Warframe\\EE.log: denied"];
   const text = detailsText(buildReport({ what: "x", steps: "", expected: "" }, details([...LOG, ...extra]), NAMES).details!);
-  for (const gone of ["1,234", "ExampleDisk", "Example Games"]) assert.ok(!text.includes(gone), `${gone} is hidden`);
+  for (const gone of ["ExampleDisk", "Example Games"]) assert.ok(!text.includes(gone), `${gone} is hidden`);
   for (const kept of ["for 120 platinum", "found at /mnt/[drive]/Games/Warframe/EE.log", "couldn't open D:\\[folder]\\Warframe\\EE.log: denied"]) assert.ok(text.includes(kept), `keeps: ${kept}`);
 });
 

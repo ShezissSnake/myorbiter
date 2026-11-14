@@ -30,7 +30,6 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
   const ip = `${r.int(11, 223)}.${r.int(0, 255)}.${r.int(0, 255)}.${r.int(1, 254)}`;
   const jwt = `eyJ${hex(r, 12)}.${hex(r, 20)}.${hex(r, 16)}`;
   const token = hex(r, 8) + "Zq" + hex(r, 8);
-  const balance = `${r.int(10, 99)},${r.int(100, 999)}`;
   return [
     { text: casing(r, self), must: [self.toLowerCase()] },
     { text: `sold Ash Prime Set to ${casing(r, other)}`, must: [other.toLowerCase()] },
@@ -51,8 +50,8 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
     { text: `"E:/${user} Stuff/x y/EE.log"`, must: [user] },
     { text: `\\\\${user}-PC\\Games\\Warframe`, must: [user] },
     { text: `~/Games/${user}/Warframe/EE.log`, must: [user] },
-    // A balance, in a shape it could take.
-    { text: `you have ${balance} platinum`, must: [balance] },
+    { text: `D:\\Games\\${user}'s Stuff\\${user} Smith: denied`, must: [user, "Smith"] },
+    { text: r.pick([`//${user}-PC/share/x`, `smb://${user}-PC/share`, `\\\\?\\UNC\\${user}-PC\\share\\x`, `~${user}/Games`, `$HOME/${user}/x`, `%2Fmnt%2F${user}%2Fx`]), must: [user] },
     { text: `/profile/${other}`, must: [other.toLowerCase()] },
   ];
 }

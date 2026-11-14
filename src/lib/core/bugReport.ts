@@ -9,8 +9,8 @@
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
 // full first: the version, the system, the page, TennoScope's state and the log's last lines.
 // Everything is cleaned on the way in (core/untrusted.ts: no hidden characters, no HTML comments)
-// and redacted (core/redact.ts: no sign-ins, addresses, ids, players' names, folder names in paths
-// or balance; listing and sale prices stay). The technical block
+// and redacted (core/redact.ts: no sign-ins, addresses, ids, players' names, or folder names in
+// the paths it recognises). The technical block
 // goes in a `text` code block no line of it can close, so GitHub shows it as text, never as
 // Markdown or HTML.
 
@@ -128,7 +128,7 @@ export function detailsText(d: ReportDetails): string {
   ];
   if (!d.log.length) lines.push("Log: no lines (MyOrbiter's log is only kept by the desktop app).");
   else {
-    lines.push(`Log, last ${d.log.length} line${d.log.length === 1 ? "" : "s"} (sign-ins, addresses, ids, players' names and folder names in paths hidden):`);
+    lines.push(`Log, last ${d.log.length} line${d.log.length === 1 ? "" : "s"} (sign-ins, addresses, ids, players' names and folder names in recognised paths hidden):`);
     lines.push(...d.log);
   }
   return lines.join("\n");

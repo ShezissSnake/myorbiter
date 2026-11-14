@@ -155,7 +155,7 @@
 
     <section class="tech" class:off={!d.include}>
       <div class="techrow">
-        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids, players' names and folder names in paths hidden. Untick to leave them out of the report (the form still opens with the version and your system).">
+        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids, players' names and the folder names in the paths it recognises hidden. Untick to leave them out of the report (the form still opens with the version and your system).">
           <input type="checkbox" bind:checked={d.include} />
           <span class="box" aria-hidden="true"><Icon name="check" size={10} /></span>
           Include technical details
@@ -174,7 +174,7 @@
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, every player's name and the folder names in paths (yours, your computer's, a drive's) are hidden, here and in what you wrote. Listing and sale prices stay; your balance is never in it.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, every player's name and the folder names in the paths MyOrbiter recognises are hidden, here and in what you wrote. Listing and sale prices stay. Read it before sending: a path of an unusual shape can pass.{/if}</p>
     </section>
 
     {#if handed === "pasted" && copiedText === paste}
