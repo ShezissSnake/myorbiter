@@ -246,7 +246,7 @@ fn agent_for(route: &presence::Route) -> ureq::Agent {
             match ureq::Proxy::new(format!("http://{login}{host}:{port}")) {
                 Ok(proxy) => agent = agent.proxy(proxy),
                 // `route_from` only gives addresses ureq reads; never straight all the same.
-                Err(_) => agent = agent.middleware(refuse("the proxy set couldn't be read, so MyOrbiter sends nothing".into())),
+                Err(_) => agent = agent.middleware(refuse("the proxy set couldn't be read, so MyOrbiter sends nothing except its update check".into())),
             }
         }
         presence::Route::Unusable(why) => agent = agent.middleware(refuse(why.clone())),
@@ -2022,6 +2022,9 @@ mod tests {
     #[test]
     fn the_agent_stops_on_a_proxy_set_that_cant_be_used() {
         let only = |name: &'static str, value: &'static str| move |n: &str| (n == name).then(|| value.to_string());
+        // Each request's time limit: a refusal that broke reaches the listener below, which never
+        // answers, and fails the test here instead of hanging the run.
+        const LIMIT: Duration = Duration::from_secs(5);
         // A listener on 127.0.0.1 the request would reach if it went straight.
         let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         target.set_nonblocking(true).unwrap();
@@ -2032,18 +2035,18 @@ mod tests {
             ("HTTP_PROXY", "127.0.0.1:notaport", "HTTP_PROXY is set to an address MyOrbiter can't read"),
         ] {
             let agent = agent_for(&presence::route_from(only(name, value)));
-            let e = agent.get(&url).call().err().map(|e| e.to_string()).unwrap_or_default();
+            let e = agent.get(&url).timeout(LIMIT).call().err().map(|e| e.to_string()).unwrap_or_default();
             assert!(e.contains(words) && e.contains("only an http:// proxy works") && !e.contains("secret"), "{value}: {e}");
             assert!(target.accept().is_err(), "{value}: nothing went straight");
         }
         // Empty: no proxy, straight to the address.
         let (straight, seen) = test_http::serve_once("{}");
-        assert!(agent_for(&presence::route_from(only("HTTPS_PROXY", ""))).get(&format!("{straight}/x")).call().is_ok());
+        assert!(agent_for(&presence::route_from(only("HTTPS_PROXY", ""))).get(&format!("{straight}/x")).timeout(LIMIT).call().is_ok());
         assert!(seen.join().unwrap().starts_with("GET /x HTTP/1.1"));
         // A usable one is asked for the address, by name: nothing looks the name up here.
         let (proxy, seen) = test_http::serve_once("{}");
         let proxy: &'static str = proxy.leak();
-        assert!(agent_for(&presence::route_from(only("http_proxy", proxy))).get("http://myorbiter-proxy-test.invalid/x").call().is_ok());
+        assert!(agent_for(&presence::route_from(only("http_proxy", proxy))).get("http://myorbiter-proxy-test.invalid/x").timeout(LIMIT).call().is_ok());
         assert!(seen.join().unwrap().starts_with("GET http://myorbiter-proxy-test.invalid/x HTTP/1.1"));
     }
 

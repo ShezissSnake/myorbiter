@@ -198,6 +198,18 @@ const SILENT_FOR: Duration = Duration::from_secs(75);
 
 /// The connection's thread: connect, hold, and reconnect with growing pauses until told to close.
 fn hold(id: u64, first: String, token: TokenSource, initial: Status, rx: Receiver<Cmd>, state: Arc<Mutex<State>>) {
+    // A proxy set that can't be used: nothing would be sent now or on any reconnect (the route is
+    // read once a start), so the reason alone, once, and no reconnects. Choosing a status again
+    // asks again (`set` starts a new thread once this one has ended).
+    if let Route::Unusable(why) = route() {
+        if let Ok(mut s) = state.lock() {
+            s.connected = false;
+            s.committed = None;
+            s.error = Some(why);
+        }
+        clear_heartbeat(id);
+        return;
+    }
     let mut wanted = initial;
     let mut pause = Duration::from_secs(2);
     let mut current = Some(first);
@@ -273,7 +285,7 @@ fn unusable(name: &str, unfit: Unfit) -> String {
         Unfit::Unreadable => "an address MyOrbiter can't read as a proxy",
     };
     format!(
-        "{name} is set to {what}, so MyOrbiter sends nothing: only an http:// proxy works (http://host:port, with user:password@ before the host if it asks for a sign-in). Change or remove {name}, then start MyOrbiter again."
+        "{name} is set to {what}, so MyOrbiter sends nothing except its update check: only an http:// proxy works (http://host:port, with user:password@ before the host if it asks for a sign-in). Change or remove {name}, then start MyOrbiter again."
     )
 }
 
@@ -308,11 +320,15 @@ fn read_proxy(value: &str) -> Result<Route, Unfit> {
 }
 
 /// The route from the environment's variables (`var` reads one; an empty value counts as not
-/// set). The order is ureq's, and so is what passes over what, as before this rule: the first
-/// usable HTTP proxy is taken; a SOCKS one ureq reads (socks5:// and the like) stops there; any
-/// other address that can't be used (https://, socks5h://, one that doesn't read) is passed over
-/// for a usable one that follows, but never for going straight: with none, the route stops on
-/// the first.
+/// set). The order is ureq's: the first usable HTTP proxy is taken; a SOCKS one ureq reads
+/// (socks5:// and the like) stops there; any other address that can't be used (https://,
+/// socks5h://, one that doesn't read) is passed over for a usable one that follows, but never
+/// for going straight: with none, the route stops on the first. Against ureq's own reading: an
+/// address it misread (a port that isn't a number, a path after the port, `http://` alone, port
+/// 0 or above 65535) it took, at port 80 or at one nothing answers on, where this passes it over
+/// for a usable one that follows; a capital scheme and spaces around an address it passed over,
+/// where this takes them; an empty value, or one of only spaces, it took as a proxy with no
+/// host, where this reads it as not set.
 pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
     let mut first_unfit = None;
     for name in PROXY_VARS {

@@ -56,6 +56,15 @@ impl Feed {
         let state = self.state.clone();
         std::thread::spawn(move || {
             let turn = Turn { state: &state, generation: &generation, gen };
+            // A proxy set that can't be used: no connection now or later (the route is read once
+            // a start), so the reason alone, once, and no reconnects.
+            if let crate::presence::Route::Unusable(why) = crate::presence::route() {
+                turn.report(|s| {
+                    s.connected = false;
+                    s.error = Some(why);
+                });
+                return;
+            }
             let mut pause = Duration::from_secs(5);
             while turn.current() {
                 let began = Instant::now();
