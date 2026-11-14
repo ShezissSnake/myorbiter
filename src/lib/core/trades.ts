@@ -133,23 +133,26 @@ export const loggedForTrade = (sales: Sale[], key: string): Sale[] => sales.filt
 
 /**
  * Takes this line's copies from `logged` (loggedForTrade): how many of them this trade logged
- * before, as one sale or split between hand-logged sales and the rest (placeTradeLine). The
- * sale of the line's own count first; else sales of the item and rank, largest first, never
- * more copies than the line has, so a sale another line of the trade stands for (the other
- * refinement of a relic, say) is left to that line.
+ * before. The trade's logged copies of one item and rank are one count, shared by its lines of
+ * that item and rank whichever line logged them (a line may be split between hand-logged sales
+ * and the rest, placeTradeLine; an older record may hold a hand-logged sale claimed whole, more
+ * copies than its line): each line takes up to its own count from what is left, so when the
+ * copies the trade logged cover all its lines, nothing is left to log or mark for any, in
+ * whatever order they come. Only the copies are taken: `logged` holds copies of the sales, never
+ * the saved ones changed.
  */
 export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): number {
-  const exact = logged.findIndex((s) => sameSaleItem(s, line) && s.quantity === line.count);
-  if (exact >= 0) {
-    logged.splice(exact, 1);
-    return line.count;
-  }
   let copies = 0;
-  const fits = logged.filter((s) => sameSaleItem(s, line)).sort((a, b) => b.quantity - a.quantity);
-  for (const s of fits) {
-    if (copies + s.quantity > line.count) continue;
-    copies += s.quantity;
-    logged.splice(logged.indexOf(s), 1);
+  for (let i = 0; i < logged.length && copies < line.count; ) {
+    const s = logged[i];
+    if (!sameSaleItem(s, line)) {
+      i++;
+      continue;
+    }
+    const n = Math.min(s.quantity, line.count - copies);
+    copies += n;
+    if (n === s.quantity) logged.splice(i, 1);
+    else logged[i++] = { ...s, quantity: s.quantity - n };
   }
   return copies;
 }

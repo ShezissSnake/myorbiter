@@ -23,6 +23,7 @@
   import { importClosed } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
   import { imprintNaming, setPartsOf } from "../core/trades";
+  import { tradeSaleNear } from "../core/soldMarks";
   import { imprintSaleName } from "../core/imprints";
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
@@ -132,11 +133,20 @@
   const ranked = $derived(known ? ([...model.catalogByUnique.values()].filter((c) => c.name === known && (c.maxRank ?? 0) > 0).sort((a, b) => (b.maxRank ?? 0) - (a.maxRank ?? 0))[0] ?? null) : null);
   /** Why Add is off, when it is. */
   const blocked = $derived(!item.trim() ? "Name the item sold" : qty != null && Math.round(qty) < 1 ? "Sold at least 1" : !price || price < 1 ? "Set the price each" : null);
+  /**
+   * A trade logged this item at this rank in the ten minutes before (tradeSaleNear): Stats would
+   * count the sale typed now as a second one, so the page says so and adds it only on a second press.
+   */
+  let twice = $state<{ key: string; count: number; partner: string | null } | null>(null);
+  const typedKey = $derived(`${known ?? item.trim()}|${ranked ? (maxed ? ranked.maxRank : 0) : ""}|${Math.round(qty ?? 1)}|${price}`);
   function add() {
     const n = Math.round(qty ?? 1);
     if (blocked || !price) return;
     const rank = ranked ? (maxed ? (ranked.maxRank ?? null) : 0) : null;
     const sale: Sale = { at: Date.now(), item: known ?? item.trim(), rank, quantity: n, platinum: Math.round(price) };
+    const near = twice?.key === typedKey ? null : tradeSaleNear(sales, settings.market.trades, { name: sale.item, rank }, sale.at);
+    twice = near ? { key: typedKey, ...near } : null;
+    if (near) return;
     // Stamped with today's median here, as App stamps every new sale: done now, the log changes once,
     // so its rows close up and the new one arrives (a second rewrite in the same moment loses that).
     const median = rank != null && rank > 0 ? (model.priceMax(sale.item) ?? model.price(sale.item)) : model.price(sale.item);
@@ -286,7 +296,8 @@
       <IconButton icon="plus" tone="gold" type="submit" label="Add sale" title={blocked ?? "Add it to the log"} disabled={!!blocked} />
       <HelpMark part="sales.add" />
     </form>
-    {#if unknown}<p class="small warn note">Not an item MyOrbiter knows: it won't be compared with the market.</p>
+    {#if twice?.key === typedKey}<p class="small warn note" role="status">A trade{twice.partner ? ` with ${twice.partner}` : ""} logged {twice.count} of this minutes ago: if this is that sale, it's in the log already, and Stats would count it twice. Press Add again if it's another sale.</p>
+    {:else if unknown}<p class="small warn note">Not an item MyOrbiter knows: it won't be compared with the market.</p>
     {:else if qty != null && Math.round(qty) < 1}<p class="small warn note">Quantity is at least 1.</p>{/if}
   </div>
 

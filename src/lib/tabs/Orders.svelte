@@ -44,7 +44,7 @@
   import { rivens } from "../rivenStore.svelte";
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
-  import { copiesToSend, soldAfterTrade } from "../core/soldMarks";
+  import { copiesToSend, markedForTrade, soldAfterTrade, soldAfterUnmarked, soldAnswers } from "../core/soldMarks";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
@@ -570,18 +570,27 @@
   const soldTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Each listing's quantity when you clicked Sold. */
   const soldFrom = new Map<string, number>();
+  /** focusIt, on the one button of a question that is to take the focus. */
+  const focusIf = (node: HTMLButtonElement, on: boolean) => {
+    if (on) focusIt(node);
+  };
   /**
    * A Sold click on a listing a trade from the game lowered in the last ten minutes: it may be the
    * same sale, so it asks before lowering the listing again (soldAfterTrade).
    */
-  let askSold = $state<{ id: string; n: number; count: number; partner: string | null } | null>(null);
+  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: boolean } | null>(null);
   function recordSale(o: MyOrder, n: number, sure = false) {
     if (n < 1 || n > o.quantity) return;
     selling = null;
     askSold = null;
-    const prior = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
+    // Or a trade logged a sale of this item and rank minutes ago but couldn't mark it sold (its
+    // notification said "see Orders"): the click may be that sale (soldAfterUnmarked).
+    const item = { name: mkt.item(o.itemId)?.name ?? "", rank: o.rank };
+    const lowered = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
+    const unmarked = sure || lowered || !item.name ? null : soldAfterUnmarked(item, settings.sales, settings.trades, Date.now());
+    const prior = lowered ?? unmarked;
     if (prior) {
-      askSold = { id: o.id, n, ...prior };
+      askSold = { id: o.id, n, ...prior, unmarked: !!unmarked };
       return;
     }
     clearTimeout(soldTimers.get(o.id));
@@ -623,6 +632,23 @@
       const sale = await mkt.sold(o, n, { failed: (r) => (why = r) });
       if (!sale) throw new Error(why || "warframe.market didn't take it");
       settings.sales = [sale, ...settings.sales].slice(0, 2000);
+    });
+  }
+  /**
+   * "That sale", for a trade's sale the marking couldn't mark sold: the copies it couldn't mark
+   * are marked now (the same call as Sold), and the trade's sale records them (markedForTrade).
+   * No second sale is logged.
+   */
+  function sendTradeSale(o: MyOrder, count: number) {
+    askSold = null;
+    const item = { name: mkt.item(o.itemId)?.name ?? "", rank: o.rank };
+    sending[o.id] = o;
+    keptPlans.set(o.id, plans.get(o.id));
+    return rowAct(o.id, { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" }, async () => {
+      let why = "";
+      const sale = await mkt.sold(o, count, { failed: (r) => (why = r) });
+      if (!sale) throw new Error(why || "warframe.market didn't take it");
+      settings.sales = markedForTrade(settings.sales, item, o.id, sale.quantity, Date.now());
     });
   }
   /**
@@ -1024,11 +1050,22 @@
             {@const ask = askSold}
             <!-- A trade from the game lowered this listing minutes ago: the click may be that same sale. -->
             <tr class="fixrow asksold"><td colspan="10">
+                {#if ask.unmarked}
+                {@const a = soldAnswers(ask.n, Math.min(ask.count, o.quantity))}
+                <!-- A trade logged this sale but couldn't mark it sold: "That sale" marks those copies and logs nothing more. -->
+                <div class="fix" role="group" aria-label="The trade's sale?">
+                  <span class="small q"><b class="held">MyOrbiter logged {ask.count} sold from your trade{ask.partner ? ` with ${ask.partner}` : ""} but couldn't mark {ask.count > 1 ? "them" : "it"} sold.</b> <span class="dim">· Is this that sale?</span></span>
+                  <!-- The focus starts on the answer that sends least; Esc on either closes it and sends nothing. -->
+                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id)} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that} sold</button>
+                  <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another} sold</button>
+                </div>
+                {:else}
                 <div class="fix" role="group" aria-label="Sold again?">
                   <span class="small q"><b class="held">MyOrbiter already marked {ask.count} sold from your trade{ask.partner ? ` with ${ask.partner}` : ""}.</b> <span class="dim">· Sold {ask.n} more since?</span></span>
                   <button class="stamp" onclick={() => recordSale(o, ask.n, true)} title="Another sale: mark {ask.n} sold on warframe.market and log it">Yes: mark {ask.n} more sold</button>
                   <button class="stamp" use:focusIt onclick={() => (askSold = null)} onkeydown={onEsc(() => (askSold = null))} title="The same sale: nothing is sent">No, that was the same sale</button>
                 </div>
+                {/if}
             </td></tr>
           {/if}
           {#if held != null && held < o.quantity}

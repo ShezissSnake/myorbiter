@@ -1540,7 +1540,11 @@
           const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
           // Which listing this lowered, by how much: a Sold click on it soon after asks first.
           const lowered = order && marked ? { lowered: { listing: order.id, count: marked.quantity, at: Date.now() } } : {};
-          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key, ...lowered }, ...settings.market.sales].slice(0, 2000);
+          // Copies logged but not marked (no sure listing, refused, or the listing held fewer): a
+          // Sold click on the item soon after asks whether it is this sale, not a second one.
+          const short = placed.left - (marked?.quantity ?? 0);
+          const unmarked = short > 0 ? { unmarked: { listing: order?.id ?? null, count: short, at: Date.now() } } : {};
+          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key, ...lowered, ...unmarked }, ...settings.market.sales].slice(0, 2000);
           lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
           done++;
         }
