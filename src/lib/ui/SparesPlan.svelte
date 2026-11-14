@@ -180,7 +180,7 @@
 
     <!-- Relics -->
     <CategoryRow id="cat-relics" bind:on={rules.relics.on} open={open === "relics"} ontoggle={() => toggle("relics")} label={CATEGORY_LABEL.relics} icon={ICON.relics} summary={summaryOf("relics", rules, facts.lichLeft)} preview={preview.relics}
-      always="Always kept: relics that drop a part you lack for a prime you haven't built or mastered, and any relic that sells for no more than a crack of it is worth ({facts.squad > 1 ? 'in a radshare' : 'cracked solo'}, as chosen on Relics). Each refinement is weighed on its own.">
+      always="Always kept: relics that drop a part you still need (tagged need on Relics: for a prime you haven't built or mastered, or for a weapon made from it, as Akbronco Prime takes two Bronco Primes), and any relic that sells for no more than a crack of it is worth ({facts.squad > 1 ? 'in a radshare' : 'cracked solo'}, as chosen on Relics). Each refinement is weighed on its own.">
       <fieldset class="opts" disabled={off("relics")}>
         <div class="opt">
           <span class="ol"><span class="register">Keep</span><Stepper bind:value={rules.relics.keep} min={KEEP_MIN.relics} disabled={off("relics")} label="Copies of each relic to keep" /><span class="register">of each</span></span>
