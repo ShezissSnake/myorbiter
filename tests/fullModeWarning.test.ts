@@ -4,7 +4,7 @@
 // lists everything MyOrbiter and TennoScope send.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { PRIVACY_PAGE, openable } from "../src/lib/core/links";
 
 const read = (p: string) => readFileSync(p, "utf8");
@@ -47,7 +47,7 @@ test("the page the warning names opens from the warning, wherever it is drawn", 
   assert.match(piece, /import \{ FULL_MODE_WARNING \} from "\.\/FullMode\.svelte"/);
   assert.match(piece, /import \{ PRIVACY_PAGE \} from "\.\/core\/links"/);
   assert.match(piece, /const at = FULL_MODE_WARNING\.indexOf\(PRIVACY_PAGE\.label\);/);
-  assert.match(piece, /\{before\}<button type="button" class="link pagename" [^>]*title="Open the page in your browser"[^>]*onclick=\{open\}>\{PRIVACY_PAGE\.label\}<\/button>\{after\}/);
+  assert.match(piece, /\{before\}<button type="button" class="link pagename" \{disabled\} [^>]*title="Open the page in your browser"[^>]*onclick=\{open\}>\{PRIVACY_PAGE\.label\}<\/button>\{after\}/);
   // It opens the page and does nothing else: no answer to the question, no flip of the switch.
   const open = /function open\(e: MouseEvent\) \{([^}]*)\}/.exec(piece)![1];
   assert.match(open, /e\.preventDefault\(\);\s*e\.stopPropagation\(\);\s*void openUrl\(PRIVACY_PAGE\.url\);/);
@@ -58,10 +58,32 @@ test("the page the warning names opens from the warning, wherever it is drawn", 
   assert.match(first, /<p class="warn" id="first-run-warning"><FullModeWarning disabled=\{!ready\} \/><\/p>/, "the first start's question");
   const full = read("src/lib/FullMode.svelte");
   // Under the switch, outside its <label>: a control inside the label would take the switch's name.
-  assert.match(full, /<\/Switch>\s*(<!--[^]*?-->\s*)?<p class="warn under"><FullModeWarning \/><\/p>/, "under the switch");
+  assert.match(full, /<\/Switch>\s*(<!--[^]*?-->\s*)?<p class="warn under" id=\{warningId\}><FullModeWarning \/><\/p>/, "under the switch");
+  // ...and read out with it: the switch's checkbox is described by the warning's paragraph.
+  assert.match(full, /const uid = \$props\.id\(\);\s*const warningId = `full-mode-warning-\$\{uid\}`;/);
+  assert.match(full, /<Switch name="settings\.full-mode" [^\n]*label="Read my inventory \(Full mode\)" describedby=\{warningId\}>/, "the switch is tied to the warning");
   assert.match(full, /<p class="warn small"><FullModeWarning \/><\/p>/, "beside the button");
   for (const [p, src, n] of [["FirstRun.svelte", first, 1], ["FullMode.svelte", full, 2]] as const) {
     assert.equal(src.match(/<FullModeWarning\b/g)?.length, n, p);
     assert.doesNotMatch(src, /\{FULL_MODE_WARNING\}/, `${p} draws the warning without its control`);
   }
+});
+
+test("a switch may be described by text outside its row; one that isn't is drawn as before", () => {
+  const sw = read("src/lib/ui/Switch.svelte");
+  // One optional prop, passed to the checkbox as aria-describedby (left out, Svelte writes no attribute).
+  assert.match(sw, /describedby\?: string/);
+  assert.match(sw, /<input type="checkbox" role="switch" bind:checked=\{on\} \{disabled\} aria-describedby=\{describedby\} \/>/);
+  assert.equal(sw.match(/describedby/g)?.length, 5, "in its comment, declared, typed, and passed to the checkbox, nowhere else");
+  // Of every switch in the app, only Full mode's passes it.
+  const users: string[] = [];
+  const walk = (dir: string) => {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`;
+      if (e.isDirectory()) walk(p);
+      else if (p.endsWith(".svelte") && /<Switch\b[^\n]*describedby=/.test(read(p))) users.push(p);
+    }
+  };
+  walk("src");
+  assert.deepEqual(users, ["src/lib/FullMode.svelte"]);
 });

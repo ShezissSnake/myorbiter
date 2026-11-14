@@ -15,6 +15,9 @@
   import FullModeWarning from "./FullModeWarning.svelte";
 
   let { kind = "button" }: { kind?: "button" | "switch" } = $props();
+  // The warning under the switch describes it, so it's read out with the switch it warns about.
+  const uid = $props.id();
+  const warningId = `full-mode-warning-${uid}`;
 
   const mode = $derived(ts.report?.setup.access_mode ?? null);
   const on = $derived(mode === "full");
@@ -38,12 +41,12 @@
 
 {#if kind === "switch"}
   <div class="full" class:off={!ready}>
-    <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)">
+    <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)" describedby={warningId}>
       {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">{mode === "overlay" ? "Off: in Overlay mode TennoScope watches for the game and reads its log and its screen (through a void fissure mission and at Baro's kiosk), not your inventory." : "Off: in Companion mode TennoScope reads nothing of the game."}</span>{/if}
     </Switch>
     <!-- Under the switch, not in its label: the page's control inside the label would leave the
-         switch without a name of its own. -->
-    <p class="warn under"><FullModeWarning /></p>
+         switch without a name of its own. It describes the switch instead (aria-describedby). -->
+    <p class="warn under" id={warningId}><FullModeWarning /></p>
   </div>
 {:else}
   <div class="full block">
