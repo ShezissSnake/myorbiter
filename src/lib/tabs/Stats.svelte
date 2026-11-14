@@ -127,10 +127,14 @@
       const n = xs.reduce((c, x) => c + x.count, 0) || 1;
       for (const x of xs) add(groupOf(x.name), k === "sale" ? "revenue" : "spent", ((k === "sale" ? t.platIn : t.platOut) * x.count) / n);
     }
-    // Plus sales that no logged trade covers: a sale names its trade when one logged or matched
-    // it; one logged by hand pairs with the nearest unclaimed trade of that item, within a day.
+    // Plus the copies sold that no logged trade covers: a sale names its trade when one logged or
+    // matched it; one logged by hand pairs with unclaimed trades of that item at that rank,
+    // within a day, nearest first, for as many copies as both have.
     const covered = salesCoveredByTrades(settings.market.sales, settings.market.trades.filter((t) => kindOf(t) === "sale"));
-    for (const s of settings.market.sales) if (s.at >= since && !covered.has(s)) add(groupOf(s.item), "revenue", s.quantity * s.platinum);
+    for (const s of settings.market.sales) {
+      const copies = s.quantity - (covered.get(s) ?? 0);
+      if (s.at >= since && copies > 0) add(groupOf(s.item), "revenue", copies * s.platinum);
+    }
     return [...out.entries()].map(([g, v]) => ({ group: g, revenue: Math.round(v.revenue), spent: Math.round(v.spent), profit: Math.round(v.revenue - v.spent) })).sort((a, b) => b.profit - a.profit);
   }));
   const revenue = $derived(byType.reduce((n, r) => n + r.revenue, 0));
