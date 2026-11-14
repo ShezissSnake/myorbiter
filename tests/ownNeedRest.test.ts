@@ -6,7 +6,9 @@ import { buildModel } from "../src/lib/core/model";
 import { almostComplete, arcaneRows, inventoryRows, masteryRows, modRows, modSpares, partRows, setRows } from "../src/lib/core/views";
 import { matches } from "../src/lib/ui/table";
 import { radiantRows, setGaps } from "../src/lib/core/advice";
-import { dropBuilding, dropCounts, emptyDropLog, recordRead, type DropLog } from "../src/lib/core/drops";
+import { dropBuilding, dropCounts, dropRecounted, emptyDropLog, partialRead, recentDrops, recordRead, type DropLog } from "../src/lib/core/drops";
+import { saveSource } from "../src/lib/core/views";
+import { defaultSettings, flushSettings, loadSettings, saveSettings } from "../src/lib/backend";
 import { recipesFor } from "../src/lib/core/recipes";
 import { scoreCards } from "../src/lib/core/pick";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
@@ -291,4 +293,90 @@ test("inventory page: the card, table and detail draw the family's name and 'Bui
   assert.match(page, /matches\(q, r\.name, r\.type, shown\(r\)/);
   assert.match(page, /title=\{shown\(r\)\} sub=\{kindLine\(r\)\}/);
   assert.match(page, /title=\{\(r\) => shown\(r\)\} kicker=\{kindLine\}/);
+});
+
+// The second review, note 2: a baseline read goes through the partial-read guard as any read does.
+// For each baseline (a read older than the last; a log saved before `tracks`): a read with under half
+// the parts, and one with none of a part the log held, each followed by a whole read.
+const HELD = { a: 4, b: 4, c: 4 };
+const baselines: [string, () => DropLog, number, number][] = [
+  ["a read older than the last", () => recordRead(emptyDropLog(), HELD, 10_000)!, 5_000, 6_000],
+  ["a log saved before tracks", () => ({ at: 1_000, counts: HELD, windows: [] }), 2_000, 3_000],
+];
+for (const [what, start, first, whole] of baselines) {
+  test(`drops: ${what}, read with under half the parts, is skipped as partial, and the whole read after counts nothing`, () => {
+    const low = recordRead(start(), { a: 1 }, first)!;
+    const next = recordRead(low, HELD, whole) ?? low;
+    assert.deepEqual(next.windows.flatMap((w) => Object.keys(w.gains)), [], "nothing it missed counts as a drop");
+    assert.ok(partialRead(low, first), "the low read is taken for a partial one, so Set complete isn't told after it");
+  });
+  test(`drops: ${what}, read with none of a part the log held, keeps that part for a read, and the whole read after counts nothing`, () => {
+    const missing = recordRead(start(), { a: 4, b: 4 }, first)!;
+    const next = recordRead(missing, HELD, whole) ?? missing;
+    assert.deepEqual(next.windows.flatMap((w) => Object.keys(w.gains)), [], "the part it missed isn't a drop");
+    assert.ok(partialRead(missing, first), "the read is taken for a partial one, so Set complete isn't told after it");
+  });
+}
+
+test("drops: an older read that is partial the second time in a row is believed (point 9: it never blocks)", () => {
+  const log = recordRead(emptyDropLog(), HELD, 10_000)!;
+  const low = recordRead(log, { a: 1 }, 5_000)!;
+  const again = recordRead(low, { a: 1 }, 5_500)!;
+  assert.deepEqual({ at: again.at, counts: again.counts, windows: again.windows.length }, { at: 5_500, counts: { a: 1 }, windows: 0 });
+  const after = recordRead(again, { a: 2 }, 6_000)!;
+  assert.deepEqual(after.windows.map((w) => w.gains), [{ a: 1 }], "and the reads after it count");
+});
+
+// The second review, note 1: after the update, only the parts whose way of counting changed take a baseline.
+test("drops: after the update, a prime part got since the old version's last read counts; a blueprint already held does not", () => {
+  const old: DropLog = { at: 1_000, counts: { "Bronco Prime Receiver": 1, "Rhino Chassis": 1 }, windows: [] };
+  // Since then: one more receiver; and the Rhino Chassis Blueprint held all along now counts too.
+  const next = recordRead(old, { "Bronco Prime Receiver": 2, "Rhino Chassis": 2 }, 2_000, 2_000, {}, [], ["Rhino Chassis"])!;
+  assert.deepEqual(next.windows.map((w) => w.gains), [{ "Bronco Prime Receiver": 1 }]);
+  assert.equal(next.tracks, 2, "and the log is current: the next read is an ordinary one");
+});
+
+test("drops: the parts whose way of counting changed are those the catalog lists by their built path, and the app passes them", () => {
+  const m = buildModel(bundle([], [RHINO, LATO, BRONCO]));
+  assert.deepEqual(dropRecounted(m).sort(), ["Rhino Chassis", "Rhino Neuroptics", "Rhino Systems"]);
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  assert.match(app, /recordRead\(settings\.game\.drops, dropCounts\(m\), at, Date\.now\(\), dropBuilding\(m\), away, dropRecounted\(m\)\)/);
+});
+
+// The second review, note 5.
+test("drops: the log's tracks survives a save and a load of the settings, so a second start is no baseline", async () => {
+  const stored = new Map<string, string>();
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => stored.get(k) ?? null, setItem: (k: string, v: string) => void stored.set(k, v), removeItem: (k: string) => void stored.delete(k) };
+  const file = defaultSettings();
+  file.game.drops = { at: 1_000, counts: { a: 1 }, windows: [], tracks: 2 };
+  stored.set("orbiter-settings", JSON.stringify(file));
+  const loaded = await loadSettings();
+  assert.equal(loaded.game.drops.tracks, 2);
+  saveSettings(loaded);
+  await flushSettings();
+  const again = await loadSettings();
+  assert.equal(again.game.drops.tracks, 2);
+  const next = recordRead(again.game.drops, { a: 2 }, 2_000)!;
+  assert.deepEqual(next.windows.map((w) => w.gains), [{ a: 1 }], "the next read counts as usual");
+});
+
+test("drops: windows the log already holds still make the keep rule answer 'dropped' after the update's baseline", () => {
+  const DAY = 86_400_000;
+  const now = 100 * DAY;
+  const m = buildModel(bundle([], [BRONCO]));
+  const old: DropLog = { at: now - 2 * DAY, counts: { "Bronco Prime Receiver": 1 }, windows: [{ from: now - 3 * DAY, at: now - 2 * DAY, gains: { "Bronco Prime Receiver": 1 } }] };
+  const next = recordRead(old, { "Bronco Prime Receiver": 1 }, now - DAY)!;
+  assert.equal(next.tracks, 2, "the update's read was taken in");
+  assert.equal(saveSource(m, "Bronco Prime Receiver", recentDrops(next, [], now)), "dropped");
+});
+
+// The lead's note 3: each half of "an own prime still to build".
+test("reward pick: a part of a prime held but not mastered is for the Ak weapon", () => {
+  const c = scoreCards(buildModel(bundle([inv("/W/BroncoPrime", "Bronco Prime", "weapon", 1)], [BRONCO, AKBRONCO])), ["Bronco Prime Receiver"])[0];
+  assert.deepEqual({ needed: c.needed, neededFor: c.neededFor }, { needed: true, neededFor: "Akbronco Prime" });
+});
+
+test("reward pick: a part of a prime mastered and sold is for the Ak weapon", () => {
+  const c = scoreCards(buildModel(bundle([inv("/W/BroncoPrime", "Bronco Prime", "weapon", 0, { mastered: true })], [BRONCO, AKBRONCO])), ["Bronco Prime Receiver"])[0];
+  assert.deepEqual({ needed: c.needed, neededFor: c.neededFor }, { needed: true, neededFor: "Akbronco Prime" });
 });

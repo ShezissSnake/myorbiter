@@ -87,6 +87,20 @@ export function dropCounts(m: Model): Record<string, number> {
   return out;
 }
 
+/**
+ * The parts DROP_TRACKING 2 counts another way than a log saved before it: those listed by their
+ * built path, which now count their blueprint too. recordRead takes them as a baseline once.
+ */
+export function dropRecounted(m: Model): string[] {
+  const gear = gearParts(m);
+  const out = new Set<string>();
+  for (const [u, name] of gear) {
+    const bp = componentBlueprint(u);
+    if (bp && !gear.has(bp)) out.add(name);
+  }
+  return [...out];
+}
+
 /** What's being built in the foundry of each tracked part (a Duviri weapon's barrel, a Rhino Chassis), by name. */
 export function dropBuilding(m: Model): Record<string, number> {
   const out: Record<string, number> = {};
@@ -111,10 +125,12 @@ const same = (a: Record<string, number>, b: Record<string, number>) => {
  * one agrees (then it's the new baseline, with nothing counted); a part a read shows none of keeps
  * its last count until the next read agrees, unless a trade since took it (`tradedAway`, the names
  * you gave in trades since the last read): then it was sold. A part that left the foundry since
- * (`building`, what the foundry held of each part) was built, not dropped. Null when nothing
- * changes (an older or the same read).
+ * (`building`, what the foundry held of each part) was built, not dropped. A read older than the
+ * last one is a baseline: nothing in it is a gain. So is a log saved before DROP_TRACKING for the
+ * parts it counted another way (`recounted`, dropRecounted; all of them when not given). Both go
+ * through the partial-read checks above. Null when nothing changes (the same read).
  */
-export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}, tradedAway: string[] = []): DropLog | null {
+export function recordRead(log: DropLog, counts: Record<string, number>, at: number, now = at, building: Record<string, number> = {}, tradedAway: string[] = [], recounted?: readonly string[]): DropLog | null {
   // The same read again (the model rebuilt) changes nothing.
   if (at === log.at) return null;
   const sum = total(counts);
@@ -124,13 +140,18 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
     return out;
   };
   if (!log.at) return sum > 0 ? withBuilding({ at, counts, windows: [] }) : null;
-  // A read older than the last one (the computer's clock was set back), or a log that counted
-  // parts another way: this read is the new baseline. Nothing in it is a gain, and the reads after
-  // it count from it.
-  if (at < log.at || (log.tracks ?? 1) < DROP_TRACKING) return sum > 0 ? withBuilding({ at, counts, windows: log.windows }) : null;
+  // A read older than the last one (the computer's clock was set back): the new baseline, and the
+  // reads after it count from it. A log that counted some parts another way: those take this read
+  // as their baseline, and the rest count as usual.
+  const older = at < log.at;
+  const retracked = !older && (log.tracks ?? 1) < DROP_TRACKING;
+  const only = retracked && recounted ? new Set(recounted) : null;
+  const rebased = (name: string) => older || (retracked && (!only || only.has(name)));
+  if ((older || retracked) && sum === 0) return null;
   const before = total(log.counts);
-  // The same read again (the model rebuilt) isn't a second one.
-  if (sum < before / 2) return log.lowAt != null && at > log.lowAt ? withBuilding({ at, counts, windows: log.windows }) : log.lowAt === at ? null : { ...log, lowAt: at };
+  // The same read again (the model rebuilt) isn't a second one. An older read believed the second
+  // time in a row, as any other: it never blocks the reads after it.
+  if (sum < before / 2) return log.lowAt != null && (older ? at !== log.lowAt : at > log.lowAt) ? withBuilding({ at, counts, windows: log.windows }) : log.lowAt === at ? null : { ...log, lowAt: at };
   // Parts that are gone: traded away, they were sold; otherwise the read may have missed them, so
   // they keep their last count for one read.
   const base: Record<string, number> = { ...counts };
@@ -139,6 +160,7 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
   for (const name of gone) base[name] = log.counts[name];
   const gains: Record<string, number> = {};
   for (const [name, n] of Object.entries(counts)) {
+    if (rebased(name)) continue;
     // Copies that left the foundry since the last read were claimed, not dropped.
     const claimed = Math.max(0, (log.building?.[name] ?? 0) - (building[name] ?? 0));
     const more = n - (log.counts[name] ?? 0) - claimed;
@@ -147,11 +169,17 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
   const kept = log.windows.filter((w) => w.at >= now - KEEP_DAYS * DAY);
   const any = Object.keys(gains).length > 0;
   // Nothing new and nothing to forget: no need to save the log again.
-  if (!any && kept.length === log.windows.length && log.lowAt == null && !gone.length && !log.gone?.length && same(base, log.counts) && same(building, log.building ?? {})) return null;
+  if (!older && !retracked && !any && kept.length === log.windows.length && log.lowAt == null && !gone.length && !log.gone?.length && same(base, log.counts) && same(building, log.building ?? {})) return null;
   const next: DropLog = withBuilding({ at, counts: base, windows: any ? [...kept, { from: log.at, at, gains }] : kept });
   if (gone.length) next.gone = gone;
   return next;
 }
+
+/**
+ * Whether the log took the read at `at` for a partial one: skipped as low, or a part it showed none
+ * of kept at its last count. The full read after it would look like parts coming in.
+ */
+export const partialRead = (log: DropLog, at: number): boolean => log.lowAt === at || (log.at === at && !!log.gone?.length);
 
 /**
  * The foundry's report can arrive after the inventory read it belongs with: a part claimed just
