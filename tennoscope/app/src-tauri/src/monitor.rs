@@ -4384,17 +4384,15 @@ mod tests {
             std::hint::black_box(&page);
             soft_dirty(address)
         };
-        use warframe_acquisition::MemoryReader;
         let game = GameProcess::new(std::process::id());
 
-        // Control: the reset the monitor used to issue clears the bit, so the check below can fail.
+        // Control: the reset the monitor used to issue (the Linux adapter no longer has it), written
+        // here to this test process's own `clear_refs`, clears the bit, so the check below can fail.
         if dirty(&mut page) != Some(true) {
             eprintln!("soft-dirty tracking is not available here; skipping");
             return;
         }
-        ProcessObserver::new()
-            .reset_recent_writes(&game)
-            .expect("reset the test process's soft-dirty bits");
+        std::fs::write("/proc/self/clear_refs", "4").expect("reset the test process's soft-dirty bits");
         assert_eq!(soft_dirty(address), Some(false), "control reset had no effect");
 
         let mut session = RewardSession::new(None, None, Vec::new(), MarketPriceCache::default());
