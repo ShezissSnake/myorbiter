@@ -1,11 +1,11 @@
 // Report a bug (core/bugReport.ts, core/redact.ts): the report the app puts on the clipboard, to
 // paste into GitHub's issue form or send another way. Its sections match the form's, the page opened
-// carries only the version and platform, nothing private survives the redaction, and nothing hidden
+// carries only the version, system and architecture, nothing private survives the redaction, and nothing hidden
 // survives the cleaning.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildReport, cleanUserText, detailsText, FIELDS, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
+import { buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
 import { redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
@@ -18,29 +18,47 @@ const section = (md: string, heading: string) => new RegExp(`### ${heading}\n\n(
 test("the issue form's field ids and labels are the ones the app uses, the details rendered as text", () => {
   const form = readFileSync(".github/ISSUE_TEMPLATE/bug_report.yml", "utf8");
   const ids = [...form.matchAll(/^\s+id: (\S+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(ids, Object.values(FIELDS));
+  // The form's order: what happened, what you expected, steps, build and system, screenshots (the
+  // reporter's own, never filled by the app), technical details.
+  assert.deepEqual(ids, [FIELDS.what, FIELDS.expected, FIELDS.steps, FIELDS.build, FORM_ONLY.screenshots, FIELDS.details]);
+  assert.deepEqual(ids.filter((id) => id !== FORM_ONLY.screenshots), Object.values(FIELDS));
   const labels = [...form.matchAll(/^\s+label: (.+)$/gm)].map((m) => m[1]);
-  assert.deepEqual(labels, Object.values(SECTIONS));
+  assert.deepEqual(labels, [SECTIONS.what, SECTIONS.expected, SECTIONS.steps, SECTIONS.build, "Screenshots", SECTIONS.details]);
+  assert.deepEqual(Object.values(SECTIONS), labels.filter((l) => l !== "Screenshots"), "the clipboard's headings follow the form's order");
+  assert.match(form, /id: build\n(?:.*\n)*?\s+placeholder: MyOrbiter 0\.2\.N on Windows 11\n/);
+  assert.match(form, /- type: input\n\s+id: build\n/, "a one-line field");
+  assert.match(form, /id: screenshots\n(?:.*\n)*?\s+MyOrbiter never attaches any\. They are public too: cover other players' names, chat and\s+anything personal first\./);
+  assert.equal([...form.matchAll(/^\s+render: /gm)].length, 1, "render only on the details textarea");
+  assert.deepEqual([...form.matchAll(/^\s+required: (\S+)$/gm)].map((m) => m[1]), ["true", "false", "false", "false", "false", "false"], "only What happened is required");
+  for (const id of ["build", "screenshots"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: >-\\n\\s+Written by the person reporting`), `${id} says it's user-written`);
+  assert.match(form, /id: build\n[\s\S]*?filled in here from\s+the page's address[\s\S]*?you can edit the\s+line/);
+  assert.ok(!/channel/i.test(form), "the form names no channel");
   assert.match(form, /id: details\n(?:.*\n)*?\s+render: text\n/);
   assert.match(form, /^labels: \["bug", "needs-triage"\]$/m);
-  for (const id of ["what", "steps", "expected"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: Written by the person reporting`), `${id} says it's user-written`);
+  for (const id of ["what", "expected", "steps"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: Written by the person reporting`), `${id} says it's user-written`);
+  assert.match(form, /id: details\n(?:.*\n){2}\s+description: >-\n\s+Written by the person reporting/, "details says it's user-written");
   assert.equal(TEMPLATE, "bug_report.yml");
   const config = readFileSync(".github/ISSUE_TEMPLATE/config.yml", "utf8");
   assert.match(config, /^blank_issues_enabled: false$/m);
   assert.match(config, /security\/advisories\/new/);
 });
 
-test("Open on GitHub opens the issue form with only the version and platform: nothing of the report is in the address", () => {
+test("Open on GitHub opens the issue form with only the version, system and architecture: nothing of the report is in the address", () => {
   const url = newIssuePage({ version: "0.2.121", os: "linux", arch: "x86_64" });
   const u = new URL(url);
   assert.equal(`${u.protocol}//${u.host}${u.pathname}`, "https://github.com/ShezissSnake/myorbiter/issues/new");
   assert.equal(NEW_ISSUE, "https://github.com/ShezissSnake/myorbiter/issues/new");
   assert.equal(openable(url), u.href, "an allowed link");
-  assert.deepEqual([...u.searchParams], [["template", "bug_report.yml"], ["details", "MyOrbiter 0.2.121\nSystem: linux x86_64"]]);
+  assert.deepEqual([...u.searchParams], [["template", "bug_report.yml"], ["build", "MyOrbiter 0.2.121 on linux x86_64"]]);
+  // Nothing else is in it: no channel, page, account, log or report text, and no field but the build line.
+  assert.equal(u.search.length, "?template=bug_report.yml&build=".length + encodeURIComponent("MyOrbiter 0.2.121 on linux x86_64").length);
   // Whatever the environment says is cleaned like the rest, and can't add a parameter.
   const odd = new URL(newIssuePage({ version: "1&labels=x", os: "C:\\Users\\Jane\\x", arch: "a#b" }, NAMES));
-  assert.deepEqual([...odd.searchParams.keys()], ["template", "details"]);
-  assert.ok(!odd.searchParams.get("details")!.includes("Jane"));
+  assert.deepEqual([...odd.searchParams.keys()], ["template", "build"]);
+  assert.ok(!odd.searchParams.get("build")!.includes("Jane"));
+  assert.ok(!odd.searchParams.get("build")!.includes("\n"), "one line, for a one-line field");
+  // An empty environment still gives a readable line.
+  assert.equal(new URL(newIssuePage({ version: "", os: "", arch: "" })).searchParams.get("build"), "MyOrbiter unknown on unknown");
   // The dialog copies the text first, opens only that page, and never builds a link from the report.
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
   const opens = [...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]);
@@ -68,6 +86,9 @@ test("the text to paste: the form's sections and the details as text", () => {
   assert.equal(section(md, SECTIONS.what), "Orders froze.\nAfter Reprice.");
   assert.equal(section(md, SECTIONS.steps), "1. Open Orders\n2. Reprice");
   assert.equal(section(md, SECTIONS.expected), "Prices change");
+  assert.equal(section(md, SECTIONS.build), "MyOrbiter 0.1.0 on linux x86_64");
+  // The same order as the form's.
+  assert.deepEqual([...md.matchAll(/^### (.+)$/gm)].map((m) => m[1]), Object.values(SECTIONS));
   assert.match(section(md, SECTIONS.details)!, /^```text\nMyOrbiter 0\.1\.0 \(a1b2c3d, 2026-11-03\)\nChannel: not known in this build\nSystem: linux x86_64\nPage: Orders\nTennoScope: connected\nFull mode: off\n[\s\S]*\n```$/);
   assert.ok(md.endsWith("\n\n_Made with MyOrbiter's Report a bug._\n"));
   // The whole log goes in: there's no link to keep short.
@@ -136,10 +157,11 @@ test("the player's text: hidden characters and HTML comments go, the rest is kep
 
 test("Copy report: the form's sections in Markdown, the details in a text block", () => {
   const md = reportMarkdown(buildReport({ what: "Orders froze", steps: "Reprice", expected: "" }, details(["one ``` two", "three"])));
-  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Technical details\n\n```text\nMyOrbiter 0\.1\.0/);
+  assert.match(md, /^## Orders froze\n\n### What happened\n\nOrders froze\n\n### Steps to reproduce\n\nReprice\n\n### Build and system\n\nMyOrbiter 0\.1\.0 on linux x86_64\n\n### Technical details\n\n```text\nMyOrbiter 0\.1\.0/);
   assert.ok(!md.includes("### What you expected"), "an empty optional section is left out");
+  assert.ok(md.indexOf("### Steps to reproduce") < md.indexOf("### Build and system") && md.indexOf("### Build and system") < md.indexOf("### Technical details"));
   assert.match(md, /one ''' two\nthree\n```\n\n_Made with MyOrbiter's Report a bug\._\n$/);
   const none = reportMarkdown(buildReport({ what: "", steps: "", expected: "" }, null));
   assert.match(none, /^## Bug report\n\n### What happened\n\n_\(not filled in\)_\n/);
-  assert.ok(!none.includes("Technical details"));
+  assert.ok(!none.includes("Technical details") && !none.includes("Build and system"));
 });
