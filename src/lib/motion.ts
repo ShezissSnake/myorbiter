@@ -8,6 +8,13 @@
 // - Cheap: transform and opacity only (grid-template-rows for folds). Never width, height or top.
 // - Reduced motion (`calm`, live): every duration here goes to 0, and the end state still shows
 //   (the check is drawn at once, the row just leaves).
+// - Never a transform on a table's own parts (a body, a row, a cell): the app's engines (WebKitGTK,
+//   WebView2) may leave a cell's text undrawn once a transform on its row or body ends, until the
+//   pointer passes over it (Orders after a sort showed only each row's picture and switches). So
+//   rows in a table don't slide (no animate:flip on a <tbody> or <tr>: a sort snaps to the new
+//   order, the rows under a leaving one close up when it has gone), a row arriving just shows, and
+//   a row leaving only fades (it is gone afterwards: nothing of it is left to draw). The helpers
+//   below hold to it for a table part whatever the markup asks.
 //
 // Every helper is safe with `|global` (a parent block's condition, as the item sheet's): arrivals
 // and leavings past ~40 in one frame (a whole list or page mounting, or going) skip their motion,
@@ -104,6 +111,11 @@ function spend(): boolean {
 
 const NONE: TransitionConfig = { duration: 0 };
 
+/** A table's own parts, which never take a transform (the contract above). */
+const TABLE_PARTS = new Set(["TABLE", "CAPTION", "THEAD", "TBODY", "TFOOT", "TR", "TD", "TH"]);
+/** Whether the node is a table's own part (a body, a row, a cell): no transform on it. */
+export const tablePart = (node: Element) => TABLE_PARTS.has(node.tagName?.toUpperCase?.() ?? "");
+
 // ---------------------------------------------------------------- transitions
 
 /**
@@ -111,47 +123,32 @@ const NONE: TransitionConfig = { duration: 0 };
  *   {#each rows as r (r.id)}<li in:arrive animate:flip>…</li>{/each}
  *   <ul in:arrive={{ y: 0 }}>     (a view swapped in)
  * Only after a click or key (`always: true` for one that should move regardless, as a toast).
+ * A table's row or body just shows (the contract at the top: nothing on a table part it stays with).
  */
 export function arrive(node: Element, { y = 6, duration = QUICK, delay = 0, always = false }: { y?: number; duration?: number; delay?: number; always?: boolean } = {}): TransitionConfig {
-  if (calm.current || (!always && !answering()) || !spend()) return NONE;
+  if (calm.current || tablePart(node) || (!always && !answering()) || !spend()) return NONE;
   moving(delay + duration);
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:translateY(${(u * y).toFixed(2)}px)` };
 }
 
 /**
  * Something leaving: fades with a slight lift. In a keyed list, pair it with `flip` so the rows
- * below close up as it goes (Svelte takes the leaving row out of the flow while it fades):
- *   {#each rows as r (r.id)}<tr out:leave animate:flip>…</tr>{/each}
+ * below close up as it goes (Svelte takes the leaving item out of the flow while it fades):
+ *   {#each rows as r (r.id)}<li out:leave animate:flip>…</li>{/each}
+ * A table's row or body only fades, in its place, with no flip (the contract at the top); the rows
+ * under it close up once it has gone:
+ *   {#each rows as r (r.id)}<tr out:leave>…</tr>{/each}
  * Outside a list, wrap it in a fold to close the gap: <div class="reveal" out:reveal><div>…</div></div>.
  */
 export function leave(node: Element, { y = -4, duration = QUICK, delay = 0 }: { y?: number; duration?: number; delay?: number } = {}): TransitionConfig {
   if (calm.current || !spend()) return NONE;
-  keepColumns(node);
-  // With animate:flip, Svelte takes the leaving row out of the flow (position: absolute) and holds
-  // it where it was with an inline translate: keep that, or the row jumps to the list's top.
+  moving(delay + duration);
+  if (tablePart(node)) return { delay, duration, easing: out, css: (t) => `opacity:${t}` };
+  // With animate:flip, Svelte takes the leaving item out of the flow (position: absolute) and holds
+  // it where it was with an inline translate: keep that, or the item jumps to the list's top.
   const held = (node as HTMLElement).style?.transform || "";
   const at = held && held !== "none" ? `${held} ` : "";
-  moving(delay + duration);
   return { delay, duration, easing: out, css: (t, u) => `opacity:${t};transform:${at}translateY(${(u * y).toFixed(2)}px)` };
-}
-
-/**
- * A table row taken out of the flow while it leaves (flip's close-up) is laid out on its own, so
- * its cells would shrink to their contents and the row squash as it fades. Keeps each cell at its
- * column's width, read from a row still in the table with as many cells.
- */
-function keepColumns(node: Element) {
-  if (typeof HTMLTableRowElement === "undefined" || !(node instanceof HTMLTableRowElement)) return;
-  const ref = [...(node.closest("table")?.rows ?? [])].find((r) => r !== node && r.cells.length === node.cells.length && r.parentElement?.tagName !== "THEAD" && getComputedStyle(r).position !== "absolute")
-    ?? node.closest("table")?.tHead?.rows[0];
-  if (!ref || ref.cells.length !== node.cells.length) return;
-  const widths = [...ref.cells].map((c) => c.getBoundingClientRect().width);
-  node.style.display = "table";
-  node.style.tableLayout = "fixed";
-  [...node.cells].forEach((c, i) => {
-    c.style.boxSizing = "border-box";
-    c.style.width = `${widths[i]}px`;
-  });
 }
 
 /**
@@ -191,11 +188,12 @@ export function shade(node: Element, { duration = 120 }: { duration?: number } =
  * Rows closing up or reordering: they slide to their new places over SETTLE with --out. Rows off screen before and
  * after don't move, and no more than ~40 move in a frame (a big grid snaps rather than crawls).
  *   import { flip } from "../motion";   {#each rows as r (r.id)}<li animate:flip>…</li>{/each}
+ * Never on a table's body or row (the contract at the top): one there doesn't move.
  */
 export function flip(node: Element, rects: { from: DOMRect; to: DOMRect }, params: FlipParams = {}): AnimationConfig {
   const vh = typeof innerHeight === "number" ? innerHeight : 1e9;
   const off = (r: DOMRect) => r.bottom < 0 || r.top > vh;
-  if (calm.current || (off(rects.from) && off(rects.to)) || !spend()) return { duration: 0 };
+  if (calm.current || tablePart(node) || (off(rects.from) && off(rects.to)) || !spend()) return { duration: 0 };
   // Slide only, from where it was. (Svelte's own flip also scales an item whose size changed on
   // the way, a card moving to a grid row of another height, which squashes its text; here it takes
   // its new size at once.)
