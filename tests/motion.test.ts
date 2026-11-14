@@ -102,6 +102,49 @@ test("a table's body or row never slides, arrives with no motion, and leaves by 
   assert.match(leave(li).css!(0.5, 0.5), /transform:translateY/);
 });
 
+/**
+ * Each table part's opening tag in Svelte markup that carries an `animate:` directive. A tag is read
+ * to its real end: a `>` inside `{…}` (nested too, as an arrow handler's `=>`) or inside quotes
+ * doesn't end it, and `animate:` counts only outside them.
+ */
+function tablePartsAnimated(src: string): string[] {
+  const found: string[] = [];
+  for (const m of src.matchAll(/<(?:table|thead|tbody|tfoot|tr|td|th)(?=[\s>/])/g)) {
+    let depth = 0;
+    let quote = "";
+    let outside = "";
+    let i = m.index + m[0].length;
+    for (; i < src.length; i++) {
+      const c = src[i];
+      if (quote) {
+        if (c === "\\") i++;
+        else if (c === quote) quote = "";
+      } else if (c === '"' || c === "'" || c === "`") quote = c;
+      else if (c === "{") depth++;
+      else if (c === "}") depth = Math.max(0, depth - 1);
+      else if (depth === 0) {
+        if (c === ">") break;
+        outside += c;
+      }
+    }
+    if (/(^|\s)animate:/.test(outside)) found.push(src.slice(m.index, i + 1));
+  }
+  return found;
+}
+
+test("a table part's tag is read to its real end when looking for animate:", () => {
+  // Found: the directive after or before a handler whose arrow has a ">" in it.
+  assert.equal(tablePartsAnimated(`<tr onclick={() => go()} animate:flip>x</tr>`).length, 1);
+  assert.equal(tablePartsAnimated(`<tbody animate:flip onclick={() => go({ a: 1 })}>x</tbody>`).length, 1);
+  assert.equal(tablePartsAnimated(`<tr class={a > b ? "x" : "y"} title="a > b" animate:flip>`).length, 1);
+  // Not found: a list item, and a cell with a ">" in its text or attributes but no directive.
+  assert.deepEqual(tablePartsAnimated(`<li out:leave animate:flip>x</li>`), []);
+  assert.deepEqual(tablePartsAnimated(`<td title="a > b">{n > 1 ? "s" : ""} animate:flip</td>`), []);
+  assert.deepEqual(tablePartsAnimated(`<td>a > b</td><li animate:flip>`), []);
+  // A tag whose name only starts like a table part's isn't one.
+  assert.deepEqual(tablePartsAnimated(`<track animate:flip>`), []);
+});
+
 test("no page puts animate: (a slide) on a table's body or row", async () => {
   const { readFileSync, readdirSync } = await import("node:fs");
   const { join } = await import("node:path");
@@ -115,6 +158,6 @@ test("no page puts animate: (a slide) on a table's body or row", async () => {
   };
   walk(fileURLToPath(new URL("../src", import.meta.url)));
   assert.ok(files.length > 50);
-  const found = files.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/<(?:table|thead|tbody|tfoot|tr|td|th)\b[^>]*\banimate:/g)].map((m) => `${f}: ${m[0].slice(0, 80)}`));
+  const found = files.flatMap((f) => tablePartsAnimated(readFileSync(f, "utf8")).map((t) => `${f}: ${t.slice(0, 80)}`));
   assert.deepEqual(found, []);
 });
