@@ -55,8 +55,9 @@ test("nothing of TennoScope starts before the answer", () => {
 
 test("the question shows Full mode's warning, word for word; Esc is the safe answer, nothing else closes it", () => {
   const dialog = src("lib/FirstRun.svelte");
-  assert.match(dialog, /import \{ FULL_MODE_WARNING \} from "\.\/FullMode\.svelte"/);
-  assert.match(dialog, /\{FULL_MODE_WARNING\}/);
+  // The warning word for word, its page's name a control that opens it (fullModeWarning.test.ts).
+  assert.match(dialog, /import FullModeWarning from "\.\/FullModeWarning\.svelte"/);
+  assert.match(dialog, /<FullModeWarning disabled=\{!ready\} \/>/);
   assert.doesNotMatch(dialog, /onescape|onsubmit|onclick=\{close/, "no click outside or submit answers it");
   // Esc answers overlay only (nothing read from the game's memory), and not in its first moment.
   assert.match(dialog, /if \(e\.key !== "Escape" \|\| !ready\) return;\s*e\.preventDefault\(\);\s*onanswer\("--access=overlay"\);/);

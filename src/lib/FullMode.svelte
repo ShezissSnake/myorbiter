@@ -1,5 +1,6 @@
 <script lang="ts" module>
-  /** What Full mode does and what it risks, shown beside every switch that turns it on. */
+  /** What Full mode does and what it risks, shown beside every switch that turns it on
+   *  (FullModeWarning.svelte, where the page it names is a control that opens it). */
   export const FULL_MODE_WARNING =
     "Full mode reads Warframe's memory to fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk: Full mode could put your account at risk. Nothing is written to the game's memory; the login session found there goes to Digital Extremes, for your inventory. Everything MyOrbiter and TennoScope read and send is listed on the page What MyOrbiter reads and sends.";
 </script>
@@ -11,6 +12,7 @@
   // TennoScope it runs (`--access=…`), which makes the same change as choosing in its own window.
   import { ts } from "./tennoscopeStore.svelte";
   import Switch from "./ui/Switch.svelte";
+  import FullModeWarning from "./FullModeWarning.svelte";
 
   let { kind = "button" }: { kind?: "button" | "switch" } = $props();
 
@@ -37,7 +39,7 @@
 {#if kind === "switch"}
   <div class="full" class:off={!ready}>
     <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)">
-      <span class="warn">{FULL_MODE_WARNING}</span>
+      <span class="warn"><FullModeWarning /></span>
       {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">{mode === "overlay" ? "Off: in Overlay mode TennoScope watches for the game and reads its log and its screen (through a void fissure mission and at Baro's kiosk), not your inventory." : "Off: in Companion mode TennoScope reads nothing of the game."}</span>{/if}
     </Switch>
   </div>
@@ -49,7 +51,7 @@
     {:else}
       <div class="choice">
         <button class="stamp gold" disabled={!ready || busy} onclick={() => set(true)} title={ready ? "TennoScope then reads your inventory from the game" : "TennoScope has to be running first"}>{busy ? "Turning it on…" : "Read my inventory (Full mode)"}</button>
-        <p class="warn small">{FULL_MODE_WARNING}</p>
+        <p class="warn small"><FullModeWarning /></p>
       </div>
       {#if !ready}<p class="dim small">TennoScope has to be running first.</p>{/if}
     {/if}
