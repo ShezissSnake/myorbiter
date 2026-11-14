@@ -711,8 +711,9 @@ const minRule = (min: number) => ({ rule: "plan.min", ruleText: `Under ${min}p` 
 
 /**
  * The changes, for the ticked categories only, each with its row and the rule that decided it.
- * Listings you set to be left alone, or hid, are never touched; nor is one for something you never
- * sell, beyond lowering it to what you hold.
+ * Listings you set to be left alone, or hid, are never touched. One for something you never sell
+ * (or a set or part it holds back) gets a line lowering it to what you hold, but `toApply` keeps
+ * that line out of what is sent; only its removal, when you hold none, goes.
  */
 export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]): BulkAction[] {
   const r = rulesV2(rules);
