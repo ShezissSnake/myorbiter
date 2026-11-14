@@ -7,7 +7,7 @@ import { craftVariantOf, findItem, type MarketIndex } from "./market";
 import { copyValue } from "./vosfor";
 import { idOf, perModel } from "./memo";
 import { dropsVersion } from "./drops";
-import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
+import { arcaneRows, inventoryRows, MASTERY_CATEGORIES, modRows, modSpares, partNeeded, partRows, relicRows, saveForSets, savedLine, saveSource, setRows, setSaves, worthSaving, type SaveForSets, type SetSave, type InventoryItem, type InventoryKind, type RelicRow, type SetRow } from "./views";
 import { expectedBest } from "./advice";
 import { isResource } from "./collection";
 
@@ -223,7 +223,9 @@ export interface SellChoices {
   veiledRivens: boolean;
   /**
    * Relics worth more sold than cracked (each reward at its price, or its ducats at your rate when
-   * that's more) count as spare; relics that drop a part you still need are kept either way.
+   * that's more) count as spare; relics that drop a part you still need (partNeeded: for a prime
+   * still to build, or for a weapon made from it, as Akvasto Prime takes two Vasto Primes) are kept
+   * either way.
    * Off keeps every relic. (Named anew when it became conditional and on by default, so an older
    * "keep every relic" doesn't carry over.)
    */
@@ -535,14 +537,17 @@ function merge(rows: SpareRow[]): SpareRow[] {
   return [...by.values()];
 }
 
-/** Relics (by base, "Axi A1") that drop a part you still need for something unbuilt, with those parts. */
+/**
+ * Relics (by base, "Axi A1") that drop a part you still need, with those parts: the rule Prime
+ * parts keeps copies by and Relics tags "need" by (partNeeded), so a Lex Prime Barrel counts while
+ * Aklex Prime still wants a second Lex Prime, not only while Lex Prime is unbuilt.
+ */
 export const relicsYouNeed = perModel(relicsYouNeedFresh, () => "");
 function relicsYouNeedFresh(m: Model): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const [parent, parts] of m.partsByParent) {
-    if (m.isMastered(parent) || m.owned(parent) > 0) continue;
+  for (const parts of m.partsByParent.values()) {
     for (const p of parts) {
-      if (m.partHave(p.fullName) >= p.required) continue;
+      if (!partNeeded(m, p)) continue;
       for (const s of m.sourcesByReward.get(p.fullName) ?? []) {
         const list = out.get(s.base) ?? [];
         if (!list.includes(p.fullName)) list.push(p.fullName);
