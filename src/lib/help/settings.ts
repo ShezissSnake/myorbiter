@@ -10,6 +10,7 @@
 import type { Walkthrough } from "./types";
 import { guideCard } from "./guide";
 import { AUTO_FLOOR_SHARE } from "../core/approved";
+import { DEFAULT_HIDE_MINUTES, MAX_HIDE_MINUTES } from "../core/lastCopy";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
@@ -269,7 +270,7 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Hide last copies (off to start): any whisper hides each listing you have one copy of.",
         "Selling rules live on Sell spares: sets, veiled rivens, minimum prices.",
-        "Back after 10 minutes (or your time) if a newer inventory read has it.",
+        `Back after ${DEFAULT_HIDE_MINUTES} minutes (up to ${MAX_HIDE_MINUTES}) if a newer inventory read has it.`,
         "A later whisper doesn't lengthen the wait; showing or hiding one ends its wait.",
       ],
       shot: {
