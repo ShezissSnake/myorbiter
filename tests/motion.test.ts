@@ -77,3 +77,44 @@ test("every motion says how long it moves for, so background work can wait for i
   assert.equal(moving(120), 120);
   assert.equal(stillMoving(), true);
 });
+
+// A table's own parts never take a transform: the app's engines (WebKitGTK, WebView2) may leave a
+// cell's text undrawn once a transform on its row or body ends (Orders after a sort). What the
+// engines draw can't be tested here; what the kit asks of them can.
+test("a table's body or row never slides, arrives with no motion, and leaves by fading only", async () => {
+  await new Promise((r) => setTimeout(r, 20)); // a new frame's budget
+  const { flip, tablePart } = await import("../src/lib/motion");
+  const rect = (left: number, top: number) => ({ left, top, width: 100, height: 40, right: left + 100, bottom: top + 40 }) as DOMRect;
+  (globalThis as { getComputedStyle?: unknown }).getComputedStyle ??= () => ({ transform: "none" });
+  for (const tagName of ["TBODY", "TR", "td", "THEAD"]) {
+    const node = { tagName, style: { transform: "translate(0px, 96px)" } } as unknown as Element;
+    assert.ok(tablePart(node), tagName);
+    assert.equal(flip(node, { from: rect(0, 100), to: rect(0, 0) }).duration, 0, `${tagName} slid`);
+    assert.equal(arrive(node, { always: true }).duration, 0, `${tagName} arrived with motion`);
+    const gone = leave(node);
+    assert.equal(gone.duration, QUICK);
+    assert.equal(gone.css!(0.5, 0.5), "opacity:0.5", `${tagName} leaves with a transform`);
+  }
+  // Anything else still slides and lifts.
+  const li = { tagName: "LI", style: {} } as unknown as Element;
+  assert.ok(!tablePart(li));
+  assert.ok((flip(li, { from: rect(0, 100), to: rect(0, 0) }).duration ?? 0) > 0);
+  assert.match(leave(li).css!(0.5, 0.5), /transform:translateY/);
+});
+
+test("no page puts animate: (a slide) on a table's body or row", async () => {
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(d, e.name));
+      else if (e.name.endsWith(".svelte")) files.push(join(d, e.name));
+    }
+  };
+  walk(fileURLToPath(new URL("../src", import.meta.url)));
+  assert.ok(files.length > 50);
+  const found = files.flatMap((f) => [...readFileSync(f, "utf8").matchAll(/<(?:table|thead|tbody|tfoot|tr|td|th)\b[^>]*\banimate:/g)].map((m) => `${f}: ${m[0].slice(0, 80)}`));
+  assert.deepEqual(found, []);
+});

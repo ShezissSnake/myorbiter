@@ -27,7 +27,7 @@
   import ProgressButton from "../ui/ProgressButton.svelte";
   import { Job } from "../job.svelte";
   import Count from "../ui/Count.svelte";
-  import { arrive, flip, leave, reveal } from "../motion";
+  import { leave, reveal } from "../motion";
 
   let { model, settings = $bindable(), go }: { model: Model; settings: Settings; go: (t: string) => void } = $props();
 
@@ -296,7 +296,7 @@
       <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
         {#each log as { s, key } (key)}
-          <tr class:added={added === keyOf(s)} in:arrive out:leave animate:flip>
+          <tr class:added={added === keyOf(s)} out:leave>
             <td class="dim when">{when(s.at)}</td>
             <td><Named file={image(itemOf(s))} name={itemOf(s)}>{#if s.rank != null}<span class="tag">R{s.rank}</span>{/if}</Named></td>
             <td class="right">{s.quantity}</td>

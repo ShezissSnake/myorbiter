@@ -15,7 +15,7 @@
   import UndoSlot from "../UndoSlot.svelte";
   import Tick from "../Tick.svelte";
   import RowMenu, { type MenuChoice } from "./RowMenu.svelte";
-  import { flip, leave, SETTLE } from "../../motion";
+  import { leave, SETTLE } from "../../motion";
   import type { ReviewRow } from "./types";
 
   let {
@@ -83,12 +83,12 @@
   <table class="plan">
     <thead><tr><th><span class="sr">Change</span></th><th>Item, and why</th><th title="The rule that decided it: its row on this page, then the rule">Rule</th><th class="right" title="Copies listed">Qty</th><th class="right" title="Each">Price</th><th><span class="sr">More</span></th></tr></thead>
     <tbody>
-      {#each going as r (r.key)}<tr class={r.type} class:now={r.state === "now"} class:sent={r.state === "sent"} class:refused={r.state === "refused"} out:leave={{ duration: SETTLE }} animate:flip>{@render line(r)}</tr>{/each}
+      {#each going as r (r.key)}<tr class={r.type} class:now={r.state === "now"} class:sent={r.state === "sent"} class:refused={r.state === "refused"} out:leave={{ duration: SETTLE }}>{@render line(r)}</tr>{/each}
     </tbody>
     {#if left.length}
       <tbody class="leftout">
         <tr class="sub"><th colspan="6"><span class="register">Left out · {left.length}</span><span class="dim small">Each with the rule that kept it</span></th></tr>
-        {#each leftRows as r (r.key)}<tr class="skip" class:mine={!!r.out} out:leave animate:flip>{@render line(r)}</tr>{/each}
+        {#each leftRows as r (r.key)}<tr class="skip" class:mine={!!r.out} out:leave>{@render line(r)}</tr>{/each}
         {#if left.length > leftRows.length}
           <tr class="more"><td colspan="6"><button type="button" class="link" title="Every line the plan leaves out, each with its rule" onclick={() => (allLeft = true)}>Show all {left.length} left out</button></td></tr>
         {/if}
