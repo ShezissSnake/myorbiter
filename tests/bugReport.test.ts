@@ -101,6 +101,7 @@ test("paths anywhere: the name part is hidden, what a bug hunter needs stays", (
     ["found at /mnt/ExampleDisk/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log", "found at /mnt/[drive]/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log"],
     ["couldn't open /run/media/someone/EXAMPLE 64/Games/stuff: No such file", "couldn't open /run/media/[user]/[drive]/Games/[folder]: No such file"],
     ["copied /srv/examplebox/orbiter-data to /data2/someone/myorbiter (the folder before the rename stays as it was)", "copied /srv/[folder]/[folder] to /[folder]/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    ["copied /run/media/someone/EXAMPLE 64/orbiter-data to ~/ExampleFolder/myorbiter (the folder", "copied /run/media/[user]/[drive]/[folder] to ~/[folder]/myorbiter (the folder"],
     ["/Volumes/Example SSD/Warframe/EE.log", "/Volumes/[drive]/Warframe/EE.log"],
     ["~/Games/ExampleStuff/Warframe/EE.log", "~/Games/[folder]/Warframe/EE.log"],
     ["started /tmp/.mount_orbitAbC123/usr/bin/tennoscope, the one inside MyOrbiter", "started /tmp/[folder]/usr/bin/tennoscope, the one inside MyOrbiter"],

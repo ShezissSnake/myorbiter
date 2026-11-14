@@ -179,11 +179,12 @@ function pathEnd(s: string, from: number, quote: string | null, spacedFirst: boo
     if (quote) {
       while (j < s.length && s[j] !== "/" && s[j] !== "\\" && s[j] !== "\n" && s[j] !== quote) j++;
     } else {
-      // A folder name with spaces in it, when a slash follows (no space at either end of it).
+      // A folder name with spaces in it, when a slash follows (no space at either end of it, and
+      // not the start of the next path: "…/data to ~/x", "…/data to ./x").
       let k = i;
       while (k < s.length && !/[\\/\n"'<>|*?:]/.test(s[k])) k++;
       const name = s.slice(i, k);
-      if (k < s.length && (s[k] === "/" || s[k] === "\\") && name.length > 0 && name.length <= 80 && (spacedFirst || i > from || !/\s/.test(name)) && !/^\s|\s$|\s\s/.test(name)) j = k;
+      if (k < s.length && (s[k] === "/" || s[k] === "\\") && name.length > 0 && name.length <= 80 && (spacedFirst || i > from || !/\s/.test(name)) && !/^\s|\s$|\s\s|\s[~.]/.test(name)) j = k;
       else {
         // The last name: up to a space or punctuation a path doesn't end with ("…/EE.log: error", "…/EE.log.").
         while (j < s.length && !/[\s\\/"'<>|*?:,;()]/.test(s[j])) j++;
