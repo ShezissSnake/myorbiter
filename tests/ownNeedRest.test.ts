@@ -150,7 +150,11 @@ test("planner: a set to sell counts only tradable copies; a built part counts to
   const neuro = (n: number) => inv("/R/RhinoPrimeHelmetBlueprint", "Rhino Prime Neuroptics Blueprint", "prime_part", n);
   const sys = (n: number) => inv("/R/RhinoPrimeSystemsBlueprint", "Rhino Prime Systems Blueprint", "prime_part", n);
   // To build: a built Chassis counts, so only the Systems is missing.
-  assert.deepEqual(gap([bp(1), neuro(1), inv("/R/RhinoPrimeChassisComponent", "Rhino Prime Chassis", "prime_part", 1)]), ["Rhino Prime: 1× Rhino Prime Systems Blueprint"]);
+  const builtChassis = [bp(1), neuro(1), inv("/R/RhinoPrimeChassisComponent", "Rhino Prime Chassis", "prime_part", 1)];
+  assert.deepEqual(gap(builtChassis), ["Rhino Prime: 1× Rhino Prime Systems Blueprint"]);
+  // Sets' Almost complete shows no Finish & sell for it: finished, it's built, not sold whole.
+  assert.equal(setRows(buildModel(bundle(builtChassis, [RP]))).find((r) => r.name === "Rhino Prime")!.countsBuilt, true);
+  assert.equal(setRows(buildModel(bundle([bp(1), neuro(1)], [RP]))).find((r) => r.name === "Rhino Prime")!.countsBuilt, undefined);
   // Mastered: every set is one to sell, and a Chassis in the foundry can't be sold.
   const mastered = [bp(1), neuro(1), sys(1), inv("/R/RhinoPrime", "Rhino Prime", "warframe", 1, { mastered: true })];
   assert.deepEqual(gap(mastered, { "/R/RhinoPrimeChassisBlueprint": 1 }), ["Rhino Prime: 1× Rhino Prime Chassis Blueprint"]);

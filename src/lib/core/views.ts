@@ -67,6 +67,11 @@ export interface SetRow {
    * form, one to sell only the tradable copies beyond those kept to build.
    */
   missing: { name: string; count: number; price: number | null }[];
+  /**
+   * The next set is one still to build, and `missing` counts a part held built or being crafted:
+   * finished, it can be built but not sold whole.
+   */
+  countsBuilt?: boolean;
   parts: { name: string; owned: number; required: number }[];
   /** A prime set (with ducats and relics), or one of the gear sets warframe.market also trades. */
   prime: boolean;
@@ -124,15 +129,15 @@ function setRowsFresh(m: Model): SetRow[] {
  * crafted. Past that, the next set is one to sell, and only tradable copies count, after the ones
  * Prime parts keeps to build (partRows' keep).
  */
-function nextSetMissing(m: Model, parts: { fullName: string; required: number }[], owned: number[], build: number): number[] {
+function nextSetMissing(m: Model, parts: { fullName: string; required: number }[], owned: number[], build: number): { counts: number[]; countsBuilt: boolean } {
   if (build > 0) {
     const have = parts.map((p) => m.partHave(p.fullName));
     const built = Math.min(...parts.map((p, i) => Math.floor(have[i] / p.required)));
-    if (built < build) return parts.map((p, i) => Math.max(0, (built + 1) * p.required - have[i]));
+    if (built < build) return { counts: parts.map((p, i) => Math.max(0, (built + 1) * p.required - have[i])), countsBuilt: parts.some((p, i) => Math.min(have[i], (built + 1) * p.required) > owned[i]) };
   }
   const free = parts.map((p, i) => owned[i] - Math.min(owned[i], Math.max(0, build * p.required - (m.craftingPartQty.get(p.fullName) ?? 0))));
   const sets = Math.min(...parts.map((p, i) => Math.floor(free[i] / p.required)));
-  return parts.map((p, i) => Math.max(0, (sets + 1) * p.required - free[i]));
+  return { counts: parts.map((p, i) => Math.max(0, (sets + 1) * p.required - free[i])), countsBuilt: false };
 }
 
 /** Copies still to get for the next set (2× Blade is two): Sets' "Almost complete" and Planner's near sets both count by it. */
@@ -158,6 +163,7 @@ function computeSetRows(m: Model): SetRow[] {
     const build = primeToBuild(m, parent.uniqueName);
     const keptForBuild = complete > 0 && build.copies > 0;
     const partPrices = parts.map((p) => m.price(p.fullName));
+    const next = nextSetMissing(m, parts, owned, build.copies);
     rows.push({
       name: parent.name,
       unique: parent.uniqueName,
@@ -175,9 +181,10 @@ function computeSetRows(m: Model): SetRow[] {
       ducatsKnown: parts.every((p) => p.ducats > 0),
       vaulted: primeVaulted(m, parent),
       tradesPerDay: m.tradesPerDay(`${parent.name} Set`),
-      missing: nextSetMissing(m, parts, owned, build.copies)
+      missing: next.counts
         .map((count, i) => ({ name: parts[i].fullName, count, price: partPrices[i] }))
         .filter((x) => x.count > 0),
+      ...(next.countsBuilt ? { countsBuilt: true } : {}),
       parts: parts.map((p, i) => ({ name: p.fullName, owned: owned[i], required: p.required })),
       prime: true,
     });

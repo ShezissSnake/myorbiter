@@ -92,11 +92,15 @@
   const totalSets = $derived(rows.reduce((n, r) => n + sellableOf(r), 0));
   /** Sets to sell counts copies; the list has one card per set. */
   const countWords = (n: number) => (mode === "sell" && totalSets !== n ? `${totalSets.toLocaleString("en")} ${totalSets === 1 ? "copy" : "copies"} · ${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}` : `${n.toLocaleString("en")} ${n === 1 ? "set" : "sets"}`);
+  const BUILD_ONLY = "A part of it is built or in the foundry: the missing parts finish it to build, not a set to sell";
   const missingCost = (r: SetRow) => (r.missing.every((m) => m.price != null) ? r.missing.reduce((n, m) => n + (m.price as number) * m.count, 0) : null);
-  /** Buy the missing parts and sell a full set, against selling the parts you have loose. */
+  /**
+   * Buy the missing parts and sell a full set, against selling the parts you have loose. None for a
+   * set to build that counts a part built or in the foundry: that one can't be sold whole.
+   */
   const completeGain = (r: SetRow) => {
     const cost = missingCost(r);
-    if (cost == null || r.setPrice == null) return null;
+    if (cost == null || r.setPrice == null || r.countsBuilt) return null;
     let loose = 0;
     for (const p of r.parts) {
       const have = Math.min(p.required, Math.max(0, p.owned - r.completeSets * p.required));
@@ -192,7 +196,7 @@
 {#snippet partsCell(r: SetRow)}<P v={r.partsPrice} dim />{/snippet}
 {#snippet ducatCell(r: SetRow)}{#if r.prime}<P v={r.ducats} d dim />{/if}{/snippet}
 {#snippet costCell(r: SetRow)}<P v={missingCost(r)} />{/snippet}
-{#snippet gainCell(r: SetRow)}{@const g = completeGain(r)}{#if g != null}<span class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{/if}{/snippet}
+{#snippet gainCell(r: SetRow)}{@const g = completeGain(r)}{#if g != null}<span class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{:else if r.countsBuilt}<span class="dim small" title={BUILD_ONLY}>to build</span>{/if}{/snippet}
 {#snippet listCell(r: SetRow)}<ListButton {model} name="{r.name} Set" req={{ quantity: sellableOf(r) }} />{/snippet}
 {#snippet missingCell(r: SetRow)}
   <span class="miss">{#each r.missing as m, i (m.name)}<span class="mp" use:info={m.name}>{m.count > 1 ? `${m.count}× ` : ""}{m.name.replace(r.name + " ", "")}</span>{#if i < r.missing.length - 1}<span class="sep">,</span>{/if}{/each}</span>
@@ -230,7 +234,7 @@
       <dl class="kv">
         <dt class="register">Buy</dt><dd>{@render missingCell(r)}</dd>
         <dt class="register">Cost</dt><dd><P v={missingCost(r)} /></dd>
-        <dt class="register" title="Finish & sell: the set price, minus buying the missing parts, minus what the parts you have would sell for loose">Gain</dt><dd>{#if g != null}<span class="gain" class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{:else}<span class="dim">–</span>{/if}</dd>
+        <dt class="register" title="Finish & sell: the set price, minus buying the missing parts, minus what the parts you have would sell for loose">Gain</dt><dd>{#if g != null}<span class="gain" class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{:else if r.countsBuilt}<span class="dim small" title={BUILD_ONLY}>to build</span>{:else}<span class="dim">–</span>{/if}</dd>
       </dl>
     {/if}
     {#snippet foot()}
