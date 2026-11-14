@@ -7,7 +7,7 @@
   import { tick } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
-  import { actionItemId, actionKey, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, planTally, sparesPreview, toApply, type BulkAction, type SparesTally } from "../core/bulk";
+  import { actionItemId, actionKey, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, neverTest, planTally, sparesPreview, toApply, type BulkAction, type SparesTally } from "../core/bulk";
   import { SPARE_CATEGORIES, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../core/sparesRules";
   import { lichWeaponsLeft } from "../core/views";
   import { daysToTrade } from "../core/tradeLimit";
@@ -41,7 +41,12 @@
 
   const rules = $derived(settings.spares);
   const anyTicked = $derived(SPARE_CATEGORIES.some((c) => rules[c].on));
-  const never = $derived(new Set(rules.neverSell.map((n) => n.id)));
+  // What the never-sell list holds back: an item on it, a set with a part on it, a part of a set on it.
+  const never = $derived(neverTest({ neverSell: rules.neverSell }, model, mkt.index));
+  const neverOfId = (id: string) => {
+    const it = mkt.index.byId.get(id);
+    return it ? never(it) : null;
+  };
 
   // ------------------------------------------------------------ each row's numbers
 
@@ -194,7 +199,7 @@
     const name = a.type === "skip" ? a.name : a.item.name;
     const sub = a.type === "create" || a.type === "skip" ? (a.subtype ?? null) : a.order.subtype;
     const ap = mkt.applying;
-    const mine = (a.type === "create" || a.type === "update" || a.rule === "never") && never.has(id) && !undo.has(key);
+    const mine = (a.type === "create" || a.type === "update" || a.rule === "never") && !!neverOfId(id) && !undo.has(key);
     return {
       key,
       id,
@@ -233,7 +238,8 @@
     undo.undo(r.key);
     sellAgain([r.id]);
   }
-  const sellAgain = (ids: string[]) => (settings.spares.neverSell = withoutNeverSell(settings.spares, ids).neverSell);
+  // Sell again on a set held back by its part takes the part off the list (and a part's set).
+  const sellAgain = (ids: string[]) => (settings.spares.neverSell = withoutNeverSell(settings.spares, ids.flatMap((id) => neverOfId(id)?.by.map((b) => b.id) ?? [id])).neverSell);
 </script>
 
 {#snippet planButton()}
