@@ -573,6 +573,8 @@ class MarketStore {
     this.passProgress = null;
     const summary: PassSummary = { changed: 0, failed: 0, off: 0, stopped: false, error: null };
     const failuresBefore = this.passFailures;
+    // Ended by a refused sign-in: nothing was checked, so it's dated as a missed pass is.
+    let refused = false;
     // A check on a timer reads every book at least once a round: never reuse one from before the last round.
     const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
     this.error = null;
@@ -767,6 +769,7 @@ class MarketStore {
       this.error = clean(e);
       summary.error = clean(e);
       if (isAuthError(e) && this.account) {
+        refused = true;
         this.note(clean(e), "warn");
         // Signed out on warframe.market's side: stop acting until you sign in again.
         this.account = { ...this.account, profile: null, error: clean(e) };
@@ -779,9 +782,9 @@ class MarketStore {
       // A pass on the timer counts whether it applied or only checked, so "Check automatically"
       // runs every N minutes too, not on every tick.
       if (apply || timed) {
-        // A pass warframe.market didn't answer, or that stopped early, is tried again within the
-        // hour on a longer interval, not a whole day or week later.
-        const missed = summary.stopped || this.passFailures > failuresBefore;
+        // A pass warframe.market didn't answer, that stopped early, or that a refused sign-in
+        // ended, is tried again within the hour on a longer interval, not a whole day or week later.
+        const missed = refused || summary.stopped || this.passFailures > failuresBefore;
         const at = Date.now();
         this.lastPass = missed ? at - Math.max(0, s.every * 60_000 - 60 * 60_000) : at;
         // Kept in the settings, so the next start knows when this one was, only for intervals over

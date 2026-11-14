@@ -109,6 +109,21 @@ test("a pass that stops after three failed reads is tried again within the hour 
   assert.equal(checkDue(mkt.lastCheckOf(s), wait, Date.now() + HOUR), true, "within the hour");
 });
 
+test("a pass a refused sign-in ended is no check: dated as a missed pass, so the next start or hour checks", async () => {
+  market.items = async () => {
+    throw new Error("warframe.market refused the sign-in");
+  };
+  const s = settings({ every: 7 * 24 * 60 });
+  const before = Date.now();
+  await mkt.reprice(bare, s, false, true);
+  assert.equal(mkt.account?.profile, null, "signed out");
+  assert.equal(mkt.passFailures, 0, "not counted as warframe.market not answering");
+  const wait = mkt.passDelay(WEEK);
+  assert.equal(s.lastCheck, mkt.lastPass, "saved as missed, for a restart");
+  assert.equal(checkDue(mkt.lastCheckOf(s), wait, before + 30 * MIN), false, "not at once");
+  assert.equal(checkDue(mkt.lastCheckOf(s), wait, Date.now() + HOUR), true, "within the hour, not a week later");
+});
+
 test("after a platform switch the saved time is set aside and cleared: the new platform is checked at once", async () => {
   market.setPlatform = (async () => {}) as never;
   const saved = Date.now() - MIN;

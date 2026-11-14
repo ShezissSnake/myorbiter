@@ -17,7 +17,7 @@
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
   import { AUTO_REP_LINE, AUTO_REP_SHORT, AUTO_TRADES_LINE, AUTO_TRADES_SHORT, LAST_COPY_LINE } from "../core/automation";
   import { AUTO_FLOOR_SHARE, AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
-  import { EVERY_CHOICES, everyWords, nextCheckAt, whenWords } from "../core/schedule";
+  import { EVERY_CHOICES, everyWords, nextCheckShown, nextCheckWhy, whenWords } from "../core/schedule";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -139,8 +139,8 @@
   /** When the next timed check runs; one already due runs within a few seconds, so it says now. */
   const nextPass = $derived.by(() => {
     if (!(settings.auto || settings.autoCheck) || lastCheck == null) return null;
-    const at = nextCheckAt(lastCheck, passWait, minute);
-    return at == null ? null : new Date(Math.max(at, minute));
+    const at = nextCheckShown(lastCheck, passWait, minute);
+    return at == null ? null : new Date(at);
   });
   /** Oldest order book behind what's on screen, so you know how fresh "Market price" is. */
   const checkedAt = $derived.by(whileShown("market", () => {
@@ -908,7 +908,7 @@
           <section class="pg" aria-labelledby="auto-apply-h">
             <h3 class="register" id="auto-apply-h">Changing prices</h3>
             <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
-            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under your own floor, Never under, or (no seller in game) Floor: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under your own floors or Never under: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
             <p class="dim small why">Never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved, nor under the floors below; more than halving waits for Reprice. {GREY_AREA}.</p>
             <div class="grp">
               <span class="register">Floor</span>
@@ -938,7 +938,7 @@
           {/if}
         </div>
       </Fold>
-      {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks ${everyWords(settings.every)}`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${whenWords(+nextPass, minute)}`}</span>{/if}
+      {#if nextPass}<span class="register next" title={nextCheckWhy(settings.every, mkt.passFailures, passWait)}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${whenWords(+nextPass, minute)}`}</span>{/if}
       {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton class="showall" variant="link" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
       <HelpMark part="orders.reprice" />
     </div>
