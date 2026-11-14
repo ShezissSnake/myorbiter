@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { salesCoveredByTrades } from "../src/lib/core/market";
-import { claimTradeSale, markedForTrade, secondPress, SECOND_PRESS_MS, soldAfterTrade, soldAfterUnmarked, soldAnswers, tradeLineSale, tradeSaleNear, type SoldListing } from "../src/lib/core/soldMarks";
+import { claimTradeSale, markedForTrade, secondPress, SECOND_PRESS_MS, soldAfterTrade, soldAfterUnmarked, soldAnswers, tradeLineSale, tradeSaleLine, tradeSaleNear, type SoldListing } from "../src/lib/core/soldMarks";
 import { salesOf } from "../src/lib/core/saleLog";
 import type { Sale, TradeLogEntry } from "../src/lib/backend";
 
@@ -92,22 +92,22 @@ test("a refusal on one refinement's listing does not ask, or lower, on the other
 test("two listings answered one after the other: one 'that sale' at a time for a trade's copies", () => {
   const out = new Set<string>();
   // No sure listing: both listings of it ask.
-  assert.deepEqual(claimTradeSale(o1, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, out, 2), { keys: ["s|1"], send: 2, marked: 0, aged: 0 });
   assert.equal(claimTradeSale(o2, [noListing], now, out, 2), null, "the second answer sends nothing while the first is out");
   assert.equal(soldAfterUnmarked(o2, [noListing], [trade], now, out)?.busy, true);
   // The first is back and recorded: the copies are marked, nothing is left for the second.
   out.delete("s|1");
   const after = markedForTrade([noListing], o1, 2, now);
-  assert.deepEqual(claimTradeSale(o2, after, now, out, 2), { keys: [], send: 0 });
+  assert.deepEqual(claimTradeSale(o2, after, now, out, 2), { keys: [], send: 0, marked: 2, aged: 0 });
   assert.equal(out.size, 0, "nothing claimed when nothing is waiting");
   assert.equal(soldAfterUnmarked(o2, after, [trade], now), null);
   // Refused: the record unchanged and the claim given back, the next click may claim again.
-  assert.deepEqual(claimTradeSale(o2, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  assert.deepEqual(claimTradeSale(o2, [noListing], now, out, 2), { keys: ["s|1"], send: 2, marked: 0, aged: 0 });
   // Nothing waiting: nothing to send.
-  assert.deepEqual(claimTradeSale(o1, [], now, new Set(), 2), { keys: [], send: 0 });
+  assert.deepEqual(claimTradeSale(o1, [], now, new Set(), 2), { keys: [], send: 0, marked: 2, aged: 0 });
   // Nothing to send claims nothing, so no claim is left behind.
   const none = new Set<string>();
-  assert.deepEqual(claimTradeSale(o1, [noListing], now, none, 0), { keys: [], send: 0 });
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, none, 0), { keys: [], send: 0, marked: 0, aged: 0 });
   assert.equal(none.size, 0);
 });
 
@@ -172,9 +172,57 @@ test("two listings answered one after the other: one 'that sale' at a time for a
     const again = answer(B, a.sales, out, askedB);
     assert.equal(a.closed + again.closed, 3);
     // And a Try again once all is marked: nothing is sent.
-    assert.deepEqual(claimTradeSale(B, again.sales, now, out, askedB), { keys: [], send: 0 });
+    const last = claimTradeSale(B, again.sales, now, out, askedB)!;
+    assert.deepEqual(last, { keys: [], send: 0, marked: 3, aged: 0 });
+    assert.equal(tradeSaleLine(last, askedB), "None marked: that trade was marked already");
     assert.equal(answer(B, again.sales, out, askedB).closed, 0);
     assert.deepEqual([listed.A, listed.B], [0, 4]);
+  });
+}
+
+{
+  // The ten minutes run from when each trade logged its copies; the question may outlast them.
+  const min = 60_000;
+  const logged = at + 5_000;
+  const opened = logged + 9 * min;
+  const past = "past the ten minutes: use Sold on the listing if they are still listed";
+
+  test("a trade ages out while the question is open: the line says which copies are past the ten minutes, not marked already", () => {
+    // Trade X logged 2 at `logged`, trade Y 1 five minutes later; the question opens at 9 minutes and shows 3.
+    const x: Sale = noListing;
+    const y: Sale = { ...noListing, at: at + 5 * min, quantity: 1, trade: "s|2", unmarked: { listing: null, count: 1, at: logged + 5 * min } };
+    assert.equal(soldAfterUnmarked(o1, [y, x], [trade], opened)?.count, 3);
+    // Yes at 10:01: X's 2 are past the ten minutes, Y's 1 is sent.
+    const yes = logged + 10 * min + 1_000;
+    const claim = claimTradeSale(o1, [y, x], yes, new Set(), 3, opened)!;
+    assert.deepEqual(claim, { keys: ["s|2"], send: 1, marked: 0, aged: 2 });
+    assert.equal(tradeSaleLine(claim, 3), `1 marked: 2 of that trade are ${past}`);
+    assert.equal(tradeSaleLine({ send: 1, marked: 0, aged: 1 }, 2), "1 marked: 1 of that trade is past the ten minutes: use Sold on the listing if it is still listed");
+    // Y marked meanwhile from another listing: both reasons, the counts of each.
+    const both = claimTradeSale(o1, markedForTrade([y, x], o2, 1, opened), yes, new Set(), 3, opened)!;
+    assert.deepEqual(both, { keys: [], send: 0, marked: 1, aged: 2 });
+    assert.equal(tradeSaleLine(both, 3), `None marked: 1 of that trade was marked already; 2 are ${past}`);
+    // A trade already past its ten minutes when the question opened was never in it: not counted.
+    const older: Sale = { ...noListing, trade: "s|0", unmarked: { listing: null, count: 4, at: logged - 2 * min } };
+    assert.deepEqual(claimTradeSale(o1, [...markedForTrade([y, x], o2, 1, opened), older], yes, new Set(), 3, opened), both);
+    // Marked already only: as before.
+    assert.equal(tradeSaleLine({ send: 1, marked: 2, aged: 0 }, 3), "1 marked: the rest of that trade was marked already");
+    // All sent: the usual line.
+    assert.equal(tradeSaleLine({ send: 3, marked: 0, aged: 0 }, 3), "Sold 3");
+  });
+
+  test("refused, then Try again after the ten minutes: nothing is sent, and the line says the copies are past the ten minutes", () => {
+    const out = new Set<string>();
+    // Yes at 9:55: 2 claimed and sent; refused, the record unchanged and the claim given back.
+    const first = claimTradeSale(o1, [noListing], logged + 9 * min + 55_000, out, 2, opened)!;
+    assert.deepEqual(first, { keys: ["s|1"], send: 2, marked: 0, aged: 0 });
+    assert.equal(tradeSaleLine(first, 2), "Sold 2");
+    for (const k of first.keys) out.delete(k);
+    // Try again at 10:01: a fresh line, not the first try's.
+    const again = claimTradeSale(o1, [noListing], logged + 10 * min + 1_000, out, 2, opened)!;
+    assert.deepEqual(again, { keys: [], send: 0, marked: 0, aged: 2 });
+    assert.equal(out.size, 0, "nothing claimed");
+    assert.equal(tradeSaleLine(again, 2), `None marked: 2 of that trade are ${past}`);
   });
 }
 
@@ -226,7 +274,7 @@ test("two trades of the item in ten minutes, neither marked: counted together, t
   assert.deepEqual(part.map((s) => [s.lowered?.count, s.unmarked?.count]), [[1, undefined], [undefined, 2]]);
   assert.equal(part[1], noListing);
   // Both trades are claimed by one answer.
-  assert.deepEqual(claimTradeSale(o1, sales, later, new Set(), 3), { keys: ["s|2", "s|1"], send: 3 });
+  assert.deepEqual(claimTradeSale(o1, sales, later, new Set(), 3), { keys: ["s|2", "s|1"], send: 3, marked: 0, aged: 0 });
 });
 
 test("saved sales: the new field loads; an older record loads as before; a damaged value drops the field and keeps the sale", () => {
