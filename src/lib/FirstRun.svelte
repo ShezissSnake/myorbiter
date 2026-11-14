@@ -1,14 +1,14 @@
 <script lang="ts">
   // The first start's one question, asked before TennoScope starts at all: may it read the game's
   // memory (Full mode), or only the reward screen (Overlay)? Full mode's warning is the same words
-  // as beside every other switch that turns it on. There's no closing it without an answer: a click
-  // outside does nothing, and Esc is the safe answer (overlay only); either is changed later in
-  // Settings, TennoScope.
+  // as beside every other switch that turns it on, and the page it names opens from it without
+  // answering. There's no closing it without an answer: a click outside does nothing, and Esc is
+  // the safe answer (overlay only); either is changed later in Settings, TennoScope.
   import { scrim } from "./ui/scrim";
   import HelpMark from "./ui/HelpMark.svelte";
   import { trap } from "./ui/trap";
   import { opens, shade } from "./motion";
-  import { FULL_MODE_WARNING } from "./FullMode.svelte";
+  import FullModeWarning from "./FullModeWarning.svelte";
   import type { TennoscopeAccess } from "./backend";
 
   let { onanswer }: { onanswer: (access: TennoscopeAccess) => void } = $props();
@@ -40,7 +40,7 @@
       screen (Overlay mode), and MyOrbiter shows everything that doesn't need your inventory. With Full mode,
       it also reads your items, mastery and Foundry from the running game.
     </p>
-    <p class="warn" id="first-run-warning">{FULL_MODE_WARNING}</p>
+    <p class="warn" id="first-run-warning"><FullModeWarning disabled={!ready} /></p>
     <p class="dim small">MyOrbiter doesn't start TennoScope or ask it anything until you choose. You can change it any time in Settings, TennoScope.</p>
     <footer>
       <button class="stamp" disabled={!ready} onclick={() => onanswer("--access=overlay")}>Not now: overlay only</button>

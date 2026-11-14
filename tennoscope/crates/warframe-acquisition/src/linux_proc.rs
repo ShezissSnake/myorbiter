@@ -2,7 +2,7 @@ use std::{
     cmp::Reverse,
     collections::HashMap,
     fs::{self, File},
-    io::{self, IoSliceMut, Write},
+    io::{self, IoSliceMut},
     os::unix::fs::FileExt,
     path::{Path, PathBuf},
     sync::{Arc, Mutex},
@@ -257,18 +257,6 @@ impl MemoryReader for LinuxProc {
             }
             Err(error) => Err(classify_io(process.pid(), error)),
         }
-    }
-
-    fn reset_recent_writes(&self, process: &GameProcess) -> Result<(), AcquisitionError> {
-        self.validate_identity(process)?;
-        let mut clear_refs = fs::OpenOptions::new()
-            .write(true)
-            .open(self.process_file(process.pid(), "clear_refs"))
-            .map_err(|error| classify_io(process.pid(), error))?;
-        clear_refs
-            .write_all(b"4")
-            .map_err(|error| classify_io(process.pid(), error))?;
-        self.validate_identity(process)
     }
 
     fn recently_written_regions(

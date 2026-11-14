@@ -1,9 +1,6 @@
 #![cfg(target_os = "linux")]
 
-use std::{
-    thread,
-    time::{Duration, Instant},
-};
+use std::time::Instant;
 
 use warframe_acquisition::{LinuxProc, MemoryReader, ProcessDiscovery};
 
@@ -55,8 +52,6 @@ fn live_recent_memory_snapshot_reports_safe_timing() {
         .discover()
         .unwrap()
         .expect("Warframe should be running");
-    adapter.reset_recent_writes(&process).unwrap();
-    thread::sleep(Duration::from_millis(100));
 
     let regions_started = Instant::now();
     let regions = adapter.recently_written_regions(&process).unwrap();
