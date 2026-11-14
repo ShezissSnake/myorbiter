@@ -43,6 +43,7 @@
   import { rivens } from "../rivenStore.svelte";
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
+  import { copiesToSend, soldAfterTrade } from "../core/soldMarks";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
@@ -568,9 +569,20 @@
   const soldTimers = new Map<string, ReturnType<typeof setTimeout>>();
   /** Each listing's quantity when you clicked Sold. */
   const soldFrom = new Map<string, number>();
-  function recordSale(o: MyOrder, n: number) {
+  /**
+   * A Sold click on a listing a trade from the game lowered in the last ten minutes: it may be the
+   * same sale, so it asks before lowering the listing again (soldAfterTrade).
+   */
+  let askSold = $state<{ id: string; n: number; count: number; partner: string | null } | null>(null);
+  function recordSale(o: MyOrder, n: number, sure = false) {
     if (n < 1 || n > o.quantity) return;
     selling = null;
+    askSold = null;
+    const prior = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
+    if (prior) {
+      askSold = { id: o.id, n, ...prior };
+      return;
+    }
     clearTimeout(soldTimers.get(o.id));
     pendingSold = { ...pendingSold, [o.id]: n };
     soldFrom.set(o.id, o.quantity);
@@ -589,10 +601,10 @@
     if (!o || !n) return;
     // The game's trade log got there first while Undo was showing: it already marked copies sold
     // (the listing shrank since you clicked) and recorded the sale. Only what's left is yours.
-    const already = Math.max(0, (soldFrom.get(id) ?? o.quantity) - o.quantity);
+    const send = copiesToSend(n, soldFrom.get(id) ?? o.quantity, o.quantity);
     soldFrom.delete(id);
-    if (n - already < 1) return;
-    await sendSale(o, Math.min(n - already, o.quantity));
+    if (send < 1) return;
+    await sendSale(o, send);
   }
   /**
    * Sends a sale (after the undo wait, or Try again). A listing sold out leaves the table at once:
@@ -1000,6 +1012,17 @@
               </span>
             </td>
           </tr>
+          {#if askSold?.id === o.id}
+            {@const ask = askSold}
+            <!-- A trade from the game lowered this listing minutes ago: the click may be that same sale. -->
+            <tr class="fixrow asksold"><td colspan="10">
+                <div class="fix" role="group" aria-label="Sold again?">
+                  <span class="small q"><b class="held">MyOrbiter already marked {ask.count} sold from your trade{ask.partner ? ` with ${ask.partner}` : ""}.</b> <span class="dim">· Sold {ask.n} more since?</span></span>
+                  <button class="stamp" onclick={() => recordSale(o, ask.n, true)} title="Another sale: mark {ask.n} sold on warframe.market and log it">Yes: mark {ask.n} more sold</button>
+                  <button class="stamp" use:focusIt onclick={() => (askSold = null)} onkeydown={onEsc(() => (askSold = null))} title="The same sale: nothing is sent">No, that was the same sale</button>
+                </div>
+            </td></tr>
+          {/if}
           {#if held != null && held < o.quantity}
             <!-- Its own row under the listing, so the listing keeps to one line. -->
             <tr class="fixrow"><td colspan="10">
