@@ -8,6 +8,7 @@ import { matches } from "../src/lib/ui/table";
 import { radiantRows, setGaps } from "../src/lib/core/advice";
 import { dropBuilding, dropCounts, emptyDropLog, recordRead, type DropLog } from "../src/lib/core/drops";
 import { recipesFor } from "../src/lib/core/recipes";
+import { scoreCards } from "../src/lib/core/pick";
 import type { Bundle, CatalogItem, InventoryRow } from "../src/lib/core/types";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, extra: Partial<InventoryRow> = {}): InventoryRow => ({
@@ -224,12 +225,30 @@ test("drops: a read older than the last one (the clock set back) is a new baseli
   assert.deepEqual(log.windows.map((w) => w.gains), [{ a: 1 }], "the read after it counts, though still before the old last read");
 });
 
+test("reward pick: a needed part is for its own prime while that's still to build, for the Ak weapon after", () => {
+  const card = (held: InventoryRow[]) => scoreCards(buildModel(bundle(held, [BRONCO, AKBRONCO])), ["Bronco Prime Receiver"])[0];
+  // No Bronco Prime yet: the receiver is for Bronco Prime, as the help's picture shows a Lex Prime part.
+  const unbuilt = card([]);
+  assert.deepEqual({ needed: unbuilt.needed, neededFor: unbuilt.neededFor }, { needed: true, neededFor: "Bronco Prime" });
+  // Bronco Prime mastered, Akbronco Prime not built: still needed, now for Akbronco Prime.
+  const built = card([inv("/W/BroncoPrime", "Bronco Prime", "weapon", 1, { mastered: true })]);
+  assert.deepEqual({ needed: built.needed, neededFor: built.neededFor }, { needed: true, neededFor: "Akbronco Prime" });
+});
+
+test("drops: a dropped Rhino Chassis Blueprint counts as a Rhino Chassis got", () => {
+  const read = (n: number) => dropCounts(buildModel(bundle([inv("/Lotus/Types/Recipes/WarframeRecipes/RhinoChassisBlueprint", "Rhino Chassis Blueprint", "blueprint", n)], [RHINO])));
+  let log = recordRead(emptyDropLog(), read(1), 1_000)!;
+  log = recordRead(log, read(2), 2_000)!;
+  assert.deepEqual(log.windows.map((w) => w.gains), [{ "Rhino Chassis": 1 }]);
+});
+
 // 9a
 test("drops: the 30-day totals are worked out again as time passes, not only when the log or the trades change", () => {
   const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
-  const effect = app.match(/\$effect\(\(\) => \{\n[^]*?recentDrops\([^]*?\n  \}\);/)?.[0] ?? "";
+  // The effect that works out drops.recent, from its own opening line to its end: nothing else in App.
+  const effect = app.match(/  \$effect\(\(\) => \{\n    const log = settings\.game\.drops;\n[^]*?\n  \}\);/)?.[0] ?? "";
   assert.match(effect, /recentDrops/);
-  assert.match(effect, /dropsHour/, "the effect reads an hourly clock, so a window older than 30 days goes within the hour");
+  assert.match(effect, /^    void dropsHour;$/m, "the effect reads an hourly clock, so a window older than 30 days goes within the hour");
   assert.match(app, /const dropsHour = \$derived\(Math\.floor\(tick \/ 3_600_000\)\)/);
 });
 

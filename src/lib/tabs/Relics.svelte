@@ -132,7 +132,7 @@
     }, defaultDesc: false, cell: baseCell },
     { key: "owned", width: "21%", label: "Owned", value: (r) => r.total, cell: ownedCell, align: "right" },
     { key: "vault", width: "11%", label: "Vault", value: (r) => (r.resurgence ? "resurgence" : r.vaulted ? "vaulted" : "farmable"), cell: vaultCell, defaultDesc: false },
-    { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered (or of a weapon made from it: Akbronco Prime takes two Bronco Primes), and you don't have yet" },
+    { key: "need", width: "13%", label: "Parts you need", value: (r) => r.neededCount || null, align: "right", title: "Rewards that are parts of something you haven't built or mastered (or of a weapon made from it: Akbronco Prime takes two Bronco Primes), and you don't have enough of yet" },
     { key: "evI", width: "8%", label: squad === 1 ? "Intact" : "Intact ×4", value: evI, align: "right", cell: evICell, title: squad === 1 ? "Average platinum from one crack of the intact relic" : "Average platinum of the best of four intact cracks (a radshare where everyone brings this relic)" },
     { key: "evR", width: "8%", label: squad === 1 ? "Radiant" : "Radiant ×4", value: evR, align: "right", cell: evRCell, title: squad === 1 ? "Average platinum from one crack of the radiant relic" : "Average platinum of the best of four radiant cracks" },
     { key: "gain", width: "12%", label: "Radiant gain", value: gain, align: "right", cell: gainCell, title: "How much more a radiant crack is worth than an intact one, on average. Refining costs 100 Void Traces." },

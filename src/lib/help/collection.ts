@@ -307,7 +307,7 @@ const MODS: Walkthrough = {
       lines: [
         "Up to five mods worth most in Worth selling.",
         "Spare copies, beyond your best and one to give away; days of trades to sell them.",
-        "Worth selling: spares of mods sold daily, at their rank's median, a month's sales at most.",
+        "Worth selling: spares of mods sold daily, maxed ones at the maxed price, the rest unranked.",
         "Left out: spares under Not worth a trade, judged on up to six copies a trade.",
       ],
       shot: {
