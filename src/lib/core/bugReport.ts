@@ -1,7 +1,7 @@
 // A bug report, made in the app and sent by the player. MyOrbiter never posts it itself: there's no
 // token and no network write. Open on GitHub puts the report's text on the clipboard (the sections
 // of the issue form, .github/ISSUE_TEMPLATE/bug_report.yml) and opens the form with only the app's
-// version and the platform filled in: nothing of the report is in the page's address, so github.com
+// version and the system filled in, in its Build and system line: nothing of the report is in the page's address, so github.com
 // gets it only when the player pastes it there, adds a title and presses Submit new issue.
 // Copy report puts it on the clipboard as Markdown, to send another way.
 //
@@ -18,12 +18,15 @@ import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrust
 
 /** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
 export const NEW_ISSUE = "https://github.com/ShezissSnake/myorbiter/issues/new";
-/** The issue form (its file name), and the field its page opens with the version and platform in. */
+/** The issue form (its file name). Its fields' ids, in the form's order; the form also has a
+ *  Screenshots box (`FORM_ONLY`), the reporter's own: the app attaches no picture. `build` is the
+ *  field its page opens with the version and system in. */
 export const TEMPLATE = "bug_report.yml";
-export const FIELDS = { what: "what", steps: "steps", expected: "expected", details: "details" } as const;
+export const FIELDS = { what: "what", expected: "expected", steps: "steps", build: "build", details: "details" } as const;
+export const FORM_ONLY = { screenshots: "screenshots" } as const;
 /** The form's field labels, which the text put on the clipboard uses as its headings: the form and
  *  this list must agree (tests/bugReport.test.ts). */
-export const SECTIONS = { what: "What happened", steps: "Steps to reproduce", expected: "What you expected", details: "Technical details" } as const;
+export const SECTIONS = { what: "What happened", expected: "What you expected", steps: "Steps to reproduce", build: "Build and system", details: "Technical details" } as const;
 /** How many of the log's last lines a report offers. */
 export const LOG_LINES = 50;
 /** The most each field keeps. */
@@ -105,6 +108,12 @@ export function buildReport(input: ReportInput, details: ReportDetails | null, n
   };
 }
 
+/** The "Build and system" line: the app's version and the system, nothing more. The address and the
+ *  report's section both use it. */
+export function buildLine(version: string, os: string, arch: string): string {
+  return `MyOrbiter ${version} on ${[os, arch].filter(Boolean).join(" ")}`;
+}
+
 /** The technical block, as plain text. */
 export function detailsText(d: ReportDetails): string {
   const lines = [
@@ -127,12 +136,14 @@ export function detailsText(d: ReportDetails): string {
 /** The longest run of backticks in some text. */
 const longestTicks = (s: string) => Math.max(0, ...[...s.matchAll(/`+/g)].map((m) => m[0].length));
 
-/** The report's sections in Markdown, as the form has them: the player's words, then the details
- *  (`details`: their text, "" when left out) in a text code block. */
-function sections(what: string, steps: string, expected: string, details: string): string[] {
+/** The report's sections in Markdown, as the form has them, in its order: the player's words, the
+ *  build line (`build`: "" when the details are left out), then the details (`details`: their text,
+ *  "" when left out) in a text code block. */
+function sections(what: string, expected: string, steps: string, build: string, details: string): string[] {
   const out = [`### ${SECTIONS.what}`, "", what || "_(not filled in)_"];
-  if (steps) out.push("", `### ${SECTIONS.steps}`, "", steps);
   if (expected) out.push("", `### ${SECTIONS.expected}`, "", expected);
+  if (steps) out.push("", `### ${SECTIONS.steps}`, "", steps);
+  if (build) out.push("", `### ${SECTIONS.build}`, "", build);
   if (details) {
     const fence = "`".repeat(Math.max(3, longestTicks(details) + 1));
     out.push("", `### ${SECTIONS.details}`, "", `${fence}text`, details, fence);
@@ -141,23 +152,27 @@ function sections(what: string, steps: string, expected: string, details: string
   return out;
 }
 
-/** The page Open on GitHub opens: the issue form with only the app's version and the platform in
- *  its details field (what the app itself is, not what the player wrote). Nothing of the report is
- *  in its address; the player pastes it in there. */
+/** The page Open on GitHub opens: the issue form with only the app's version and the system in
+ *  its Build and system line (what the app itself is, not what the player wrote). Nothing else is
+ *  in its address: no channel, page, account or log, and nothing of the report; the player pastes
+ *  that in there. */
 export function newIssuePage(env: { version: string; os: string; arch: string }, names: RedactOptions = {}): string {
   const line = (v: string, max: number) => inert(redact(cleanLine(v, max) ?? "", names));
-  const text = [`MyOrbiter ${line(env.version, 40) || "unknown"}`, `System: ${[line(env.os, 30) || "unknown", line(env.arch, 30)].filter(Boolean).join(" ")}`].join("\n");
-  return `${NEW_ISSUE}?template=${encodeURIComponent(TEMPLATE)}&${FIELDS.details}=${encodeURIComponent(text)}`;
+  const text = buildLine(line(env.version, 40) || "unknown", line(env.os, 30) || "unknown", line(env.arch, 30));
+  return `${NEW_ISSUE}?template=${encodeURIComponent(TEMPLATE)}&${FIELDS.build}=${encodeURIComponent(text)}`;
 }
+
+/** The report's build line: only when the technical details go in (it is their version and system). */
+const buildOf = (r: Report) => (r.details ? buildLine(r.details.version, r.details.os, r.details.arch) : "");
 
 /** What Open on GitHub puts on the clipboard, to paste into the new issue: the form's sections.
  *  The title is typed on GitHub (`Report.title` suggests one). */
 export function issueText(r: Report): string {
-  return sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : "").join("\n") + "\n";
+  return sections(r.what, r.expected, r.steps, buildOf(r), r.details ? detailsText(r.details) : "").join("\n") + "\n";
 }
 
 /** The report as Markdown, for Copy report: the title, then the form's sections, the details in a
  *  text code block. */
 export function reportMarkdown(r: Report): string {
-  return [`## ${r.title}`, "", ...sections(r.what, r.steps, r.expected, r.details ? detailsText(r.details) : "")].join("\n") + "\n";
+  return [`## ${r.title}`, "", ...sections(r.what, r.expected, r.steps, buildOf(r), r.details ? detailsText(r.details) : "")].join("\n") + "\n";
 }
