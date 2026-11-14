@@ -59,7 +59,15 @@ take from the Foundry recipes.
   "keep at least N" per item. The keep numbers that matter already exist per family and per row;
   a per-item number would need its own control, column and rule for combining with the family's.
   The last check before any listing (`listGuard.ts`) refuses a never-sell item too, the listing
-  form included. Entries can gain a `keep` later if that's ever wanted.
+  form included. An entry reaches across a set: a part on the list holds back every set with it
+  inside, and a set on the list holds back its parts (`neverHeld` in `bulk.ts`; the plan's line
+  names the entry). Entries can gain a `keep` later if that's ever wanted.
+- **Copies are counted once.** What can still be listed is the keep rules' spare less what the
+  player's other listings already offer of the same copies: an arcane's copies are one pool across
+  its ranks (a maxed listing takes the 21 unranked it was fused from), a listed set takes its
+  parts' copies, and parts listed on their own leave fewer sets to make (`freeToList`). The plan
+  counts them against the listings as it leaves them; the last check against the listings as they
+  are, hidden ones included.
 - **"Only sets my relics drop"** means sets whose every part drops from a relic the player holds,
   so the set can be cracked again (not "sets that aren't vaulted").
 - **Ayatan: empty sculptures only.** Filled ones would need each sculpture's star slots, which the
