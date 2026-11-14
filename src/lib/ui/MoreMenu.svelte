@@ -119,7 +119,7 @@
 </script>
 
 <button bind:this={button} type="button" class="tool more" class:on={open} aria-haspopup="menu" aria-expanded={open} aria-controls={open ? `more-${uid}` : undefined} aria-label="More" title="More: search, help, report a bug, settings{items.some((i) => i.tone) ? ', TennoScope' : ''}" onclick={(e) => (open ? close(false) : show(e.detail === 0))} onkeydown={onButtonKey}>
-  <span class="ti"><GameIcon name="menu" size={24} even /></span><span class="lbl">More</span><span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
+  <span class="ti"><GameIcon name="menu" size={20} even /></span><span class="lbl">More</span><span class="chv"><Icon name="chev-down" size={14} stroke={1.6} /></span>
 </button>
 {#if open}
   <div bind:this={menu} id="more-{uid}" class="moremenu" class:side={compact} role="menu" aria-label="More" tabindex="-1" style={place} onkeydown={onMenuKey}>

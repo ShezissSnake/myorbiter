@@ -1,6 +1,6 @@
 # What MyOrbiter does
 
-Every page, what it shows and what it does. The in-app Guide (Help in the sidebar's More menu, or F1) says the same from inside the app.
+Every page, what it shows and what it does. The in-app Guide (Help at the bottom of the sidebar, or F1) says the same from inside the app.
 
 A local desktop companion for Warframe that reads what TennoScope (`tennoscope/ORBITER.md`) already stores on your PC and answers the questions TennoScope's collection view doesn't:
 

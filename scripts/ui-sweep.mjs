@@ -801,6 +801,18 @@ async function sortCheck(size) {
   for (const p of pages) await p.close();
 }
 
+
+/** Presses one of the sidebar foot's buttons by its name (`data-item`): in the full sidebar it shows
+ *  in the foot; folded, it is in More's menu, opened first. */
+async function footItem(p, name) {
+  const cell = p.locator(`.rail .foot [data-item='${name}']`);
+  if (!(await cell.count())) {
+    await p.locator(".rail .foot button.more").click();
+    await pause(p, 300);
+  }
+  await p.locator(`:is(.rail .foot, .moremenu) [data-item='${name}']`).first().click();
+}
+
 /** Every view of the demo at one size, `look` called on each. Settings is one view per section
  *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
  *  same whichever section is in view). */
@@ -812,16 +824,18 @@ async function walk(size, look, { settingsOnce = false, widePictures = true } = 
     await pause(p, 2500);
     await look(p, size, label);
   }
-  // The sidebar foot's More menu, open (drawn over the page: nothing in it may be cut off).
-  await p.locator(".rail .foot button.more").click();
-  await pause(p, 400);
-  await look(p, size, "More menu");
-  await p.keyboard.press("Escape");
-  await pause(p, 300);
-  // Settings (from More), each section scrolled into view.
-  await p.locator(".rail .foot button.more").click();
-  await pause(p, 300);
-  await p.locator(".moremenu [data-item='Settings']").click();
+  // The folded sidebar's More menu, open (drawn over the page: nothing in it may be cut off). The
+  // full sidebar shows every button in its foot and has no More.
+  const more = p.locator(".rail .foot button.more");
+  if (await more.count()) {
+    await more.click();
+    await pause(p, 400);
+    await look(p, size, "More menu");
+    await p.keyboard.press("Escape");
+    await pause(p, 300);
+  }
+  // Settings, each section scrolled into view.
+  await footItem(p, "Settings");
   await pause(p, 1200);
   if (settingsOnce) await look(p, size, "Settings");
   else {

@@ -32,9 +32,8 @@ const CHOOSE = { click: `${N} .top button[role=radio]:has-text('Choose')` };
 const GROUP = `${N} section.how + section.grp`;
 
 const T = `.sheet[aria-label="TennoScope"]`;
-/** TennoScope's panel opens from the foot's More menu. */
-const MORE = { click: ".rail .foot button.more" };
-const TSBTN = { click: ".moremenu [data-item='TennoScope']" };
+/** TennoScope's panel opens from its button in the full sidebar's foot. */
+const TSBTN = { click: ".rail .foot [data-item='TennoScope']" };
 const tsSec = (part: string) => `${T} section:has([data-help="${part}"])`;
 
 const SETTINGS_MAIN: Walkthrough = {
@@ -415,7 +414,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [MORE, TSBTN, { wait: 2000 }],
+        steps: [TSBTN, { wait: 2000 }],
         part: `${T} > header, ${T} section.state, ${tsSec("tennoscope.screen-capture")}, ${tsSec("tennoscope.reward-overlay")}`,
         marks: [
           { at: `${T} section.state .line`, is: "n", n: 1, from: "corner" },
@@ -435,7 +434,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [MORE, TSBTN, { wait: 2000 }],
+        steps: [TSBTN, { wait: 2000 }],
         part: `${tsSec("tennoscope.inventory")}, ${tsSec("tennoscope.health")}`,
         marks: [
           { at: `${tsSec("tennoscope.inventory")} .kv`, is: "n", n: 1, from: "corner" },

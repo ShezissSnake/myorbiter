@@ -850,7 +850,7 @@
 
     <!-- Wishlist -->
     <section class="panel wishes" class:off={off("wishes")} class:half={orphan("wishes")} class:lone={lone("wishes")} style:--n={share("wishes")} data-card="wishes">
-      {@render head(null, "star", "Your wishlist", "wishlist", "Wishlist", "home.wishes")}
+      {@render head("wishlist", null, "Your wishlist", "wishlist", "Wishlist", "home.wishes")}
       {#if wishes.length}
         <ul class="fb">
           {#each wishes.slice(0, 4) as w (w.c.unique)}

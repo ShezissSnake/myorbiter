@@ -130,10 +130,11 @@ const WATCHING: Walkthrough = {
 const ITEM = `.sheet:has(> header > [data-help="item-sheet"])`;
 /** One of the sheet's sections, by the part of its "?". */
 const sheetPart = (part: string) => `${ITEM} section:has([data-help="${part}"])`;
-/** Opens an item's sheet through Find anything (More, Search): the item itself is the first match for its whole name. */
+/** One of the full sidebar's foot buttons, by its name (`data-item`; folded, the same name is on More's item). */
+const footButton = (name: string) => `.rail .foot [data-item='${name}']`;
+/** Opens an item's sheet through Find anything (the foot's Search): the item itself is the first match for its whole name. */
 const openItem = (name: string): Step[] => [
-  { click: ".rail .foot button.more" },
-  { click: ".moremenu [data-item='Search']" },
+  { click: footButton("Search") },
   { fill: "[role=dialog][aria-label='Find anything'] input", text: name },
   { press: "Enter" },
   { wait: 3000 },
@@ -283,40 +284,41 @@ const RAIL: Walkthrough = {
       },
     },
     {
-      title: "Sync, notifications, more",
+      title: "Every button, under the status",
       lines: [
-        "Sync asks TennoScope for a new inventory read and fills while it waits (Ctrl+R).",
-        "Without Full mode or the game running, it rereads TennoScope's last saved read.",
+        "Sync asks TennoScope for a new inventory read; its picture turns while it waits (Ctrl+R).",
         "Notifications: what MyOrbiter told you lately; its number is how many are new.",
-        "More opens a menu with the rest: search, help, settings and TennoScope.",
+        "Search finds anything by name (Ctrl+K); Settings (Ctrl+,).",
+        "Then Help (F1), Report a bug (Shift+F1) and TennoScope, its diamond filled when all is well.",
       ],
       shot: {
         open: "home",
         part: `${FOOT} .tools`,
         marks: [
-          { at: `${FOOT} .tools button.sync`, is: "n", n: 1, from: "right" },
-          { at: `${FOOT} .tools button.bell`, is: "n", n: 2, from: "right" },
-          { at: `${FOOT} .tools button.more`, is: "n", n: 3, from: "right" },
+          { at: `${FOOT} .tools button.sync`, is: "n", n: 1, from: "top" },
+          { at: `${FOOT} .tools button.bell`, is: "n", n: 2, from: "top" },
+          { at: footButton("Search"), is: "n", n: 3, from: "top" },
+          { at: footButton("Settings"), is: "n", n: 4, from: "top" },
         ],
       },
     },
     {
-      title: "In More",
+      title: "Folded to pictures",
       lines: [
-        "Search finds anything by name and opens it (Ctrl+K). Help opens the Guide (F1).",
-        "Report a bug says what went wrong, as an issue on GitHub or copied (Shift+F1).",
-        "Settings (Ctrl+,). TennoScope opens its panel; its diamond filled means all is well.",
-        "Arrow keys move through the menu; Esc closes it. The shortcuts work without it.",
+        "The arrow at the top folds the sidebar and unfolds it, from the same spot.",
+        "Folded, the foot keeps Sync and Notifications; More holds the other buttons.",
+        "Arrow keys move through More's menu; Esc closes it. The shortcuts work without it.",
+        "A narrow window folds it by itself until you choose with the arrow.",
       ],
       shot: {
         open: "home",
+        size: [1000, 800],
         steps: [{ click: `${FOOT} button.more` }, { wait: 600 }],
-        part: ".moremenu",
+        part: `.rail .fold, .rail .foot, .moremenu`,
         marks: [
-          { at: ".moremenu [data-item='Search']", is: "n", n: 1, from: "right" },
-          { at: ".moremenu [data-item='Help']", is: "n", n: 2, from: "right" },
-          { at: ".moremenu [data-item='Report a bug']", is: "n", n: 3, from: "right" },
-          { at: ".moremenu [data-item='Settings']", is: "n", n: 4, from: "right" },
+          { at: ".rail .fold", is: "n", n: 1, from: "right" },
+          { at: `${FOOT} button.more`, is: "n", n: 2, from: "right" },
+          { at: ".moremenu [data-item='Settings']", is: "n", n: 3, from: "right" },
         ],
       },
     },
@@ -368,7 +370,7 @@ const FIRST_RUN: Walkthrough = {
       ],
       shot: {
         open: "home",
-        steps: [{ click: ".rail .foot button.more" }, { click: ".moremenu [data-item='TennoScope']" }, { wait: 1500 }],
+        steps: [{ click: footButton("TennoScope") }, { wait: 1500 }],
         part: INVENTORY,
         marks: [
           { at: `${INVENTORY} .kv`, is: "n", n: 1, from: "corner" },
@@ -411,7 +413,7 @@ const FIRST_RUN: Walkthrough = {
 const NEWS = ".pane.shown section.news";
 const DAY = `${NEWS} .newshead + .day`;
 const ROWS = `${DAY} + ul.rows`;
-const GUIDE: Step[] = [{ click: ".rail .foot button.more" }, { click: ".moremenu [data-item='Help']" }, { wait: 3000 }];
+const GUIDE: Step[] = [{ click: footButton("Help") }, { wait: 3000 }];
 
 const WHATS_NEW: Walkthrough = {
   id: "whats-new",

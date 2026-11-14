@@ -13,7 +13,7 @@ const EVEN: Partial<Record<GameIconName, [s: number, x: number, y: number]>> = {
   mastered: [1, 0, 0],
   foundry: [1, 0, 0],
   forma: [0.944, 0, 0],
-  wishlist: [1, 0, 0],
+  wishlist: [1.067, 0, 1.6],
   locker: [0.918, 0, 0],
   ducats: [1.143, -0.4, 0],
   "prime-plate": [1, 0, 0],

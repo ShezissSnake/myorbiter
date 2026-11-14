@@ -3,6 +3,8 @@
 // It returns its measurements; the page side is window.__perf (probe.js).
 
 const J = JSON.stringify;
+/** Opens Settings by its one name in the sidebar's foot (`data-item`): the full sidebar's button, or the item in the folded sidebar's More menu once it is open. */
+const OPEN_SETTINGS = `document.querySelector(":is(.rail .foot, .moremenu) [data-item='Settings']").click()`;
 /** Clicks the rail button labelled `label`. */
 const nav = (label) => `[...document.querySelectorAll('button.nav')].find(b => (b.querySelector('.lbl')?.textContent ?? '').trim() === ${J(label)}).click()`;
 const railLabels = `[...document.querySelectorAll('button.nav')].map(b => (b.querySelector('.lbl')?.textContent ?? '').trim()).filter(Boolean)`;
@@ -153,7 +155,7 @@ export const SCENARIOS = {
   /** The Settings sheet: opened, closed, opened again. */
   settings: {
     async run(s) {
-      const open = `document.querySelector('.foot button[aria-label="Settings"]').click()`;
+      const open = OPEN_SETTINGS;
       const close = `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`;
       const first = await s.measure(open, { quiet: 600 });
       const closed = await s.measure(close, { quiet: 600 });
@@ -327,11 +329,11 @@ SCENARIOS.tour = {
   syncReload: true,
   async run(s) {
     const until = Date.now() + Number(process.env.PERF_TOUR_MS ?? 300_000);
-    // Settings is in the sidebar's More menu: the menu opened first, then Settings timed.
-    const more = `document.querySelector('.rail .foot button.more').click()`;
+    // Settings: in the full sidebar's foot; folded, in More's menu, opened first (not timed).
     const openSettings = async () => {
-      await s.measure(more, { quiet: 300 });
-      return s.measure(`document.querySelector(".moremenu [data-item='Settings']").click()`, { quiet: 600 });
+      await s.eval(`(() => { if (!document.querySelector(".rail .foot [data-item='Settings']")) document.querySelector('.rail .foot button.more')?.click(); })()`);
+      await new Promise((r) => setTimeout(r, 300));
+      return s.measure(OPEN_SETTINGS, { quiet: 600 });
     };
     const esc = `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`;
     let laps = 0;
