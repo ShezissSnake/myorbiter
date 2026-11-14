@@ -897,8 +897,10 @@
           {/each}
         </div>
       {/if}
+      <!-- A proxy set that can't be used: the feed's thread has ended and nothing is tried, so
+           not "Connecting": the reason, as Home's other lines give it. -->
       <p class="live small" title={mkt.feed?.error ?? "Every new listing on warframe.market is checked as it goes up"}>
-        {#if mkt.feed?.connected}<i class="dot" aria-hidden="true"></i>Watching new listings live{mkt.liveDeals ? ` · ${mkt.liveDeals} caught` : ""}{:else if mkt.feed?.running}Connecting to the live feed…{/if}
+        {#if mkt.feed?.connected}<i class="dot" aria-hidden="true"></i>Watching new listings live{mkt.liveDeals ? ` · ${mkt.liveDeals} caught` : ""}{:else if mkt.feed?.running && proxy.problem}New listings aren't watched: {proxy.problem}{:else if mkt.feed?.running}Connecting to the live feed…{/if}
       </p>
     </section>
 

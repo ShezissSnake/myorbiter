@@ -780,7 +780,7 @@
         <p class="prose">It no longer accepts MyOrbiter's sign-in (it expired, or was signed out elsewhere). Sign out, then sign in again: listing and repricing wait until you do.</p>
         <div class="row"><button class="stamp" onclick={() => mkt.signOut()}>Sign out</button></div>
       {:else if proxy.problem}
-        <!-- Nothing is sent while the proxy set can't be used: trying again would change nothing. -->
+        <!-- Nothing but the update check is sent while the proxy set can't be used: trying again would change nothing. -->
         <h2 class="mark">Can't reach warframe.market</h2>
         <p class="prose">You're signed in, but {proxy.problem}</p>
         <div class="row">{@render signOut()}</div>

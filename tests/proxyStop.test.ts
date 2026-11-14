@@ -10,7 +10,7 @@ globalThis.fetch = (async () => {
   asked++;
   return new Response("", { status: 503 });
 }) as never;
-const { windowMayAsk } = await import("../src/lib/proxy.svelte");
+const { windowMayAsk, mayAskFromWindow } = await import("../src/lib/proxy.svelte");
 const { rivens } = await import("../src/lib/rivenStore.svelte");
 
 test("the window asks only once the answer is in, and only when no proxy set stops the route", async () => {
@@ -31,6 +31,8 @@ test("last week's riven trades aren't read while the proxy stops: what was read 
   const kept = [{ weapon: "Example", compatibility: null, rerolled: false, avg: 10, stddev: 1, min: 5, max: 20, pop: 1, median: 10 }] as never;
   saved.read = async () => ({ platform: "pc", at: Date.now(), week: "1–7 Nov", trades: kept });
   saved.write = async () => {};
+  // The store's own gate is the window's real one, before the test puts its own in its place.
+  assert.equal(rivens.tradesMayAsk, mayAskFromWindow);
   let checks = 0;
   rivens.tradesMayAsk = async () => (checks++, false);
   asked = 0;

@@ -256,7 +256,8 @@ pub(crate) enum Route {
     Direct,
     /// An HTTP proxy, asked for a tunnel (CONNECT), with `user:password` if the address gives them.
     Http { host: String, port: u16, login: Option<String> },
-    /// A proxy set that MyOrbiter can't use: nothing is sent, neither through it nor around it.
+    /// A proxy set that MyOrbiter can't use: nothing but the update check is sent (it has rules
+    /// of its own), neither through the proxy nor around it.
     /// The reason, as the log and the page give it (`unusable`).
     Unusable(String),
 }
@@ -327,8 +328,8 @@ fn read_proxy(value: &str) -> Result<Route, Unfit> {
 /// address it misread (a port that isn't a number, a path after the port, `http://` alone, port
 /// 0 or above 65535) it took, at port 80 or at one nothing answers on, where this passes it over
 /// for a usable one that follows; a capital scheme and spaces around an address it passed over,
-/// where this takes them; an empty value, or one of only spaces, it took as a proxy with no
-/// host, where this reads it as not set.
+/// where this takes them; an empty value it took as a proxy with no host, and one of only spaces
+/// as a proxy whose host is the spaces, where this reads both as not set.
 pub(crate) fn route_from(var: impl Fn(&str) -> Option<String>) -> Route {
     let mut first_unfit = None;
     for name in PROXY_VARS {

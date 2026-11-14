@@ -1397,8 +1397,9 @@ export async function logTail(lines: number): Promise<string[]> {
 }
 
 /**
- * Why nothing is sent, when a proxy set in the environment (HTTPS_PROXY and the like) is one
- * MyOrbiter can't use (`proxy_problem` in lib.rs); null when none is set or it can be used.
+ * Why MyOrbiter sends nothing except its update check, when a proxy set in the environment
+ * (HTTPS_PROXY and the like) is one MyOrbiter can't use (`proxy_problem` in lib.rs); null when
+ * none is set or it can be used.
  */
 export async function proxyProblem(): Promise<string | null> {
   return inTauri ? invoke<string | null>("proxy_problem") : null;

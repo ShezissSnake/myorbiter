@@ -254,14 +254,14 @@ fn agent_for(route: &presence::Route) -> ureq::Agent {
     agent.middleware(redirect_policy(REDIRECTS_FOLLOWED)).build()
 }
 
-/// A middleware that sends nothing: every request fails at once with `why`.
+/// A middleware that sends none of the agent's requests: each fails at once with `why`.
 fn refuse(why: String) -> impl Fn(ureq::Request, ureq::MiddlewareNext) -> Result<ureq::Response, ureq::Error> + Send + Sync + 'static {
     move |_: ureq::Request, _: ureq::MiddlewareNext| Err(std::io::Error::other(why.clone()).into())
 }
 
-/// Why nothing is sent, when a proxy set in the environment can't be used (`presence::route`);
-/// none when no proxy is set or it can be used. For the page, which says it where it says a
-/// service can't be reached.
+/// Why MyOrbiter sends nothing except its update check, when a proxy set in the environment
+/// can't be used (`presence::route`); none when no proxy is set or it can be used. For the page,
+/// which says it where it says a service can't be reached.
 #[tauri::command]
 fn proxy_problem() -> Option<String> {
     match presence::route() {

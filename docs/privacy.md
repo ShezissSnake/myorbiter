@@ -369,8 +369,8 @@ it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an a
 be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
 can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
 paragraph, and says why, on the page and in its log, rather than going around the proxy; the
-window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: nothing
-skips the proxy.
+window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: none
+of MyOrbiter's own requests and connections skips the proxy.
 
 The update check and its download, and TennoScope's web requests, choose for themselves: they use
 `HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
@@ -381,9 +381,10 @@ switch your status in TennoScope's own window, or start TennoScope with `--prese
 MyOrbiter's request, and never while MyOrbiter holds your status.
 
 This page covers what MyOrbiter's and TennoScope's code does; what the system's web view
-(WebView2, WebKitGTK) does on its own wasn't audited. No telemetry, analytics or crash reporting is built in, and your
-records (sales, trades, value over time, settings) stay on this computer, in `settings.json`
-(below); single events reach warframe.market or Discord only as described above.
+(WebView2, WebKitGTK) does on its own wasn't audited. No telemetry, analytics or crash reporting
+is built in, and your records (sales, trades, value over time, settings) stay on this computer,
+in `settings.json` (below); single events reach warframe.market or Discord only as described
+above.
 
 ## Files on this computer
 
