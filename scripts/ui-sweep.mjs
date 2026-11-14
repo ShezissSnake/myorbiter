@@ -653,19 +653,83 @@ async function tabThrough(p, size, view) {
  * Runs in the page: each part of a table on the shown page (the table, a body, a row, a cell) that
  * has a transform or a running animation now. The app's engines (WebKitGTK, WebView2) may leave a
  * cell's text undrawn once a transform on its row or body ends (motion.ts), so none may have one.
+ * It reads once the page has drawn two more frames, so what it reads is the page as it is then, not
+ * as it was in the frame before the click on a page that is slow to draw.
+ *
+ * A CSS transition of a colour alone (COLOUR_ONLY: a header's text or fill when it becomes the
+ * sorted one, or when it is no longer pressed) is not counted: it repaints the cell in its place
+ * and moves nothing, so there is no transform to end. Under reduced motion every transition lasts
+ * .01 ms (app.css), so each colour change on a cell is a transition that ends with the next frame
+ * drawn; on a busy machine that frame can come after a read. Anything else (a transition of any
+ * other property, a CSS or script animation, a transform) is counted, however short.
  */
-function movingTableParts() {
-  const parts = document.querySelectorAll(".pane.shown :is(table, thead, tbody, tfoot, tr, td, th)");
-  const found = [];
-  for (const el of parts) {
-    const transform = getComputedStyle(el).transform;
-    const running = el.getAnimations().length;
-    if ((transform && transform !== "none") || running) {
-      const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 2).join(".") : "";
-      found.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${transform !== "none" ? ` transform ${transform}` : ""}${running ? ` ${running} animation${running > 1 ? "s" : ""}` : ""}`);
-    }
+function movingTableParts(colourOnly) {
+  return new Promise((done) =>
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        const paint = new Set(colourOnly);
+        const found = [];
+        for (const el of document.querySelectorAll(".pane.shown :is(table, thead, tbody, tfoot, tr, td, th)")) {
+          const transform = getComputedStyle(el).transform;
+          const anims = el.getAnimations().filter((a) => !(a.transitionProperty && paint.has(a.transitionProperty)));
+          if ((transform && transform !== "none") || anims.length) {
+            const cls = typeof el.className === "string" ? el.className.trim().split(/\s+/).filter((c) => c && !c.startsWith("svelte-")).slice(0, 2).join(".") : "";
+            const what = anims.map((a) => `${a.transitionProperty ? `a transition of ${a.transitionProperty}` : a.animationName ? `the animation ${a.animationName}` : "a script animation"} ${a.playState} at ${Math.round(Number(a.currentTime ?? 0))} of ${Math.round(Number(a.effect?.getComputedTiming().endTime ?? 0))} ms`).join(", ");
+            found.push(`${el.tagName.toLowerCase()}${cls ? `.${cls}` : ""}${transform && transform !== "none" ? ` transform ${transform}` : ""}${anims.length ? ` (${what})` : ""}`);
+          }
+        }
+        done(found);
+      }),
+    ),
+  );
+}
+/** What a colour-only transition may change: paint, never the box or its place. */
+const COLOUR_ONLY = ["color", "background-color", "border-top-color", "border-right-color", "border-bottom-color", "border-left-color", "outline-color", "text-decoration-color", "caret-color", "fill", "stroke"];
+
+/**
+ * Runs in the page: where Orders' table sits and its size, measured from the top of the pane's
+ * content (so scrolling doesn't change it), or null while the page isn't at rest: a font loading, a
+ * picture in the table's view still loading, or a table part moving (movingTableParts' rule).
+ */
+function ordersLayout(colourOnly) {
+  const pane = document.querySelector(".pane.shown");
+  const table = pane?.querySelector("table.orders");
+  if (!table || document.fonts.status !== "loaded") return null;
+  const inView = (el) => {
+    const r = el.getBoundingClientRect();
+    return r.bottom > 0 && r.top < innerHeight && r.right > 0 && r.left < innerWidth;
+  };
+  if ([...table.querySelectorAll("img")].some((i) => !i.complete && inView(i))) return null;
+  const paint = new Set(colourOnly);
+  for (const el of table.querySelectorAll(":scope, thead, tbody, tfoot, tr, td, th")) {
+    const t = getComputedStyle(el).transform;
+    if ((t && t !== "none") || el.getAnimations().some((a) => !(a.transitionProperty && paint.has(a.transitionProperty)))) return null;
   }
-  return found;
+  const r = table.getBoundingClientRect();
+  return `${r.top - pane.firstElementChild.getBoundingClientRect().top} ${r.width}×${r.height}`;
+}
+
+/**
+ * Waits until both pages are at rest (ordersLayout) with Orders laid out the same on each, three
+ * reads in a row 200 ms apart, for at most 30 s. The two pages show the same demo and reduced motion
+ * changes no layout, so they differ only while one is still settling: a line above the table that
+ * the app fills in once the page is idle (Sell spares' summary) moves the table by a fraction of a
+ * pixel, and every row is then drawn a little differently. Returns null when they are at rest, or
+ * what each page showed when they didn't come to rest (the caller reports it: never a pass).
+ */
+async function notAtRest(pages) {
+  let last = null;
+  let same = 0;
+  let seen = [];
+  for (const until = Date.now() + 30000; Date.now() < until; ) {
+    seen = await Promise.all(pages.map((p) => p.evaluate(ordersLayout, COLOUR_ONLY)));
+    const now = seen.every((l) => l !== null && l === seen[0]) ? seen[0] : null;
+    same = now === null ? 0 : now === last ? same + 1 : 1;
+    last = now;
+    if (same >= 3) return null;
+    await new Promise((r) => setTimeout(r, 200));
+  }
+  return seen.map((l) => l ?? "not at rest").join(" against ");
 }
 
 /** Table parts found moving after a sort on Orders, and how many sorts were tried. */
@@ -676,6 +740,10 @@ let sortsTried = 0;
  * table may move (a transform or an animation) just after the click or once the list's close-up
  * time (240 ms) has passed, and with reduced motion on the rows read the same at rest as with it
  * off. Each page is its own browser context, so the sort chosen here isn't kept for other views.
+ * The first sort waits for both pages to be at rest (notAtRest), and so do the pictures after
+ * each sort; pictures that differ are taken once more, at rest again. The fault they look for
+ * (cells left undrawn until the pointer passes over them, motion.ts) stays until then, and the
+ * pointer is kept off the table, so the second pair can't hide it.
  */
 async function sortCheck(size) {
   const pages = [];
@@ -690,6 +758,13 @@ async function sortCheck(size) {
   if (!heads || (await moving.locator(".pane.shown table.orders tbody tr.order").count()) < 2) {
     sortFindings.push("Orders: no listings to sort, not checked");
   }
+  const restless = heads ? await notAtRest(pages) : null;
+  if (restless) {
+    sortFindings.push(`Orders didn't come to rest in 30 s before the first sort (${restless}), not checked`);
+    for (const p of pages) await p.close();
+    return;
+  }
+  const picture = (p) => p.locator(".pane.shown table.orders").screenshot();
   for (let h = 0; h < heads; h++) {
     for (let k = 0; k < 2; k++) {
       const views = [];
@@ -700,16 +775,27 @@ async function sortCheck(size) {
         await p.mouse.move(size.w - 5, size.h - 5);
         const when = `${name}, click ${k + 1}${p === calm ? ", reduced motion" : ""}`;
         await pause(p, 40);
-        for (const f of await p.evaluate(movingTableParts)) sortFindings.push(`${when}, just after: ${f}`);
+        for (const f of await p.evaluate(movingTableParts, COLOUR_ONLY)) sortFindings.push(`${when}, just after: ${f}`);
         await pause(p, 300);
-        for (const f of await p.evaluate(movingTableParts)) sortFindings.push(`${when}, after 340 ms: ${f}`);
-        await p.waitForFunction(() => [...document.querySelectorAll(".pane.shown table.orders img")].every((i) => i.complete), null, { timeout: 5000 }).catch(() => {});
-        views.push({ when, order: await p.locator(".pane.shown table.orders tbody tr.order .c-item").allTextContents(), png: await p.locator(".pane.shown table.orders").screenshot() });
+        for (const f of await p.evaluate(movingTableParts, COLOUR_ONLY)) sortFindings.push(`${when}, after 340 ms: ${f}`);
+        views.push({ when, order: await p.locator(".pane.shown table.orders tbody tr.order .c-item").allTextContents() });
       }
       sortsTried++;
       const [a, b] = views;
-      if (a.order.join("|") !== b.order.join("|")) sortFindings.push(`${a.when}: the rows come in another order with reduced motion on`);
-      else if (!a.png.equals(b.png)) sortFindings.push(`${a.when}: the table at rest isn't drawn the same with reduced motion on`);
+      if (a.order.join("|") !== b.order.join("|")) {
+        sortFindings.push(`${a.when}: the rows come in another order with reduced motion on`);
+        continue;
+      }
+      for (let read = 1; read <= 2; read++) {
+        const restless = await notAtRest(pages);
+        if (restless) {
+          sortFindings.push(`${a.when}: Orders didn't come to rest in 30 s after the sort (${restless})`);
+          break;
+        }
+        const [pa, pb] = [await picture(moving), await picture(calm)];
+        if (pa.equals(pb)) break;
+        if (read === 2) sortFindings.push(`${a.when}: the table at rest isn't drawn the same with reduced motion on`);
+      }
     }
   }
   for (const p of pages) await p.close();
