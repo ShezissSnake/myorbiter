@@ -579,7 +579,7 @@
    * A Sold click on a listing a trade from the game lowered in the last ten minutes: it may be the
    * same sale, so it asks before lowering the listing again (soldAfterTrade).
    */
-  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: { trades: number; guess: boolean; at: number } | null } | null>(null);
+  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: { trades: number; guess: boolean } | null } | null>(null);
   /** Trades with a "that sale" out (claimTradeSale): none is sent twice for their copies. */
   const thatOut = new SvelteSet<string>();
   /** A listing as the trade's-sale question compares it (soldAfterUnmarked). */
@@ -594,7 +594,7 @@
     const lowered = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
     const unmarked = sure || lowered || !l.name ? null : soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut);
     if (lowered) askSold = { id: o.id, n, ...lowered, unmarked: null };
-    else if (unmarked) askSold = { id: o.id, n, count: unmarked.count, partner: unmarked.partner, unmarked: { trades: unmarked.trades, guess: unmarked.guess, at: Date.now() } };
+    else if (unmarked) askSold = { id: o.id, n, count: unmarked.count, partner: unmarked.partner, unmarked: { trades: unmarked.trades, guess: unmarked.guess } };
     if (askSold) return;
     clearTimeout(soldTimers.get(o.id));
     pendingSold = { ...pendingSold, [o.id]: n };
@@ -643,7 +643,7 @@
    * No second sale is logged. One at a time for a trade's copies (claimTradeSale): an answer on
    * another listing while this one is out sends nothing.
    */
-  function sendTradeSale(o: MyOrder, count: number, opened: number) {
+  function sendTradeSale(o: MyOrder, count: number) {
     askSold = null;
     const l = soldListing(o);
     if (soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut)?.busy !== false) return;
@@ -652,10 +652,10 @@
     const words = { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" };
     return rowAct(o.id, words, async () => {
       // Never more than is still not marked (claimTradeSale): another listing's answer may have marked some.
-      const claim = claimTradeSale(l, settings.sales, Date.now(), thatOut, count, opened);
+      const claim = claimTradeSale(l, settings.sales, Date.now(), thatOut, count);
       if (!claim) throw new Error("already being marked sold from another listing");
-      // Set afresh on each try (Try again runs this again): the count sent, and why the rest wasn't.
-      words.done = tradeSaleLine(claim, count);
+      // Set afresh on each try (Try again runs this again): the count sent.
+      words.done = tradeSaleLine(claim.send, count);
       words.working = `Sending ${claim.send} sold…`;
       rowBusy.get(o.id).phase = words.working;
       if (!claim.send) return;
@@ -1077,7 +1077,7 @@
                 <div class="fix" role="group" aria-label="The trade's sale?">
                   <span class="small q"><b class="held">{ask.unmarked.trades > 1 ? `Your ${ask.unmarked.trades} trades (the last with ${ask.partner ?? "a buyer"}) logged ${ask.count} between them` : `Your trade${ask.partner ? ` with ${ask.partner}` : ""} logged ${ask.count}`}, not marked sold.</b> <span class="dim">· This sale?{ask.unmarked.guess ? ` Yes lowers this listing (${o.platinum}p).` : ""}</span></span>
                   <!-- The focus starts on the answer that sends least; Esc closes it wherever the focus is, and sends nothing. -->
-                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id) || busy} onclick={() => void sendTradeSale(o, a.that, ask.unmarked!.at)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
+                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id) || busy} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
                   <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another}</button>
                 </div>
                 {:else}

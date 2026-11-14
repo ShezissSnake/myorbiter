@@ -93,39 +93,31 @@ export function soldAfterUnmarked(listing: SoldListing, sales: readonly Sale[], 
 /**
  * Before "that sale" (or its Try again) is sent: the trades whose copies it marks, added to `out`
  * (the trades with a "that sale" out), and `send`, the copies to send: the fewer of `asked` (what
- * the question showed) and what is still not marked for them now. The copies of `asked` not sent
- * are told apart for the row's line: `aged`, still not marked but past the ten minutes since the
- * question opened at `opened` (only Sold on the listing marks them now), and `marked`, the rest,
- * marked already by an answer from another listing. `send` 0, with no keys: nothing is waiting
- * any more, and nothing is sent. Null when one of them is out already, from this listing or
- * another: nothing is sent. So two answers never close the same copies twice. The caller takes
+ * the question showed) and what is still not marked for them now, as an answer from another
+ * listing may have marked some since the question opened. `send` 0, with no keys: nothing is
+ * waiting any more, and nothing is sent. Null when one of them is out already, from this listing
+ * or another: nothing is sent. So two answers never close the same copies twice. The caller takes
  * the keys out of `out` once its call is back.
  */
-export function claimTradeSale(listing: SoldListing, sales: readonly Sale[], now: number, out: Set<string>, asked: number, opened = now): { keys: string[]; send: number; marked: number; aged: number } | null {
+export function claimTradeSale(listing: SoldListing, sales: readonly Sale[], now: number, out: Set<string>, asked: number): { keys: string[]; send: number } | null {
   const mine = unmarkedFor(listing, sales, now);
   const keys = [...new Set(mine.map((s) => s.trade!))];
   if (keys.some((k) => out.has(k))) return null;
-  const send = Math.max(0, Math.min(asked, mine.reduce((n, s) => n + s.unmarked!.count, 0)));
-  // Waiting when the question opened, past the ten minutes now.
-  const old = unmarkedFor(listing, sales, opened).filter((s) => now - s.unmarked!.at >= SOLD_ASK_MS);
-  const aged = Math.min(Math.max(0, asked - send), old.reduce((n, s) => n + s.unmarked!.count, 0));
-  const marked = Math.max(0, asked - send - aged);
-  if (send < 1) return { keys: [], send: 0, marked, aged };
+  const send = Math.min(asked, mine.reduce((n, s) => n + s.unmarked!.count, 0));
+  if (send < 1) return { keys: [], send: 0 };
   for (const k of keys) out.add(k);
-  return { keys, send, marked, aged };
+  return { keys, send };
 }
 
 /**
- * The row's line once "that sale" is back: `Sold n` when all `asked` went; when fewer went, how
- * many and why for the rest, from the claim: marked already, or past the ten minutes with what the
- * player does about them, or both.
+ * The row's line once "that sale" is back: `Sold n` when all `asked` went. When fewer went, the
+ * rest was marked from another listing or is past the ten minutes. The record can't always tell
+ * which (it may still call copies another listing closed unmarked), so the line names both and
+ * sends the player to the listing's count, never to Sold.
  */
-export function tradeSaleLine(c: { send: number; marked: number; aged: number }, asked: number): string {
-  if (c.send >= asked) return `Sold ${c.send}`;
-  const one = (n: number, a: string, b: string) => (n === 1 ? a : b);
-  const marked = !c.marked ? "" : c.aged ? `${c.marked} of that trade ${one(c.marked, "was", "were")} marked already` : c.send ? "the rest of that trade was marked already" : "that trade was marked already";
-  const aged = c.aged ? `${c.aged}${c.marked ? "" : " of that trade"} ${one(c.aged, "is", "are")} past the ten minutes: use Sold on the listing if ${one(c.aged, "it is", "they are")} still listed` : "";
-  return `${c.send ? `${c.send} marked` : "None marked"}: ${[marked, aged].filter(Boolean).join("; ")}`;
+export function tradeSaleLine(send: number, asked: number): string {
+  if (send >= asked) return `Sold ${send}`;
+  return `${send ? `${send} marked: the rest of that trade` : "None marked: that trade"} was marked already or is past the ten minutes; check this listing's count.`;
 }
 
 /**
