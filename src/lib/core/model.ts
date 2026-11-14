@@ -178,6 +178,17 @@ export function gearSetParts(m: Model, unique: string): GearSetPart[] | null {
   return parts.length ? parts : null;
 }
 
+/**
+ * Infested companions caught and not revived yet: the game holds a "Weakened" Predasite or
+ * Vulpaphyla under the creature's own name, at a path under `/Deimos/WoundedInfested`. Mastery and
+ * Recipes both go by this count.
+ */
+export function capturedCount(m: Model, name: string): number {
+  return (m.inventoryByName.get(name) ?? []).reduce((n, r) => n + (r.quantity > 0 && r.item_id.includes("/Deimos/WoundedInfested") ? r.quantity : 0), 0);
+}
+/** What's left for a captured one. */
+export const REVIVE_WITH_SON = "revive it with Son in the Necralisk (Revivification, with a Mutagen and an Antigen)";
+
 /** How many of a thing you hold, every copy of it in your inventory. */
 export function heldCount(m: Model, unique: string): number {
   return (m.inventoryByBase.get(unique) ?? []).reduce((n, r) => n + r.quantity, 0);
