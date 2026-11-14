@@ -172,6 +172,12 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
   if (!older && !retracked && !any && kept.length === log.windows.length && log.lowAt == null && !gone.length && !log.gone?.length && same(base, log.counts) && same(building, log.building ?? {})) return null;
   const next: DropLog = withBuilding({ at, counts: base, windows: any ? [...kept, { from: log.at, at, gains }] : kept });
   if (gone.length) next.gone = gone;
+  // A recounted part this read missed keeps its count taken the old way: the log isn't current
+  // until a read shows the part (its baseline) or agrees it's gone: the next read taken in.
+  if (retracked && gone.some(rebased)) {
+    if (log.tracks == null) delete next.tracks;
+    else next.tracks = log.tracks;
+  }
   return next;
 }
 

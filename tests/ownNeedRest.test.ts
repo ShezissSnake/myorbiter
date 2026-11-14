@@ -380,3 +380,30 @@ test("reward pick: a part of a prime mastered and sold is for the Ak weapon", ()
   const c = scoreCards(buildModel(bundle([inv("/W/BroncoPrime", "Bronco Prime", "weapon", 0, { mastered: true })], [BRONCO, AKBRONCO])), ["Bronco Prime Receiver"])[0];
   assert.deepEqual({ needed: c.needed, neededFor: c.neededFor }, { needed: true, neededFor: "Akbronco Prime" });
 });
+
+// The lead's review at 033f062, note 1: the update's first read showing none of a recounted part.
+test("drops: after the update, a read without a recounted part leaves the log not current, so blueprints held all along are never drops", () => {
+  const old: DropLog = { at: 1_000, counts: { "Rhino Chassis": 1, "Bronco Prime Receiver": 1 }, windows: [] };
+  const first = recordRead(old, { "Bronco Prime Receiver": 2 }, 2_000, 2_000, {}, [], ["Rhino Chassis"])!;
+  assert.deepEqual(first.windows.map((w) => w.gains), [{ "Bronco Prime Receiver": 1 }], "the other parts gain as usual");
+  // One built Rhino Chassis and two blueprints held all along: none of them a drop.
+  const next = recordRead(first, { "Rhino Chassis": 3, "Bronco Prime Receiver": 3 }, 3_000, 3_000, {}, [], ["Rhino Chassis"])!;
+  assert.deepEqual(next.windows.map((w) => w.gains), [{ "Bronco Prime Receiver": 1 }, { "Bronco Prime Receiver": 1 }], "the other parts gain as usual, the Rhino Chassis not at all");
+  assert.equal(next.tracks, 2, "the read that shows the part makes the log current");
+});
+
+test("drops: after the update, a recounted part two reads in a row without it is gone, and the log current", () => {
+  const old: DropLog = { at: 1_000, counts: { "Rhino Chassis": 1, "Bronco Prime Receiver": 1 }, windows: [] };
+  const first = recordRead(old, { "Bronco Prime Receiver": 1 }, 2_000, 2_000, {}, [], ["Rhino Chassis"])!;
+  const second = recordRead(first, { "Bronco Prime Receiver": 1 }, 3_000, 3_000, {}, [], ["Rhino Chassis"])!;
+  assert.deepEqual({ tracks: second.tracks, counts: second.counts }, { tracks: 2, counts: { "Bronco Prime Receiver": 1 } });
+});
+
+// The lead's review at 033f062, note 2: point 9's condition for an older low read.
+test("drops: an older low read after a later low read is believed, not skipped once more", () => {
+  let log = recordRead(emptyDropLog(), HELD, 10_000)!;
+  log = recordRead(log, { a: 1 }, 12_000)!;
+  assert.equal(log.lowAt, 12_000, "the later low read is skipped");
+  const older = recordRead(log, { a: 1 }, 5_000)!;
+  assert.deepEqual({ at: older.at, counts: older.counts, lowAt: older.lowAt }, { at: 5_000, counts: { a: 1 }, lowAt: undefined });
+});
