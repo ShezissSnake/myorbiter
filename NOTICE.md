@@ -29,7 +29,15 @@ These are bundled with MyOrbiter but are not covered by its licence:
   files shipped beside MyOrbiter (in every download, as `data/wiki/` among its web files), not
   compiled into its program: MyOrbiter reads them when it starts. Their licence is theirs alone (mere
   aggregation): it doesn't extend to MyOrbiter, and MyOrbiter's doesn't extend to them.
-- `src/lib/data/modular-parts-paths.json`: from WFCD's warframe-items data (MIT).
+- `src/lib/data/modular-parts-paths.json`: each modular part's game path and blueprint path, from
+  WFCD's warframe-items data (MIT, © 2017 Kaptard). The licence text is in
+  `THIRD-PARTY-NOTICES/wfcd-items-MIT.txt`, which every download carries.
+- `public/data/overframe/popular.json`: a copy of Overframe's public lists of popular builds: each
+  build's title, item, author's name, votes and dates, and its address on overframe.gg, and nothing
+  of a build's contents. It is kept and shown with the permission of Overframe's team, given by
+  email on 3 November 2026 for the lists and not for the build pages
+  (`public/data/overframe/README.md`; in every download as `data/overframe/` among its web files).
+  The lists and the builds they name stay Overframe's and their authors'.
 - `demo/`: an invented account for screenshots and UI work, whose game data (item names, paths,
   ducats, components, relic rewards, drop chances) comes from WFCD's
   [@wfcd/items](https://www.npmjs.com/package/@wfcd/items) package (MIT, © 2017 Kaptard; the
@@ -39,7 +47,10 @@ These are bundled with MyOrbiter but are not covered by its licence:
   (`public/game/SOURCES.json` records where each came from), and TennoScope's part, pistol and
   currency icons (`tennoscope/app/src/assets/`, see `tennoscope/THIRD_PARTY_NOTICES.md`): © Digital
   Extremes Ltd., excluded from MyOrbiter's and TennoScope's GPL. They are used to identify what they
-  depict; Digital Extremes retains all rights in them. Warframe and its names are © and ™ Digital
+  depict; Digital Extremes retains all rights in them. The same holds for what MyOrbiter's own pictures show
+  of the game: the help pictures (`public/help/`, in every download) and the screenshots in
+  `docs/screenshots/` and `site/shots/` show Warframe's icons and names inside MyOrbiter's window.
+  Warframe and its names are © and ™ Digital
   Extremes Ltd. MyOrbiter is an unofficial project, not affiliated with or endorsed by Digital
   Extremes.
 - The fonts Archivo Narrow, IBM Plex Sans and IBM Plex Mono: SIL Open Font License 1.1 (the texts
@@ -47,8 +58,8 @@ These are bundled with MyOrbiter but are not covered by its licence:
 - The libraries that come with the Tesseract in the Linux and Windows downloads: each under its own
   licence, with its notice in the download's `tennoscope/THIRD-PARTY-NOTICES/tesseract/`.
 - The system libraries in the Linux AppImage (GTK, WebKitGTK, GLib and the rest, as linuxdeploy
-  copies them from Ubuntu): each under its own licence, with its copyright file in the download's
-  `THIRD-PARTY-NOTICES/linux/`.
+  copies them from Ubuntu), and those inside the TennoScope AppImage that the `.deb` carries: each
+  under its own licence, with its copyright file in the download's `THIRD-PARTY-NOTICES/linux/`.
 
 ## Source of the bundled GPL and LGPL libraries
 
