@@ -3,7 +3,7 @@
 import { collectionItem, inCodex } from "./collection";
 import { familyOf, modularNext, type ModularStep } from "./modular";
 import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
-import { NO_MASTERY, REFINEMENTS, TIER_ERA, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
+import { NO_MASTERY, REFINEMENTS, REVIVE_WITH_SON, TIER_ERA, UNOBTAINABLE, baseId, capturedCount, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
@@ -62,8 +62,16 @@ export interface SetRow {
   ducatsKnown?: boolean;
   vaulted: boolean;
   tradesPerDay: number | null;
-  /** Parts still missing for one more set, after the complete ones. */
+  /**
+   * Parts still missing for the next set (nextSetMissing): one still to build counts a part in any
+   * form, one to sell only the tradable copies beyond those kept to build.
+   */
   missing: { name: string; count: number; price: number | null }[];
+  /**
+   * The next set is one still to build, and `missing` counts a part held built or being crafted:
+   * finished, it can be built but not sold whole.
+   */
+  countsBuilt?: boolean;
   parts: { name: string; owned: number; required: number }[];
   /** A prime set (with ducats and relics), or one of the gear sets warframe.market also trades. */
   prime: boolean;
@@ -95,6 +103,16 @@ export function primeToBuild(m: Model, unique: string): { copies: number; for: s
   return { copies: self, for: m.catalogByUnique.get(unique)?.name ?? "" };
 }
 
+/**
+ * Whether a prime part is still needed to build: fewer copies held in any form (loose, built, being
+ * crafted) than the copies still to build take (primeToBuild, as Prime parts keeps them). A
+ * Bronco Prime Receiver is still needed while Akbronco Prime wants a second Bronco Prime.
+ */
+export function partNeeded(m: Model, part: { fullName: string; parentUnique: string; required: number }): boolean {
+  const copies = primeToBuild(m, part.parentUnique).copies;
+  return copies > 0 && m.partHave(part.fullName) < copies * part.required;
+}
+
 /** Every prime set you hold a part of. Worked out once a model (several pages and the reward-pick
  * score ask for it, the last once a relic), so callers must not change the list. */
 const setRowsMemo = new WeakMap<Model, SetRow[]>();
@@ -104,6 +122,34 @@ function setRowsFresh(m: Model): SetRow[] {
   if (!rows) setRowsMemo.set(m, (rows = computeSetRows(m)));
   return rows;
 }
+
+/**
+ * The copies of each part still missing for the next set. While the prime is still to build
+ * (primeToBuild), that set is one to build, and a part counts in any form: loose, built or being
+ * crafted. Past that, the next set is one to sell, and only tradable copies count, after the ones
+ * Prime parts keeps to build (partRows' keep).
+ */
+function nextSetMissing(m: Model, parts: { fullName: string; required: number }[], owned: number[], build: number): { counts: number[]; countsBuilt: boolean } {
+  if (build > 0) {
+    const have = parts.map((p) => m.partHave(p.fullName));
+    const built = Math.min(...parts.map((p, i) => Math.floor(have[i] / p.required)));
+    if (built < build) return { counts: parts.map((p, i) => Math.max(0, (built + 1) * p.required - have[i])), countsBuilt: parts.some((p, i) => Math.min(have[i], (built + 1) * p.required) > owned[i]) };
+  }
+  const free = parts.map((p, i) => owned[i] - Math.min(owned[i], Math.max(0, build * p.required - (m.craftingPartQty.get(p.fullName) ?? 0))));
+  const sets = Math.min(...parts.map((p, i) => Math.floor(free[i] / p.required)));
+  return { counts: parts.map((p, i) => Math.max(0, (sets + 1) * p.required - free[i])), countsBuilt: false };
+}
+
+/** Copies still to get for the next set (2× Blade is two): Sets' "Almost complete" and Planner's near sets both count by it. */
+export const setPartsAway = (r: Pick<SetRow, "missing">) => r.missing.reduce((n, x) => n + x.count, 0);
+/**
+ * Sets' "Almost complete": one or two copies short of the next set, whether or not a set is
+ * already held (a second Rhino Prime one part short counts, as on Planner).
+ */
+export const almostComplete = (r: Pick<SetRow, "missing">) => {
+  const n = setPartsAway(r);
+  return n > 0 && n <= 2;
+};
 
 function computeSetRows(m: Model): SetRow[] {
   const rows: SetRow[] = [];
@@ -117,6 +163,7 @@ function computeSetRows(m: Model): SetRow[] {
     const build = primeToBuild(m, parent.uniqueName);
     const keptForBuild = complete > 0 && build.copies > 0;
     const partPrices = parts.map((p) => m.price(p.fullName));
+    const next = nextSetMissing(m, parts, owned, build.copies);
     rows.push({
       name: parent.name,
       unique: parent.uniqueName,
@@ -134,13 +181,10 @@ function computeSetRows(m: Model): SetRow[] {
       ducatsKnown: parts.every((p) => p.ducats > 0),
       vaulted: primeVaulted(m, parent),
       tradesPerDay: m.tradesPerDay(`${parent.name} Set`),
-      missing: parts
-        .map((p, i) => ({
-          name: p.fullName,
-          count: Math.max(0, p.required - (owned[i] - complete * p.required)),
-          price: partPrices[i],
-        }))
+      missing: next.counts
+        .map((count, i) => ({ name: parts[i].fullName, count, price: partPrices[i] }))
         .filter((x) => x.count > 0),
+      ...(next.countsBuilt ? { countsBuilt: true } : {}),
       parts: parts.map((p, i) => ({ name: p.fullName, owned: owned[i], required: p.required })),
       prime: true,
     });
@@ -447,6 +491,26 @@ const MISC_ITEM = /^\/Lotus\/Types\/Items\/MiscItems\//;
 const BUILT_MODULAR = /\/LotusModular\w*$|\/OperatorAmplifiers\/OperatorAmpWeapon$|\/MoaPetPowerSuit$|\/ZanukaPet\w*PowerSuit$|\/HoverboardSuit$/;
 
 /**
+ * The family a built modular item is shown as, by its path: the inventory only has the path's words
+ * ("Lotus Modular Primary Beam", "Moa Pet Power Suit"). Null for a BUILT_MODULAR path that doesn't
+ * say its family (a `LotusModular…` path outside the kitgun slots and the zaw's folder), which
+ * keeps the inventory's name.
+ */
+const BUILT_FAMILY: [RegExp, string][] = [
+  [/\/LotusModularPrimary\w*$/, "Kitgun (primary)"],
+  [/\/LotusModularSecondary\w*$/, "Kitgun (secondary)"],
+  [/\/Ostron\/Melee\/LotusModular\w*$/, "Zaw"],
+  [/\/OperatorAmplifiers\/OperatorAmpWeapon$/, "Amp"],
+  [/\/MoaPetPowerSuit$/, "MOA"],
+  [/\/ZanukaPet\w*PowerSuit$/, "Hound"],
+  [/\/HoverboardSuit$/, "K-Drive"],
+];
+export function builtModularName(unique: string): string | null {
+  if (!BUILT_MODULAR.test(unique)) return null;
+  return BUILT_FAMILY.find(([re]) => re.test(unique))?.[1] ?? null;
+}
+
+/**
  * Whether ranking an inventory row filed as a frame, weapon or companion gives mastery. The catalog
  * decides where it knows the item: the Gravimag (typed "Rifle" under Misc), MOA, hound and zaw parts
  * and Infested mutagens are filed the same way and say they are not masterable. Only an item the
@@ -562,7 +626,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   const total = parts.length || pieces.length;
   // Infested companions you've captured (held as a "Weakened" creature under its own name):
   // only reviving it with Son is left.
-  const captured = !owned && (m.inventoryByName.get(item.name) ?? []).some((r) => r.quantity > 0 && r.item_id.includes("/Deimos/WoundedInfested"));
+  const captured = !owned && capturedCount(m, item.name) > 0;
   let status: MasteryStatus = "missing";
   if (owned) status = "level";
   else if (captured) status = "build";
@@ -576,7 +640,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   // Each missing copy is bought: two Blades still to get cost two Blades.
   const buyFor = missingParts.length && partPrices.every((x) => x != null) ? Math.round(missingParts.reduce((a, p, i) => a + (partPrices[i] as number) * p.need, 0)) : null;
   const acq: Acquisition = captured
-    ? { method: "revive", difficulty: 1, how: "You've captured one: revive it with Son in the Necralisk (Revivification, with a Mutagen and an Antigen).", icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
+    ? { method: "revive", difficulty: 1, how: `You've captured one: ${REVIVE_WITH_SON}.`, icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
     : acquisition(m, item, {
     isPrime,
     owned,
@@ -704,6 +768,8 @@ export interface ArcaneRow {
   costToFinish: number | null;
   tradesPerDay: number | null;
   tradable: boolean;
+  /** Your copies by rank, from every path the row merges (the detail shows these). */
+  ranks: { rank: number; count: number }[];
 }
 
 export const arcaneRows = perModel(arcaneRowsFresh, () => "", (r: ArcaneRow) => r.unique);
@@ -726,6 +792,8 @@ function arcaneRowsFresh(m: Model): ArcaneRow[] {
     const options = [price != null ? missing * price : null, priceMax].filter((x): x is number => x != null);
     // Spare = rank-0 copies beyond the one maxed arcane you keep.
     const spare = complete ? Math.max(0, copies - needed) : 0;
+    const byRank = new Map<number, number>();
+    for (const r of inv) if (r.quantity > 0) byRank.set(r.rank ?? 0, (byRank.get(r.rank ?? 0) ?? 0) + r.quantity);
     rows.push({
       name,
       unique,
@@ -749,6 +817,7 @@ function arcaneRowsFresh(m: Model): ArcaneRow[] {
       costToFinish: complete ? 0 : options.length ? Math.min(...options) : null,
       tradesPerDay: m.tradesPerDay(name),
       tradable: item?.tradable !== false,
+      ranks: [...byRank].map(([rank, count]) => ({ rank, count })),
     });
   };
   // The catalog lists some arcanes under more than one path; one row per name.
@@ -912,7 +981,16 @@ function modRowsFresh(m: Model): ModRow[] {
       .filter(([, c]) => c.count > 0)
       .sort((a, b) => b[0] - a[0])
       .map(([rank, c]) => (c.installed ? { rank, count: c.count, installed: c.installed } : { rank, count: c.count }));
-    const extras = sum(modSpares({ ranks, keptFor, keep }).map((r) => r.count));
+    const spares = modSpares({ ranks, keptFor, keep });
+    const extras = sum(spares.map((r) => r.count));
+    const maxRank = inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null;
+    const priceMax = m.priceMax(name);
+    // Each spare copy at the price of its own rank, as a listing of it is priced (market.ts,
+    // referencePrice): a maxed copy at the maxed price. A copy between unranked and maxed has no
+    // daily price of its own; it is counted at the unranked one, as is a maxed copy without a
+    // maxed price.
+    const rankPrice = (rank: number) => (maxRank != null && rank >= maxRank && priceMax != null ? priceMax : price);
+    const extrasValue = !spares.length ? (price != null ? 0 : null) : spares.every((r) => rankPrice(r.rank) != null) ? sum(spares.map((r) => rankPrice(r.rank)! * r.count)) : null;
     rows.push({
       name,
       unique,
@@ -922,15 +1000,14 @@ function modRowsFresh(m: Model): ModRow[] {
       keep,
       ranks,
       // The game's own number (TennoScope reads it) beats the catalog's.
-      maxRank: inv.find((r) => r.max_rank != null)?.max_rank ?? item?.maxRank ?? null,
+      maxRank,
       rarity: item?.rarity ?? "",
       type: item?.type ?? "",
       // warframe.market pricing it settles it: the catalog marks some it lists as untradable (Turbo Protect).
       tradable: (item?.tradable !== false || price != null) && !STICKER.test(unique),
       price,
-      priceMax: m.priceMax(name),
-      // Extras are the lowest-ranked copies; price them unranked.
-      extrasValue: price != null ? price * extras : null,
+      priceMax,
+      extrasValue,
       tradesPerDay: m.tradesPerDay(name),
       augment: item?.isAugment === true,
     });
@@ -1033,7 +1110,6 @@ function relicRowsFresh(m: Model, opts: { includeUnowned?: boolean; platPerDucat
     const rewards: RelicRewardRow[] = intact.rewards.map((rw) => {
       const part = m.partByName.get(rw.name)?.[0];
       const have = m.partHave(rw.name);
-      const parentDone = part ? m.isMastered(part.parentUnique) || m.owned(part.parentUnique) > 0 : null;
       return {
         name: rw.name,
         rarity: relicRewardRarity("Intact", rw.chance, rw.rarity),
@@ -1042,7 +1118,7 @@ function relicRowsFresh(m: Model, opts: { includeUnowned?: boolean; platPerDucat
         price: m.price(rw.name),
         ducats: part?.ducats ?? null,
         owned: have,
-        needed: part ? !parentDone && have < part.required : false,
+        needed: part ? partNeeded(m, part) : false,
         parentMastered: part ? m.isMastered(part.parentUnique) : null,
       };
     });
@@ -1118,6 +1194,12 @@ export interface InventoryItem {
   marketName: string | null;
   /** Relics: the refinement as warframe.market spells it. */
   subtype: string | null;
+  /**
+   * A built kitgun, zaw, amp, MOA, hound or K-Drive: the family it's shown as ("Kitgun (primary)"),
+   * with "Built" as its kind line. Only what's shown: `name`, `kind`, `type` and `unique` stay the
+   * inventory's.
+   */
+  builtAs?: string;
 }
 
 const TYPE_NAME: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion", prime_part: "Prime part", relic: "Relic", mod: "Mod", arcane: "Arcane", resource: "Resource", blueprint: "Blueprint" };
@@ -1164,6 +1246,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
       // A part with no ducats and no market price (Sagek Prime's, from the Perita Rebellion) isn't a
       // relic part and can't be traded; nor are the Sticker items, which TennoScope lists under mods
       // by their internal names.
+      const builtAs = kind === "gear" ? builtModularName(unique) : null;
       const tradable = (kind === "part" && !built && (m.partByName.has(name) || price != null)) || kind === "relic" || ((kind === "mod" || kind === "arcane") && item?.tradable !== false && !STICKER.test(unique)) || price != null;
       rows.set(key, {
         key,
@@ -1183,6 +1266,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         // Resources list only when warframe.market prices them (Heart Noctrul, fish, gems).
         marketName: tradable && kind !== "gear" && (kind !== "resource" || price != null) ? tradeName : null,
         subtype: relic ? relic.refinement.toLowerCase() : null,
+        ...(builtAs ? { builtAs } : {}),
       });
     }
   }
@@ -1301,7 +1385,6 @@ export function squadRelics(m: Model, paths: string[]): SquadRelic[] {
     const rewards = entry.rewards.map((rw) => {
       const part = m.partByName.get(rw.name)?.[0];
       const have = m.partHave(rw.name);
-      const parentDone = part ? m.isMastered(part.parentUnique) || m.owned(part.parentUnique) > 0 : null;
       return {
         name: rw.name,
         rarity: relicRewardRarity(refinement, rw.chance, rw.rarity),
@@ -1309,7 +1392,7 @@ export function squadRelics(m: Model, paths: string[]): SquadRelic[] {
         price: m.price(rw.name),
         ducats: part?.ducats ?? null,
         owned: have,
-        needed: part ? !parentDone && have < part.required : false,
+        needed: part ? partNeeded(m, part) : false,
         parentMastered: part ? m.isMastered(part.parentUnique) : null,
       };
     });

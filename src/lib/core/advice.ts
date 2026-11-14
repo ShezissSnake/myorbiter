@@ -2,7 +2,7 @@
 // should be sold for platinum or traded in for ducats.
 
 import { splitRelicName, type Model } from "./model";
-import { rewardPlat, setRows } from "./views";
+import { partNeeded, rewardPlat, setRows } from "./views";
 import type { RelicEntry } from "./types";
 
 // ---------------------------------------------------------------- radiant
@@ -68,10 +68,8 @@ function outcomes(m: Model, entry: RelicEntry | undefined, metric: RadiantMetric
     // Platinum: what it sells for, or its ducats at your rate when you'd rather trade it to Baro.
     if (metric === "plat") value = rewardPlat(m, rw.name, platPerDucat);
     else if (metric === "ducats") value = part?.ducats ?? 0;
-    else if (part) {
-      const done = m.isMastered(part.parentUnique) || m.owned(part.parentUnique) > 0;
-      value = !done && m.partHave(rw.name) < part.required ? 1 : 0;
-    }
+    // Parts I need: the rule Prime parts keeps copies by (partNeeded), Ak weapons included.
+    else if (part) value = partNeeded(m, part) ? 1 : 0;
     return { chance: (rw.chance ?? 0) / 100, value };
   });
 }

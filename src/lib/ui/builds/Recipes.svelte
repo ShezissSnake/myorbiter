@@ -22,6 +22,8 @@
   const combos = $derived(r ? (all ? r.combos.slice(0, 60) : r.combos.slice(0, LIMIT)) : []);
   const fmt = (s: Stat) => (typeof s.value === "string" ? s.value : s.unit === "%" ? `${Math.round(s.value * 1000) / 10}%` : s.unit === "x" ? `${s.value.toFixed(1)}×` : s.unit === "s" ? `${s.value}s` : s.unit === "/s" ? `${s.value}/s` : Math.round(s.value).toLocaleString("en"));
   const STATUS: Record<RecipePart["status"], string> = { held: "Held", blueprint: "Blueprint", missing: "To get" };
+  /** A Predasite or Vulpaphyla caught and not revived yet: its subspecies is held, and what's left is said. */
+  const caught = $derived(r?.combos[0]?.parts.find((p) => p.role === "subspecies" && p.status === "held") ?? null);
   const ROLE: Record<string, string> = { chamber: "Chamber", grip: "Grip", loader: "Loader", strike: "Strike", link: "Link", prism: "Prism", scaffold: "Scaffold", brace: "Brace", model: "Model", core: "Core", gyro: "Gyro", bracket: "Bracket", stabilizer: "Stabilizer", subspecies: "Subspecies", mutagen: "Mutagen", antigen: "Antigen" };
 </script>
 
@@ -36,6 +38,7 @@
       {#if r.family === "kitgun"}<Seg label="As a" bind:value={slot} options={[{ v: "both", label: "Both", title: "Primary and secondary kitguns, ranked together" }, { v: "secondary", label: "Secondary", title: "Only secondary kitguns" }, { v: "primary", label: "Primary", title: "Only primary kitguns" }]} />{/if}
     </div>
     <p class="dim small explain">{r.goal.explain}{#if r.fit} {r.fit}{/if}{#if r.precepts?.length} Precepts: {r.precepts.join(", ")}.{/if}{#if r.role} {r.role}{/if}</p>
+    {#if caught}<p class="small caught">{caught.where}.</p>{/if}
     <ol class="combos">
       {#each combos as c (c.key)}
         <li class:built={c.built}>
@@ -44,12 +47,12 @@
             <div class="cname">
               <b class="name-mark">{c.name}</b>
               {#if c.slot}<span class="register">{c.slot}</span>{/if}
-              {#if c.built}<span class="tag good" title="You have a copy of exactly this combination">Yours</span>{:else if c.missing === 0}<span class="tag ok" title="Every part in hand: assemble it">All parts held</span>{/if}
+              {#if c.built}<span class="tag good" title="You have a copy of exactly this combination">Yours</span>{:else if c.missing === 0}<span class="tag ok" title={caught ? "Every part in hand: revive it with Son" : "Every part in hand: assemble it"}>All parts held</span>{/if}
               <span class="score">{c.scoreLabel}</span>
             </div>
             <div class="parts">
               {#each c.parts as p (p.role)}
-                <span class="part {p.status}" title="{ROLE[p.role] ?? p.role}: {p.name} · {STATUS[p.status]}{p.status !== 'held' ? `\n${p.where}` : ''}">
+                <span class="part {p.status}" title="{ROLE[p.role] ?? p.role}: {p.name} · {STATUS[p.status]}{p.status !== 'held' || p === caught ? `\n${p.where}` : ''}">
                   <span class="pr">{ROLE[p.role] ?? p.role}</span>{p.name}<span class="st">{p.status === "held" ? "✓" : p.status === "blueprint" ? "BP" : "·"}</span>
                 </span>
               {/each}
@@ -74,6 +77,7 @@
   .label { font-size: .78rem; color: var(--platinum-deep); font-style: italic; }
   .bar { display: flex; flex-wrap: wrap; gap: .6rem 1.4rem; margin: .7rem 0 .4rem; }
   .explain { margin: 0 0 .6rem; max-width: 80ch; }
+  .caught { margin: 0 0 .6rem; color: var(--gold); }
   .combos { list-style: none; margin: 0; padding: 0; display: grid; gap: .35rem; }
   .combos li { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: .6rem; padding: .55rem .7rem; background: var(--plate); border: 1px solid var(--rule); }
   .combos li.built { border-color: color-mix(in srgb, var(--verdigris) 45%, var(--rule)); }
