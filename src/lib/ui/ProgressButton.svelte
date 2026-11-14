@@ -31,6 +31,7 @@
     busyIcon = null,
     picture = null,
     aside = false,
+    idleWord = null,
     size = 14,
     status = false,
     title = undefined,
@@ -73,6 +74,8 @@
     picture?: GameIconName | null;
     /** Text: the label stays put and what the work says (working, done, failed) sits after it, at the far end. */
     aside?: boolean;
+    /** With `aside`: the word after the label while idle (how the last run ended), so the state reads without hovering. */
+    idleWord?: string | null;
     size?: number;
     /** A line under the button: what it's doing, or why it failed. */
     status?: boolean;
@@ -175,6 +178,7 @@
       {#if aside}
         <span class="lbls"><span class="on">{label}</span></span>
         <span class="lbls aside">
+          {#if idleWord}<span class:on={st === "idle"}>{idleWord}</span>{/if}
           <span class:on={st === "working"}>{workWord}</span>
           <span class:on={st === "done"}>{doneWord}</span>
           <span class:on={st === "failed"}><b class="bang">!</b>{failWord}</span>

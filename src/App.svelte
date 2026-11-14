@@ -2850,8 +2850,9 @@
       ? [{ label: "TennoScope", tone: tsTone, title: tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details", run: () => (showTennoscope = true) }]
       : []),
   ]);
-  /** The full bar's foot shows the rest of the buttons, all of them: Search, Settings, Help, Report a bug, TennoScope. */
-  const FOOT_ORDER = ["Search", "Settings", "Help", "Report a bug", "TennoScope"];
+  /** The full bar's foot shows the rest of the buttons, all of them: Settings first, in the row with
+   *  Sync and Notifications, then Search, Help, Report a bug, TennoScope. */
+  const FOOT_ORDER = ["Settings", "Search", "Help", "Report a bug", "TennoScope"];
   const footCells = $derived([...moreItems].sort((a, b) => FOOT_ORDER.indexOf(a.label) - FOOT_ORDER.indexOf(b.label)));
   // The page list scrolls on a short window: a fade at its foot says there's more below, and at
   // its head that there's more above.
@@ -3013,7 +3014,7 @@
         <HelpMark part="rail.foot" corner />
       </div>
       <div class="tools" class:grid={!compact}>
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={error ? "Not synced" : bundle ? "Up to date" : "Waiting…"} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
       <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
@@ -3401,6 +3402,8 @@
      picture without pointing at it; its name is the picture and the tooltip. */
   .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 8px; padding: 0 10px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
+  /* Two cells are narrow for the register's capitals: the state in plain words there. */
+  .tools.grid :global(.sync .lbls.aside) { font-family: var(--face-text); font-size: 12px; letter-spacing: 0; text-transform: none; }
   .tools.grid :global(.tool.on) { box-shadow: inset 0 -2px 0 var(--platinum); }
   .tools.grid .bell .count { position: absolute; top: -2px; right: 4px; margin: 0; }
   .tools.grid .bell.paused::after { left: 50%; }

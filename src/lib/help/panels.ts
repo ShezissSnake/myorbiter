@@ -286,19 +286,18 @@ const RAIL: Walkthrough = {
     {
       title: "Every button, under the status",
       lines: [
-        "Sync asks TennoScope for a new inventory read; its picture turns while it waits (Ctrl+R).",
+        "Sync asks TennoScope for a new read (Ctrl+R); beside it, Up to date or Not synced.",
         "Notifications: what MyOrbiter told you lately; its number is how many are new.",
-        "Search finds anything by name (Ctrl+K); Settings (Ctrl+,).",
+        "Settings (Ctrl+,); below, Search finds anything by name (Ctrl+K).",
         "Then Help (F1), Report a bug (Shift+F1) and TennoScope, its diamond filled when all is well.",
       ],
       shot: {
         open: "home",
         part: `${FOOT} .tools`,
         marks: [
-          { at: `${FOOT} .tools button.sync`, is: "n", n: 1, from: "top" },
+          { at: `${FOOT} .tools button.sync .lbls.aside`, is: "n", n: 1, from: "top" },
           { at: `${FOOT} .tools button.bell`, is: "n", n: 2, from: "top" },
-          { at: footButton("Search"), is: "n", n: 3, from: "top" },
-          { at: footButton("Settings"), is: "n", n: 4, from: "top" },
+          { at: footButton("Settings"), is: "n", n: 3, from: "top" },
         ],
       },
     },

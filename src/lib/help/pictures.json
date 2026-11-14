@@ -32,8 +32,8 @@
   "arcanes-open-1.webp": {
     "hash": "f5da6b16cfd3f70a",
     "w": 967,
-    "h": 407,
-    "bytes": 54658
+    "h": 340,
+    "bytes": 43734
   },
   "browse-1.webp": {
     "hash": "c99fe30185dbf9fd",
@@ -423,13 +423,13 @@
     "hash": "63120ee854ba2e1c",
     "w": 787,
     "h": 386,
-    "bytes": 45780
+    "bytes": 46826
   },
   "orders-automatic-2.webp": {
     "hash": "7ce2d28dff7c5fe1",
     "w": 769,
-    "h": 263,
-    "bytes": 30912
+    "h": 244,
+    "bytes": 26406
   },
   "parts-1.webp": {
     "hash": "c9365feb7026c3d7",
@@ -483,19 +483,19 @@
     "hash": "e853c4512ff36f7d",
     "w": 256,
     "h": 105,
-    "bytes": 6976
+    "bytes": 7284
   },
   "rail-2.webp": {
-    "hash": "77aaed1d2af80bc1",
+    "hash": "d7d91a495208101d",
     "w": 247,
     "h": 123,
-    "bytes": 7680
+    "bytes": 8192
   },
   "rail-3.webp": {
     "hash": "7a2f1bfebb33501a",
     "w": 351,
     "h": 800,
-    "bytes": 54150
+    "bytes": 54170
   },
   "relics-1.webp": {
     "hash": "508b5309a7bda7b5",
