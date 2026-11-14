@@ -4,7 +4,7 @@
   // a player reads it before choosing. Only the page's name is the control, plain text inside an
   // inline button (no "Opening…" swap, whose grid would break the sentence), so the text shown,
   // read aloud and quoted in the docs stays the same. Drawn inside the first start's question and
-  // inside the Full mode switch's label: opening the page answers nothing and flips nothing.
+  // beside the Full mode switch and button: opening the page answers nothing and flips nothing.
   import { FULL_MODE_WARNING } from "./FullMode.svelte";
   import { PRIVACY_PAGE } from "./core/links";
   import { links, openUrl } from "./links.svelte";
@@ -19,7 +19,7 @@
   const after = FULL_MODE_WARNING.slice(at + PRIVACY_PAGE.label.length);
 
   function open(e: MouseEvent) {
-    // Inside a <label>: the click is the link's alone, never the switch's.
+    // The click is the link's alone: nothing around it (the question, the switch's row) acts on it.
     e.preventDefault();
     e.stopPropagation();
     void openUrl(PRIVACY_PAGE.url);
@@ -31,6 +31,6 @@
 <style>
   /* In the sentence: its words as the sentence has them (size, case, spacing), underlined, on the
      sentence's own line height (a link inside a sentence, so not the 24 px of a .link on its own);
-     still clickable where the switch around it takes no pointer (TennoScope not running). */
+     still clickable where the switch's row takes no pointer (TennoScope not running). */
   .pagename { display: inline; font: inherit; letter-spacing: inherit; text-transform: none; min-height: 0; color: var(--platinum); text-align: start; pointer-events: auto; }
 </style>

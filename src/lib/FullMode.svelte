@@ -39,9 +39,11 @@
 {#if kind === "switch"}
   <div class="full" class:off={!ready}>
     <Switch name="settings.full-mode" bind:on={() => shown, flip} label="Read my inventory (Full mode)">
-      <span class="warn"><FullModeWarning /></span>
       {#if !ready}<span class="state">TennoScope has to be running to change it.</span>{:else if busy}<span class="state">Changing…</span>{:else if mode && mode !== "full"}<span class="state">{mode === "overlay" ? "Off: in Overlay mode TennoScope watches for the game and reads its log and its screen (through a void fissure mission and at Baro's kiosk), not your inventory." : "Off: in Companion mode TennoScope reads nothing of the game."}</span>{/if}
     </Switch>
+    <!-- Under the switch, not in its label: the page's control inside the label would leave the
+         switch without a name of its own. -->
+    <p class="warn under"><FullModeWarning /></p>
   </div>
 {:else}
   <div class="full block">
@@ -66,6 +68,8 @@
   .choice button { white-space: nowrap; }
   .warn { display: block; color: var(--platinum-deep); line-height: 1.5; border-left: 2px solid var(--gold-dim); padding-left: .7rem; margin: 0; }
   .state { display: block; margin-top: .35rem; }
+  /* As the switch's own note (Switch.svelte), in the column left of the switch. */
+  .under { font-size: .78rem; margin: .35rem calc(2.3rem + 1rem) 0 0; }
   .small { font-size: .8rem; }
   .dim { color: var(--platinum-deep); }
   @media (max-width: 700px) { .choice { grid-template-columns: 1fr; } }

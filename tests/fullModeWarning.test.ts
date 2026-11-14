@@ -57,7 +57,8 @@ test("the page the warning names opens from the warning, wherever it is drawn", 
   const first = read("src/lib/FirstRun.svelte");
   assert.match(first, /<p class="warn" id="first-run-warning"><FullModeWarning disabled=\{!ready\} \/><\/p>/, "the first start's question");
   const full = read("src/lib/FullMode.svelte");
-  assert.match(full, /<Switch name="settings\.full-mode"[^\n]*>\n\s*<span class="warn"><FullModeWarning \/><\/span>/, "beside the switch");
+  // Under the switch, outside its <label>: a control inside the label would take the switch's name.
+  assert.match(full, /<\/Switch>\s*(<!--[^]*?-->\s*)?<p class="warn under"><FullModeWarning \/><\/p>/, "under the switch");
   assert.match(full, /<p class="warn small"><FullModeWarning \/><\/p>/, "beside the button");
   for (const [p, src, n] of [["FirstRun.svelte", first, 1], ["FullMode.svelte", full, 2]] as const) {
     assert.equal(src.match(/<FullModeWarning\b/g)?.length, n, p);
