@@ -8,7 +8,7 @@
   import type { Model } from "../core/model";
   import { masteryRows, type MasteryRow } from "../core/views";
   import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
-  import { buildTag } from "../core/buildPlan";
+  import { readyTag } from "../core/buildPlan";
   import Effort from "../ui/Effort.svelte";
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import Browse from "../ui/Browse.svelte";
@@ -149,7 +149,7 @@
   const codex = $derived(ringTotal(rings));
   /** A kind picked in the list lights its ring, when it falls in one. */
   // (Kitguns are in two rings, so they light none.)
-  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", "Railjack Plexus": "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
+  const KIND_RING: Record<string, Group> = { Warframe: "warframes", Necramech: "warframes", Primary: "primary", Secondary: "secondary", Melee: "melee", Zaw: "melee", Companion: "companions", "Companion weapon": "companions", "Railjack Plexus": "companions", Archwing: "archwing", "Arch-Gun": "archwing", "Arch-Melee": "archwing", Amp: "amps", "K-Drive": "kdrives" };
   const lit = $derived(ring ?? KIND_RING[category] ?? null);
   function pickRing(g: Group) {
     ring = lit === g ? null : g;
@@ -200,7 +200,7 @@
     {#if r.acq.difficulty > 0}<p class="chow" data-card={familyOf(r.unique) ? "next-step" : undefined} title={r.acq.players ? `${r.acq.how}\n\n${r.acq.players}` : r.acq.how}>{r.stepBrief ?? r.acq.how}</p>{/if}
     {#snippet foot()}
       <!-- One tone per state, as on Foundry and Wishlist: teal filled for one you have (level it), gold outline for a step to take, plain for waiting. -->
-      {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build"}{@const tier = r.buildTier === "hard" || r.buildTier === "farm" ? r.buildTier : "now"}{@const t = buildTag(tier)}<span class="tag {t.tone}" title={tier === "hard" ? `Every part in hand, but building needs ${r.buildShort}, from an open world or an event` : tier === "farm" ? `Every part in hand; still to farm: ${r.buildShort}` : "Every part and resource in hand: build it in your foundry"}>{t.label}</span>{/if}
+      {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build"}{@const t = readyTag({ tier: r.buildTier === "parts" ? null : r.buildTier, short: r.buildNames }, "card", r.buildShort)}<span class="tag {t.tone}" title={t.title}>{t.label}</span>{/if}
       {#if r.isPrime && r.missingParts.length}
         {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
         <Avail v={worst} />

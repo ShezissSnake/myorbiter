@@ -11,6 +11,8 @@ export interface CircuitChoice {
   wanted: boolean;
   note: string;
   image: string | null;
+  /** Incarnon: you hold the weapon and no adapter, but without each copy's read (`gear`) MyOrbiter can't see whether its Genesis is already installed. */
+  unseen?: boolean;
 }
 
 export interface Today {
@@ -107,10 +109,14 @@ export function today(m: Model, live: Live, now = Date.now(), gear: GearCopy[] |
           // Held now: a weapon you mastered and sold would have to be built again first.
           const weapon = genesisVariants(name).some(owns);
           const sold = !weapon && genesisVariants(name).some(mastered);
+          // Once a Genesis is installed the adapter is no longer held, so with no read of each copy
+          // (an unpatched TennoScope) a weapon you hold may already have it: not a pick to take.
+          const unseen = gear == null && weapon && !adapter;
           return {
             name,
-            wanted: weapon && !adapter && !installed,
-            note: installed ? `installed on ${installed}` : adapter ? "adapter in hand" : weapon ? "you have the weapon" : sold ? "mastered, but you don't have it now" : "no weapon for it",
+            wanted: weapon && !adapter && !installed && !unseen,
+            unseen,
+            note: installed ? `installed on ${installed}` : adapter ? "adapter in hand" : unseen ? "you have the weapon; MyOrbiter can't see installed Incarnons yet" : weapon ? "you have the weapon" : sold ? "mastered, but you don't have it now" : "no weapon for it",
             image: m.imageOf(`${name} Incarnon Genesis`) ?? m.imageOf(name),
           };
         }),

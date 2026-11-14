@@ -45,9 +45,11 @@ export type TagForm = "card" | "row" | "sheet";
  * bare coloured bar). `short` is what the plan says is still short; the Foundry's row names the
  * first of it.
  */
-export function buildTag(tier: BuildTier, short: readonly string[] = [], form: TagForm = "card"): { label: string; tone: TagTone } {
+export function buildTag(tier: ReadyTier, short: readonly string[] = [], form: TagForm = "card"): { label: string; tone: TagTone } {
   const more = short.length > 1 ? ` +${short.length - 1}` : "";
   switch (tier) {
+    case "unchecked":
+      return { label: "Parts ready", tone: "ok" };
     case "now":
       return { label: "Can build now", tone: "ok" };
     case "farm":
@@ -57,6 +59,33 @@ export function buildTag(tier: BuildTier, short: readonly string[] = [], form: T
     default:
       return { label: "Parts to get", tone: "" };
   }
+}
+
+/** A build state a card can show: the plan's, or "unchecked" (every part in hand, the recipes not read yet, so no resource was counted). */
+export type ReadyTier = BuildTier | "unchecked";
+
+/**
+ * What a card says of an item with every part in hand, in one place for Foundry, Wishlist, Mastery
+ * and the item's sheet: its tag, and the sentence behind it. `tier` is the plan's (null when the
+ * recipes aren't read); `short` is what's short, by name; `line` is the same with counts, if the
+ * page has it. Without the plan only the resources the catalog lists for the item itself are
+ * known (the farm tag), and nothing claims the rest is in hand.
+ */
+export function readyTag(b: { tier: BuildTier | null; short: readonly string[] }, form: TagForm = "card", line?: string): { tier: ReadyTier; label: string; tone: TagTone; title: string; sentence: string } {
+  const tier: ReadyTier = b.tier === "hard" ? "hard" : b.tier === "farm" || b.short.length ? "farm" : b.tier === "now" ? "now" : "unchecked";
+  const what = line || b.short.join(", ");
+  const title =
+    tier === "hard" ? `Every part in hand, but building needs ${what}: from an open world or an event. Open it for what each part takes`
+    : tier === "farm" ? `Every part in hand; still to farm: ${what}. Open it for what each part takes`
+    : tier === "now" ? "Every part and resource in hand: build it in your foundry"
+    : "Every part in hand: build it in your foundry. MyOrbiter hasn't read the recipes yet, so the resources it takes aren't checked";
+  // The same as a sentence of its own, for a card's "Next step" (no pointer to the tooltip's "open it").
+  const sentence =
+    tier === "hard" ? `Every part in hand, but building needs ${what}, from an open world or an event.`
+    : tier === "farm" ? `Every part in hand; still to farm: ${what}.`
+    : tier === "now" ? "Every part and resource in hand: build it in your foundry."
+    : "Every part in hand: build it in your foundry. MyOrbiter hasn't read the recipes yet, so the resources it takes aren't checked.";
+  return { tier, ...buildTag(tier, b.short, form), title, sentence };
 }
 
 export interface ResourceNeed {

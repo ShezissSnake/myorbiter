@@ -3,7 +3,7 @@
 import { collectionItem, inCodex } from "./collection";
 import { familyOf, modularNext, type ModularStep } from "./modular";
 import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
-import { NO_MASTERY, REFINEMENTS, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
+import { NO_MASTERY, REFINEMENTS, TIER_ERA, UNOBTAINABLE, baseId, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
 import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
@@ -381,6 +381,8 @@ export interface MasteryRow {
   revive?: boolean;
   /** What's short to build it, in a line. */
   buildShort: string;
+  /** The same by name, for the tag (readyTag): what is short, from the plan, or from the catalog's own resources while the recipes are unread. */
+  buildNames: string[];
   /** Modular gear's next step once its part is in hand: assemble, gild, level (modular.ts). */
   step?: ModularStep;
   /** That step in a few words, for a card's tag ("Built · gild it"). */
@@ -417,6 +419,8 @@ export function masteryCategory(item: { category: string; type?: string | null; 
   if (/^K-Drive/i.test(type)) return "K-Drive";
   if (/^Zaw/i.test(type)) return "Zaw";
   if (type === "Plexus") return "Railjack Plexus";
+  // Filed under Warframes by the catalog; Foundry, Wishlist and the item's card call it a Necramech.
+  if (type === "Necramech") return "Necramech";
   return MASTERY_CATEGORIES[item.category];
 }
 
@@ -437,21 +441,23 @@ const ARMAMENT = /^\/Lotus\/Weapons\/CrewShip\//;
 const MISC_ITEM = /^\/Lotus\/Types\/Items\/MiscItems\//;
 
 /**
- * Whether ranking an inventory row filed as a frame, weapon or companion gives mastery. The catalog
- * decides where it knows the item: the Gravimag (typed "Rifle" under Misc), MOA, hound and zaw parts
- * and Infested mutagens are filed the same way and say they are not masterable. Only an item the
- * catalog does not list is taken for gear to level (a new weapon the catalog hasn't caught up with).
- */
-function levels(m: Model, unique: string, name: string): boolean {
-  if (NOT_GEAR.test(name) || ARMAMENT.test(unique) || MISC_ITEM.test(unique)) return false;
-  const item = m.catalogByUnique.get(unique);
-  return !item || !!item.masterable;
-}
-/**
  * Built modular gear the inventory names by its path ("Lotus Modular Primary Shotgun", a zaw, an
  * amp, a MOA): its mastery goes by the chamber, strike, prism or model, which has a row of its own.
  */
 const BUILT_MODULAR = /\/LotusModular\w*$|\/OperatorAmplifiers\/OperatorAmpWeapon$|\/MoaPetPowerSuit$|\/ZanukaPet\w*PowerSuit$|\/HoverboardSuit$/;
+
+/**
+ * Whether ranking an inventory row filed as a frame, weapon or companion gives mastery. The catalog
+ * decides where it knows the item: the Gravimag (typed "Rifle" under Misc), MOA, hound and zaw parts
+ * and Infested mutagens are filed the same way and say they are not masterable. Only an item the
+ * catalog does not list is taken for gear to level (a new weapon the catalog hasn't caught up with).
+ * A built modular item never does, on Mastery or Inventory: its mastery is its part's.
+ */
+function levels(m: Model, unique: string, name: string): boolean {
+  if (NOT_GEAR.test(name) || ARMAMENT.test(unique) || MISC_ITEM.test(unique) || BUILT_MODULAR.test(unique)) return false;
+  const item = m.catalogByUnique.get(unique);
+  return !item || !!item.masterable;
+}
 
 const INVENTORY_KIND: Record<string, string> = { frame: "Warframe", weapon: "Weapon", companion: "Companion" };
 
@@ -470,7 +476,7 @@ function masteryRowsFresh(m: Model): MasteryRow[] {
   for (const [unique, invRows] of m.inventoryByBase) {
     const r = invRows[0];
     if (seen.has(unique) || !(r.category in INVENTORY_KIND) || m.isMastered(unique)) continue;
-    if (r.quantity <= 0 || !levels(m, unique, r.name) || BUILT_MODULAR.test(unique)) continue;
+    if (r.quantity <= 0 || !levels(m, unique, r.name)) continue;
     rows.push({
       name: r.name,
       unique,
@@ -492,6 +498,7 @@ function masteryRowsFresh(m: Model): MasteryRow[] {
       buyFor: null,
       buildTier: null,
       buildShort: "",
+      buildNames: [],
       points: masteryPoints({ name: r.name, category: r.category === "frame" ? "Warframes" : r.category === "companion" ? "Pets" : "Primary" }),
     });
   }
@@ -580,6 +587,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     toGet: pieces.filter((p) => !p.held).map((p) => p.label),
     unobtainable: UNOBTAINABLE.has(item.name),
     missingParts,
+    lackingWeapons: lackingWeapons.map((c) => ({ name: m.catalogByUnique.get(c.uniqueName)?.name ?? c.name, need: c.itemCount ?? 1, have: m.owned(c.uniqueName) })),
     ownedRelicsForIt: relicsForIt.size,
     buyFor,
   });
@@ -605,6 +613,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     buyFor: isPrime ? buyFor : null,
     buildTier: plan?.tier ?? null,
     buildShort: plan ? shortLine(plan.short) : "",
+    buildNames: plan ? plan.short.map((r) => r.name) : status === "build" && !captured ? collectionItem(m, item).short : [],
     revive: captured,
   };
 }
@@ -649,6 +658,7 @@ function modularRow(m: Model, item: CatalogItem, next: NonNullable<ReturnType<ty
     buyFor: null,
     buildTier: null,
     buildShort: "",
+    buildNames: [],
     step: next.step,
     stepTag: next.tag,
     stepBrief: next.brief,
@@ -1160,7 +1170,7 @@ function inventoryRowsFresh(m: Model): InventoryItem[] {
         name,
         unique,
         kind,
-        type: built ? "Built part" : kind === "gear" ? (!gearLevels && !NO_MASTERY.has(unique) ? (ARMAMENT.test(unique) ? "Railjack armament" : r.category === "frame" ? TYPE_NAME.frame : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
+        type: built ? "Built part" : kind === "gear" ? (!gearLevels && !BUILT_MODULAR.test(unique) && !NO_MASTERY.has(unique) ? (ARMAMENT.test(unique) ? "Railjack armament" : r.category === "frame" ? TYPE_NAME.frame : "Part") : item?.category ? (masteryCategory(item) ?? TYPE_NAME[r.category]) : TYPE_NAME[r.category]) : TYPE_NAME[r.category],
         quantity: r.quantity,
         rank,
         maxRank,
@@ -1236,7 +1246,6 @@ export function spareOf(m: Model, name: string, tags: string[] | null, save: Sav
 // ---------------------------------------------------------------- in mission (EE.log)
 
 const REFINEMENT_SUFFIX: Record<string, string> = { Bronze: "Intact", Silver: "Exceptional", Gold: "Flawless", Platinum: "Radiant" };
-const TIER_ERA: Record<string, string> = { T1: "Lith", T2: "Meso", T3: "Neo", T4: "Axi", T5: "Requiem" };
 
 export interface SquadRelic {
   path: string;
