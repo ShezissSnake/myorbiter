@@ -177,6 +177,41 @@ test("only Discord webhook addresses are posted to", async () => {
   assert.ok(!isDiscordWebhook("https://discord.com/api/webhooks/1/x?wait=true"));
 });
 
+test("the Discord field removes the kept address only when emptied, and asks about a webhook only when left", async () => {
+  const { discordFieldAction } = await import("../src/lib/backend");
+  const hook = "https://discord.com/api/webhooks/1234567890/AbC_dEf-123";
+  for (const event of ["input", "change", "blur"] as const) {
+    assert.equal(discordFieldAction("", event), "forget", `empty, on ${event}`);
+    assert.equal(discordFieldAction("   ", event), "forget", `blank, on ${event}`);
+    assert.equal(discordFieldAction("https://discord.com/api/webhooks/", event), "none", `half an address, on ${event}`);
+    assert.equal(discordFieldAction("not an address", event), "none", `not an address, on ${event}`);
+    assert.equal(discordFieldAction("https://evil.example/api/webhooks/1/x", event), "none", `another site, on ${event}`);
+  }
+  assert.equal(discordFieldAction(hook, "change"), "confirm", "a webhook is asked about when the field changes");
+  assert.equal(discordFieldAction(hook, "blur"), "confirm", "and when the field is left, changed or not");
+  assert.equal(discordFieldAction(hook, "input"), "none", "but not while it is typed or pasted");
+});
+
+test("a yes that comes back after the Discord field was emptied is undone, for every caller", async () => {
+  const { discordAsk } = await import("../src/lib/backend");
+  const hook = "https://discord.com/api/webhooks/1234567890/AbC_dEf-123";
+  const run = async (answer: boolean, fieldThen: string) => {
+    const forgot: string[] = [];
+    const io = { confirm: async () => answer, forget: async (f: string) => void forgot.push(f) };
+    return { result: await discordAsk(hook, () => fieldThen, io), forgot };
+  };
+  assert.deepEqual(await run(true, hook), { result: "yes", forgot: [] }, "a yes with the address still there");
+  assert.deepEqual(await run(true, "https://discord.com/api/webhooks/2/other"), { result: "yes", forgot: [] }, "another address there: not emptied");
+  assert.deepEqual(await run(true, ""), { result: "emptied", forgot: [""] }, "a yes after the field was emptied is removed again");
+  assert.deepEqual(await run(true, "  "), { result: "emptied", forgot: ["  "] }, "blank counts as emptied");
+  assert.deepEqual(await run(false, ""), { result: "no", forgot: [] }, "a no removes nothing");
+  // The field is read when the answer comes back, not when the question goes.
+  let field = hook;
+  const forgot: string[] = [];
+  const result = await discordAsk(hook, () => field, { confirm: async () => ((field = ""), true), forget: async (f) => void forgot.push(f) });
+  assert.deepEqual({ result, forgot }, { result: "emptied", forgot: [""] });
+});
+
 test("a kept worldstate part whose end has passed isn't kept", async () => {
   const { mergeLive } = await import("../src/lib/backend");
   const now = Date.parse("2026-11-02T12:00:00Z");
