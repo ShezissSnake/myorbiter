@@ -65,8 +65,10 @@
   const ledger = $derived.by(whileShown("inventory", () => new Map(spareRows(model, mkt.index, sell, platPerDucat, squad, drops.recent).map((x) => [x.key, x]))));
   const spareOf = (r: InventoryItem): SpareRow | undefined => ledger.get(r.key);
   const spare = (r: InventoryItem) => spareOf(r)?.spare ?? 0;
-  /** The market's name, where the game's own is an internal one. */
-  const shown = (r: InventoryItem) => (spareOf(r)?.heldAs ? spareOf(r)!.name : r.name);
+  /** The market's name, where the game's own is an internal one; a built kitgun, zaw, amp, MOA, hound or K-Drive by its family. */
+  const shown = (r: InventoryItem) => r.builtAs ?? (spareOf(r)?.heldAs ? spareOf(r)!.name : r.name);
+  /** The kind line: "Built" for built modular gear, else the spare's kind or the row's. */
+  const kindLine = (r: InventoryItem) => (r.builtAs ? "Built" : (spareOf(r)?.type ?? r.type));
   /** Priced under the market's name where the game's own isn't one the market knows. */
   // Built gear can't be traded (only some unranked copies can, and those show as spare): no price.
   const priceOf = (r: InventoryItem) => (r.kind === "gear" && !spareOf(r) ? null : (spareOf(r)?.price ?? r.price));
@@ -169,7 +171,7 @@
 
   const columns: Column<InventoryItem>[] = [
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "min(26rem, 40%)" },
-    { key: "type", label: "Kind", value: (r) => spareOf(r)?.type ?? r.type, muted: true, defaultDesc: false, minor: true, cell: kindCell },
+    { key: "type", label: "Kind", value: kindLine, muted: true, defaultDesc: false, minor: true, cell: kindCell },
     { key: "qty", label: "Have", value: (r) => r.quantity, align: "right", cell: qtyCell },
     { key: "spare", label: "Spare", value: (r) => (spareOf(r) ? spare(r) : null), align: "right", cell: spareCell, title: "What you can sell: what you hold beyond what you keep (hover a number for why)" },
     { key: "price", label: "Each", value: (r) => priceOf(r), align: "right", cell: priceCell },
@@ -185,7 +187,7 @@
   {@const s = spareOf(r)}
   {#if s}<span class="sp" class:none={!s.spare} title={s.keep ? `Keeps ${s.keep}: ${s.why}` : s.why}>{s.spare.toLocaleString("en")}</span>{/if}
 {/snippet}
-{#snippet kindCell(r: InventoryItem)}<Kind kind={spareOf(r)?.type ?? r.type} />{/snippet}
+{#snippet kindCell(r: InventoryItem)}<Kind kind={kindLine(r)} />{/snippet}
 {#snippet nameCell(r: InventoryItem)}
   <Named file={model.imageOf(r.name) ?? model.imageOf(shown(r))} name={shown(r)}>
     {#if r.rank && r.maxRank}<span class="tag" class:ok={r.rank >= r.maxRank}>{r.rank >= r.maxRank ? "maxed" : `R${r.rank}`}</span>{/if}
@@ -215,7 +217,7 @@
     <span class="grow"></span>
     {@render listCell(r, true)}
   {/snippet}
-  <ItemCard hover={r.name} title={shown(r)} sub={spareOf(r)?.type ?? r.type} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && r.levels && !r.mastered} ownedNote="Not mastered" onopen={open} foot={(r.kind === "gear" && r.levels) || perDay(r) != null || spareOf(r) ? foot : undefined}>
+  <ItemCard hover={r.name} title={shown(r)} sub={kindLine(r)} fallback={kindIcon(r.kind === "relic" ? "relic" : (spareOf(r)?.type ?? r.type), r.name)} image={model.imageOf(r.kind === "relic" ? (r.marketName ?? r.name).replace(/ Relic$/, "") : r.name) ?? model.imageOf(shown(r))} artSize={64} owned={r.kind === "gear" && r.levels && !r.mastered} ownedNote="Not mastered" onopen={open} foot={(r.kind === "gear" && r.levels) || perDay(r) != null || spareOf(r) ? foot : undefined}>
     {#snippet art()}
       {#if r.kind === "mod" || r.kind === "arcane"}
         {@const c = model.catalogByUnique.get(r.unique)}
@@ -324,7 +326,7 @@
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
-  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={(r) => spareOf(r)?.type ?? r.type} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
+  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={kindLine} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
 </div></div>
 
 <style>
