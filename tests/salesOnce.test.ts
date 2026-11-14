@@ -193,6 +193,19 @@ test("a hand-logged sale all of whose copies a trade covers takes nothing from a
   assert.equal(revenue(sales, trades), 80);
 });
 
+test("a trade with two lines of one item (counts 2 and 1) handled again logs and marks nothing, in any order", () => {
+  // Two refinements of one relic: two lines with the same name and no rank.
+  const lines = [{ name: "Axi A1 Relic", rank: null, count: 2 }, { name: "Axi A1 Relic", rank: null, count: 1 }];
+  const sale = (quantity: number): Sale => ({ at, item: "Axi A1 Relic", rank: null, quantity, platinum: 5, trade: "s|1" });
+  for (const order of [lines, [...lines].reverse()]) {
+    for (const sales of [[sale(1), sale(2)], [sale(2), sale(1)]]) {
+      const logged = loggedForTrade(sales, "s|1");
+      const left = order.map((l) => placeTradeLine(sales, logged, l, at, "s|1").left);
+      assert.deepEqual(left, [0, 0], `lines ${order.map((l) => l.count)}, logged ${sales.map((s) => s.quantity)}`);
+    }
+  }
+});
+
 test("Stats pairs a hand-logged sale with a trade by the same rule: rank and copies", () => {
   // Marking off, so nothing claimed the hand-logged sale: Stats pairs it itself.
   const t = (offered: TradeLogEntry["offered"], platIn: number): TradeLogEntry => ({ key: "s|1", at: at + 5 * 60_000, partner: "Buyer1", offered, received: [], platOut: 0, platIn });

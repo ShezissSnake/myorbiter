@@ -133,18 +133,25 @@ export const loggedForTrade = (sales: Sale[], key: string): Sale[] => sales.filt
 
 /**
  * Takes this line's copies from `logged` (loggedForTrade): how many of them this trade logged
- * before, as one sale or split between a sale logged by hand and the rest (placeTradeLine).
+ * before, as one sale or split between hand-logged sales and the rest (placeTradeLine). The
+ * sale of the line's own count first; else sales of the item and rank, largest first, never
+ * more copies than the line has, so a sale another line of the trade stands for (the other
+ * refinement of a relic, say) is left to that line.
  */
 export function takeLogged(logged: Sale[], line: { name: string; rank: number | null; count: number }): number {
-  let copies = 0;
-  for (let i = 0; i < logged.length && copies < line.count; ) {
-    const s = logged[i];
-    if (sameSaleItem(s, line)) {
-      copies += s.quantity;
-      logged.splice(i, 1);
-    } else i++;
+  const exact = logged.findIndex((s) => sameSaleItem(s, line) && s.quantity === line.count);
+  if (exact >= 0) {
+    logged.splice(exact, 1);
+    return line.count;
   }
-  return Math.min(copies, line.count);
+  let copies = 0;
+  const fits = logged.filter((s) => sameSaleItem(s, line)).sort((a, b) => b.quantity - a.quantity);
+  for (const s of fits) {
+    if (copies + s.quantity > line.count) continue;
+    copies += s.quantity;
+    logged.splice(logged.indexOf(s), 1);
+  }
+  return copies;
 }
 
 /**

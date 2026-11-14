@@ -7,8 +7,11 @@ import type { Sale } from "../backend";
 export const saleName = (n: string) => n.toLowerCase().replace(/ (blueprint|relic)$/, "");
 
 /**
- * A rank as both sides write it: the game log gives an unranked arcane no rank (it has no pips)
- * and a mod its rank; a Sold click writes the listing's (0 for an unranked one). No rank is rank 0.
+ * A rank as both sides write it; no rank is rank 0. A Sold click writes the listing's (0 for an
+ * unranked one). The game writes a mod's rank in its tag even at rank 0 ("Condition Overload
+ * (RARE RANK 0)", the parser's own sample in ee_log.rs), and an arcane's as pips, none when
+ * unranked: so a trade line with no rank is an item without ranks or an arcane with no pips.
+ * That rests on the log's lines as seen so far, not on proof for every item.
  */
 const rankOf = (r: number | null | undefined) => r ?? 0;
 

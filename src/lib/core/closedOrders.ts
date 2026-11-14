@@ -23,11 +23,16 @@ const SAME_SALE_MS = 6 * 3_600_000;
  * Your closed sell orders that the sale log doesn't have yet. A sale already logged for the same
  * item (and rank) within six hours is the same sale (one of the same quantity first, then the
  * nearest): it gets the order's id, so it's never imported twice, and keeps the platinum you
- * actually got. A part's closed order with no sale of that part is matched to any set sale
- * within six hours that the part is in (`setParts`) and that has room for that part, the
- * nearest first. Such a set sale is mostly one the fold made of part sales (foldSetSales: ones
- * logged without a trade's key, by an older version or by hand), whose part listings closed on
- * warframe.market. Its id goes in the set sale's `wfmParts`. Returns the new log (newest first) and how many were added and matched.
+ * actually got.
+ *
+ * A part's closed order that no sale of that part takes (orders of a sale's own quantity are
+ * placed first) is matched to a set sale, the nearest first, when: the order has no rank (a
+ * prime part's never has one); the set sale is within six hours, has the part (`setParts`)
+ * and room for the order's copies of it; and the set sale has no closed order of its own (a set
+ * sold from its set listing closed no part listing). Such a set sale is mostly one the fold
+ * made of part sales (foldSetSales: ones logged without a trade's key, by an older version or
+ * by hand), whose part listings closed on warframe.market. Its id goes in the set sale's
+ * `wfmParts`. Returns the new log (newest first) and how many were added and matched.
  */
 export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (set: string) => { name: string; required: number }[] | null = () => null): { sales: Sale[]; added: number; matched: number } {
   const out = sales.map((s) => ({ ...s, ...(s.wfmParts ? { wfmParts: [...s.wfmParts] } : {}) }));
