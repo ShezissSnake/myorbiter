@@ -102,8 +102,9 @@ export interface MarketSettings {
   bulk?: BulkRules;
   /**
    * Veiled rivens: spare only when on. Relics: spare when they sell for more than a crack is worth,
-   * and never one that drops a part you still need (`relicsWorthSelling` is always on: whether
-   * relics are listed is the Relics row on Sell spares now).
+   * and never one that drops a part you still need, by the test that tags it "need" on Relics
+   * (partNeeded, which counts an Ak weapon's second copy). `relicsWorthSelling` is always on:
+   * whether relics are listed is the Relics row on Sell spares now.
    */
   sellable: SellChoices;
   /** Things you sold, newest first (the last 2,000). */
