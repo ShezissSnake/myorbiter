@@ -53,7 +53,7 @@
     restoreLive,
     saved,
     saveSettings,
-    discordConfirm,
+    discordAsk,
     discordPost,
     notify,
     quit,
@@ -2639,7 +2639,8 @@
       settingsReady = true;
       // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
       // here, rather than at the first notification, which may come while they're away.
-      if (settings.notifyOptions.discord.url) void discordConfirm(settings.notifyOptions.discord.url).catch(() => {});
+      // A yes given after the field was emptied is undone (`discordAsk`); nothing more here.
+      if (settings.notifyOptions.discord.url) void discordAsk(settings.notifyOptions.discord.url, () => settings.notifyOptions.discord.url).catch(() => {});
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
       updates.start(() => settings.updates);
       // The channel this build came from, as Settings names it ("local build" for one made here).

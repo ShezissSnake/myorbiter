@@ -636,7 +636,8 @@ fn discord_address(kept: Option<&str>, declined_one: bool, url: &str) -> Discord
     }
 }
 
-/// The confirmed Discord address's file in the config folder (written by `write_atomic`).
+/// The confirmed Discord address's file in the config folder (written by `write_atomic`, removed
+/// by `discord_forget` when the address field is emptied).
 pub(crate) const DISCORD_FILE: &str = "discord-webhook";
 
 /// The address confirmed before, from MyOrbiter's config folder (`discord-webhook`).
@@ -647,8 +648,9 @@ fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), Str
 }
 
 /// Notifications → Choose → Discord: whether `url` is the address the player confirmed, asking
-/// when it's new. The page calls this while the player is there: when an address is pasted, and
-/// once as MyOrbiter starts for one saved before (`discord_post` never asks). A new address is
+/// when it's new. The page calls this while the player is there (`discordAsk`): when the address
+/// field is left, by Send a test to Discord, and once as MyOrbiter starts for one saved before
+/// (`discord_post` never asks). A new address is
 /// confirmed in a native dialog over MyOrbiter's window (not in the page), which names the webhook
 /// (never its token); a yes keeps it in MyOrbiter's config folder (`discord-webhook`), which the
 /// page can't write, in place of the one before. While a dialog is open, another new address is
@@ -697,6 +699,39 @@ async fn discord_confirm(app: tauri::AppHandle, url: String) -> Result<bool, Str
         log::info!(target: "myorbiter::notify", "Discord webhook {id} turned down; no other new one is asked about until MyOrbiter restarts");
     }
     Ok(yes)
+}
+
+/// Removes the confirmed address's file from `dir` when `field` (the address field's value) is
+/// empty; an address still in the field, even one that isn't a webhook, keeps it. A file already
+/// gone counts as removed. Whether a file was removed.
+fn forget_discord_address(dir: &Path, field: &str) -> std::io::Result<bool> {
+    if !field.trim().is_empty() {
+        return Ok(false);
+    }
+    match fs::remove_file(dir.join(DISCORD_FILE)) {
+        Ok(()) => Ok(true),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(e) => Err(e),
+    }
+}
+
+/// Notifications → Choose → Discord, the address field emptied: the confirmed address
+/// (`discord-webhook`, with its token) leaves the config folder. The page passes the field's value
+/// and nothing is removed unless it is empty. Pausing notifications or unticking kinds never calls
+/// this. A turned-down address stays turned down until a restart, as in `discord_confirm`. Off the
+/// main thread, like every command that touches the disk.
+#[tauri::command(async)]
+fn discord_forget(app: tauri::AppHandle, field: String) -> Result<(), String> {
+    let dir = app.path().app_config_dir().map_err(|e| e.to_string())?;
+    match forget_discord_address(&dir, &field) {
+        Ok(true) => log::info!(target: "myorbiter::notify", "Discord address cleared; its file removed"),
+        Ok(false) => {}
+        Err(e) => {
+            log::warn!(target: "myorbiter::notify", "Discord address cleared, but its file couldn't be removed: {e}");
+            return Err(format!("couldn't remove the Discord address: {e}"));
+        }
+    }
+    Ok(())
 }
 
 /// Every Foundry recipe, parts' own blueprints included (see recipes.rs): cached for a week.
@@ -1666,6 +1701,7 @@ pub fn run() {
             export_file,
             discord_post,
             discord_confirm,
+            discord_forget,
             load_settings,
             save_settings,
             mission_state,
@@ -2111,6 +2147,27 @@ mod tests {
         }
         out.push_str(rest);
         out
+    }
+
+    #[test]
+    fn only_an_emptied_discord_field_removes_the_kept_address() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-discord-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let file = dir.join(DISCORD_FILE);
+        let url = "https://discord.com/api/webhooks/1/token";
+        fs::write(&file, url).unwrap();
+        // An address in the field, the same, another or not a webhook at all: the file stays.
+        for field in [url, "https://discord.com/api/webhooks/2/other", "not an address"] {
+            assert!(!forget_discord_address(&dir, field).unwrap());
+            assert_eq!(fs::read_to_string(&file).unwrap(), url);
+        }
+        // Emptied (blank counts as empty): the file goes.
+        assert!(forget_discord_address(&dir, "  ").unwrap());
+        assert!(!file.exists());
+        // Emptied again with nothing kept: no error.
+        assert!(!forget_discord_address(&dir, "").unwrap());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]
