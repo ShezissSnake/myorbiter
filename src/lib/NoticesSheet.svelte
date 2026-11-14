@@ -1,7 +1,7 @@
 <script lang="ts">
   // The bell in the sidebar: what MyOrbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
-  import { discordConfirm, discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { discordAsk, discordFieldAction, discordForget, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, outcomeText, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeKindInfo, type NoticeOutcome } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -137,12 +137,26 @@
       testing = false;
     }
   }
+  // An emptied field removes the confirmed address MyOrbiter kept as soon as it is empty; a webhook
+  // address is asked about when the field is left. The event's own value is read, so this doesn't
+  // rest on when the binding writes the setting. Whether the confirmation dialog holds MyOrbiter's
+  // window is not shown by the dialog's code (on Linux it has no parent window but is modal; on
+  // Windows it has a parent), so `discordAsk` removes a yes that comes back after the field was
+  // emptied either way. A failed removal is logged on the Rust side.
+  const discordUrlNow = () => settings.notifyOptions.discord.url;
+  function discordField(event: "input" | "change" | "blur", value: string) {
+    const action = discordFieldAction(value, event);
+    if (action === "forget") void discordForget(value).catch(() => {});
+    else if (action === "confirm") void discordAsk(value, discordUrlNow).catch(() => {});
+  }
   // The test: working while it posts (a second click does nothing), then "Sent" or why not.
   const discordJob = new Job(4000);
   function testDiscord() {
     void discordJob.run(async () => {
       const url = settings.notifyOptions.discord.url;
-      if (!(await discordConfirm(url))) throw new Error("not confirmed: say yes in the window MyOrbiter shows");
+      const answer = await discordAsk(url, discordUrlNow);
+      if (answer === "emptied") throw new Error("not sent: the address field was emptied");
+      if (answer === "no") throw new Error("not confirmed: say yes in the window MyOrbiter shows");
       await discordPost(url, "**MyOrbiter**\nThis is how notifications will look here.");
       discordSent(null);
       return "Sent";
@@ -234,7 +248,7 @@
       <div class="discord">
         <span class="register">Discord</span>
         <p class="dim small">Also send some notifications to a Discord channel of yours, to see them on your phone while you're away: in Discord, a channel's Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL, and paste it here. MyOrbiter asks once, in a window of its own, whether to send to a new address; until you say yes, nothing goes there. No notification goes to Discord either while notifications are paused (even for a kind you picked here), or for a kind that is switched off below.</p>
-        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} onchange={() => isDiscordWebhook(settings.notifyOptions.discord.url) && void discordConfirm(settings.notifyOptions.discord.url).catch(() => {})} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
+        <input type="url" placeholder="https://discord.com/api/webhooks/…" bind:value={settings.notifyOptions.discord.url} oninput={(e) => discordField("input", e.currentTarget.value)} onchange={(e) => discordField("change", e.currentTarget.value)} onblur={(e) => discordField("blur", e.currentTarget.value)} aria-label="Discord webhook address" class:bad={!!settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)} />
         {#if settings.notifyOptions.discord.url && !isDiscordWebhook(settings.notifyOptions.discord.url)}<span class="small warn-text">That isn't a Discord webhook address.</span>{/if}
         {#if isDiscordWebhook(settings.notifyOptions.discord.url)}
           <span class="small dim">Send these to Discord:</span>

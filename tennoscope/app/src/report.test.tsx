@@ -123,7 +123,7 @@ describe('report block on Diagnostics', () => {
     expect(screen.getByText('COPIED. PASTE IT INTO THE DIAGNOSTICS FIELD OF THE ISSUE FORM.')).toBeVisible()
   })
 
-  it('save shows the folder path and the sanitized note when EE.log is included', async () => {
+  it('save shows the folder path and what the EE.log copy still holds when it is included', async () => {
     const health = readyHealth()
     health.acquisition_stages = [{ stage: 'schema_validation', state: 'failed', message: 'bad' }]
     backend.getView.mockResolvedValue(makeView(health))
@@ -132,7 +132,11 @@ describe('report block on Diagnostics', () => {
     await user.click(within(screen.getByRole('group', { name: 'Report a problem' })).getByRole('button', { name: 'Save logs' }))
     expect(report.saveReport).toHaveBeenCalledOnce()
     expect(screen.getByText(/SAVED TO \/tmp\/reports\/2026-08-05-141233/)).toBeVisible()
-    expect(screen.getByText(/EE\.LOG INCLUDED \(SANITIZED\)\. SAFE TO ATTACH TO THE ISSUE\./)).toBeVisible()
+    const status = within(screen.getByRole('group', { name: 'Report a problem' })).getByRole('status')
+    expect(status).toHaveTextContent(/EE\.LOG COPY INCLUDED, WITH IPV4 ADDRESSES, IPV6 ADDRESSES WRITTEN IN FULL AND E-MAIL ADDRESSES REMOVED\./)
+    expect(status).toHaveTextContent(/SHORT IPV6 ADDRESSES \(WITH ::\), OTHER PLAYERS' NAMES, ACCOUNT IDS, TRADES, AND YOUR USER AND COMPUTER NAME IN ITS FIRST LINES STAY IN IT\./)
+    expect(status).toHaveTextContent(/READ IT BEFORE SHARING IT\./)
+    expect(status.textContent).not.toMatch(/safe/i)
   })
 
   it('open issue calls openIssue', async () => {
