@@ -138,6 +138,13 @@ class MarketStore {
   statusError = $state<string | null>(null);
   log = $state<LogLine[]>([]);
   lastPass = $state<number | null>(null);
+  /** The platform changed during this run: the check saved from an earlier run was another platform's. */
+  private switched = $state(false);
+  /** When the last check was: this run's, or the one saved from an earlier run (core/schedule.ts).
+   *  None after a platform switch, so the new platform is checked at once. */
+  lastCheckOf(s: { lastCheck?: number | null }): number | null {
+    return this.lastPass ?? (this.switched ? null : (s.lastCheck ?? null));
+  }
   /** Repricing passes in a row that got no answer from warframe.market: the timer waits longer after each. */
   passFailures = $state(0);
   /** When your listings were last read from warframe.market (null: not since signing in). */
@@ -182,6 +189,7 @@ class MarketStore {
     this.deals = [];
     this.dealsAt = null;
     this.lastPass = null;
+    this.switched = true;
     // The live feed subscribed to the old platform's new listings: started again if it's on.
     if (this.feedOn) {
       await market.feed(false);
@@ -552,6 +560,7 @@ class MarketStore {
     this.passManual = !timed;
     this.passProgress = null;
     const summary: PassSummary = { changed: 0, failed: 0, off: 0, stopped: false, error: null };
+    const failuresBefore = this.passFailures;
     // A check on a timer reads every book at least once a round: never reuse one from before the last round.
     const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
     this.error = null;
@@ -757,7 +766,15 @@ class MarketStore {
     } finally {
       // A pass on the timer counts whether it applied or only checked, so "Check automatically"
       // runs every N minutes too, not on every tick.
-      if (apply || timed) this.lastPass = Date.now();
+      if (apply || timed) {
+        // A pass warframe.market didn't answer, or that stopped early, is tried again within the
+        // hour on a longer interval, not a whole day or week later.
+        const missed = summary.stopped || this.passFailures > failuresBefore;
+        const at = Date.now();
+        this.lastPass = missed ? at - Math.max(0, s.every * 60_000 - 60 * 60_000) : at;
+        // Kept in the settings, so the next start knows when this one was (core/schedule.ts).
+        s.lastCheck = this.lastPass;
+      }
       this.pass = null;
       this.passProgress = null;
       this.passManual = false;

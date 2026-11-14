@@ -23,6 +23,7 @@ import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
 import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
+import { everyOf, lastCheckOf } from "./core/schedule";
 import { choiceFromHome, fissureChoiceOf, type FissureChoice, type SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
@@ -49,8 +50,10 @@ export interface MarketSettings {
   auto: boolean;
   /** Check prices on the timer without sending them: Orders shows what each listing would change to. */
   autoCheck: boolean;
-  /** Minutes between automatic passes. */
+  /** Minutes between automatic passes: one of `EVERY_CHOICES` (core/schedule.ts). */
   every: number;
+  /** When the last timed check ran (or a Reprice pressed), kept so a long interval holds across restarts (core/schedule.ts). */
+  lastCheck?: number | null;
   /** Never below this share of the item's daily market price. */
   minShare: number;
   /** Per listing (see listingKey): your own floor, and whether it is left alone. */
@@ -893,7 +896,7 @@ const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof 
  * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
  * value that isn't a number in range is the usual one, never a missing floor.
  */
-function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minByCategory" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
+function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minByCategory" | "minRelicPrice" | "minShare" | "every" | "lastCheck" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
   const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const record = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>) : []);
   return {
@@ -903,7 +906,9 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     minByCategory: minByCategoryOf(r),
     minRelicPrice: undefined,
     minShare: numIn(r.minShare, 0, 1, base.minShare),
-    every: numIn(r.every, 1, 24 * 60, base.every),
+    // Only an interval Orders offers; anything else (unknown, too short) is the usual one.
+    every: everyOf(r.every, base.every),
+    lastCheck: lastCheckOf(r.lastCheck),
     floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
     paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).

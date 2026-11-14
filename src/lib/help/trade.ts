@@ -58,7 +58,7 @@ const ORDERS: Walkthrough = {
       lines: [
         "Check prices reads the order books and shows what each shown, auto-priced listing would change to.",
         "Reprice sends the changes shown, and never lower than shown.",
-        "This line holds Check and Apply automatically, the floor and your minimum prices.",
+        "This line opens the automatic settings: checking and changing prices, the floor, after a trade.",
       ],
       shot: {
         open: "market",
@@ -377,4 +377,65 @@ const SELL: Walkthrough = {
   covers: { sell: 1 },
 };
 
-export const TRADE: Walkthrough[] = [ORDERS, SPARES, SALES, BROWSE, BUY, SELL];
+// Orders' automatic panel (the fold under Check prices and Reprice), opened. Every sentence is
+// checked against core/schedule.ts, core/drift.ts, core/approved.ts and the pass in
+// marketStore.svelte.ts; the steps open the fold and press nothing in it.
+const AUTO = ".pane.shown .autopanel";
+const autoGroup = (h: string) => `${AUTO} section[aria-labelledby='${h}']`;
+// Opens the panel, or clicks its first heading (nothing) when an earlier page left it open: the pane stays mounted.
+const OPEN_AUTO = { click: ".pane.shown .bar.tools :is(button.fold[aria-expanded='false'], #auto-check-h)" };
+
+const ORDERS_AUTO: Walkthrough = {
+  id: "orders-automatic",
+  app: "market",
+  title: "Orders: automatic",
+  guide: guideOf("market"),
+  pages: [
+    {
+      title: "Checking and changing prices",
+      lines: [
+        "Check automatically only reads prices, every minute to once a week.",
+        "Apply automatically sends past a 2p and 5% gap, or up to a floor.",
+        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, nor your floors; never more than halved.`,
+        "Per listing: hourly at most, six a day. A missed check runs once after restart.",
+      ],
+      shot: {
+        open: "market",
+        steps: [OPEN_AUTO, { wait: 800 }],
+        part: `${autoGroup("auto-check-h")}, ${autoGroup("auto-apply-h")}`,
+        marks: [
+          { at: `${autoGroup("auto-check-h")} button.chip`, is: "n", n: 1, from: "corner" },
+          { at: `${autoGroup("auto-apply-h")} button.chip`, is: "n", n: 2, from: "right" },
+          { at: `${autoGroup("auto-apply-h")} button.link`, is: "n", n: 3, from: "right" },
+          { at: `${autoGroup("auto-check-h")} select`, is: "n", n: 4, from: "corner" },
+        ],
+      },
+    },
+    {
+      title: "After a trade, and whispers",
+      lines: [
+        "Mark sales sold: a trade in game marks its listing sold, and logs it.",
+        "Give +rep by itself: each partner gets +rep once, posted as you.",
+        "Hide last copies: a whisper hides listings you have one copy of, for a while.",
+        "Each is off unless you turn it on; Settings, Trades has the same switches.",
+      ],
+      shot: {
+        open: "market",
+        steps: [OPEN_AUTO, { wait: 800 }],
+        part: `${autoGroup("auto-trade-h")}, ${autoGroup("auto-whisper-h")}`,
+        marks: [
+          { at: `${autoGroup("auto-trade-h")} .pair > div:nth-child(1) button.chip`, is: "n", n: 1, from: "right" },
+          { at: `${autoGroup("auto-trade-h")} .pair > div:nth-child(2) button.chip`, is: "n", n: 2, from: "right" },
+          { at: `${autoGroup("auto-whisper-h")} button.chip`, is: "n", n: 3, from: "right" },
+        ],
+      },
+    },
+  ],
+  good: {
+    warn: true,
+    text: "warframe.market calls automation like this a grey area and may limit apps that do it.",
+  },
+  covers: { "orders.automatic": 1 },
+};
+
+export const TRADE: Walkthrough[] = [ORDERS, ORDERS_AUTO, SPARES, SALES, BROWSE, BUY, SELL];

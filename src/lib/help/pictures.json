@@ -413,6 +413,18 @@
     "h": 76,
     "bytes": 3390
   },
+  "orders-automatic-1.webp": {
+    "hash": "63120ee854ba2e1c",
+    "w": 787,
+    "h": 386,
+    "bytes": 45780
+  },
+  "orders-automatic-2.webp": {
+    "hash": "7ce2d28dff7c5fe1",
+    "w": 769,
+    "h": 263,
+    "bytes": 30912
+  },
   "parts-1.webp": {
     "hash": "c9365feb7026c3d7",
     "w": 1006,
@@ -626,20 +638,26 @@
   "settings-trades-1.webp": {
     "hash": "b72f282aa7501dbe",
     "w": 575,
-    "h": 327,
-    "bytes": 41142
+    "h": 326,
+    "bytes": 39874
   },
   "settings-trades-2.webp": {
     "hash": "693ec2edc21438a9",
     "w": 575,
-    "h": 390,
-    "bytes": 55692
+    "h": 409,
+    "bytes": 57094
   },
   "settings-trades-3.webp": {
-    "hash": "1d0f86704146583c",
+    "hash": "6d6f3a9c1dfc0448",
     "w": 557,
-    "h": 377,
-    "bytes": 58756
+    "h": 153,
+    "bytes": 20196
+  },
+  "settings-trades-4.webp": {
+    "hash": "e52a82866a3eb64a",
+    "w": 557,
+    "h": 338,
+    "bytes": 58098
   },
   "spares-1.webp": {
     "hash": "285fee3d0408d891",

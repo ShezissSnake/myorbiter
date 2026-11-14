@@ -135,6 +135,7 @@
   import Icon from "./lib/ui/Icon.svelte";
   import Crest from "./lib/ui/Crest.svelte";
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
+  import { checkDue } from "./lib/core/schedule";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -2743,7 +2744,9 @@
         }
         // Check (and, with Apply automatically, send) on your timer.
         if (!model || !(s.auto || s.autoCheck) || !mkt.linked || mkt.busy) return;
-        if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
+        // Due a whole interval after the last check, this run's or the one saved from an earlier
+        // run; a check that fell while MyOrbiter was closed runs now, once (core/schedule.ts).
+        if (!checkDue(mkt.lastCheckOf(s), mkt.passDelay(s.every * 60_000), Date.now())) return;
         const m = model;
         void timing.tick("market poll", () => mkt.reprice(m, s, s.auto, true));
       }, 15_000);

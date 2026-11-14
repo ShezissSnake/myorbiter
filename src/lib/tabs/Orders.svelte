@@ -14,9 +14,10 @@
   import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { minimumOf, minimumsText } from "../core/sparesRules";
-  import { DRIFT_RULES, GREY_AREA } from "../core/drift";
-  import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "../core/automation";
-  import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
+  import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
+  import { AUTO_REP_LINE, AUTO_REP_SHORT, AUTO_TRADES_LINE, AUTO_TRADES_SHORT, LAST_COPY_LINE } from "../core/automation";
+  import { AUTO_FLOOR_SHARE, AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
+  import { EVERY_CHOICES, everyWords, nextCheckAt, whenWords } from "../core/schedule";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
   import { drops } from "../drops.svelte";
   import { aboveCrack, relicCrackFor } from "../core/spares";
@@ -129,11 +130,18 @@
   const planOf = (o: MyOrder) => plans.get(o.id) ?? keptPlans.get(o.id);
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   /** The folded repricer settings, in one line: "Auto: check every 5 min · floor 50% · min 10p". */
-  const autoLine = $derived(`Auto: ${settings.auto ? `apply every ${settings.every} min` : settings.autoCheck ? `check every ${settings.every} min` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${minimumsText(settings)}`);
+  const autoLine = $derived(`Auto: ${settings.auto ? `apply ${everyWords(settings.every)}` : settings.autoCheck ? `check ${everyWords(settings.every)}` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${minimumsText(settings)}`);
   const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
   // The timer waits longer while warframe.market isn't answering (passDelay): the next check is then, not at your interval.
   const passWait = $derived(mkt.passDelay(settings.every * 60_000));
-  const nextPass = $derived((settings.auto || settings.autoCheck) && mkt.lastPass ? new Date(mkt.lastPass + passWait) : null);
+  /** The last check: this run's, or the one saved from an earlier run (core/schedule.ts). */
+  const lastCheck = $derived(mkt.lastCheckOf(settings));
+  /** When the next timed check runs; one already due runs within a few seconds, so it says now. */
+  const nextPass = $derived.by(() => {
+    if (!(settings.auto || settings.autoCheck) || lastCheck == null) return null;
+    const at = nextCheckAt(lastCheck, passWait, minute);
+    return at == null ? null : new Date(Math.max(at, minute));
+  });
   /** Oldest order book behind what's on screen, so you know how fresh "Market price" is. */
   const checkedAt = $derived.by(whileShown("market", () => {
     const times = orders.map((o) => mkt.books[mkt.item(o.itemId)?.slug ?? ""]?.at).filter((t): t is number => t != null);
@@ -878,38 +886,59 @@
           title={mkt.pass === "Repricing" && !mkt.passManual ? "Apply automatically is sending new prices now" : pending ? `Send the new prices to warframe.market: the ${pending} listing${pending === 1 ? "" : "s"} with a Will set` : "Nothing to change: Check prices first, or every listing matches already"} disabled={!!mkt.busy || !pending} onclick={repriceNow} />
       </div>
       {#if lastFail && !mkt.pass}<p class="err small lastfail" role="status">{lastFail.why} <button type="button" class="link" onclick={lastFail.again}>Try again</button> <button type="button" class="link quiet" onclick={() => (lastFail = null)}>Dismiss</button></p>{/if}
-      <!-- The repricer's settings fold into one line that says how it's set: they're set once, not each visit. -->
-      <Fold label={autoLine} title="The repricer's settings: checking and applying on a timer, the floor under prices and the lowest price anything is listed at">
-        <div class="grp autos">
-          <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
-          {#if nextPass && !mkt.pass}{#key `${mkt.lastPass}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (mkt.lastPass ?? 0)))}ms"></i>{/key}{/if}
-          <Chip bind:on={settings.autoCheck} label="Check automatically" title="Read the order books on a timer while MyOrbiter is open, and show what each listing would change to" onchange={(on) => { if (!on) settings.auto = false; }} />
-          <Chip bind:on={settings.auto} label="Apply automatically" title="Also send the new prices to warframe.market on that timer, without asking. The rules are written below" onchange={(on) => { if (on) settings.autoCheck = true; }} />
-          <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
-            {#each [1, 2, 5, 10, 15, 30, 60] as m (m)}<option value={m}>every {m} min</option>{/each}
-          </select>
-        </div>
-        <p class="dim small limits">Apply automatically changes your prices without asking. {DRIFT_RULES}. {console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.</p>
-        <!-- The other automatic actions, the same switches and lines as Settings, Trades. -->
-        {#if !console}
-          <div class="grp autos">
-            <Chip bind:on={settings.autoTrades} label="Mark sales sold from the game" title={AUTO_TRADES_LINE} />
-            <Chip bind:on={settings.autoRep} label="Give +rep by itself" title={AUTO_REP_LINE} />
-          </div>
-          <p class="dim small limits"><b>Mark sales sold from the game</b>: {AUTO_TRADES_LINE} <b>Give +rep by itself</b>: {AUTO_REP_LINE}</p>
-        {/if}
-        <div class="grp">
-          <span class="register">Floor</span>
-          <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (a per-listing floor in the table wins)">
-            {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
-          </select>
-          <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter, unless its kind has its own minimum on Sell spares. The same setting as Never under on Sell spares">never under</span>
-          <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
-          <Metal kind="plat" size={14} />
-          <button type="button" class="link small" title="Minimums by kind (relics, mods, prime parts…), each replacing this one for its kind: set on Sell spares{Object.keys(settings.minByCategory ?? {}).length ? `. Now: ${minimumsText(settings)}` : ""}" onclick={() => go("spares")}>by kind on Sell spares</button>
+      <!-- The repricer's settings fold into one line that says how it's set: they're set once, not each
+           visit. Open, plain groups, each with its heading, its controls and a short line under the
+           control it explains; the full rules are in each switch's tooltip and behind the "?". The
+           panel shows every switch that makes MyOrbiter act on warframe.market by itself, the same
+           list as Settings, Trades. -->
+      <Fold label={autoLine} title="The automatic settings: checking and changing prices on a timer, the floor under prices, the lowest price anything is listed at, and what happens after a trade">
+        <div class="autopanel">
+          <section class="pg" aria-labelledby="auto-check-h">
+            <h3 class="register" id="auto-check-h">Checking prices<HelpMark part="orders.automatic" /></h3>
+            <div class="grp autos">
+              <!-- Time left to the next timed pass: a hairline that runs out (longer while warframe.market isn't answering). -->
+              {#if nextPass && !mkt.pass}{#key `${lastCheck}|${passWait}`}<i class="countdown" aria-hidden="true" style:animation-duration="{passWait}ms" style:animation-delay="-{Math.min(passWait, Math.max(0, Date.now() - (lastCheck ?? 0)))}ms"></i>{/key}{/if}
+              <Chip bind:on={settings.autoCheck} label="Check automatically" title="Off unless you turn it on. Read the order books on a timer while MyOrbiter is open, and show what each listing would change to. It sends nothing; turning it off turns Apply automatically off too" onchange={(on) => { if (!on) settings.auto = false; }} />
+              <select bind:value={settings.every} aria-label="How often" title="How often the automatic check runs" disabled={!settings.autoCheck && !settings.auto}>
+                {#each EVERY_CHOICES as m (m)}<option value={m}>{everyWords(m)}</option>{/each}
+              </select>
+            </div>
+            <p class="dim small why">Off unless you turn it on. While MyOrbiter is open it reads the order books {everyWords(settings.every)} and shows what each listing would change to; it sends nothing.</p>
+          </section>
+          <section class="pg" aria-labelledby="auto-apply-h">
+            <h3 class="register" id="auto-apply-h">Changing prices</h3>
+            <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under a floor: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
+            <p class="dim small why">Never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved, nor under the floors below; more than halving waits for Reprice. {GREY_AREA}.</p>
+            <div class="grp">
+              <span class="register">Floor</span>
+              <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (or a listing's own floor in the table, if higher)">
+                {#each [0, 0.3, 0.5, 0.7, 0.85] as f (f)}<option value={f}>{f ? `${f * 100}% of market` : "none"}</option>{/each}
+              </select>
+              <span class="register" title="Nothing is listed or repriced below this, anywhere in MyOrbiter, unless its kind has its own minimum on Sell spares. The same setting as Never under on Sell spares">Never under</span>
+              <input class="minp" type="number" min="1" inputmode="numeric" value={settings.minPrice} aria-label="Minimum price" onchange={(e) => (settings.minPrice = minFrom(e.currentTarget, settings.minPrice))} onwheel={(e) => e.currentTarget.blur()} />
+              <Metal kind="plat" size={14} />
+              <button type="button" class="link small" title="Minimums by kind (relics, mods, prime parts…), each replacing this one for its kind: set on Sell spares{Object.keys(settings.minByCategory ?? {}).length ? `. Now: ${minimumsText(settings)}` : ""}" onclick={() => go("spares")}>by kind on Sell spares</button>
+            </div>
+            <p class="dim small why">Floor: no listing lowered under this share of its daily price (or a listing's own floor, if higher). Never under: nothing listed or repriced lower, unless its kind has its own minimum.</p>
+          </section>
+          {#if !console}
+            <section class="pg" aria-labelledby="auto-trade-h">
+              <h3 class="register" id="auto-trade-h">After a trade</h3>
+              <div class="pair">
+                <div><Chip bind:on={settings.autoTrades} label="Mark sales sold from the game" title={AUTO_TRADES_LINE} /><p class="dim small why">{AUTO_TRADES_SHORT}</p></div>
+                <div><Chip bind:on={settings.autoRep} label="Give +rep by itself" title={AUTO_REP_LINE} /><p class="dim small why">{AUTO_REP_SHORT}</p></div>
+              </div>
+            </section>
+            <section class="pg" aria-labelledby="auto-whisper-h">
+              <h3 class="register" id="auto-whisper-h">While someone whispers you</h3>
+              <div class="grp"><Chip bind:on={settings.lastCopy.optIn} label="Hide last copies while someone whispers you" title={`Off unless you turn it on. ${LAST_COPY_LINE.replace("after the time below", `after ${settings.lastCopy.minutes} min (Settings, Trades)`)}`} /></div>
+              <p class="dim small why">Off unless you turn it on. Any whisper in game hides each listing you have one copy of; it comes back after {settings.lastCopy.minutes} min if a newer inventory read still has it.</p>
+            </section>
+          {/if}
         </div>
       </Fold>
-      {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks every ${settings.every} min`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${fmt(+nextPass)}`}</span>{/if}
+      {#if nextPass}<span class="register next" title={mkt.passFailures ? `warframe.market didn't answer the last ${mkt.passFailures === 1 ? "pass" : `${mkt.passFailures} passes`}, so the timer waits longer (${Math.round(passWait / 60_000)} min) before the next` : `The timer checks ${everyWords(settings.every)}`}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${whenWords(+nextPass, minute)}`}</span>{/if}
       {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton class="showall" variant="link" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
       <HelpMark part="orders.reprice" />
     </div>
@@ -1247,8 +1276,15 @@
   .next { margin-left: auto; }
   /* Check / Apply automatically: a hairline under them runs out until the next timed pass. */
   .autos { position: relative; }
-  /* What Apply automatically may do, in a sentence, under its switch. */
-  .limits { flex-basis: 100%; max-width: 70ch; margin: 0; line-height: 1.5; }
+  /* The automatic panel: plain groups, each a heading, its controls, and a short line under the
+     control it explains. */
+  .autopanel { display: grid; gap: 1rem; padding: .3rem 0 .2rem; max-width: 62rem; }
+  .pg { display: grid; gap: .4rem; justify-items: start; }
+  .pg h3 { margin: 0; display: flex; align-items: center; gap: .4rem; color: var(--platinum); font-size: 11px; }
+  .pg .grp { flex-wrap: wrap; }
+  .pg .why { margin: 0; max-width: 92ch; line-height: 1.45; }
+  .pg .pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr)); gap: .4rem 1.6rem; width: 100%; }
+  .pg .pair > div { display: grid; gap: .4rem; justify-items: start; align-content: start; }
   .countdown { position: absolute; left: 0; right: 0; bottom: -5px; height: 1px; background: var(--gold-dim); transform-origin: left center; animation: runout linear forwards; pointer-events: none; }
   @keyframes runout { from { transform: scaleX(1); } to { transform: scaleX(0); } }
   @media (prefers-reduced-motion: reduce) { .countdown { display: none; } }

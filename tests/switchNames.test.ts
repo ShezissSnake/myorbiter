@@ -74,5 +74,5 @@ test("Settings' and Notifications' pictures find a switch or a field by its name
   // Each switch the Trades page talks about, by name (they were told apart by place before).
   const trades = SETTINGS.find((w) => w.id === "settings-trades")!;
   const named = trades.pages.flatMap((p) => p.shot!.marks.map((m) => m.at.match(/data-switch="([^"]+)"/)?.[1])).filter(Boolean);
-  assert.deepEqual(named, ["settings.auto-rep", "settings.auto-trades", "settings.hide-last-copies", "settings.auto-reprice"]);
+  assert.deepEqual(named, ["settings.auto-rep", "settings.auto-trades", "settings.hide-last-copies", "settings.auto-check", "settings.auto-reprice"]);
 });
