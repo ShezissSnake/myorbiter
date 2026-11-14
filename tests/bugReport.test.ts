@@ -91,6 +91,8 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   // And what the details leave out, as redact.ts does it.
   assert.match(para, /the folder names in the paths of the shapes MyOrbiter recognises/);
   assert.match(para, /a path of an unusual shape can pass/i);
+  // The encoded forms: what works, and the gap beside it (both held by the tests below).
+  assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
   assert.match(para, /prices of listings and sales are kept/);
   assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
@@ -100,8 +102,8 @@ test("paths anywhere: the name part is hidden, what a bug hunter needs stays", (
     // Linux, another drive or mount: the label and any folder of the player's own go.
     ["found at /mnt/ExampleDisk/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log", "found at /mnt/[drive]/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log"],
     ["couldn't open /run/media/someone/EXAMPLE 64/Games/stuff: No such file", "couldn't open /run/media/[user]/[drive]/Games/[folder]: No such file"],
-    ["copied /srv/examplebox/orbiter-data to /data2/someone/myorbiter (the folder before the rename stays as it was)", "copied /srv/[folder]/[folder] to /[folder]/[folder]/myorbiter (the folder before the rename stays as it was)"],
-    ["copied /run/media/someone/EXAMPLE 64/orbiter-data to ~/ExampleFolder/myorbiter (the folder", "copied /run/media/[user]/[drive]/[folder] to ~/[folder]/myorbiter (the folder"],
+    ["copied /srv/examplebox/orbiter-data to /data2/someone/myorbiter (the folder before the rename stays as it was)", "copied /srv/[folder]/[folder] /[folder]/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    ["copied /run/media/someone/EXAMPLE 64/orbiter-data to ~/ExampleFolder/myorbiter (the folder", "copied /run/media/[user]/[drive]/[folder] ~/[folder]/myorbiter (the folder"],
     ["/Volumes/Example SSD/Warframe/EE.log", "/Volumes/[drive]/Warframe/EE.log"],
     ["~/Games/ExampleStuff/Warframe/EE.log", "~/Games/[folder]/Warframe/EE.log"],
     ["started /tmp/.mount_orbitAbC123/usr/bin/tennoscope, the one inside MyOrbiter", "started /tmp/[folder]/usr/bin/tennoscope, the one inside MyOrbiter"],
@@ -150,10 +152,61 @@ test("paths: apostrophes and spaces don't cut a name short", () => {
     assert.equal(redact(input), want, input);
     assert.equal(redact(want), want, `stable: ${want}`);
   }
-  // A run of words longer than a folder name can be (255) is not taken as one folder.
-  const long = "word ".repeat(51) + "end";
-  assert.equal(redact(`D:\\Games\\${"x".repeat(240)} y\\EE.log`), "D:\\Games\\[folder]\\EE.log");
-  assert.equal(redact(`D:\\Games\\${long}\\EE.log`), `D:\\Games\\[folder] ${"word ".repeat(50)}end\\EE.log`);
+  // A name with spaces before a slash is one name, however long and whatever its first word: past
+  // 255 characters, with two spaces in a row, or starting with a word that is kept alone.
+  assert.equal(redact(`D:\\Games\\Steam ${"word ".repeat(60)}Orren\\EE.log`), "D:\\Games\\[folder]\\EE.log");
+  assert.equal(redact("D:\\Games\\Steam  Orren Taskwell\\EE.log"), "D:\\Games\\[folder]\\EE.log");
+});
+
+test("paths: no word of a spaced last name passes, whatever follows it", () => {
+  // A made-up two-word name; after it, the words up to a sure end or the next mark go with it.
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    // The app's own "copied … to …" line, its Windows and its mount shape.
+    ["copied D:\\Games\\Orren Taskwell to E:\\Backup\\Warframe (the folder before the rename stays as it was)", "copied D:\\Games\\[folder] E:\\[folder]\\Warframe (the folder before the rename stays as it was)"],
+    ["copied /run/media/someone/Orren Taskwell to ~/x/myorbiter (the folder before the rename stays as it was)", "copied /run/media/[user]/[drive] ~/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    // Marks between two paths.
+    ["moved D:\\Games\\Orren Taskwell -> E:\\Warframe", "moved D:\\Games\\[folder] -> E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell → E:\\Warframe", "moved D:\\Games\\[folder] → E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell > E:\\Warframe", "moved D:\\Games\\[folder] > E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell | E:\\Warframe", "moved D:\\Games\\[folder] | E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell <- E:\\Warframe", "moved D:\\Games\\[folder] <- E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell * E:\\Warframe", "moved D:\\Games\\[folder] * E:\\Warframe"],
+    // JSON messages: the closing quote ends it.
+    ['{"msg":"couldn\'t open D:\\\\Games\\\\Orren Taskwell"}', '{"msg":"couldn\'t open D:\\\\Games\\\\[folder]"}'],
+    ['{"msg":"couldn\'t open /mnt/Orren Taskwell"}', '{"msg":"couldn\'t open /mnt/[drive]"}'],
+    // A web address later on the line stays; the words before it go.
+    ["D:\\Games\\Orren Taskwell does not exist see https://example.org/help", "D:\\Games\\[folder] https://example.org/help"],
+    // Two spaces inside the name, and the path going on after it.
+    ["/srv/Orren  Taskwell/x", "/srv/[folder]/[folder]"],
+    // The run's sure ends: ", ", "; ", ". ", a new line.
+    ["D:\\Games\\Orren Taskwell, then more", "D:\\Games\\[folder], then more"],
+    ["D:\\Games\\Orren Taskwell; then more", "D:\\Games\\[folder]; then more"],
+    ["D:\\Games\\Orren Taskwell. Then more", "D:\\Games\\[folder]. Then more"],
+    ["D:\\Games\\Orren Taskwell\nthen more", "D:\\Games\\[folder]\nthen more"],
+    // An apostrophe in a last name.
+    ["D:\\Games\\Orren's Taskwell: denied", "D:\\Games\\[folder]: denied"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // A run past the length cap (255) is hidden too.
+  const long = redact(`D:\\Games\\Orren ${"x ".repeat(150)}Taskwell`);
+  assert.equal(long, "D:\\Games\\[folder]");
+  // A kept name or a file's name before a space ends the path there: the words after stay.
+  assert.equal(redact("found at D:\\Games\\Warframe and more"), "found at D:\\Games\\Warframe and more");
+  assert.equal(redact("opened D:\\Orren\\EE.log and more"), "opened D:\\[folder]\\EE.log and more");
+});
+
+test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {
+  for (const kept of ["GET /orders/x: 429", "429 from /api/x"]) assert.equal(redact(kept), kept, kept);
+  // \\?\D:\ and file:///D:/ are starts of their own: a single name after the drive is hidden too.
+  assert.equal(redact("at \\\\?\\D:\\Orren\\EE.log"), "at \\\\?\\D:\\[folder]\\EE.log");
+  assert.equal(redact("at \\\\?\\D:\\Orren"), "at \\\\?\\D:\\[folder]");
+  assert.equal(redact("at file:///D:/Orren"), "at file:///D:/[folder]");
 });
 
 test("paths: shares and Windows' long-path prefixes", () => {
@@ -202,8 +255,9 @@ test("paths: after a colon, a backtick, { or |, from a variable or ~name, or wit
     assert.equal(redact(input), want, input);
     assert.equal(redact(want), want, `stable: ${want}`);
   }
-  // Left as written, as docs/privacy.md says: a lone /word or \word, D:word, a relative path, a path over two lines.
-  for (const kept of ["/ExampleStuff", "\\ExampleStuff", "D:ExampleStuff\\x", "./someone/x", "someone/x"]) assert.equal(redact(kept), kept, kept);
+  // Left as written, as docs/privacy.md says: a lone /word or \word, D:word, a relative path, and
+  // an encoded share, ~, variable or whole address.
+  for (const kept of ["/ExampleStuff", "\\ExampleStuff", "D:ExampleStuff\\x", "./someone/x", "someone/x", "%5C%5CEXAMPLE-PC%5Cshare", "~%2FExampleStuff", "$HOME%2FExampleStuff%2Fx", "file%3A%2F%2F%2Fmnt%2FExampleDisk"]) assert.equal(redact(kept), kept, kept);
 });
 
 test("paths: an address's path is told from a file's, and amounts pass as written", () => {

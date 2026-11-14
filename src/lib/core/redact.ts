@@ -111,13 +111,16 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 // The folder names in a file path, wherever it points (another drive, a mount, a network share,
 // the log's "found at" line), in the shapes below. Each name is kept only when it names no one.
 //
-// The shapes recognised, with either slash, `%2F` or `%5C` for a slash, bare or in quotes, after a
-// space, a quote, a bracket, `=`, `,`, `;`, `:`, a backtick, `{` or `|`:
+// The shapes recognised, with either slash, bare or in quotes, after a space, a quote, an opening
+// bracket, `=`, `,`, `;`, `:`, a backtick, `{` or `|`:
 // - `/a/b` (two names or more), `\a\b`, `~/a`, `~name/a`, `$HOME/a`, `${HOME}/a`, `%USERPROFILE%\a`
 //   (any variable);
 // - `D:\a`, `D:/a`, `\\?\D:\a`;
 // - a share: `\\host\share`, `\\?\UNC\host\share`, `//host/share`, `smb://host/share`,
 //   `file://host/share`; `file:///…` addresses.
+// Encoded slashes count in two places only: `%2F` at the start of a rooted path (`%2Fa%2Fb`), and
+// `%2F` or `%5C` after a drive letter. An encoded share, `~`, variable root or whole address
+// (`%5C%5Chost`, `~%2Fa`, `file%3A%2F%2F…`) passes as written.
 // Not recognised, and left as written: a lone `/word` or `\word` (a chat command), `D:word` (a
 // drive's current folder), a relative `./a/b` or `a/b`, and a path broken over two lines; hiding
 // those would hide chat commands and addresses' paths, or need a parser. An address's path is not
@@ -135,9 +138,12 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 //   number after `userdata` `[id]`; any other name `[folder]`.
 //
 // Where a bare path ends: a name with spaces in it ("My Games") is taken whole when a slash follows
-// it, and the last name, when it is one that is hidden, runs over spaces up to `: `, `, `, `; `,
-// `. `, ` (` or the end of the line ("…\Alice Smith: denied"), so no part of it is left behind.
-// `'` is part of a name ("Alice's Games"). A path in quotes runs to the closing quote.
+// it. A last name that is hidden takes the words after it with it, up to a sure end (`: `, `, `,
+// `; `, `. `, ` (`, a double quote, the end of the line) or the next mark (`:`, `<`, `>`, `|`,
+// `*`, `?`, `{`, `}`, a backtick, an arrow, or a space before another path or an address), where
+// reading goes on; at a slash the path goes on. No word of the name is left behind ("…\Alice
+// Smith to E:\x" keeps only "E:\x"), and a word too many may go with it. `'` is part of a name
+// ("Alice's Games"). A path in quotes runs to the closing quote.
 
 /** Folder names that name no one, compared without case. */
 const KEEP_FOLDERS = new Set([
@@ -178,8 +184,6 @@ const HTTP_METHOD = /\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+$/;
 const API_ROOT = /^(?:v\d+|api)$/i;
 /** A placeholder another rule left: kept as it is. */
 const PLACEHOLDER = /^\[[a-z ]+\]$/;
-/** The longest folder name (NTFS's and ext4's limit): a run of words longer than this isn't one. */
-const MAX_NAME = 255;
 
 type PathKind = "unix" | "rooted" | "drive" | "share" | "home" | "named-home";
 
@@ -189,6 +193,12 @@ function sepAt(s: string, k: number): number {
   if (c === "/" || c === "\\") return 1;
   return c === "%" && /^%(?:2f|5c)/i.test(s.slice(k, k + 3)) ? 3 : 0;
 }
+
+/** Where the words after a hidden last name stop: a sure end (`: `, `, `, `; `, `. `, ` (`, the
+ *  end of the line) or a mark (`"`, `:`, `<`, `>`, `|`, `*`, `?`, `{`, `}`, a backtick, an arrow). */
+const RUN_STOP = /^(?:[\n"<>|*?:`{}\u2190-\u21ff]|, |; |\. | \()/;
+/** Another path or an address, after a space: the words before it are the name's, not it. */
+const PATH_AHEAD = /^(?:[A-Za-z]:[\\/%]|[~$%\\/]|\.{1,2}[\\/]|[A-Za-z][A-Za-z0-9+.-]*:\/\/)/;
 
 /** Whether a last name (no spaces) would be hidden: then it may run on over spaces. */
 const hiddenName = (t: string) => !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
@@ -208,18 +218,27 @@ function pathEnd(s: string, from: number, quote: string | null, spacedFirst: boo
       let k = i;
       while (k < s.length && !sepAt(s, k) && !/[\n"<>|*?:`{}]/.test(s[k])) k++;
       const name = s.slice(i, k);
-      if (sepAt(s, k) && name.length > 0 && name.length <= MAX_NAME && (spacedFirst || i > from || !/\s/.test(name)) && !/^\s|\s$|\s\s|\s[~.]/.test(name)) j = k;
+      if (sepAt(s, k) && name.length > 0 && (spacedFirst || i > from || !/\s/.test(name)) && !/^\s|\s$|\s[~.]/.test(name)) j = k;
       else {
         // The last name: up to a space or punctuation a path doesn't end with ("…/EE.log: error", "…/EE.log.").
         while (j < s.length && !sepAt(s, j) && !/[\s"<>|*?:,;()`{}]/.test(s[j])) j++;
         while (j > i && /[.']/.test(s[j - 1])) j--;
-        // A last name that is hidden runs on over spaces up to where the line goes on ("…\Alice Smith: denied").
+        // A last name that is hidden takes the words after it with it, up to a sure end or the next
+        // mark ("…\Alice Smith: denied", "…\Alice Smith -> E:\x"): no word of the name is left
+        // behind. At a slash the path goes on ("/srv/Alice  Smith/x").
+        let run = false;
         if (j > i && /^\s/.test(s.slice(j, j + 1)) && hiddenName(s.slice(i, j))) {
-          const m = /^[^\n\\/"<>|*?:`{}]*?(?=:(?:\s|$)|, |; |\. | \(|\.?$|\.?\n)/.exec(s.slice(j));
-          if (m && m[0].length + j - i <= MAX_NAME && !/%2f|%5c|\s[~.]/i.test(m[0])) return j + m[0].length;
+          let e = j;
+          while (e < s.length && !RUN_STOP.test(s.slice(e, e + 2)) && !sepAt(s, e) && !(/\s/.test(s[e]) && PATH_AHEAD.test(s.slice(e + 1, e + 16)))) e++;
+          if (sepAt(s, e)) {
+            j = e;
+            run = true;
+          } else {
+            while (e > j && /[\s=.-]/.test(s[e - 1])) e--;
+            return e;
+          }
         }
-        if (j > i) end = j;
-        return end;
+        if (!run) return j > i ? j : end;
       }
     }
     if (j === i) break;

@@ -338,19 +338,24 @@ it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
 and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids and
-players' names hidden, and so are the folder names in the paths of the shapes MyOrbiter recognises,
-wherever they point (`/mnt/[drive]/[folder]/Warframe/EE.log`). Those shapes are `/a/b`, `\a\b`,
-`~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\a` (any variable), `D:\a` and `D:/a`, `\\?\D:\a`,
-a network share (`\\computer\share`, `\\?\UNC\computer\share`, `//computer/share`,
-`smb://computer/share`, `file://computer/share`) and `file:///` addresses, with either slash, `%5C` or
-`%2F`, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a computer's
-name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's name, the
-root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and MyOrbiter
-make stay. Left as written: a lone `/word` or `\word`, `D:word`, a relative path (`./a/b`), a path
-broken over two lines, and an address's path (`/v2/…`, `/api/…`, after `GET` and the like). A path
-of an unusual shape can pass, which is why the report is shown to you in full before anything is
-sent. The prices of listings and sales are kept: they are public on warframe.market and help find
-a repricing fault.
+players' names hidden. Paths are cleaned by their shape: the folder names in the paths of the
+shapes MyOrbiter recognises are hidden, wherever they point (`/mnt/[drive]/[folder]/Warframe/EE.log`).
+Those shapes are `/a/b`, `\a\b`, `~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\a` (any variable),
+`D:\a` and `D:/a`, `\\?\D:\a`, a network share (`\\computer\share`, `\\?\UNC\computer\share`,
+`//computer/share`, `smb://computer/share`, `file://computer/share`) and `file:///` addresses, with
+either slash, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a
+computer's name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's
+name, the root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and
+MyOrbiter make stay. A folder name with spaces is hidden whole; the words after a hidden last one
+go with it up to the end of the sentence, a mark such as `:`, `>` or `|`, or the next path, so a word
+too many may be hidden.
+Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
+a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
+`file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a
+relative path (`./a/b`), a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
+after `GET` and the like). A path of an unusual shape can pass, which is why the report is shown to
+you in full before anything is sent: read it first. The prices of listings and sales are kept:
+they are public on warframe.market and help find a repricing fault.
 
 ## Links
 
