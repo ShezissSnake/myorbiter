@@ -27,8 +27,12 @@ test("the issue form's field ids and labels are the ones the app uses, the detai
   assert.deepEqual(Object.values(SECTIONS), labels.filter((l) => l !== "Screenshots"), "the clipboard's headings follow the form's order");
   assert.match(form, /id: build\n(?:.*\n)*?\s+placeholder: MyOrbiter 0\.2\.N on Windows 11\n/);
   assert.match(form, /- type: input\n\s+id: build\n/, "a one-line field");
-  assert.match(form, /id: screenshots\n(?:.*\n)*?\s+public too: cover other players' names, chat and anything personal first\./);
+  assert.match(form, /id: screenshots\n(?:.*\n)*?\s+MyOrbiter never attaches any\. They are public too: cover other players' names, chat and\s+anything personal first\./);
   assert.equal([...form.matchAll(/^\s+render: /gm)].length, 1, "render only on the details textarea");
+  assert.deepEqual([...form.matchAll(/^\s+required: (\S+)$/gm)].map((m) => m[1]), ["true", "false", "false", "false", "false", "false"], "only What happened is required");
+  for (const id of ["build", "screenshots"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: >-\\n\\s+Written by the person reporting`), `${id} says it's user-written`);
+  assert.match(form, /id: build\n[\s\S]*?filled in here from\s+the page's address[\s\S]*?you can edit the\s+line/);
+  assert.ok(!/channel/i.test(form), "the form names no channel");
   assert.match(form, /id: details\n(?:.*\n)*?\s+render: text\n/);
   assert.match(form, /^labels: \["bug", "needs-triage"\]$/m);
   for (const id of ["what", "expected", "steps"]) assert.match(form, new RegExp(`id: ${id}\\n(?:.*\\n){2}\\s+description: Written by the person reporting`), `${id} says it's user-written`);
@@ -53,6 +57,8 @@ test("Open on GitHub opens the issue form with only the version, system and arch
   assert.deepEqual([...odd.searchParams.keys()], ["template", "build"]);
   assert.ok(!odd.searchParams.get("build")!.includes("Jane"));
   assert.ok(!odd.searchParams.get("build")!.includes("\n"), "one line, for a one-line field");
+  // An empty environment still gives a readable line.
+  assert.equal(new URL(newIssuePage({ version: "", os: "", arch: "" })).searchParams.get("build"), "MyOrbiter unknown on unknown");
   // The dialog copies the text first, opens only that page, and never builds a link from the report.
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
   const opens = [...ui.matchAll(/openUrl\(([^)]*)\)/g)].map((m) => m[1]);
