@@ -770,7 +770,7 @@
       {:else if proxy.problem}
         <!-- Nothing is sent while the proxy set can't be used: trying again would change nothing. -->
         <h2 class="mark">Can't reach warframe.market</h2>
-        <p class="prose">You're signed in, but nothing is sent: {proxy.problem}</p>
+        <p class="prose">You're signed in, but {proxy.problem}</p>
         <div class="row">{@render signOut()}</div>
       {:else}
         <h2 class="mark">Can't reach warframe.market</h2>
