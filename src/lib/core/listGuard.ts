@@ -166,7 +166,7 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   if (!trust.ok && !r.manual) return refuse(`MyOrbiter can't prove it's spare: ${trust.why}`);
   const kind = kindOfItem(m, r.item);
   const held = heldFor(m, r.item, { rank: r.rank, subtype: r.subtype });
-  const proven = kind ? provenSpare(c, kind, r.item, r.rank, r.subtype) : null;
+  const proven = kind ? provenSpare(c, kind, r.item, r.rank, r.subtype, r.manual === true) : null;
   const stale = trust.ok ? "" : ` (${trust.why})`;
   if (!kind || !proven) {
     if (!r.manual) return refuse("MyOrbiter has no keep rule to count it by");

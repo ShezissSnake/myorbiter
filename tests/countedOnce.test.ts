@@ -84,11 +84,16 @@ test("arcane: with the spare maxed one listed, the unranked copies are refused (
   assert.equal(guardListing(c, { item: energize, rank: 0, subtype: null, quantity: 12, platinum: 10, listedElsewhere: 10, listed: [order("u", "energize", 10, 10, 0)] }).ok, false);
 });
 
-test("arcane: a rank in between draws on the same pool, and its listings count against the other ranks", () => {
+// A rank between 0 and max: listed by hand, it draws on the same pool; nothing automatic lists it.
+const energize3 = () => {
   // 21 unranked, 2 at rank 3 (10 copies each) and 1 maxed (21): 62 copies, 41 beyond the kept maxed one.
   const bundle = { ...arcaneBundle, inventory: [...arcaneBundle.inventory, inv(`${ARC}#3`, "Arcane Energize", "arcane", 2, { rank: 3, max_rank: 5 })] } as Bundle;
-  const c = { ...arcaneCtx(), model: buildModel(bundle) };
-  const at = (rank: number, quantity: number, listed: MyOrder[] = []) => guardListing(c, { item: energize, rank, subtype: null, quantity, platinum: 50, listed });
+  return { ...arcaneCtx(), model: buildModel(bundle) };
+};
+
+test("arcane: a rank in between, by hand, draws on the same pool, and its listings count against the other ranks", () => {
+  const c = energize3();
+  const at = (rank: number, quantity: number, listed: MyOrder[] = []) => guardListing(c, { item: energize, rank, subtype: null, quantity, platinum: 50, listed, manual: true });
   assert.equal(at(3, 2).ok, true, "both held at rank 3");
   assert.equal(at(3, 3).ok, false, "only 2 held at rank 3");
   assert.equal(at(3, 2, [order("u", "energize", 21, 10, 0)]).ok, true, "41 - 21 leaves 20: two at rank 3");
@@ -99,8 +104,31 @@ test("arcane: a rank in between draws on the same pool, and its listings count a
   assert.equal(at(0, 1, [order("t", "energize", 2, 50, 3), order("m", "energize", 1, 200, 5)]).ok, false, "41 - 20 - 21 leaves none");
   // Short of one maxed arcane, nothing at rank 3 is spare.
   const short = { ...arcaneCtx(), model: buildModel({ ...arcaneBundle, inventory: [inv(`${ARC}#3`, "Arcane Energize", "arcane", 2, { rank: 3, max_rank: 5 }), arcaneBundle.inventory[2]] } as Bundle) };
-  const s = guardListing(short, { item: energize, rank: 3, subtype: null, quantity: 1, platinum: 50 });
+  const s = guardListing(short, { item: energize, rank: 3, subtype: null, quantity: 1, platinum: 50, manual: true });
   assert.match(!s.ok ? s.why : "", /The copies toward a maxed one \(20\/21\) are kept/);
+});
+
+test("arcane: a rank in between is never listed automatically (no keep rule, as before)", () => {
+  const g = guardListing(energize3(), { item: energize, rank: 3, subtype: null, quantity: 1, platinum: 50, listed: [] });
+  assert.equal(g.ok, false, `guard passed: ${g.ok ? g.audit : ""}`);
+  assert.match(!g.ok ? g.why : "", /no keep rule to count it by/);
+});
+
+test("arcane: Show all hidden and the last-copy timer don't show a hidden listing at a rank in between", async () => {
+  const sent: unknown[] = [];
+  market.update = (async (id: string, change: unknown) => {
+    sent.push([id, change]);
+    return {} as never;
+  }) as never;
+  market.myOrders = async () => mkt.orders;
+  mkt.items = [energize];
+  mkt.rules = { ...defaultMarketSettings(), minPrice: 1 };
+  mkt.model = energize3().model;
+  const hidden = order("r3", "energize", 1, 50, 3, false);
+  mkt.orders = [hidden];
+  const shown = await mkt.setShown([hidden], true, false);
+  assert.deepEqual(shown, []);
+  assert.deepEqual(sent, [], "the hidden rank-3 listing was shown again");
 });
 
 test("arcane: the listing form doesn't list the kept maxed copy while 21 unranked are up", async () => {
@@ -337,4 +365,113 @@ test("never sell across a set: a hidden set listing isn't shown again while its 
   mkt.orders = [hidden];
   assert.deepEqual(await mkt.setShown([hidden], true), []);
   assert.deepEqual(sent, []);
+});
+
+// ------------------------------------------------------------------ how the store passes your other listings
+
+/** A stand-in warframe.market for the store: your listings as it holds them, and every write. */
+function standIn(listings: MyOrder[]) {
+  const st = { listings: listings.map((o) => ({ ...o })), writes: [] as string[] };
+  let next = 0;
+  market.myOrders = async () => st.listings.map((o) => ({ ...o }));
+  market.book = (async (slug: string) => books[slug] ?? []) as never;
+  market.create = (async (c: { itemId: string; platinum: number; quantity: number; rank: number | null }) => {
+    st.writes.push(`create ${c.itemId} ${c.quantity}`);
+    const o = order(`new${next++}`, c.itemId, c.quantity, c.platinum, c.rank);
+    st.listings.push(o);
+    return o;
+  }) as never;
+  market.update = (async (id: string, c: { quantity?: number; visible?: boolean }) => {
+    st.writes.push(`update ${id}${c.quantity != null ? ` ${c.quantity}` : ""}${c.visible != null ? ` shown ${c.visible}` : ""}`);
+    st.listings = st.listings.map((o) => (o.id === id ? { ...o, quantity: c.quantity ?? o.quantity, visible: c.visible ?? o.visible } : o));
+    return {} as never;
+  }) as never;
+  market.remove = (async (id: string) => {
+    st.writes.push(`remove ${id}`);
+    st.listings = st.listings.filter((o) => o.id !== id);
+  }) as never;
+  return st;
+}
+const store = (m: Model, spares = defaultSparesRules()) => {
+  mkt.items = [set, ...parts];
+  mkt.rules = { ...defaultMarketSettings(), minPrice: 1, minShare: 0, spares };
+  mkt.model = m;
+  mkt.bulk = null;
+  mkt.books = {};
+};
+
+test("show again: a hidden barrel isn't shown while both sets it would come from are listed (the other listings are passed)", async () => {
+  store(broncoModel(2));
+  const hidden = order("b", "barrel", 1, 20, null, false);
+  mkt.orders = [order("s", "bronco", 2, 30), hidden];
+  const st = standIn(mkt.orders);
+  assert.deepEqual(await mkt.setShown([hidden], true, false), []);
+  assert.deepEqual(st.writes, []);
+  // With the sets not listed, the same barrel is shown.
+  mkt.orders = [hidden];
+  standIn(mkt.orders);
+  assert.equal((await mkt.setShown([hidden], true, false)).length, 1);
+});
+
+test("Orders: raising a barrel's quantity past the loose one is refused while both sets are listed (the other listings are passed)", async () => {
+  store(broncoModel(2, 3));
+  const loose = order("b", "barrel", 1, 20);
+  mkt.orders = [order("s", "bronco", 2, 30), loose];
+  const st = standIn(mkt.orders);
+  assert.equal(await mkt.update(loose, { quantity: 2 }), false);
+  assert.deepEqual(st.writes, []);
+  // Without the set listing, two of the three barrels can go.
+  mkt.orders = [loose];
+  const free = standIn(mkt.orders);
+  assert.equal(await mkt.update(loose, { quantity: 2 }), true);
+  assert.deepEqual(free.writes, ["update b 2"]);
+});
+
+test("Apply: each line's last check sees your other listings as the run leaves them", async () => {
+  const m = broncoModel(2, 3);
+  store(m, sellAs("setsFirst"));
+  const st = standIn([order("r", "receiver", 1, 20, null, false)]);
+  mkt.orders = st.listings.map((o) => ({ ...o }));
+  type Req = { item: MarketItem; quantity: number; listed?: readonly { itemId: string; quantity: number }[] };
+  const inner = mkt as unknown as { allowed: (m: Model | null, req: Req, audit: (l: string) => void) => boolean };
+  const allowed = inner.allowed;
+  const seen: { item: string; quantity: number; listed: string[] }[] = [];
+  inner.allowed = function (this: unknown, mm, req, audit) {
+    seen.push({ item: req.item.id, quantity: req.quantity, listed: (req.listed ?? []).map((o) => `${o.itemId} ${o.quantity}`) });
+    return allowed.call(this, mm, req, audit);
+  };
+  try {
+    assert.equal(await mkt.planBulk(m, mkt.rules!, advice), true);
+    const r = await mkt.applyBulk(m, mkt.rules!, advice);
+    assert.equal(r?.outcome, "done", `log: ${mkt.log.map((l) => l.text).join(" / ")}`);
+    assert.ok(seen.length >= 2, `checked: ${JSON.stringify(seen)}`);
+    // The first line sees the hidden receiver; each later one also sees the lines that went up before it.
+    for (let i = 0; i < seen.length; i++) assert.deepEqual(seen[i].listed, ["receiver 1", ...seen.slice(0, i).map((x) => `${x.item} ${x.quantity}`)], `line ${i}: ${JSON.stringify(seen)}`);
+  } finally {
+    inner.allowed = allowed;
+  }
+});
+
+test("Apply: a barrel put on never-sell while the plan is looked over drops the set's line from what is sent", async () => {
+  const m = broncoModel(2);
+  store(m, sellAs("sets"));
+  const st = standIn([]);
+  assert.equal(await mkt.planBulk(m, mkt.rules!, advice), true);
+  assert.deepEqual(creates(mkt.bulk!.actions), ["bronco 2"]);
+  mkt.rules = { ...mkt.rules!, spares: withNeverSell(mkt.rules!.spares, neverBarrel[0]) };
+  const r = await mkt.applyBulk(m, mkt.rules, advice);
+  // Taken as the plan shown (not "changed": the new plan holds the set back too), with nothing to send.
+  assert.equal(r?.outcome, "done");
+  assert.deepEqual(st.writes, []);
+});
+
+test("Spares and the listing form ask the never-sell list across a set, not by item id", async () => {
+  const { readFileSync } = await import("node:fs");
+  const spares = readFileSync(new URL("../src/lib/tabs/Spares.svelte", import.meta.url), "utf8");
+  assert.match(spares, /const never = \$derived\(neverTest\(\{ neverSell: rules\.neverSell \}, model, mkt\.index\)\);/);
+  assert.match(spares, /toApply\(mkt\.bulk\.actions, mkt\.bulk\.skipped, never\)/);
+  assert.match(spares, /return it \? never\(it\) : null;/);
+  const form = readFileSync(new URL("../src/lib/ui/ListDialog.svelte", import.meta.url), "utf8");
+  assert.match(form, /const never = \$derived\(d && item && market\?\.spares \? neverHeld\(market\.spares, model, mkt\.index, item\) : null\);/);
+  assert.match(form, /onsellagain\(never\.by\.map\(\(b\) => b\.id\)\)/);
 });

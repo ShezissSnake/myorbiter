@@ -956,9 +956,10 @@ export interface ProvenSpare {
  * What the keep rules leave you to sell of an item at a rank and variant, or null when no rule
  * applies (MyOrbiter can't count it): a set and the parts to build anything unbuilt, two copies of
  * each mod (five of a Requiem or Antivirus mod while lich weapons are left, every one while that
- * isn't known), copies installed in a build never, the copies of your one maxed arcane.
+ * isn't known), copies installed in a build never, the copies of your one maxed arcane. An arcane
+ * at a rank between 0 and its max has a rule only `byHand` (the listing form, an edit).
  */
-export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, rank: number | null, subtype: string | null): ProvenSpare | null {
+export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, rank: number | null, subtype: string | null, byHand = false): ProvenSpare | null {
   const m = c.model;
   if (kind === "mod") {
     const mod = modRows(m).find((r) => r.unique === it.gameRef) ?? modRows(m).find((r) => r.name === it.name);
@@ -1020,8 +1021,9 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
     const kept = a.complete ? (k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`) : `the copies toward a maxed one (${a.copies}/${a.needed})`;
     return { spare: a.complete ? Math.min(a.unranked, Math.max(0, a.copies - k * a.needed)) : 0, kept, short: `${kept} are kept`, cap: null };
   }
-  // A rank in between: the copies held at it, as far as the copies beyond the kept maxed ones go.
-  if (r > 0 && r < a.maxRank) {
+  // A rank in between, listed by hand only: the copies held at it, as far as the copies beyond the
+  // kept maxed ones go. Nothing automatic lists one (no keep rule, as before).
+  if (byHand && r > 0 && r < a.maxRank) {
     const at = heldFor(m, it, { rank: r, subtype }) ?? 0;
     const kept = !a.complete ? `the copies toward a maxed one (${a.copies}/${a.needed})` : k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`;
     return { spare: a.complete ? Math.min(at, Math.max(0, Math.floor((a.copies - k * a.needed) / copiesForRank(r)))) : 0, kept, short: `${kept} are kept`, cap: null };
