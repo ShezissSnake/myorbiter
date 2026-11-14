@@ -5,6 +5,7 @@
   import { ERAS, type Model } from "../core/model";
   import type { Settings } from "../backend";
   import { openEras, wishItem, wishlistEras, type FarmSpot, type WishItem } from "../core/wishlist";
+  import { readyTag } from "../core/buildPlan";
   import { details } from "../details.svelte";
   import { info } from "../hover.svelte";
   import { placeName } from "../core/describe";
@@ -159,10 +160,13 @@
   // The next thing to do: what's ready to build, else what's closest (fewest parts missing).
   const nextLine = $derived.by(() => {
     const todo = items.filter((w) => !w.c.mastered && !w.c.owned && !w.c.building && !w.c.step && !undo.has(w.c.unique));
-    const ready = todo.filter((w) => !w.missing.length);
-    if (ready.length) return `Can build now: ${ready.map((w) => w.c.name).join(", ")}`;
-    const [w] = [...todo].sort((a, b) => a.missing.length - b.missing.length || (b.odds ?? 0) - (a.odds ?? 0));
-    if (!w) return "Everything you starred is built or mastered";
+    // What the tag on each card says (readyTag), so the line agrees with them.
+    const readyNow = todo.filter((w) => w.c.buildable && readyTag(w.c).tier === "now");
+    if (readyNow.length) return `Can build now: ${readyNow.map((w) => w.c.name).join(", ")}`;
+    const parts = todo.filter((w) => w.c.buildable);
+    if (parts.length) return `Parts ready: ${parts.map((w) => w.c.name).join(", ")}`;
+    const [w] = todo.filter((w) => w.missing.length).sort((a, b) => a.missing.length - b.missing.length || (b.odds ?? 0) - (a.odds ?? 0));
+    if (!w) return todo.length ? "Nothing to collect or build on what you starred: the cards say how to get each" : "Everything you starred is built or mastered";
     const how = w.odds ? ` · ${pct(w.odds)} from your relics` : w.buyCost != null ? ` · ${Math.round(w.buyCost)}p to buy` : "";
     return `Closest: ${w.c.name}, ${w.missing.length} part${w.missing.length === 1 ? "" : "s"} missing${how}`;
   });
@@ -172,7 +176,8 @@
     if (w.c.stepHow) return w.c.stepHow;
     if (w.c.owned) return "In your arsenal: rank it to max for the mastery.";
     if (w.c.building) return "Building in your Foundry: claim it once it's done, then rank it to max.";
-    if (!w.missing.length) return "Every part in hand: build it in your Foundry.";
+    if (w.c.buildable) return readyTag(w.c).sentence;
+    if (!w.missing.length) return w.how;
     return null;
   };
   const liveFor = (era: string) => (open[era]?.length ?? 0) + (open.Omnia?.length ?? 0);
@@ -239,7 +244,7 @@
         {:else}
         {@const next = nextStep(w)}
         <div class="reveal" transition:reveal><div>
-        <article class="wish" class:done={!w.missing.length && !next} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
+        <article class="wish" class:done={w.c.mastered} class:new={added === w.c.unique} data-unique={w.c.unique} data-groups={w.c.groups.join(" ")}>
           <div class="who">
             <button class="art" onclick={() => details.open(w.c.unique)} aria-label="{w.c.name}: details" use:info={w.c.name}><Art file={w.c.image} size={96} fallback="foundry" /></button>
             <div class="wt">
@@ -253,7 +258,7 @@
                 {:else if w.c.step}<span class="tag ok" title={w.c.stepHow}>{w.c.stepTag}</span>
                 {:else if w.c.owned}<span class="tag mastery">Owned · level it</span>
                 {:else if w.c.building}<span class="tag">Building</span>
-                {:else if !w.missing.length}<span class="tag ok" title="Every part in hand: build it in your foundry">Can build now</span>
+                {:else if w.c.buildable}{@const t = readyTag(w.c)}<span class="tag {t.tone}" title={t.title}>{t.label}</span>
                 {:else}
                   {#if w.odds != null && w.odds > 0}<span class="odds" title="Chance your relics give every missing part if you crack each of them once">{pct(w.odds)} <span class="dim small">from your relics</span></span>
                   {:else if uncovered(w)}<span class="dim small">{uncovered(w) === w.missing.length ? "None of the missing parts are in your relics" : `${uncovered(w)} of ${w.missing.length} missing parts aren't in your relics`}</span>{/if}

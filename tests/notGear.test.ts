@@ -150,3 +150,36 @@ test("with the catalog as the data crate slims it (the demo's), a held Gravimag 
   assert.deepEqual(masteryRows(m).filter((r) => mine(r.unique)).map((r) => r.name), []);
   assert.deepEqual(inventoryRows(m).filter((r) => mine(r.unique)).map((r) => [r.name, r.kind, r.levels]), [["Gravimag", "gear", false], ["Carcinnox Mk Iii", "gear", false]]);
 });
+
+// A built kitgun, zaw, amp, MOA or hound is held under a path of its own (never masterable); its mastery
+// goes by the chamber, strike, prism or model, which has its own row. Inventory said "level it" with the
+// "Not mastered" corner on it for good, even with the chamber mastered. Names are not touched here.
+const CHAMBER = "/Lotus/Weapons/SolarisUnited/Secondary/SUModularSecondarySet1/Barrel/SUModularSecondaryBarrelAPart";
+const MODEL = "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo";
+const BUILT = [
+  ["/Lotus/Weapons/SolarisUnited/Primary/LotusModularPrimaryBeam", "Lotus Modular Primary Beam", "weapon"],
+  ["/Lotus/Weapons/Ostron/Melee/LotusModularMelee", "Lotus Modular Melee", "weapon"],
+  ["/Lotus/Weapons/Sentients/OperatorAmplifiers/OperatorAmpWeapon", "Operator Amp Weapon", "weapon"],
+  ["/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit", "Moa Pet Power Suit", "companion"],
+  ["/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetAPowerSuit", "Zanuka Pet A Power Suit", "companion"],
+  ["/Lotus/Types/Vehicles/Hoverboard/HoverboardSuit", "Hoverboard Suit", "frame"],
+] as const;
+
+test("built modular gear is not 'level it' on Inventory, as it is not a row on Mastery", () => {
+  const catalog = [
+    { uniqueName: CHAMBER, name: "Catchmoon", category: "Misc", type: "Kitgun Component", productCategory: "Pistols", masterable: true },
+    { uniqueName: MODEL, name: "Lambeo Moa", category: "Pets", type: "Pets", productCategory: "Pistols", masterable: true },
+  ] as CatalogItem[];
+  const held = [inv(CHAMBER, "Catchmoon", "weapon", 0, { mastered: true }), inv(MODEL, "Lambeo Moa", "companion", 0, { mastered: true }), ...BUILT.map(([id, name, cat]) => inv(id, name, cat, 1))];
+  const m = buildModel(bundle(held, catalog));
+  const built = (u: string) => BUILT.some(([id]) => id === u);
+  assert.deepEqual(masteryRows(m).filter((r) => built(r.unique)).map((r) => r.name), [], "Mastery leaves them out");
+  const rows = inventoryRows(m).filter((r) => built(r.unique));
+  assert.equal(rows.length, BUILT.length, "they are still held gear on Inventory (and for Sell spares)");
+  assert.deepEqual(rows.filter((r) => r.kind === "gear" && r.levels && !r.mastered).map((r) => r.name), [], "no 'level it' and no 'Not mastered' corner");
+  assert.deepEqual(rows.map((r) => [r.name, r.kind, r.levels, r.type]), BUILT.map(([, name, cat]) => [name, "gear", false, cat === "weapon" ? "Weapon" : cat === "companion" ? "Companion" : "Warframe"]), "names and kinds as before");
+  // An ordinary masterable weapon is still gear to level.
+  const braton = { uniqueName: "/Lotus/Weapons/Tenno/Rifle/Braton", name: "Braton", category: "Primary", type: "Rifle", masterable: true } as CatalogItem;
+  const row = inventoryRows(buildModel(bundle([inv(braton.uniqueName, "Braton", "weapon", 1)], [braton])))[0];
+  assert.deepEqual([row.levels, row.mastered], [true, false]);
+});
