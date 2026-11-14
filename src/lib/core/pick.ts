@@ -99,6 +99,22 @@ function neededFor(m: Model, part: { parentUnique: string; parentName: string })
 }
 
 /**
+ * Whether you need a prime part, as the reward screen decides it (and Home's alerts and invasions,
+ * through core/rewardNeed.ts): views.partNeeded, for the item neededFor names. Null when you don't,
+ * or it isn't a prime part. `name` as the model has it.
+ */
+export function partNeed(m: Model, name: string): { item: string; unique: string; have: number; needed: number } | null {
+  const part = m.partByName.get(name)?.[0];
+  if (!part || !partNeeded(m, part)) return null;
+  return { item: neededFor(m, part), unique: part.parentUnique, have: m.partHave(name), needed: primeToBuild(m, part.parentUnique).copies * part.required };
+}
+
+/** The set a prime part would finish (`missing` 1) or bring to one part short (2), if any. */
+export function setGap(m: Model, name: string): { set: string; missing: number } | null {
+  return setGapsByPart(m).get(name) ?? null;
+}
+
+/**
  * `live`: prices by card name from the reward screen itself (what TennoScope's overlay shows,
  * checked on warframe.market moments ago). They win over the daily median, so the score and the
  * number on the card agree.
@@ -113,8 +129,7 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
     const formaValue = Number.isFinite(w.forma) && w.forma > 0 ? w.forma : 0;
     const price = forma && formaValue ? forma * formaValue : market;
     const ducats = part?.ducats ?? 0;
-    let needed = false;
-    if (part) needed = partNeeded(m, part);
+    const needed = partNeed(m, name) != null;
     const gap = gaps.get(name);
     const set = gap ? (gap.missing === 1 ? 1 : 0.5) : 0;
     return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? neededFor(m, part) : null, set, setName: gap?.set ?? null };

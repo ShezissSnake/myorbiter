@@ -54,16 +54,17 @@ const CARDS: Walkthrough = {
       title: "Needs you",
       lines: [
         "Alerts and invasions paying toward gear you haven't mastered, in gold; rare rewards too.",
+        "Marks as on the reward screen: need, completes set, wishlist, held; none for resources.",
         "× dismisses one for good, with a few seconds to undo.",
         "Listings for more than you hold, a status problem and Varzia's rotation ending show too.",
-        "Listings and status problems can't be dismissed: they go once fixed.",
       ],
       shot: {
         open: "home",
         part: card("alerts"),
         marks: [
           { at: `${card("alerts")} .aslot:first-child .alert`, is: "n", n: 1, from: "corner" },
-          { at: `${card("alerts")} button[aria-label='Dismiss']`, is: "n", n: 2, from: "corner" },
+          { at: `${card("alerts")} .alert .marks .tag.warn`, is: "n", n: 2, from: "right" },
+          { at: `${card("alerts")} button[aria-label='Dismiss']`, is: "n", n: 3, from: "corner" },
         ],
       },
     },

@@ -145,6 +145,9 @@
   const toDissolve = $derived(spares.filter((x) => x.verdict === "dissolve"));
   const held = $derived(vosforHeld(model));
   const gain = $derived(toDissolve.reduce((n, x) => n + (x.vosfor ?? 0), 0));
+  /** Still collecting: the packs that can give arcanes you still need, most of them first; and those with none. */
+  const toOpen = $derived([...packs].filter((p) => p.wanted.length).sort((a, b) => b.wanted.length - a.wanted.length || b.needCopies - a.needCopies));
+  const done = $derived(packs.filter((p) => !p.wanted.length));
   const rankedPacks = $derived([...packs].sort((a, b) => (lens === "need" ? b.needPlat - a.needPlat || b.needCopies - a.needCopies : b.plat - a.plat)));
   const short = (pack: string) => pack.replace(/ Arcane Collection$/, "");
   /** The usual reasons go without saying on every row; the hover still has them. */
@@ -295,7 +298,33 @@
     { v: "spares", label: "Sell or dissolve", title: "Copies beyond the one you keep: sell them, or dissolve them for Vosfor" },
     { v: "all", label: "All arcanes", title: "Every arcane, held or not" },
   ]} /></div>
-  <!-- Loid's packs above the filters, so the filters and the sort row under them stay together. -->
+  <!-- Loid's packs above the filters, so the filters and the sort row under them stay together.
+       Still collecting: which packs to open, ranked by how many of the arcanes still to collect
+       each can give (the same figures as below, from packValues). Sell or dissolve: what a pack is
+       worth, for weighing a dissolution. -->
+  {#if show === "unfinished" && packs.length}
+  <section class="vosfor toopen" aria-labelledby="packs-open-h">
+    <header>
+      <h2 class="register" id="packs-open-h"><GameIcon name="vosfor" size={18} /> Which packs to open</h2>
+      <HelpMark part="arcanes.open" />
+    </header>
+    {#if toOpen.length}
+      <p class="lead">Open <b>{short(toOpen[0].name)}</b> packs first: {toOpen[0].wanted.length} of the arcanes you're still collecting come from them{toOpen.length > 1 ? `, then ${toOpen.slice(1, 3).map((p) => `${short(p.name)} (${p.wanted.length})`).join(", ")}` : ""}.</p>
+      <p class="small dim">Each pack at Loid costs 200 Vosfor and gives 3 arcanes from its collection, so the more of a collection you still need, the likelier a pack holds one. You hold {held.toLocaleString("en")} Vosfor: {Math.floor(held / 200)} pack{Math.floor(held / 200) === 1 ? "" : "s"}.</p>
+      <ol class="openlist">
+        {#each toOpen as p (p.name)}
+          <li>
+            <span class="oh"><b class="mark">{short(p.name)}</b><span class="dim small" title="On average {p.needCopies.toFixed(1)} of a pack's three arcanes are ones you're still collecting">{p.wanted.length} you still need · about {p.needCopies.toFixed(1)} of each pack's 3</span></span>
+            <span class="wanted">{#each p.wanted as w (w.name)}<span use:info={w.name}><Thumb file={model.imageOf(w.name)} size={18} />{w.name}</span>{/each}</span>
+          </li>
+        {/each}
+      </ol>
+      {#if done.length}<p class="small dim">Nothing you still need from {done.map((p) => short(p.name)).join(", ")}.</p>{/if}
+    {:else}
+      <p class="small dim">Every arcane in Loid's packs is maxed or has enough copies to max: no pack has anything you still need.</p>
+    {/if}
+  </section>
+  {/if}
   {#if show === "spares"}
   <section class="vosfor">
     <header>
@@ -308,6 +337,7 @@
     </header>
     <p class="small dim">You hold <b>{held.toLocaleString("en")}</b> Vosfor{gain ? `, ${(held + gain).toLocaleString("en")} after dissolving what's marked Dissolve` : ""}: {Math.floor((held + gain) / 200)} pack{Math.floor((held + gain) / 200) === 1 ? "" : "s"}. Best pack {lens === "need" ? "for what you're collecting" : "by market value"}: <b>{worth.best ? short(worth.best.name) : "none"}</b>, about {worth.perVosfor ? (worth.perVosfor * 200).toFixed(0) : 0}p a pack.</p>
     <p class="small dim" title="The wiki lists Vosfor per unranked arcane and doesn't say how rank changes it">A ranked copy is counted as the copies it's made of (a maxed one is 21, or 10 for arcanes that max at R3). Loid shows the exact Vosfor before you confirm a dissolution.</p>
+    <p class="small dim">{lens === "market" ? "“≈ …p / pack” is what one pack's three arcanes would sell for, on average, each copy at its own price or its share of a maxed one, whichever is less." : "“≈ …p / pack” is what the arcanes in one pack that you're still collecting would cost to buy, on average."} The best pack sets what a Vosfor is worth when weighing a dissolution.</p>
     <div class="packs">
       {#each rankedPacks as p (p.name)}
         <div class="pack" class:best={p === worth.best}>
@@ -371,6 +401,12 @@
   .vosfor header .register { display: inline-flex; align-items: center; gap: .5rem; color: var(--platinum); }
   .vosfor p { margin: 0; }
   .vosfor p b { color: var(--platinum); font-weight: 600; }
+  .toopen h2 { margin: 0; display: inline-flex; align-items: center; gap: .5rem; color: var(--platinum); font-size: inherit; }
+  .toopen .lead { margin: 0; color: var(--platinum); }
+  .openlist { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+  .openlist li { display: grid; gap: .3rem; padding: .5rem .7rem; border: 1px solid var(--rule); background: var(--raised); }
+  .openlist li:first-child { border-color: color-mix(in srgb, var(--gold) 45%, var(--rule)); }
+  .openlist .oh { display: flex; flex-wrap: wrap; align-items: baseline; gap: .3rem .8rem; }
   .packs { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: .5rem; }
   .pack { border: 1px solid var(--rule); padding: .55rem .7rem; display: grid; gap: .45rem; align-content: start; background: var(--well); }
   .pack.best { border-color: var(--verdigris); box-shadow: inset 3px 0 0 var(--verdigris); }

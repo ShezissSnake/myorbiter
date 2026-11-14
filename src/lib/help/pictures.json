@@ -29,6 +29,12 @@
     "h": 550,
     "bytes": 61316
   },
+  "arcanes-open-1.webp": {
+    "hash": "f5da6b16cfd3f70a",
+    "w": 967,
+    "h": 407,
+    "bytes": 54658
+  },
   "browse-1.webp": {
     "hash": "c99fe30185dbf9fd",
     "w": 1006,
@@ -150,22 +156,22 @@
     "bytes": 13792
   },
   "home-3.webp": {
-    "hash": "f146c30403d031f0",
+    "hash": "44e73efda72a0c69",
     "w": 1007,
-    "h": 347,
-    "bytes": 31610
+    "h": 392,
+    "bytes": 36514
   },
   "home-4.webp": {
     "hash": "829bdc62896ec0b6",
     "w": 584,
-    "h": 328,
-    "bytes": 19476
+    "h": 327,
+    "bytes": 19450
   },
   "home-5.webp": {
     "hash": "269a0a8b8090bec7",
     "w": 422,
-    "h": 328,
-    "bytes": 19238
+    "h": 327,
+    "bytes": 18812
   },
   "home-collection-1.webp": {
     "hash": "e8497a562a78bcca",

@@ -21,6 +21,8 @@
   import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
+  import { anyMark, NO_MARKS, rewardMarks, type RewardMarks } from "../core/rewardNeed";
+  import NeedTags from "../ui/NeedTags.svelte";
   import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
@@ -338,6 +340,8 @@
     act: string;
     to: string;
     hint: string;
+    /** An alert's or invasion's reward: whether you need it, in the reward screen's marks (core/rewardNeed.ts). */
+    marks?: RewardMarks;
   }
   const dismissed = $derived(new Set(settings.homeDismissed));
   function dismiss(key: string) {
@@ -377,16 +381,18 @@
   function toggleChore(key: string, resets: string) {
     settings.chores = setDone(settings.chores, key, resets, !doneNow(key, resets));
   }
+  /** A reward's marks; none on a console (no inventory to go by). */
+  const marksOf = (item: { uniqueName?: string; name: string }): RewardMarks => (console || !model ? NO_MARKS : rewardMarks(model, item, settings.favourites));
   const all = () => {
     const out: Alert[] = [];
     // Alerts and invasions rewarding a part for something you haven't mastered: they don't come back on demand.
     for (const a of worldAlerts.mastery) {
       const h = a.help!;
-      out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", image: model?.imageOf(h.item) ?? null, title: a.reward, sub: `${h.whole ? "" : `toward ${h.item} · `}${h.points.toLocaleString("en")} mastery${h.needed > 1 ? ` · ${h.have} of ${h.needed}` : ""} · ${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with something you haven't mastered: ${describeHelp(a.reward, h)}. ${a.mission} on ${a.node}` });
+      out.push({ key: `alert|${a.key}`, tone: "gold", icon: "mastery", image: model?.imageOf(h.item) ?? null, title: a.reward, sub: `${h.whole ? "" : `toward ${h.item} · `}${h.points.toLocaleString("en")} mastery${h.needed > 1 ? ` · ${h.have} of ${h.needed}` : ""} · ${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with something you haven't mastered: ${describeHelp(a.reward, h)}. ${a.mission} on ${a.node}`, marks: marksOf(a.item) });
     }
-    for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}` });
-    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, sides: n.attacker && n.defender ? [n.attacker, n.defender] : null, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}` });
-    for (const n of rareInvasions) out.push({ key: `invasion|${n.key}`, tone: "info", icon: "invasion", image: model?.imageOf(n.reward.replace(/^\d+ × /, "")) ?? null, title: n.reward, sub: `invasion · ${n.node}`, side: n.side, progress: n.completion, act: "", to: "", hint: `An invasion at ${n.node} pays a rare reward, ${n.reward}: side with the ${n.side}. Three runs earn it` });
+    for (const a of worldAlerts.rare) out.push({ key: `alert|${a.key}`, tone: "info", icon: "sortie", image: model?.imageOf(a.reward.replace(/^\d+ × /, "")) ?? null, title: a.reward, sub: `${a.mission} on ${a.node}`, foe: a.faction, expiry: a.expiry, act: "", to: "", hint: `An alert with a rare reward: ${a.reward}. ${a.mission} on ${a.node}`, marks: marksOf(a.item) });
+    if (!console) for (const n of invasions) out.push({ key: `invasion|${n.key}`, tone: "gold", icon: "invasion", image: n.itemImage, title: n.reward, sub: `toward ${n.item}${n.needed > 1 ? ` · ${n.have} of ${n.needed}` : ""} · ${n.node}`, side: n.side, progress: n.completion, sides: n.attacker && n.defender ? [n.attacker, n.defender] : null, act: "Mastery", to: "mastery", hint: `An invasion at ${n.node} rewards ${n.reward} for ${n.item}, which you haven't mastered: side with the ${n.side}`, marks: marksOf({ uniqueName: n.uniqueName, name: n.reward }) });
+    for (const n of rareInvasions) out.push({ key: `invasion|${n.key}`, tone: "info", icon: "invasion", image: model?.imageOf(n.reward.replace(/^\d+ × /, "")) ?? null, title: n.reward, sub: `invasion · ${n.node}`, side: n.side, progress: n.completion, act: "", to: "", hint: `An invasion at ${n.node} pays a rare reward, ${n.reward}: side with the ${n.side}. Three runs earn it`, marks: marksOf(n.item) });
     if (shortListings.length) out.push({ key: null, tone: "gold", icon: "market", title: "Listed more than you hold", sub: `${shortListings.length} listing${shortListings.length === 1 ? "" : "s"}${hiddenShort ? ` (+${hiddenShort} hidden)` : ""}: sold in game, or listed by mistake. Fix them on Orders`, act: "Open Orders", to: "market", hint: "Your visible listings on warframe.market for more copies than your inventory holds" });
     const statusError = mkt.statusError ?? mkt.status?.error;
     if (statusError) out.push({ key: null, tone: "red", icon: "market", title: "warframe.market status", sub: statusError, act: "Open Orders", to: "market", hint: `Your status on warframe.market couldn't be set: ${statusError}` });
@@ -539,6 +545,7 @@
           {#if a.image}<span class="art"><Thumb file={a.image} name={a.title} size={38} /><span class="badge"><GameIcon name={a.icon} size={16} /></span></span>{:else}<span class="art"><GameIcon name={a.icon} size={30} /></span>{/if}
           <span class="tx">
             <b>{a.title}</b>
+            {#if a.marks && anyMark(a.marks)}<span class="marks"><NeedTags marks={a.marks} /></span>{/if}
             <span class="dim small where">{a.sub}{#if a.foe}&ensp;<Foe enemy={a.foe} size={13} />{/if}{#if a.side}&ensp;<span class="side">side with <Foe enemy={a.side} size={13} /></span>{/if}</span>
             {#if a.progress != null && a.sides}
               {@const at = Math.max(0, Math.min(100, a.progress))}
@@ -1012,6 +1019,9 @@
   .alert .badge { position: absolute; right: -6px; bottom: -5px; display: inline-flex; padding: 1px; background: var(--plate); border: 1px solid var(--rule); }
   .alert .tx { flex: 1; display: grid; gap: .12rem; min-width: 0; }
   .alert .tx b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* Whether the reward is needed, in the reward screen's marks: a needed one in filled gold. */
+  .alert .marks { display: flex; flex-wrap: wrap; gap: .25rem; min-width: 0; }
+  .alert .marks :global(.tag) { margin-left: 0; }
   .alert .where { display: flex; flex-wrap: wrap; align-items: center; gap: 0 .1rem; }
   .alert .side { display: inline-flex; align-items: center; gap: .3rem; color: var(--gold); }
   .alert .prog { display: flex; margin-top: .3rem; max-width: 20rem; }
