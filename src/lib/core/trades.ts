@@ -112,16 +112,6 @@ export function listingFor(it: MarketItem, rank: number | null, subtype: string 
 }
 
 /**
- * Whether the game log's trades can be acted on yet. Not before your listings are read
- * (MyOrbiter starting, or back after an outage): matched against none, every sale would log as
- * "not listed" and its listing would stay up. Nor before your collection (the model) is built:
- * without it a whole set handed over part by part is logged as its parts (foldSets), and a later
- * Import of the set's closed order would add it again. Trades are acted on for half an hour, so
- * waiting loses none.
- */
-export const tradesReady = (s: { linked: boolean; ordersAt: number | null; items: number; model: Model | null }) => s.linked && s.ordersAt != null && s.items > 0 && s.model != null;
-
-/**
  * Which trades of a read of the game log to act on (mark sold, log the sale): `fresh`, the keys of
  * the ones not seen before, to remember whether or not they're acted on; `recent`, those of them
  * from the last half hour (recentTrade). A trade already seen (the same game session and time,

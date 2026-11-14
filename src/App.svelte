@@ -4,7 +4,7 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesReady, tradesToMark } from "./lib/core/trades";
+  import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1474,8 +1474,9 @@
   $effect(() => {
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
-    // Not before your listings are read and your collection is built (tradesReady).
-    if (!trades.length || !tradesReady({ linked: mkt.linked, ordersAt: mkt.ordersAt, items: mkt.items.length, model })) return;
+    // Not before your listings are read (MyOrbiter starting, or back after an outage): matched
+    // against none, every sale would log as "not listed" and its listing would stay up.
+    if (!trades.length || !mkt.linked || mkt.ordersAt == null || !mkt.items.length) return;
     untrack(() => {
       // A sale logged from one of these trades before MyOrbiter could read its rank (an arcane's
       // pips): the rank is filled in now, so it's compared with the right price.
