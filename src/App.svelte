@@ -3400,10 +3400,10 @@
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
   /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
      picture without pointing at it; its name is the picture and the tooltip. */
-  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 8px; padding: 0 10px; }
+  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 6px; padding: 0 0 0 8px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   /* Two cells are narrow for the register's capitals: the state in plain words there. */
-  .tools.grid :global(.sync .lbls.aside) { font-family: var(--face-text); font-size: 12px; letter-spacing: 0; text-transform: none; }
+  .tools.grid :global(.sync .lbls.aside) { font-family: var(--face-text); font-size: 11px; letter-spacing: 0; text-transform: none; }
   .tools.grid :global(.tool.on) { box-shadow: inset 0 -2px 0 var(--platinum); }
   .tools.grid .bell .count { position: absolute; top: -2px; right: 4px; margin: 0; }
   .tools.grid .bell.paused::after { left: 50%; }
