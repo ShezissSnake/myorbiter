@@ -117,7 +117,19 @@ test("relics: every relic the old rule kept is still kept, on the demo account a
   }
 });
 
-test("relics: on the demo account the plan offers no relic it didn't offer before, and lists none that drops a needed part", () => {
+test("relics: on the demo account the tag on Relics and what Sell spares keeps name the same relics and parts", () => {
+  const m = buildModel(demo("dev-bundle.json") as Bundle, undefined, null, null, null, demo("dev-recipe-data.json"));
+  const tagged = new Map<string, string[]>();
+  for (const r of relicRows(m, { includeUnowned: true })) {
+    const needed = r.rewards.filter((x) => x.needed).map((x) => x.name);
+    if (needed.length) tagged.set(r.base, needed.sort());
+  }
+  const kept = new Map([...relicsYouNeed(m)].map(([base, parts]) => [base, [...parts].sort()]));
+  assert.ok(tagged.size > 0);
+  assert.deepEqual(kept, tagged);
+});
+
+test("relics: on the demo account the plan offers no relic that drops a needed part, and the spare rows keep each one whole", () => {
   const m = buildModel(demo("dev-bundle.json") as Bundle, undefined, null, null, null, demo("dev-recipe-data.json"));
   const index = indexItems(demo("dev-market-items.json"));
   const rules = defaultSparesRules();
@@ -129,4 +141,18 @@ test("relics: on the demo account the plan offers no relic it didn't offer befor
   for (const r of spareRows(m, index, sell).filter((x) => x.kind === "relic")) {
     if (kept.has(r.name.replace(/ Relic$/, ""))) assert.equal(r.spare, 0, `${r.name} (${r.subtype}) is kept whole`);
   }
+});
+
+test("texts: Sell spares' Relics row and the Guide's What you can spare say a relic is kept by the test that tags it need", () => {
+  const plan = readFileSync(new URL("../src/lib/ui/SparesPlan.svelte", import.meta.url), "utf8");
+  const guide = readFileSync(new URL("../src/lib/tabs/Guide.svelte", import.meta.url), "utf8");
+  const always = plan.match(/always="Always kept: relics[^"]*"/)?.[0] ?? "";
+  const spare = guide.split("\n").find((l) => l.includes("<li>What you can spare")) ?? "";
+  for (const [where, text] of [["Sell spares, Relics", always], ["Guide, What you can spare", spare]]) {
+    assert.ok(text, `${where} is found`);
+    assert.doesNotMatch(text, /a part you lack for a prime you haven't built or mastered/, `${where}: not the old rule`);
+    assert.match(text, /drops? a part you still need/, `${where}: a part still needed`);
+    assert.match(text, /need on Relics|Relics tags need/, `${where}: by the test Relics tags need by`);
+  }
+  assert.match(always, /a weapon made from it/, "the Ak weapon's second copy is named");
 });
