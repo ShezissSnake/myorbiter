@@ -648,8 +648,9 @@ fn discord_kept(app: &tauri::AppHandle) -> Result<(PathBuf, Option<String>), Str
 }
 
 /// Notifications → Choose → Discord: whether `url` is the address the player confirmed, asking
-/// when it's new. The page calls this while the player is there: when an address is pasted, and
-/// once as MyOrbiter starts for one saved before (`discord_post` never asks). A new address is
+/// when it's new. The page calls this while the player is there (`discordAsk`): when the address
+/// field is left, by Send a test to Discord, and once as MyOrbiter starts for one saved before
+/// (`discord_post` never asks). A new address is
 /// confirmed in a native dialog over MyOrbiter's window (not in the page), which names the webhook
 /// (never its token); a yes keeps it in MyOrbiter's config folder (`discord-webhook`), which the
 /// page can't write, in place of the one before. While a dialog is open, another new address is

@@ -1,7 +1,7 @@
 <script lang="ts">
   // The bell in the sidebar: what MyOrbiter told you lately (click one to open what it's about), and
   // what it tells you about, kind by kind, with a pause for all of them.
-  import { discordConfirm, discordFieldAction, discordForget, discordPost, isDiscordWebhook, type Settings } from "./backend";
+  import { discordAsk, discordFieldAction, discordForget, discordPost, isDiscordWebhook, type Settings } from "./backend";
   import { discordStatus, discordSent } from "./discordStatus.svelte";
   import { GROUP_NOTE, kindsFor, NOTICE_KINDS, noticeKind, outcomeText, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeKindInfo, type NoticeOutcome } from "./notices";
   import { pageById, type PageId } from "./pages";
@@ -139,26 +139,24 @@
   }
   // An emptied field removes the confirmed address MyOrbiter kept as soon as it is empty; a webhook
   // address is asked about when the field is left. The event's own value is read, so this doesn't
-  // rest on when the binding writes the setting. A yes that comes back after the field was emptied
-  // (the dialog doesn't hold MyOrbiter's window) is removed again. A failed removal is logged on
-  // the Rust side.
+  // rest on when the binding writes the setting. Whether the confirmation dialog holds MyOrbiter's
+  // window is not shown by the dialog's code (on Linux it has no parent window but is modal; on
+  // Windows it has a parent), so `discordAsk` removes a yes that comes back after the field was
+  // emptied either way. A failed removal is logged on the Rust side.
+  const discordUrlNow = () => settings.notifyOptions.discord.url;
   function discordField(event: "input" | "change" | "blur", value: string) {
     const action = discordFieldAction(value, event);
     if (action === "forget") void discordForget(value).catch(() => {});
-    else if (action === "confirm")
-      void discordConfirm(value)
-        .then((yes) => {
-          const now = settings.notifyOptions.discord.url;
-          if (yes && discordFieldAction(now, "input") === "forget") return discordForget(now);
-        })
-        .catch(() => {});
+    else if (action === "confirm") void discordAsk(value, discordUrlNow).catch(() => {});
   }
   // The test: working while it posts (a second click does nothing), then "Sent" or why not.
   const discordJob = new Job(4000);
   function testDiscord() {
     void discordJob.run(async () => {
       const url = settings.notifyOptions.discord.url;
-      if (!(await discordConfirm(url))) throw new Error("not confirmed: say yes in the window MyOrbiter shows");
+      const answer = await discordAsk(url, discordUrlNow);
+      if (answer === "emptied") throw new Error("not sent: the address field was emptied");
+      if (answer === "no") throw new Error("not confirmed: say yes in the window MyOrbiter shows");
       await discordPost(url, "**MyOrbiter**\nThis is how notifications will look here.");
       discordSent(null);
       return "Sent";

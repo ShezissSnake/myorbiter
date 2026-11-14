@@ -446,7 +446,8 @@ export const isDiscordWebhook = (url: string) => /^https:\/\/(?:(?:ptb\.|canary\
 /**
  * Whether MyOrbiter may post to this Discord address: true once confirmed. A new one is asked about
  * in a window of MyOrbiter's own (not the page); false when the answer was no, or another question
- * is open. Called while the player is there: when an address is pasted, and as MyOrbiter starts.
+ * is open. Called while the player is there, through `discordAsk`: when the address field is left,
+ * by *Send a test to Discord*, and as MyOrbiter starts.
  */
 export async function discordConfirm(url: string): Promise<boolean> {
   if (!isDiscordWebhook(url)) return false;
@@ -473,6 +474,25 @@ export function discordFieldAction(value: string, event: "input" | "change" | "b
 export async function discordForget(field: string): Promise<void> {
   if (field.trim() !== "") return;
   if (inTauri) await invoke("discord_forget", { field });
+}
+
+/**
+ * Asks about a Discord address (`discordConfirm`) for every caller: the address field, *Send a test
+ * to Discord* and the start. `fieldNow` reads the address in the settings when the answer comes
+ * back: a yes given after the field was emptied (while the question was open) wrote the file with
+ * the field empty, so the file is removed again and the answer is "emptied", not a yes. `io` is
+ * there for the tests.
+ */
+export async function discordAsk(
+  url: string,
+  fieldNow: () => string,
+  io: { confirm: (url: string) => Promise<boolean>; forget: (field: string) => Promise<void> } = { confirm: discordConfirm, forget: discordForget },
+): Promise<"yes" | "no" | "emptied"> {
+  if (!(await io.confirm(url))) return "no";
+  const now = fieldNow();
+  if (now.trim() !== "") return "yes";
+  await io.forget(now);
+  return "emptied";
 }
 
 /** Posts a notification to your Discord webhook. */
