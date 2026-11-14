@@ -649,16 +649,20 @@
     if (soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut)?.busy !== false) return;
     sending[o.id] = o;
     keptPlans.set(o.id, plans.get(o.id));
-    return rowAct(o.id, { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" }, async () => {
-      const keys = claimTradeSale(l, settings.sales, Date.now(), thatOut);
-      if (!keys) throw new Error("already being marked sold from another listing, or no longer waiting");
+    const words = { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" };
+    return rowAct(o.id, words, async () => {
+      // Never more than is still not marked (claimTradeSale): another listing's answer may have marked some.
+      const claim = claimTradeSale(l, settings.sales, Date.now(), thatOut, count);
+      if (!claim) throw new Error("already being marked sold from another listing");
+      if (claim.send < count) words.done = claim.send ? `${claim.send} marked: the rest of that trade was marked already` : "None marked: that trade was marked already";
+      if (!claim.send) return;
       try {
         let why = "";
-        const sale = await mkt.sold(o, count, { failed: (r) => (why = r) });
+        const sale = await mkt.sold(o, claim.send, { failed: (r) => (why = r) });
         if (!sale) throw new Error(why || "warframe.market didn't take it");
         settings.sales = markedForTrade(settings.sales, l, sale.quantity, Date.now());
       } finally {
-        for (const k of keys) thatOut.delete(k);
+        for (const k of claim.keys) thatOut.delete(k);
       }
     });
   }

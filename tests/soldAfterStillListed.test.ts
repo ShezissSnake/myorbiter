@@ -92,19 +92,91 @@ test("a refusal on one refinement's listing does not ask, or lower, on the other
 test("two listings answered one after the other: one 'that sale' at a time for a trade's copies", () => {
   const out = new Set<string>();
   // No sure listing: both listings of it ask.
-  assert.deepEqual(claimTradeSale(o1, [noListing], now, out), ["s|1"]);
-  assert.equal(claimTradeSale(o2, [noListing], now, out), null, "the second answer sends nothing while the first is out");
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  assert.equal(claimTradeSale(o2, [noListing], now, out, 2), null, "the second answer sends nothing while the first is out");
   assert.equal(soldAfterUnmarked(o2, [noListing], [trade], now, out)?.busy, true);
   // The first is back and recorded: the copies are marked, nothing is left for the second.
   out.delete("s|1");
   const after = markedForTrade([noListing], o1, 2, now);
-  assert.equal(claimTradeSale(o2, after, now, out), null);
+  assert.deepEqual(claimTradeSale(o2, after, now, out, 2), { keys: [], send: 0 });
+  assert.equal(out.size, 0, "nothing claimed when nothing is waiting");
   assert.equal(soldAfterUnmarked(o2, after, [trade], now), null);
   // Refused: the record unchanged and the claim given back, the next click may claim again.
-  assert.deepEqual(claimTradeSale(o2, [noListing], now, out), ["s|1"]);
-  // Nothing waiting: nothing to claim.
-  assert.equal(claimTradeSale(o1, [], now, new Set()), null);
+  assert.deepEqual(claimTradeSale(o2, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  // Nothing waiting: nothing to send.
+  assert.deepEqual(claimTradeSale(o1, [], now, new Set(), 2), { keys: [], send: 0 });
+  // Nothing to send claims nothing, so no claim is left behind.
+  const none = new Set<string>();
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, none, 0), { keys: [], send: 0 });
+  assert.equal(none.size, 0);
 });
+
+{
+  // The review's sequence, on the functions the Orders page calls: a trade of 3 with no sure
+  // listing; listings A (2 copies) and B (5) of the item. mkt.sold closes at most what is listed.
+  const three: Sale = { ...stillListed, quantity: 3, unmarked: { listing: null, count: 3, at: at + 5_000 } };
+  const A: SoldListing = { ...o1, id: "A" };
+  const B: SoldListing = { ...o1, id: "B" };
+  const listed: Record<string, number> = {};
+  const sold = (id: string, n: number) => {
+    const k = Math.min(n, listed[id]);
+    listed[id] -= k;
+    return k;
+  };
+  /** What a "that sale" answer (or its Try again) does: the claim, the call, the record, the claim given back. */
+  const answer = (l: SoldListing, sales: Sale[], out: Set<string>, asked: number, refused = false): { sales: Sale[]; closed: number } => {
+    const claim = claimTradeSale(l, sales, now, out, asked);
+    if (!claim || !claim.send) return { sales, closed: 0 };
+    const closed = refused ? 0 : sold(l.id, claim.send);
+    for (const k of claim.keys) out.delete(k);
+    return { sales: closed ? markedForTrade(sales, l, closed, now) : sales, closed };
+  };
+  /** The copies the question offers on a listing: the trade's not marked, at most what is listed (soldAnswers' "that"). */
+  const shown = (l: SoldListing, sales: Sale[], out: Set<string>) => soldAnswers(1, Math.min(soldAfterUnmarked(l, sales, [trade], now, out)!.count, listed[l.id])).that;
+
+  test("the review's sequence: B's question opened while A's call is out, A back, then B answered: 3 closed in all, never 5", () => {
+    listed.A = 2;
+    listed.B = 5;
+    const out = new Set<string>();
+    // A answered: claimed, its call out.
+    const claimA = claimTradeSale(A, [three], now, out, shown(A, [three], out))!;
+    assert.equal(claimA.send, 2);
+    // B's question opens meanwhile: it shows 3, its Yes off.
+    const askedB = shown(B, [three], out);
+    assert.deepEqual([askedB, soldAfterUnmarked(B, [three], [trade], now, out)!.busy], [3, true]);
+    // A's call back: 2 closed and recorded.
+    const closedA = sold("A", claimA.send);
+    let sales = markedForTrade([three], A, closedA, now);
+    for (const k of claimA.keys) out.delete(k);
+    // B answered with the 3 it showed: only the 1 still not marked is sent.
+    const b = answer(B, sales, out, askedB);
+    sales = b.sales;
+    assert.equal(b.closed, 1);
+    assert.equal(closedA + b.closed, 3);
+    assert.deepEqual([listed.A, listed.B], [0, 4]);
+    assert.equal(soldAfterUnmarked(B, sales, [trade], now), null, "nothing left to ask about");
+    assert.equal(revenue(sales, [{ ...trade, offered: [{ name: "Serration", rank: 10, count: 3 }], platIn: 60 }]), 60);
+  });
+
+  test("the same with Try again: a refused answer sent again after another listing marked the copies sends only what is left", () => {
+    listed.A = 2;
+    listed.B = 5;
+    const out = new Set<string>();
+    // B answered with 3 and refused: nothing closed, the claim given back.
+    const askedB = shown(B, [three], out);
+    assert.equal(answer(B, [three], out, askedB, true).closed, 0);
+    // A answered meanwhile: 2 closed.
+    const a = answer(A, [three], out, shown(A, [three], out));
+    assert.equal(a.closed, 2);
+    // B's Try again, with the 3 it was given: 1 sent.
+    const again = answer(B, a.sales, out, askedB);
+    assert.equal(a.closed + again.closed, 3);
+    // And a Try again once all is marked: nothing is sent.
+    assert.deepEqual(claimTradeSale(B, again.sales, now, out, askedB), { keys: [], send: 0 });
+    assert.equal(answer(B, again.sales, out, askedB).closed, 0);
+    assert.deepEqual([listed.A, listed.B], [0, 4]);
+  });
+}
 
 test("the answers: 'that sale' sends the trade's copies, 'another sale' the click's; the focus starts on the one that sends least", () => {
   assert.deepEqual(soldAnswers(1, 2), { that: 2, another: 1, focus: "another" });
@@ -154,7 +226,7 @@ test("two trades of the item in ten minutes, neither marked: counted together, t
   assert.deepEqual(part.map((s) => [s.lowered?.count, s.unmarked?.count]), [[1, undefined], [undefined, 2]]);
   assert.equal(part[1], noListing);
   // Both trades are claimed by one answer.
-  assert.deepEqual(claimTradeSale(o1, sales, later, new Set()), ["s|2", "s|1"]);
+  assert.deepEqual(claimTradeSale(o1, sales, later, new Set(), 3), { keys: ["s|2", "s|1"], send: 3 });
 });
 
 test("saved sales: the new field loads; an older record loads as before; a damaged value drops the field and keeps the sale", () => {
@@ -200,7 +272,7 @@ test("the Guide's Sales entry and docs/features.md say what happens to a sale lo
   assert.match(sales, /once the trade has been read is not matched to it/);
   assert.match(sales, /Sold on Orders asks first whether it's that sale, on that listing/);
   assert.match(sales, /added only on a second, separate press of Add/);
-  assert.match(orders, /the question says which listing it would lower/);
+  assert.match(orders, /when the trade names no refinement, the question says which listing it would lower/);
   assert.match(features, /once its trade has been read isn't matched to it/);
   assert.match(features, /\*Yes, that sale\* marks those copies sold with the same call and logs nothing more/);
   // A space after every full stop in the new sentences: no "twice.With".

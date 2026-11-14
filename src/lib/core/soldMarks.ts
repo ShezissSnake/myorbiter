@@ -91,16 +91,22 @@ export function soldAfterUnmarked(listing: SoldListing, sales: readonly Sale[], 
 }
 
 /**
- * Before "that sale" is sent: the trades whose copies it marks, added to `out` (the trades with a
- * "that sale" out), or null when there are none or one of them is out already, from this listing
- * or another: then nothing is sent, so two answers never close the same copies twice. The caller
- * takes the keys out of `out` once its call is back.
+ * Before "that sale" (or its Try again) is sent: the trades whose copies it marks, added to `out`
+ * (the trades with a "that sale" out), and `send`, the copies to send: the fewer of `asked` (what
+ * the question showed) and what is still not marked for them now, as an answer from another
+ * listing may have marked some since the question opened. `send` 0, with no keys: nothing is
+ * waiting any more, and nothing is sent. Null when one of them is out already, from this listing
+ * or another: nothing is sent. So two answers never close the same copies twice. The caller takes
+ * the keys out of `out` once its call is back.
  */
-export function claimTradeSale(listing: SoldListing, sales: readonly Sale[], now: number, out: Set<string>): string[] | null {
-  const keys = [...new Set(unmarkedFor(listing, sales, now).map((s) => s.trade!))];
-  if (!keys.length || keys.some((k) => out.has(k))) return null;
+export function claimTradeSale(listing: SoldListing, sales: readonly Sale[], now: number, out: Set<string>, asked: number): { keys: string[]; send: number } | null {
+  const mine = unmarkedFor(listing, sales, now);
+  const keys = [...new Set(mine.map((s) => s.trade!))];
+  if (keys.some((k) => out.has(k))) return null;
+  const send = Math.min(asked, mine.reduce((n, s) => n + s.unmarked!.count, 0));
+  if (send < 1) return { keys: [], send: 0 };
   for (const k of keys) out.add(k);
-  return keys;
+  return { keys, send };
 }
 
 /**
