@@ -6,6 +6,7 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { tradeLineSale } from "./lib/core/soldMarks";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
@@ -1538,13 +1539,9 @@
           // in this trade (or a Sold click) closed meanwhile isn't listed any more.
           const order = stillListed(s.order, mkt.orders);
           const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
-          // Which listing this lowered, by how much: a Sold click on it soon after asks first.
-          const lowered = order && marked ? { lowered: { listing: order.id, count: marked.quantity, at: Date.now() } } : {};
-          // Copies logged but not marked (no sure listing, refused, or the listing held fewer): a
-          // Sold click on the item soon after asks whether it is this sale, not a second one.
-          const short = placed.left - (marked?.quantity ?? 0);
-          const unmarked = short > 0 ? { unmarked: { listing: order?.id ?? null, count: short, at: Date.now() } } : {};
-          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key, ...lowered, ...unmarked }, ...settings.market.sales].slice(0, 2000);
+          // Which listing this lowered, and the copies it couldn't mark: a Sold click soon after asks first.
+          const sale = tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order, marked: marked?.quantity ?? 0, now: Date.now() });
+          settings.market.sales = [sale, ...settings.market.sales].slice(0, 2000);
           lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
           done++;
         }

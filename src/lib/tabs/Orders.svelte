@@ -44,7 +44,8 @@
   import { rivens } from "../rivenStore.svelte";
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
-  import { copiesToSend, markedForTrade, soldAfterTrade, soldAfterUnmarked, soldAnswers } from "../core/soldMarks";
+  import { claimTradeSale, copiesToSend, markedForTrade, soldAfterTrade, soldAfterUnmarked, soldAnswers, type SoldListing } from "../core/soldMarks";
+  import { SvelteSet } from "svelte/reactivity";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
   // finds anything warframe.market trades, and what needs your inventory (spares, "Listed more than you hold") is left out.
@@ -578,21 +579,23 @@
    * A Sold click on a listing a trade from the game lowered in the last ten minutes: it may be the
    * same sale, so it asks before lowering the listing again (soldAfterTrade).
    */
-  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: boolean } | null>(null);
+  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: { trades: number; guess: boolean } | null } | null>(null);
+  /** Trades with a "that sale" out (claimTradeSale): none is sent twice for their copies. */
+  const thatOut = new SvelteSet<string>();
+  /** A listing as the trade's-sale question compares it (soldAfterUnmarked). */
+  const soldListing = (o: MyOrder): SoldListing => ({ id: o.id, name: mkt.item(o.itemId)?.name ?? "", rank: o.rank, subtype: o.subtype });
   function recordSale(o: MyOrder, n: number, sure = false) {
     if (n < 1 || n > o.quantity) return;
     selling = null;
     askSold = null;
-    // Or a trade logged a sale of this item and rank minutes ago but couldn't mark it sold (its
+    // Or a trade logged a sale of this listing minutes ago but couldn't mark it sold (its
     // notification said "see Orders"): the click may be that sale (soldAfterUnmarked).
-    const item = { name: mkt.item(o.itemId)?.name ?? "", rank: o.rank };
+    const l = soldListing(o);
     const lowered = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
-    const unmarked = sure || lowered || !item.name ? null : soldAfterUnmarked(item, settings.sales, settings.trades, Date.now());
-    const prior = lowered ?? unmarked;
-    if (prior) {
-      askSold = { id: o.id, n, ...prior, unmarked: !!unmarked };
-      return;
-    }
+    const unmarked = sure || lowered || !l.name ? null : soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut);
+    if (lowered) askSold = { id: o.id, n, ...lowered, unmarked: null };
+    else if (unmarked) askSold = { id: o.id, n, count: unmarked.count, partner: unmarked.partner, unmarked: { trades: unmarked.trades, guess: unmarked.guess } };
+    if (askSold) return;
     clearTimeout(soldTimers.get(o.id));
     pendingSold = { ...pendingSold, [o.id]: n };
     soldFrom.set(o.id, o.quantity);
@@ -637,18 +640,26 @@
   /**
    * "That sale", for a trade's sale the marking couldn't mark sold: the copies it couldn't mark
    * are marked now (the same call as Sold), and the trade's sale records them (markedForTrade).
-   * No second sale is logged.
+   * No second sale is logged. One at a time for a trade's copies (claimTradeSale): an answer on
+   * another listing while this one is out sends nothing.
    */
   function sendTradeSale(o: MyOrder, count: number) {
     askSold = null;
-    const item = { name: mkt.item(o.itemId)?.name ?? "", rank: o.rank };
+    const l = soldListing(o);
+    if (soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut)?.busy !== false) return;
     sending[o.id] = o;
     keptPlans.set(o.id, plans.get(o.id));
     return rowAct(o.id, { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" }, async () => {
-      let why = "";
-      const sale = await mkt.sold(o, count, { failed: (r) => (why = r) });
-      if (!sale) throw new Error(why || "warframe.market didn't take it");
-      settings.sales = markedForTrade(settings.sales, item, o.id, sale.quantity, Date.now());
+      const keys = claimTradeSale(l, settings.sales, Date.now(), thatOut);
+      if (!keys) throw new Error("already being marked sold from another listing, or no longer waiting");
+      try {
+        let why = "";
+        const sale = await mkt.sold(o, count, { failed: (r) => (why = r) });
+        if (!sale) throw new Error(why || "warframe.market didn't take it");
+        settings.sales = markedForTrade(settings.sales, l, sale.quantity, Date.now());
+      } finally {
+        for (const k of keys) thatOut.delete(k);
+      }
     });
   }
   /**
@@ -696,7 +707,8 @@
   }
 </script>
 
-<svelte:window onpointerdown={outside} />
+<!-- Esc closes the trade's-sale question wherever the focus is (an answer may be off, the focus left on Sold). -->
+<svelte:window onpointerdown={outside} onkeydown={(e) => { if (e.key === "Escape" && askSold?.unmarked && !e.defaultPrevented) askSold = null; }} />
 
 <div class="page"><div class="page-inner">
   <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." />
@@ -1052,11 +1064,13 @@
             <tr class="fixrow asksold"><td colspan="10">
                 {#if ask.unmarked}
                 {@const a = soldAnswers(ask.n, Math.min(ask.count, o.quantity))}
+                <!-- Off while a "that sale" for these trades is out from another listing (claimTradeSale). -->
+                {@const busy = soldAfterUnmarked(soldListing(o), settings.sales, settings.trades, Date.now(), thatOut)?.busy !== false}
                 <!-- A trade logged this sale but couldn't mark it sold: "That sale" marks those copies and logs nothing more. -->
                 <div class="fix" role="group" aria-label="The trade's sale?">
-                  <span class="small q"><b class="held">Your trade{ask.partner ? ` with ${ask.partner}` : ""} logged {ask.count}, not marked sold.</b> <span class="dim">· This sale?</span></span>
-                  <!-- The focus starts on the answer that sends least; Esc on either closes it and sends nothing. -->
-                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id)} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
+                  <span class="small q"><b class="held">{ask.unmarked.trades > 1 ? `Your ${ask.unmarked.trades} trades (the last with ${ask.partner ?? "a buyer"}) logged ${ask.count} between them` : `Your trade${ask.partner ? ` with ${ask.partner}` : ""} logged ${ask.count}`}, not marked sold.</b> <span class="dim">· This sale?{ask.unmarked.guess ? ` Yes lowers this listing (${o.platinum}p).` : ""}</span></span>
+                  <!-- The focus starts on the answer that sends least; Esc closes it wherever the focus is, and sends nothing. -->
+                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id) || busy} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
                   <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another}</button>
                 </div>
                 {:else}

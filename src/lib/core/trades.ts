@@ -17,6 +17,8 @@ export interface TradeSale {
   name: string;
   rank: number | null;
   count: number;
+  /** A relic's refinement, when the trade names it ("[Radiant]"); null otherwise (the log names no other variant). */
+  subtype: string | null;
   /** Platinum for each copy, from what you received. */
   platinumEach: number;
   /** Your listing it sold from, if you had one. */
@@ -53,7 +55,7 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
     // several listings of it at different prices (listingFor).
     const paidEach = folded.length === 1 ? t.platinum_received / x.count : null;
     const order = it && (!imprint || imprint.by === "inventory") ? listingFor(it, x.rank, subtype, orders, paidEach) : null;
-    return { name: it?.name ?? x.name, rank: x.rank, count: x.count, platinumEach: 0, order };
+    return { name: it?.name ?? x.name, rank: x.rank, count: x.count, subtype, platinumEach: 0, order };
   });
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
   const total = weights.reduce((a, b) => a + b, 0) || 1;
