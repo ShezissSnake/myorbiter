@@ -1023,8 +1023,8 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
   // A rank in between: the copies held at it, as far as the copies beyond the kept maxed ones go.
   if (r > 0 && r < a.maxRank) {
     const at = heldFor(m, it, { rank: r, subtype }) ?? 0;
-    const kept = k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`;
-    return { spare: Math.min(at, Math.max(0, Math.floor((a.copies - k * a.needed) / copiesForRank(r)))), kept, short: `${kept} are kept`, cap: null };
+    const kept = !a.complete ? `the copies toward a maxed one (${a.copies}/${a.needed})` : k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`;
+    return { spare: a.complete ? Math.min(at, Math.max(0, Math.floor((a.copies - k * a.needed) / copiesForRank(r)))) : 0, kept, short: `${kept} are kept`, cap: null };
   }
   return null;
 }

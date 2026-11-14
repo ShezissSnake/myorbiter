@@ -254,6 +254,7 @@ test("after refusals in a row stop the run, the plan left holds the lines not se
   assert.equal(tried, 4, "the first sent, then three refusals, and no fifth try");
   assert.deepEqual(st.writes, ["create alpha 3x20"]);
   assert.deepEqual(lines(), ["create bravo 2x20", "create charlie 2x20", "create delta 2x20", "create echo 2x20"], "the refused lines and the one never tried are left");
+  assert.deepEqual(mkt.orders.map((o) => o.itemId), ["alpha"], "the listings are read again after the stop: what went up is counted");
   st.before = null;
   const again = await mkt.applyBulk(m, s, advice);
   assert.equal(again?.outcome, "done");

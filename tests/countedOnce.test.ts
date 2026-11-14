@@ -7,7 +7,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel, type Model } from "../src/lib/core/model";
 import { guardListing } from "../src/lib/core/listGuard";
-import { bulkPlan, sellTargets, type BulkAction } from "../src/lib/core/bulk";
+import { bulkPlan, neverTest, sellTargets, toApply, type BulkAction } from "../src/lib/core/bulk";
 import { indexItems, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { defaultAdvice, defaultMarketSettings, market } from "../src/lib/backend";
 import { defaultSellChoices } from "../src/lib/core/spares";
@@ -82,6 +82,25 @@ test("arcane: with the spare maxed one listed, the unranked copies are refused (
   const half = guardListing(c, { item: energize, rank: 0, subtype: null, quantity: 11, platinum: 10, listed: [order("u", "energize", 10, 10, 0)] });
   assert.equal(half.ok, true, "10 + 11 unranked are the 21 spare");
   assert.equal(guardListing(c, { item: energize, rank: 0, subtype: null, quantity: 12, platinum: 10, listedElsewhere: 10, listed: [order("u", "energize", 10, 10, 0)] }).ok, false);
+});
+
+test("arcane: a rank in between draws on the same pool, and its listings count against the other ranks", () => {
+  // 21 unranked, 2 at rank 3 (10 copies each) and 1 maxed (21): 62 copies, 41 beyond the kept maxed one.
+  const bundle = { ...arcaneBundle, inventory: [...arcaneBundle.inventory, inv(`${ARC}#3`, "Arcane Energize", "arcane", 2, { rank: 3, max_rank: 5 })] } as Bundle;
+  const c = { ...arcaneCtx(), model: buildModel(bundle) };
+  const at = (rank: number, quantity: number, listed: MyOrder[] = []) => guardListing(c, { item: energize, rank, subtype: null, quantity, platinum: 50, listed });
+  assert.equal(at(3, 2).ok, true, "both held at rank 3");
+  assert.equal(at(3, 3).ok, false, "only 2 held at rank 3");
+  assert.equal(at(3, 2, [order("u", "energize", 21, 10, 0)]).ok, true, "41 - 21 leaves 20: two at rank 3");
+  const g = at(3, 1, [order("u", "energize", 21, 10, 0), order("m", "energize", 1, 200, 5)]);
+  assert.equal(g.ok, false, "41 - 21 - 21 leaves none");
+  assert.match(!g.ok ? g.why : "", /21 at R0 and 1 at R5 listed at another rank/);
+  assert.equal(at(0, 21, [order("t", "energize", 2, 50, 3)]).ok, true, "41 - 20 leaves 21 unranked");
+  assert.equal(at(0, 1, [order("t", "energize", 2, 50, 3), order("m", "energize", 1, 200, 5)]).ok, false, "41 - 20 - 21 leaves none");
+  // Short of one maxed arcane, nothing at rank 3 is spare.
+  const short = { ...arcaneCtx(), model: buildModel({ ...arcaneBundle, inventory: [inv(`${ARC}#3`, "Arcane Energize", "arcane", 2, { rank: 3, max_rank: 5 }), arcaneBundle.inventory[2]] } as Bundle) };
+  const s = guardListing(short, { item: energize, rank: 3, subtype: null, quantity: 1, platinum: 50 });
+  assert.match(!s.ok ? s.why : "", /The copies toward a maxed one \(20\/21\) are kept/);
 });
 
 test("arcane: the listing form doesn't list the kept maxed copy while 21 unranked are up", async () => {
@@ -278,6 +297,14 @@ test("never sell: a set on the list holds back its parts", () => {
   assert.equal(held.length, 3);
   for (const t of held) assert.equal(t.hold?.why, "Bronco Prime Set is on your never-sell list (Sell spares): its parts aren't sold on their own either");
   assert.deepEqual(creates(planFor(m, rules, [])), []);
+});
+
+test("never sell across a set: a part put on the list while the plan is looked over drops its set's line from what Apply sends", () => {
+  const m = broncoModel(2);
+  const actions = planFor(m, sellAs("sets"), []);
+  assert.deepEqual(creates(actions), ["bronco 2"]);
+  assert.equal(toApply(actions, new Set(), new Set(["barrel"])).filter((a) => a.type === "create").length, 1, "by item id alone the set still goes");
+  assert.deepEqual(toApply(actions, new Set(), neverTest({ neverSell: neverBarrel }, m, broncoIndex)).filter((a) => a.type === "create"), []);
 });
 
 test("never sell across a set: the last check refuses both ways, whoever asks", () => {

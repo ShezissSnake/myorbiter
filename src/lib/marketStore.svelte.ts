@@ -1447,6 +1447,8 @@ class MarketStore {
     // Held back by the last check (listGuard.ts): told one by one, counted apart from refusals.
     let blocked = 0;
     let writeFailing = 0;
+    /** Why the run stopped part way when warframe.market refused changes in a row; null otherwise. */
+    let stopped: string | null = null;
     await this.guard("Updating your listings", async () => {
       // The copies already listed cap what may go up (listGuard.ts): counted from an older read of
       // your listings, the cap could be too high, so nothing is sent without a fresh one.
@@ -1534,8 +1536,11 @@ class MarketStore {
           failed++;
           refused.add(a);
           this.note(`${a.item.name}: couldn't ${a.type} (${clean(e)})`, "warn");
-          // Stopped as a sign-in that ran out stops it: the lines not sent stay in the plan.
-          if (++writeFailing >= WRITE_FAILS) throw new Error(`warframe.market refused ${WRITE_FAILS} changes in a row, so MyOrbiter stopped: apply again in a minute`);
+          // Stopped, and ended below as a sign-in that ran out ends it: the lines not sent stay in the plan.
+          if (++writeFailing >= WRITE_FAILS) {
+            stopped = `warframe.market refused ${WRITE_FAILS} changes in a row, so MyOrbiter stopped: apply again in a minute`;
+            break;
+          }
         }
         this.progress = { done: sent.size + failed + blocked, total: todo.length };
       }
@@ -1549,12 +1554,12 @@ class MarketStore {
       this.applying = null;
       return { sent: 0, failed: 0, outcome: "changed" };
     }
-    if (this.error) {
+    if (this.error || stopped) {
       // Stopped part way (the sign-in expired, or warframe.market refused changes in a row): keep
       // only what wasn't sent, refused lines included, so a second Apply lists nothing twice.
       const left = shown.actions.filter((a) => !sent.has(a));
       this.bulk = left.some((a) => a.type !== "skip") ? { actions: left, at: Date.now(), books: shown.books, skipped: shown.skipped } : null;
-      this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error}`, "warn");
+      this.note(`Stopped after ${sent.size} of ${todo.length} changes: ${this.error ?? stopped}`, "warn");
       this.applying = null;
       return { sent: sent.size, failed, outcome: "stopped" };
     }
