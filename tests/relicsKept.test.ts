@@ -68,6 +68,20 @@ for (const [how, lex] of [["built", built], ["mastered", mastered]] as const) {
   });
 }
 
+test("relics: with Lex Prime mastered and no longer held, Aklex Prime takes two, so a barrel held once is still short and the relic is kept", () => {
+  const m = model([inv("/W/LexPrime", "Lex Prime", "weapon", 0, { mastered: true }), inv("/W/LexPrimeBarrel", "Lex Prime Barrel", "prime_part", 1)]);
+  assert.equal(m.isMastered("/W/LexPrime"), true);
+  assert.equal(m.owned("/W/LexPrime"), 0, "no Lex Prime held: both copies Aklex Prime takes are to build");
+  const reward = relicRows(m).find((r) => r.base === "Lith L1")!.rewards.find((r) => r.name === "Lex Prime Barrel")!;
+  assert.equal(reward.needed, true, "Relics tags the barrel need: one held of the two");
+  assert.deepEqual(relicsYouNeed(m).get("Lith L1"), ["Lex Prime Barrel"]);
+  const row = relicRow(m);
+  assert.deepEqual([row.keep, row.spare, row.why], [4, 0, "Drops Lex Prime Barrel, which you still need"]);
+  // A second barrel covers both copies: the relic sells again.
+  const two = model([inv("/W/LexPrime", "Lex Prime", "weapon", 0, { mastered: true }), inv("/W/LexPrimeBarrel", "Lex Prime Barrel", "prime_part", 2)]);
+  assert.equal(relicsYouNeed(two).has("Lith L1"), false);
+});
+
 test("relics: once Aklex Prime is built too, nothing needs the barrel and the relic sells", () => {
   const m = model([...mastered, inv("/W/AklexPrime", "Aklex Prime", "weapon", 1)]);
   assert.equal(relicsYouNeed(m).has("Lith L1"), false);
