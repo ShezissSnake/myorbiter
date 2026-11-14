@@ -158,7 +158,7 @@ times a second, a hundred while a reward screen is open): for the inventory sync
 (the squad's relics, the screen opening and closing, the rewards, and the squad's account ids,
 which nothing uses any more), and when Baro's Ducat Kiosk opens and closes. Its own bug report can
 save a copy of the log on this computer, only if you ask for it, in `reports/` in TennoScope's
-folder (the five newest reports kept). Only IP and e-mail addresses are removed from that copy; the rest of the log stays in it, other players'
+folder (the five newest reports kept). Only IPv4 addresses, IPv6 addresses written in full and e-mail addresses are removed from that copy; the rest of the log stays in it, IPv6 addresses written short (with `::`), other players'
 names, the squad's account ids, your trades and the log's first lines (the game's command line,
 your user name and computer name) among them.
 

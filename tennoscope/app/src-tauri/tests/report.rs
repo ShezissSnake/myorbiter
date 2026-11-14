@@ -166,7 +166,7 @@ fn ee_log_copied_only_when_path_resolves() {
     assert_eq!(sensitive, "session secrets\n");
     let text = fs::read_to_string(folder.join("report.txt")).expect("report reads");
     assert!(
-        text.contains("with IP and e-mail addresses removed")
+        text.contains("with IPv4 addresses, IPv6 addresses written in full and e-mail addresses removed")
             && text.contains("Read it before sharing it"),
         "the note on the EE.log copy says what was removed and to read it first"
     );
@@ -189,7 +189,7 @@ fn github_text_never_contains_ee_log_lines() {
     // these checks leave out the words a user name could be ("user", "name").
     let notes = text.split("\nNotes\n").nth(1).expect("a Notes part when EE.log is included");
     assert!(
-        notes.contains("Other players' names, account ids, trades,")
+        notes.contains("Short IPv6 addresses (with ::), other players' names, account ids, trades,")
             && notes.contains("in its first lines stay in it"),
         "the note on the EE.log copy names what stays in it"
     );

@@ -3,11 +3,13 @@
 //! Two deliverables, with a privacy-aware pipeline:
 //! - `report_text` (clipboard / report.txt) is sanitized and never contains
 //!   EE.log content.
-//! - The report folder additionally carries the app log and, only for
-//!   acquisition failures, a copy of Warframe's EE.log with IP and e-mail
-//!   addresses redacted. Everything else stays in that copy: other players'
-//!   names, account ids, trades, and the user and computer name in the log's
-//!   first lines. The player reads it before sharing it.
+//! - The report folder additionally carries the app log and, when the mode
+//!   reads EE.log and its place is known (Save logs always asks for it), a
+//!   copy of Warframe's EE.log with IPv4 addresses, IPv6 addresses written in
+//!   full and e-mail addresses redacted (`sanitize_ee_log`). Everything else
+//!   stays in that copy: IPv6 addresses written short (with `::`), other
+//!   players' names, account ids, trades, and the user and computer name in
+//!   the log's first lines. The player reads it before sharing it.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -138,7 +140,8 @@ fn copy_ee_log(source: &Path, folder: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Strip PII (IPv4, IPv6, email addresses) from EE.log content.
+/// Redacts IPv4 addresses, IPv6 addresses written in full (eight groups; one written short, with
+/// `::`, is not matched) and e-mail addresses in EE.log content, and nothing else.
 pub fn sanitize_ee_log(text: &str) -> String {
     use std::sync::LazyLock;
 
@@ -212,7 +215,7 @@ pub fn assemble_report_text(
         EeLogState::NotRequested => {}
         EeLogState::Included => {
             text.push_str("\nNotes\n");
-            text.push_str("A copy of EE.log is included in the report folder, with IP and e-mail addresses removed. Other players' names, account ids, trades, and your user and computer name in its first lines stay in it. Read it before sharing it.\n");
+            text.push_str("A copy of EE.log is included in the report folder, with IPv4 addresses, IPv6 addresses written in full and e-mail addresses removed. Short IPv6 addresses (with ::), other players' names, account ids, trades, and your user and computer name in its first lines stay in it. Read it before sharing it.\n");
         }
         EeLogState::CopyFailed => {
             text.push_str("\nNotes\n");

@@ -1085,7 +1085,7 @@ function ReportBlock({ health, alwaysVisible }: { health: AppView['health']; alw
         <button type="button" className="stamp" disabled={status.kind === 'busy'} onClick={() => void run(openIssue, () => 'OPENED THE ISSUE FORM IN YOUR BROWSER.')}>Open an issue</button>
         <button type="button" className="stamp" disabled={status.kind === 'busy'} onClick={() => void run(copyReport, () => 'COPIED. PASTE IT INTO THE DIAGNOSTICS FIELD OF THE ISSUE FORM.')}>Copy diagnostics</button>
         <button type="button" className="stamp" disabled={status.kind === 'busy'} onClick={() => void run(saveReport, result =>
-          `SAVED TO ${result?.folder_path ?? '…'}${result?.ee_log_included ? ". EE.LOG COPY INCLUDED, IP AND E-MAIL ADDRESSES REMOVED. OTHER PLAYERS' NAMES, ACCOUNT IDS, TRADES, AND YOUR USER AND COMPUTER NAME IN ITS FIRST LINES STAY IN IT. READ IT BEFORE SHARING IT." : ''}`,
+          `SAVED TO ${result?.folder_path ?? '…'}${result?.ee_log_included ? ". EE.LOG COPY INCLUDED, WITH IPV4 ADDRESSES, IPV6 ADDRESSES WRITTEN IN FULL AND E-MAIL ADDRESSES REMOVED. SHORT IPV6 ADDRESSES (WITH ::), OTHER PLAYERS' NAMES, ACCOUNT IDS, TRADES, AND YOUR USER AND COMPUTER NAME IN ITS FIRST LINES STAY IN IT. READ IT BEFORE SHARING IT." : ''}`,
         )}>Save logs</button>
       </div>
       {status.kind === 'done' && <p className="report-status" role="status">{status.message}</p>}
