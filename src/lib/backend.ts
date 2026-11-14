@@ -1396,6 +1396,15 @@ export async function logTail(lines: number): Promise<string[]> {
   return inTauri ? invoke<string[]>("log_tail", { lines }) : [];
 }
 
+/**
+ * Why MyOrbiter sends nothing except its update check, when a proxy set in the environment
+ * (HTTPS_PROXY and the like) is one MyOrbiter can't use (`proxy_problem` in lib.rs); null when
+ * none is set or it can be used.
+ */
+export async function proxyProblem(): Promise<string | null> {
+  return inTauri ? invoke<string | null>("proxy_problem") : null;
+}
+
 /** This copy's version and the system it runs on, for a bug report. */
 export async function reportEnv(): Promise<{ version: string; os: string; arch: string }> {
   if (inTauri) return invoke("report_env");

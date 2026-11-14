@@ -3,6 +3,7 @@
 import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
 import { waitWords } from "./core/marketWait";
+import { mayAskFromWindow } from "./proxy.svelte";
 import { packListed, packPrices, startingFor, isAuctionOf, mayBeAuctionOf, sameRiven, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
@@ -128,7 +129,16 @@ class Rivens {
   private tradesFor: { platform: string; at: number } | null = null;
   /** The platform `trades` are for. */
   private tradesPlatform: string | null = null;
-  /** Read once per platform, and again after six hours: the file changes on Mondays. */
+  /**
+   * Whether the window may make this read itself (proxy.svelte.ts, `windowMayAsk`): the read goes
+   * through neither the agent nor the sockets, so a proxy set that can't be used stops it here.
+   */
+  tradesMayAsk: () => Promise<boolean> = mayAskFromWindow;
+  /**
+   * Read once per platform, and again after six hours: the file changes on Mondays. Not made while
+   * a proxy is set that can't be used: what was read before stays, the next visit asks again,
+   * and nothing is said here (Home gives the reason).
+   */
   async loadTrades(platform: string) {
     if (this.tradesFor?.platform === platform && Date.now() - this.tradesFor.at < 6 * 3600_000) return;
     this.tradesFor = { platform, at: Date.now() };
@@ -141,6 +151,10 @@ class Rivens {
         this.tradesWeek = kept ? (k!.week ?? null) : null;
         this.tradesPlatform = platform;
       }
+    }
+    if (!(await this.tradesMayAsk())) {
+      if (this.tradesFor?.platform === platform) this.tradesFor = null;
+      return;
     }
     try {
       const res = await fetch(tradeUrl(platform), { cache: "no-cache" });

@@ -11,6 +11,7 @@
   import { aboveDucats, catOfItem, ducatWorth, minimumForItem, neverHeld, neverWhy } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked } from "../core/listGuard";
   import { mkt } from "../marketStore.svelte";
+  import { proxy } from "../proxy.svelte";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
   import Named from "./Named.svelte";
   import P from "./P.svelte";
@@ -168,7 +169,8 @@
             <button class="stamp gold" onclick={() => { mkt.closeDraft(); go("market"); }}>Open Orders</button>
           </div>
         {:else if mkt.accountError}
-          <p class="prose">You're signed in, but warframe.market can't be reached right now: {mkt.accountError}. MyOrbiter tries again every minute; list it once it answers.</p>
+          {#if proxy.problem}<p class="prose">You're signed in, but {proxy.problem}</p>
+          {:else}<p class="prose">You're signed in, but warframe.market can't be reached right now: {mkt.accountError}. MyOrbiter tries again every minute; list it once it answers.</p>{/if}
           <div class="row end"><button onclick={() => mkt.closeDraft()}>Close</button></div>
         {:else if !mkt.linked}
           <p class="prose">Sign in to warframe.market first. MyOrbiter keeps its own sign-in; you only do it once.</p>

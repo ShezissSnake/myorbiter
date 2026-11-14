@@ -2,6 +2,7 @@
   import HelpMark from "../ui/HelpMark.svelte";
   import { shownPage, whileShown } from "../pane.svelte";
   import { links, openUrl } from "../links.svelte";
+  import { proxy } from "../proxy.svelte";
   import { untrack } from "svelte";
   // Your rivens, read from the game: each stat as the game shows it, how good each roll is, and
   // what comparable rivens sell for. Below, a finder for rivens on warframe.market, and alerts for
@@ -111,9 +112,10 @@
   $effect(() => {
     void rivens.loadMeta();
   });
-  // The page stays open once opened: a list that failed to load is asked for again each minute.
+  // The page stays open once opened: a list that failed to load is asked for again each minute,
+  // except while a proxy set can't be used (each ask would be refused, until MyOrbiter restarts).
   $effect(() => {
-    if (!rivens.metaError) return;
+    if (!rivens.metaError || proxy.problem) return;
     const t = setInterval(() => void rivens.loadMeta(), 60_000);
     return () => clearInterval(t);
   });
@@ -751,7 +753,7 @@
   <section class="finder">
     <div class="hmark"><h2 class="register lead">Find a riven</h2><HelpMark part="rivens.finder" /></div>
     {#if !meta}
-      <p class="dim small">{#if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
+      <p class="dim small">{#if rivens.metaError && proxy.problem}{proxy.problem}{:else if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
