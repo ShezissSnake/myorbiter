@@ -237,3 +237,25 @@ test("after a stop part way, the plan left holds only the lines not sent, and a 
   assert.equal(again?.outcome, "done");
   assert.deepEqual(st.writes, ["create alpha 3x20", "create bravo 2x20", "create charlie 2x20"], "each listed once");
 });
+
+test("after refusals in a row stop the run, the plan left holds the lines not sent, refused ones included, and a second Apply lists nothing twice", async () => {
+  const m = model({ Alpha: 5, Bravo: 4, Charlie: 4, Delta: 4, Echo: 4 });
+  const s = settings();
+  const st = standIn({});
+  assert.equal(await mkt.planBulk(m, s, advice), true);
+  assert.deepEqual(lines(), ["create alpha 3x20", "create bravo 2x20", "create charlie 2x20", "create delta 2x20", "create echo 2x20"]);
+  // The first listing goes up, then warframe.market refuses three in a row.
+  let tried = 0;
+  st.before = () => {
+    if (++tried > 1) throw new Error("warframe.market answered 503");
+  };
+  const r = await mkt.applyBulk(m, s, advice);
+  assert.equal(r?.outcome, "stopped");
+  assert.equal(tried, 4, "the first sent, then three refusals, and no fifth try");
+  assert.deepEqual(st.writes, ["create alpha 3x20"]);
+  assert.deepEqual(lines(), ["create bravo 2x20", "create charlie 2x20", "create delta 2x20", "create echo 2x20"], "the refused lines and the one never tried are left");
+  st.before = null;
+  const again = await mkt.applyBulk(m, s, advice);
+  assert.equal(again?.outcome, "done");
+  assert.deepEqual(st.writes, ["create alpha 3x20", "create bravo 2x20", "create charlie 2x20", "create delta 2x20", "create echo 2x20"], "each listed once");
+});

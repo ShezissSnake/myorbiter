@@ -244,6 +244,26 @@ test("manual: the listing form still keeps the keep rules, but an old read doesn
   assert.equal(guard(consoleModel, "khra", 3, 7, 0).ok, false, "but nothing goes up by itself");
 });
 
+test("full mode before the first inventory read: a listing by hand goes as typed and the form warns first; nothing goes up by itself", async () => {
+  const { keepUnchecked, KEEP_UNCHECKED_WARNING } = await import("../src/lib/core/listGuard");
+  const none = buildModel({ observed_at: null, inventory: [], catalog: catalog(), relics: [], prices: null });
+  const full = (manual: boolean) => guardListing({ model: none, index, sell: defaultSellChoices(), advice, now: NOW, fullMode: true }, { item: byId("khra"), rank: 0, subtype: null, quantity: 5, platinum: 7, manual });
+  const g = full(true);
+  assert.equal(g.ok, true, "allowed, as the rule says");
+  assert.match(g.ok ? g.audit : "", /as asked \(Full mode, before the first inventory read: what you keep wasn't checked\)/);
+  assert.equal(full(false).ok, false, "nothing automatic");
+  assert.equal(keepUnchecked(none, true), true);
+  assert.equal(keepUnchecked(none, false), false, "a console, or Full mode off: no read is expected");
+  assert.equal(keepUnchecked(none, null), false);
+  assert.equal(keepUnchecked(buildModel(account(khra(6, 1))), true), false, "once read, the keep rules are checked");
+  assert.match(KEEP_UNCHECKED_WARNING, /hasn't read your inventory yet, so it can't check what you keep/);
+  // The listing form shows it before the listing is sent.
+  const { readFileSync } = await import("node:fs");
+  const form = readFileSync("src/lib/ui/ListDialog.svelte", "utf8");
+  assert.match(form, /const unchecked = \$derived\(keepUnchecked\(model, mkt\.fullMode\)\)/);
+  assert.match(form, /\{#if unchecked && !repriceOnly\}<p class="warn small unchecked">\{KEEP_UNCHECKED_WARNING\}<\/p>\{\/if\}/);
+});
+
 test("audit: what a listing was proven spare by, for the log", () => {
   const m = buildModel(account(khra(6, 1)));
   const g = guard(m, "khra", 2, 7, 0);

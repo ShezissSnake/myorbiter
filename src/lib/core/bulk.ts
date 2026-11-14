@@ -6,9 +6,9 @@ import { decide, type DucatOptions } from "./advice";
 import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
 import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
-import { ANTIVIRUS_MOD, arcaneRows, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
+import { ANTIVIRUS_MOD, arcaneRows, copiesForRank, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
 import { allOn, CATEGORY_WORD, LICH_FAMILIES, minimumFor, rulesV2, SPARE_CATEGORIES, type MinByCategory, type ModFamily, type PlanRules, type ResourceFamily, type SpareCategory, type SparesRules } from "./sparesRules";
-import { gearSetParts } from "./model";
+import { baseId, gearSetParts } from "./model";
 import { packValues, spareArcanes, vosforWorth } from "./vosfor";
 
 export type BulkKind = "set" | "arcane" | "mod" | "part" | "imprint" | "other";
@@ -357,13 +357,15 @@ export function sellTargets(m: Model, rules: PlanRules, advice: DucatOptions, in
     }
   }
 
-  // Never sold: held back in every category, a listing of yours for it left as you listed it.
+  // Never sold: held back in every category, a listing of yours for it left as you listed it. A
+  // part on the list holds back its set too, and a set its parts.
   if (index && r.neverSell.length) {
-    const never = new Set(r.neverSell.map((n) => n.id));
+    const never = neverTest(r, m, index);
     for (const t of out) {
       if (t.hold && t.rule === "prime.ducats") continue;
       const it = resolve(index, t);
-      if (it && never.has(it.id)) Object.assign(t, { hold: { why: NEVER_WHY, takeDown: false }, rule: "never", ruleText: "Never sold" });
+      const held = it && never(it);
+      if (held) Object.assign(t, { hold: { why: neverWhy(held), takeDown: false }, rule: "never", ruleText: "Never sold" });
     }
   }
   return out;
@@ -673,10 +675,12 @@ export function priceFor(c: BulkContext, it: MarketItem, rank: number | null, su
 
 /**
  * The plan as Apply sends it: without the lines skipped this time (by actionKey), and without a
- * new or changed listing of anything on the never-sell list (put there while looking it over).
+ * new or changed listing of anything on the never-sell list (put there while looking it over):
+ * the item ids on it, or a test that also holds back a set by its parts and parts by their set.
  */
-export function toApply(actions: BulkAction[], skipped: ReadonlySet<string>, never: ReadonlySet<string>): BulkAction[] {
-  return actions.filter((a) => !skipped.has(actionKey(a)) && !((a.type === "create" || a.type === "update") && never.has(a.item.id)));
+export function toApply(actions: BulkAction[], skipped: ReadonlySet<string>, never: ReadonlySet<string> | ((it: MarketItem) => unknown)): BulkAction[] {
+  const held = typeof never === "function" ? never : (it: MarketItem) => never.has(it.id);
+  return actions.filter((a) => !skipped.has(actionKey(a)) && !((a.type === "create" || a.type === "update") && held(a.item)));
 }
 
 /** One line per change, to tell whether two plans would do the same thing. */
@@ -712,9 +716,10 @@ const minRule = (min: number) => ({ rule: "plan.min", ruleText: `Under ${min}p` 
  */
 export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]): BulkAction[] {
   const r = rulesV2(rules);
-  const never = new Set(r.neverSell.map((n) => n.id));
-  // Never sold: a listing of yours for it is left as you listed it, even past the listing limit.
-  const managed = (it: MarketItem) => managedBy(r, c.model, it) && !never.has(it.id);
+  // Never sold (by itself, by a part of a set or by its set): a listing of yours for it is left as
+  // you listed it, even past the listing limit.
+  const never = neverTest(r, c.model, c.index);
+  const managed = (it: MarketItem) => managedBy(r, c.model, it) && !never(it);
   const actions: BulkAction[] = [];
   const claimed = new Set<string>();
   const planned = new Map<string, BulkKind>();
@@ -730,6 +735,21 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
     if (held != null && held <= 0) actions.push({ type: "remove", kind, item: it, order: o, why: "You don't hold any now", ...tag, ...PLAN_RULE.held });
     else if (held != null && held < o.quantity) actions.push({ type: "update", kind, item: it, order: o, quantity: held, platinum: o.platinum, why: `You hold ${held} now`, priceWhy: "price kept", ...tag, ...PLAN_RULE.held });
     else actions.push({ type: "skip", kind, name: it.name, itemId: it.id, rank: it.maxRank != null ? (o.rank ?? 0) : null, subtype: o.subtype, quantity: o.quantity, each: o.platinum, why: `${why}: ${AS_LISTED}`, ...tag });
+  };
+  /** Your listings as the plan so far leaves them: what a new or raised one is counted against. */
+  const listedNow = (): (Listed & { id: string })[] => {
+    const now = new Map(c.orders.map((o) => [o.id, { id: o.id, itemId: o.itemId, rank: o.rank, subtype: o.subtype, quantity: o.quantity }]));
+    for (const a of actions) {
+      if (a.type === "remove") now.delete(a.order.id);
+      else if (a.type === "update") now.set(a.order.id, { ...now.get(a.order.id)!, quantity: a.quantity });
+      else if (a.type === "create") now.set(`+${keyOf(a.item, a.rank, a.subtype)}`, { id: "", itemId: a.item.id, rank: a.rank, subtype: a.subtype, quantity: a.quantity });
+    }
+    return [...now.values()];
+  };
+  /** The items whose listings take copies from this one's: the arcane itself at other ranks, a set's parts, a part's sets. */
+  const linkedIds = (kind: BulkKind, it: MarketItem): Set<string> => {
+    const links = kind === "arcane" ? [{ item: it }] : kind === "set" ? (partsOfSet(c.model, c.index, it) ?? []) : kind === "part" || kind === "other" ? setsOfPart(c.model, c.index, it) : [];
+    return new Set(links.flatMap((l) => (l.item ? [l.item.id] : [])));
   };
 
   for (const target of targets) {
@@ -762,13 +782,36 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
       continue;
     }
     // Never sold, whatever the category's rules say: a listing of yours for it stays as listed.
-    const hold = never.has(it.id) && !(t.hold && t.rule === "never") ? { why: NEVER_WHY, takeDown: false } : t.hold;
-    const holdTag = hold && never.has(it.id) ? { ...where, ...PLAN_RULE.never } : own;
+    const nh = never(it);
+    const hold = nh && !(t.hold && t.rule === "never") ? { why: neverWhy(nh), takeDown: false } : t.hold;
+    const holdTag = hold && nh ? { ...where, ...PLAN_RULE.never } : own;
     if (hold) {
       if (existing && hold.takeDown) actions.push({ type: "remove", kind: t.kind, item: it, order: existing, why: hold.why, ...holdTag });
       else if (existing) leaveListed(t.kind, it, existing, hold.why, holdTag);
       else actions.push(skip(hold.why, holdTag));
       continue;
+    }
+    // Copies counted once: what your other listings offer of the same copies (this arcane at
+    // another rank, a set and the parts inside it), as the plan so far leaves them, is taken off.
+    const linked = linkedIds(t.kind, it);
+    if (linked.size) {
+      const now = listedNow().filter((o) => !existing || o.id !== existing.id);
+      const proven = now.some((o) => linked.has(o.itemId)) ? provenSpare(spareCtx, t.kind, it, t.rank, subtype) : null;
+      if (proven) {
+        const sameKey = (o: Listed) => o.itemId === it.id && keyOf(it, o.rank, o.subtype) === key;
+        const same = now.filter(sameKey).reduce((n, o) => n + o.quantity, 0);
+        const { free, across } = freeToList(spareCtx, t.kind, it, t.rank, proven, same, now.filter((o) => !sameKey(o)));
+        if (across && free < t.quantity) {
+          if (free <= 0) {
+            const why = `Its spare copies are listed already: ${across}`;
+            if (existing) leaveListed(t.kind, it, existing, why, { ...where, ...PLAN_RULE.twice });
+            else actions.push(skip(why, PLAN_RULE.twice));
+            continue;
+          }
+          t.quantity = free;
+          t.why = `${t.why}; ${across}`;
+        }
+      }
     }
     // The item's own category decides, as repricing, the listing form and the last check judge it.
     const minCat = catOfItem(c.model, it);
@@ -977,6 +1020,12 @@ export function provenSpare(c: SpareContext, kind: BulkKind, it: MarketItem, ran
     const kept = a.complete ? (k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`) : `the copies toward a maxed one (${a.copies}/${a.needed})`;
     return { spare: a.complete ? Math.min(a.unranked, Math.max(0, a.copies - k * a.needed)) : 0, kept, short: `${kept} are kept`, cap: null };
   }
+  // A rank in between: the copies held at it, as far as the copies beyond the kept maxed ones go.
+  if (r > 0 && r < a.maxRank) {
+    const at = heldFor(m, it, { rank: r, subtype }) ?? 0;
+    const kept = k === 1 ? "the copies your maxed one needs" : `the copies your ${k} maxed ones need`;
+    return { spare: Math.min(at, Math.max(0, Math.floor((a.copies - k * a.needed) / copiesForRank(r)))), kept, short: `${kept} are kept`, cap: null };
+  }
   return null;
 }
 
@@ -1027,4 +1076,183 @@ export function fitLimit(c: BulkContext, managed: (it: MarketItem) => boolean, a
     out.push({ type: "remove", kind: f.kind!, item: f.item!, order: f.order!, why: `Makes room for listings ${byTrades ? "that sell more often" : "worth more"} (warframe.market allows ${limit})`, cat: catOfItem(c.model, f.item!, f.kind!), rule: "plan.room", ruleText: "Makes room" });
   }
   return out;
+}
+
+// ---------------------------------------------------------------- copies counted once
+
+/** A listing as the copies it offers: what's counted against a new one. */
+export type Listed = Pick<MyOrder, "itemId" | "rank" | "subtype" | "quantity">;
+
+/** A set's part, or a part's set, with how many of the part one set takes and its market item when warframe.market has one. */
+export interface SetLink {
+  name: string;
+  item: MarketItem | null;
+  required: number;
+}
+
+/**
+ * The parts warframe.market sells inside a set (a prime set's, or a weapon set's it trades whole:
+ * Lato Vandal, Mandonel), or null when it isn't a set whose parts the catalog names.
+ */
+export function partsOfSet(m: Model, index: MarketIndex | null, set: MarketItem): SetLink[] | null {
+  if (!set.gameRef || !set.tags?.includes("set")) return null;
+  const prime = m.partsByParent.get(set.gameRef);
+  if (prime?.length) return prime.map((p) => ({ name: p.fullName, item: index ? findItem(index, p.fullName, p.componentUnique) : null, required: p.required }));
+  const gear = gearSetParts(m, set.gameRef);
+  return gear ? gear.map((p) => ({ name: p.name, item: index ? findItem(index, p.name, p.unique) : null, required: p.required })) : null;
+}
+
+/** Weapon sets warframe.market trades whole, by the path of each part in them. */
+const gearSetsMemo = new WeakMap<Model, WeakMap<MarketIndex, Map<string, SetLink[]>>>();
+function gearSetsByPart(m: Model, index: MarketIndex): Map<string, SetLink[]> {
+  let byIndex = gearSetsMemo.get(m);
+  if (!byIndex) gearSetsMemo.set(m, (byIndex = new WeakMap()));
+  let out = byIndex.get(index);
+  if (out) return out;
+  out = new Map();
+  byIndex.set(index, out);
+  for (const it of index.byId.values()) {
+    if (!it.gameRef || !it.tags?.includes("set") || it.tags.includes("prime")) continue;
+    for (const p of gearSetParts(m, it.gameRef) ?? []) {
+      const list = out.get(p.unique) ?? [];
+      list.push({ name: it.name, item: it, required: p.required });
+      out.set(p.unique, list);
+    }
+  }
+  return out;
+}
+
+/** The sets a part goes into, prime or weapon sets: [] for anything else. */
+export function setsOfPart(m: Model, index: MarketIndex | null, part: MarketItem): SetLink[] {
+  if (part.tags?.includes("set")) return [];
+  const prime = (m.partByName.get(part.name) ?? []).map((p) => ({
+    name: `${p.parentName} Set`,
+    item: index ? (index.byGameRef.get(p.parentUnique) ?? findItem(index, `${p.parentName} Set`)) : null,
+    required: p.required,
+  }));
+  if (prime.length || !index || !part.gameRef) return prime;
+  return gearSetsByPart(m, index).get(baseId(part.gameRef)) ?? [];
+}
+
+const copiesOf = (listed: readonly Listed[], it: MarketItem | null) => (it ? listed.filter((o) => o.itemId === it.id).reduce((n, o) => n + o.quantity, 0) : 0);
+const andList = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+
+/** A part's copies the keep rules leave spare, before what's listed: what sets of it can be made from. */
+function partSpare(c: SpareContext, part: MarketItem): number {
+  const prime = partRows(c.model, saveForSets(c.sell, c.advice?.platPerDucat ?? 0, c.drops)).find((r) => r.name === part.name);
+  if (prime) return prime.spare;
+  return provenSpare(c, "other", part, null, null)?.spare ?? 0;
+}
+
+/** What other listings already offer of an item's copies, and the words for it ("2 inside your Bronco Prime Set listing"). */
+export interface FreeToList {
+  /** Copies at this rank and variant that can still go up: under 0 when more is listed than is spare. */
+  free: number;
+  /** The other listings that took copies, in words; null when none did. */
+  across: string | null;
+}
+
+/**
+ * Copies of an item at a rank still free to list, once your listings are counted: the keep rules'
+ * spare, less the copies listed of the same thing (`same`), less what listings of related things
+ * offer from the same copies. An arcane's copies are one pool across its ranks (a maxed one is the
+ * 21 unranked it was fused from); a set takes copies of each of its parts, and parts listed on
+ * their own leave fewer sets to make. `listed`: your other listings, every item; those of the same
+ * item and rank are left to `same`.
+ */
+export function freeToList(c: SpareContext, kind: BulkKind, it: MarketItem, rank: number | null, proven: ProvenSpare, same: number, listed: readonly Listed[]): FreeToList {
+  const base = proven.spare - same;
+  const m = c.model;
+  if (kind === "arcane") {
+    const a = arcaneRows(m).find((r) => r.name === it.name);
+    const r = rank ?? 0;
+    const others = listed.filter((o) => o.itemId === it.id && (o.rank ?? 0) !== r && o.quantity > 0);
+    if (!a || !others.length) return { free: base, across: null };
+    const k = c.rules?.arcanes.keepMaxed ?? 1;
+    const units = others.reduce((n, o) => n + o.quantity * copiesForRank(o.rank ?? 0), 0);
+    const each = copiesForRank(r);
+    const free = Math.min(base, Math.floor((a.copies - k * a.needed - units - same * each) / each));
+    return { free, across: free < base ? `${andList(others.map((o) => `${o.quantity} at R${o.rank ?? 0}`))} listed at another rank` : null };
+  }
+  if (kind === "set") {
+    let free = base;
+    const took: string[] = [];
+    for (const p of partsOfSet(m, c.index, it) ?? []) {
+      const q = copiesOf(listed, p.item);
+      if (!q) continue;
+      const sets = Math.floor((partSpare(c, p.item!) - q) / p.required) - same;
+      if (sets < base) took.push(`${q} ${p.name} listed on ${q === 1 ? "its" : "their"} own`);
+      free = Math.min(free, sets);
+    }
+    return { free, across: took.length ? andList(took) : null };
+  }
+  if (kind === "part" || kind === "other") {
+    let inSets = 0;
+    const took: string[] = [];
+    for (const s of setsOfPart(m, c.index, it)) {
+      const q = copiesOf(listed, s.item) * s.required;
+      if (!q) continue;
+      inSets += q;
+      took.push(`${q} inside your ${s.name} listing`);
+    }
+    return { free: base - inSets, across: took.length ? andList(took) : null };
+  }
+  return { free: base, across: null };
+}
+
+// ---------------------------------------------------------------- never-sell across a set
+
+/** The never-sell entries that hold an item back: its own, or (across a set) its parts' or its set's. */
+export interface NeverHeld {
+  /** The item itself is on the list. */
+  self: boolean;
+  /** The entries that hold it: its own, or the related items'. */
+  by: { id: string; name: string }[];
+  /** A set held back by a part on the list (rather than a part held back by its set). */
+  isSet: boolean;
+}
+
+/**
+ * Whether the never-sell list holds an item back, and by which entries. A part on the list holds
+ * back every set with it inside, and a set on the list holds back its parts. The catalog names a
+ * set's parts; without it (no inventory read yet, a console) the names do: a part's name starts
+ * with its set's ("Bronco Prime Barrel", "Bronco Prime Set").
+ */
+export function neverHeld(rules: Pick<SparesRules, "neverSell"> | null | undefined, m: Model | null, index: MarketIndex | null, it: MarketItem): NeverHeld | null {
+  const list = rules?.neverSell ?? [];
+  if (!list.length) return null;
+  const isSet = !!it.tags?.includes("set");
+  const own = list.filter((n) => n.id === it.id);
+  if (own.length) return { self: true, by: own, isSet };
+  const links = m ? (isSet ? (partsOfSet(m, index, it) ?? []) : setsOfPart(m, index, it)) : [];
+  const ids = new Set(links.flatMap((l) => (l.item ? [l.item.id] : [])));
+  const names = new Set(links.map((l) => l.name.toLowerCase()));
+  const base = it.name.replace(/ Set$/, "").toLowerCase();
+  const byName = (n: string) => {
+    const name = n.toLowerCase();
+    return isSet ? !name.endsWith(" set") && name.startsWith(`${base} `) : name.endsWith(" set") && it.name.toLowerCase().startsWith(`${name.slice(0, -" set".length)} `);
+  };
+  const by = list.filter((n) => ids.has(n.id) || names.has(n.name.toLowerCase()) || byName(n.name));
+  return by.length ? { self: false, by, isSet } : null;
+}
+
+/** Why the never-sell list holds it back, for the plan and the last check. */
+export function neverWhy(h: NeverHeld): string {
+  if (h.self) return NEVER_WHY;
+  const names = andList(h.by.map((b) => b.name));
+  const is = h.by.length === 1 ? "is" : "are";
+  return h.isSet
+    ? `${names} ${is} on your never-sell list (Sell spares): a set with ${h.by.length === 1 ? "it" : "them"} inside isn't sold either`
+    : `${names} ${is} on your never-sell list (Sell spares): its parts aren't sold on their own either`;
+}
+
+/** The never-sell test for one plan or one page, by market item, each item worked out once. */
+export function neverTest(rules: Pick<SparesRules, "neverSell"> | null | undefined, m: Model | null, index: MarketIndex | null): (it: MarketItem) => NeverHeld | null {
+  const memo = new Map<string, NeverHeld | null>();
+  return (it) => {
+    if (!rules?.neverSell.length) return null;
+    let h = memo.get(it.id);
+    if (h === undefined) memo.set(it.id, (h = neverHeld(rules, m, index, it)));
+    return h;
+  };
 }
