@@ -21,7 +21,7 @@
   import { bestCard, resolveName, scoreCards, vaultWord } from "./lib/core/pick";
   import { DEFAULT_HIDE_MINUTES, dueToShow, hideNow, lastCopies } from "./lib/core/lastCopy";
   import { mergeLogged, recordScreen, resolvePicks } from "./lib/core/relicRuns";
-  import { dropBuilding, dropCounts, laterClaims, recentDrops, recordRead, sameDrops } from "./lib/core/drops";
+  import { dropBuilding, dropCounts, dropRecounted, laterClaims, partialRead, recentDrops, recordRead, sameDrops } from "./lib/core/drops";
   import { drops } from "./lib/drops.svelte";
   import { heldFor, overListed } from "./lib/core/market";
   import type { Bundle, Live, MissionState } from "./lib/core/types";
@@ -314,6 +314,8 @@
   let firstRun = $state<((access: TennoscopeAccess) => void) | null>(null);
   /** Now, to the half minute: clocks, "synced 3 min ago", pauses running out. */
   let tick = $state(Date.now());
+  /** The hour `tick` is in: what the 30-day drop totals are worked out again by. */
+  const dropsHour = $derived(Math.floor(tick / 3_600_000));
   let bundle = $state.raw<Bundle | null>(null);
   /** The content key of `bundle` (core/sameRead.ts): a read with the same key keeps it. */
   let bundleKey: string | null = null;
@@ -2105,13 +2107,15 @@
       const since = settings.game.drops.at;
       // What you gave away in trades since the last read: a part gone that way was sold, not missed.
       const away = settings.market.trades.filter((t) => t.at > since && t.at <= at + 60_000).flatMap((t) => t.offered.map((o) => o.name));
-      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now(), dropBuilding(m), away);
+      const next = recordRead(settings.game.drops, dropCounts(m), at, Date.now(), dropBuilding(m), away, dropRecounted(m));
       if (next) settings.game.drops = next;
     });
   });
   $effect(() => {
     const log = settings.game.drops;
     const trades = settings.market.trades;
+    // Again every hour as well: a drop older than 30 days leaves the totals while the app stays open.
+    void dropsHour;
     // Rebuilt only when it differs: the pages and the bulk sale read it, and most reads change nothing.
     const next = recentDrops(log, trades);
     if (!sameDrops(drops.recent, next)) drops.recent = next;
@@ -2129,7 +2133,7 @@
       // A read the drop log took for a partial one (most parts missing, or a kind of item gone)
       // isn't compared: the full read after it would look like sets coming in.
       const log = settings.game.drops;
-      if (log.lowAt === at || (log.at === at && log.gone?.length)) return;
+      if (partialRead(log, at)) return;
       const index = mkt.index.byId.size ? mkt.index : null;
       const rows = new Map(allSetRows(m, index).map((r) => [r.unique, r]));
       const done: string[] = [];

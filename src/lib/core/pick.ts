@@ -11,7 +11,7 @@
 // you (`forma`, 3p by default; twice that for a 2X Forma Blueprint).
 
 import type { Model } from "./model";
-import { partAvailability, setRows } from "./views";
+import { partAvailability, partNeeded, primeToBuild, setRows } from "./views";
 
 export interface PickWeights {
   plat: number;
@@ -89,6 +89,16 @@ function setGapsByPart(m: Model) {
 }
 
 /**
+ * What a needed part is for, on the card: its own prime while that is still to build (a Lex Prime
+ * Receiver is for Lex Prime), and a weapon made from it only once the prime is built or mastered
+ * (then it's for Aklex Prime, which takes a second Lex Prime).
+ */
+function neededFor(m: Model, part: { parentUnique: string; parentName: string }): string {
+  if (!m.isMastered(part.parentUnique) && m.owned(part.parentUnique) === 0) return part.parentName;
+  return primeToBuild(m, part.parentUnique).for || part.parentName;
+}
+
+/**
  * `live`: prices by card name from the reward screen itself (what TennoScope's overlay shows,
  * checked on warframe.market moments ago). They win over the daily median, so the score and the
  * number on the card agree.
@@ -104,13 +114,10 @@ export function scoreCards(m: Model, names: string[], w: PickWeights = defaultPi
     const price = forma && formaValue ? forma * formaValue : market;
     const ducats = part?.ducats ?? 0;
     let needed = false;
-    if (part) {
-      const done = m.isMastered(part.parentUnique) || m.owned(part.parentUnique) > 0;
-      needed = !done && m.partHave(name) < part.required;
-    }
+    if (part) needed = partNeeded(m, part);
     const gap = gaps.get(name);
     const set = gap ? (gap.missing === 1 ? 1 : 0.5) : 0;
-    return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? part.parentName : null, set, setName: gap?.set ?? null };
+    return { name, price, ...(forma && formaValue ? { priceIsYours: true } : {}), ducats, needed, neededFor: needed && part ? neededFor(m, part) : null, set, setName: gap?.set ?? null };
   });
   const best = Math.max(0, ...base.map((c) => c.price ?? 0));
   const total = w.plat + w.needed + w.ducats + w.set || 1;

@@ -229,7 +229,7 @@
       </select>
     {:else}
       <Seg bind:value={settings.squad} label="Squad" options={[{ v: 1, label: "Solo", title: "One crack, your own reward" }, { v: 4, label: "Radshare", title: "Four players crack the same relic and you pick the best of the four rewards" }]} />
-      <Seg bind:value={metric} label="Rank by" options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part for something you haven't built or mastered" }]} />
+      <Seg bind:value={metric} label="Rank by" options={[{ v: "plat", label: "Platinum", title: "Rank by what a crack is worth in platinum" }, { v: "ducats", label: "Ducats", title: "Rank by the ducats a crack gives, for Baro" }, { v: "need", label: "Parts I need", title: "Chance of a part you still need: for something you haven't built or mastered, or a weapon made from it (Akbronco Prime takes two Bronco Primes)" }]} />
     {/if}
     <Fold active={(vaultedOnly ? 1 : 0) + (wishOnly ? 1 : 0) + (openOnly ? 1 : 0)} reset={() => { vaultedOnly = false; wishOnly = false; openOnly = false; }}>
       <Chip bind:on={vaultedOnly} label="Vaulted only" title="Only relics that drop nowhere now" />

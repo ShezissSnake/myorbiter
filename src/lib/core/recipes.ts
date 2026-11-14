@@ -14,7 +14,7 @@
 import pathsData from "../data/modular-parts-paths.json";
 import { wikiData, wikiGeneration } from "./wikiData";
 import research from "../data/acquisition.json";
-import { heldCount, type Model } from "./model";
+import { capturedCount, heldCount, REVIVE_WITH_SON, type Model } from "./model";
 import type { GearCopy } from "./notNeeded";
 
 export const RANKING_LABEL = "MyOrbiter's ranking from part stats";
@@ -167,11 +167,13 @@ export interface RecipeResult {
 export interface Holdings {
   held(unique: string): number;
   gear?: GearCopy[] | null;
+  /** Predasites and Vulpaphylas caught and not revived yet, by the creature's name (capturedCount). */
+  captured?(name: string): number;
 }
 
 /** Holdings from MyOrbiter's model: inventory rows by path, plus what's building in the foundry. */
 export function holdingsOf(m: Model): Holdings {
-  return { held: (u) => heldCount(m, u) + m.building(u), gear: m.gear };
+  return { held: (u) => heldCount(m, u) + m.building(u), gear: m.gear, captured: (name) => capturedCount(m, name) };
 }
 
 const NONE: Holdings = { held: () => 0, gear: null };
@@ -663,10 +665,14 @@ function creatureCombos(item: RecipeItem, goal: string, h: Holdings): Raw[] {
   const kind = item.family === "predasite" ? "Predasite" : "Vulpaphyla";
   const data = extra()[kind];
   const out: Raw[] = [];
-  // The subspecies is caught (Conservation), not held as a part: MyOrbiter can't see a Weakened one.
+  // The subspecies is caught (Conservation), not held as a part: a caught one is held as a
+  // Weakened creature under its own name, as Mastery sees it (capturedCount).
+  const caught = h.captured?.(item.name) ?? 0;
   const sub: RecipePart = {
-    role: "subspecies", name: item.key, unique: null, blueprint: null, held: 0, blueprints: 0, status: "missing", identifying: true,
-    where: `Catch a Weakened ${item.name} by Conservation in the Cambion Drift (Deimos), once Infested have weakened it`,
+    role: "subspecies", name: item.key, unique: null, blueprint: null, held: caught, blueprints: 0, status: caught > 0 ? "held" : "missing", identifying: true,
+    where: caught > 0
+      ? `You've captured one: ${REVIVE_WITH_SON}`
+      : `Catch a Weakened ${item.name} by Conservation in the Cambion Drift (Deimos), once Infested have weakened it`,
   };
   const son = (p: CreaturePart) => `Son in the Necralisk (Entrati, ${p.rankName}, ${p.standing.toLocaleString("en-US")} standing)`;
   const claws = data.Subspecies[item.key].claws;
@@ -712,8 +718,8 @@ const GAPS = (): Record<RecipeFamily, string[]> => ({
   amp: [extra().Amp._gaps, "Scaffolds are read as area or single-target from the page's words; that reading is MyOrbiter's."],
   moa: ["Core and gyro bonuses are fractions of the MOA's base stats, which the data doesn't give."],
   hound: ["Health, shields and armor apply the bracket's percentages to the core's values: MyOrbiter's estimate.", "Precept effects aren't in the data."],
-  predasite: [extra().Predasite._gaps, "MyOrbiter can't see a caught Weakened subspecies in your inventory."],
-  vulpaphyla: [extra().Vulpaphyla._gaps, "MyOrbiter can't see a caught Weakened subspecies in your inventory."],
+  predasite: [extra().Predasite._gaps],
+  vulpaphyla: [extra().Vulpaphyla._gaps],
 });
 
 /**
