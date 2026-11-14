@@ -15,9 +15,10 @@ export const ALWAYS_OFF = [
   'TennoScope telemetry',
 ] as const
 
-/** Shown beside Full wherever it can be turned on: what it does and what it risks, plainly. */
+/** Shown beside Full wherever it can be turned on: what it does and what it risks, plainly. The page
+ *  it ends on is spelled out with its address: a TennoScope run by itself has no MyOrbiter to open it. */
 export const FULL_ACCESS_WARNING =
-  "Full reads Warframe's memory to fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk: Full could put your account at risk. Nothing is written to the game's memory; the login session found there goes to Digital Extremes, for your inventory. Everything TennoScope reads and sends is listed on MyOrbiter's page What MyOrbiter reads and sends."
+  "Full reads Warframe's memory to fetch your inventory. Digital Extremes publishes no list of allowed or forbidden third-party programs and leaves using them at your own risk: Full could put your account at risk. Nothing is written to the game's memory; the login session found there goes to Digital Extremes, for your inventory. Everything TennoScope reads and sends is listed on MyOrbiter's page What MyOrbiter reads and sends (https://github.com/ShezissSnake/myorbiter/blob/main/docs/privacy.md)."
 
 export const ACCESS_MODES: readonly AccessModeDefinition[] = [
   {

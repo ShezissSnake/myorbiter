@@ -5,7 +5,9 @@
   // `title`: a tooltip for the whole line; `disabled`: shown, not changeable (its section is off).
   // `name`: the switch's own name ("settings.auto-trades"), as `data-switch`, so the help's pictures
   // and the sweep find it by name rather than by where it sits; the sweep lists a switch without one.
-  let { on = $bindable(), label, name, title, disabled = false, children }: { on: boolean; label: string; name: string; title?: string; disabled?: boolean; children?: Snippet } = $props();
+  // `describedby`: the id of text outside the row that describes the switch (Full mode's warning),
+  // read out with it; left out, the switch is drawn and named as it always was.
+  let { on = $bindable(), label, name, title, disabled = false, describedby, children }: { on: boolean; label: string; name: string; title?: string; disabled?: boolean; describedby?: string; children?: Snippet } = $props();
 </script>
 
 <label class="row" class:disabled {title} data-switch={name}>
@@ -13,7 +15,7 @@
     <span class="label">{label}</span>
     {#if children}<span class="note">{@render children()}</span>{/if}
   </span>
-  <input type="checkbox" role="switch" bind:checked={on} {disabled} />
+  <input type="checkbox" role="switch" bind:checked={on} {disabled} aria-describedby={describedby} />
   <span class="track" aria-hidden="true"><span class="knob"></span></span>
 </label>
 

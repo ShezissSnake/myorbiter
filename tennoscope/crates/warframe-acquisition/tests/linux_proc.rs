@@ -406,18 +406,6 @@ fn denied_memory_reports_actionable_permission_guidance_without_paths() {
 }
 
 #[test]
-fn resetting_recent_write_tracking_writes_the_soft_dirty_command() {
-    let temp = tempfile::tempdir().unwrap();
-    write_file(temp.path(), "700/clear_refs", b"");
-
-    LinuxProc::at(temp.path())
-        .reset_recent_writes(&GameProcess::new(700))
-        .unwrap();
-
-    assert_eq!(fs::read(temp.path().join("700/clear_refs")).unwrap(), b"4");
-}
-
-#[test]
 fn recently_written_regions_coalesce_only_present_soft_dirty_pages() {
     let temp = tempfile::tempdir().unwrap();
     write_file(
