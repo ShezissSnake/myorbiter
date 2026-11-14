@@ -1054,10 +1054,10 @@
                 {@const a = soldAnswers(ask.n, Math.min(ask.count, o.quantity))}
                 <!-- A trade logged this sale but couldn't mark it sold: "That sale" marks those copies and logs nothing more. -->
                 <div class="fix" role="group" aria-label="The trade's sale?">
-                  <span class="small q"><b class="held">MyOrbiter logged {ask.count} sold from your trade{ask.partner ? ` with ${ask.partner}` : ""} but couldn't mark {ask.count > 1 ? "them" : "it"} sold.</b> <span class="dim">· Is this that sale?</span></span>
+                  <span class="small q"><b class="held">Your trade{ask.partner ? ` with ${ask.partner}` : ""} logged {ask.count}, not marked sold.</b> <span class="dim">· This sale?</span></span>
                   <!-- The focus starts on the answer that sends least; Esc on either closes it and sends nothing. -->
-                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id)} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that} sold</button>
-                  <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another} sold</button>
+                  <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id)} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
+                  <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another}</button>
                 </div>
                 {:else}
                 <div class="fix" role="group" aria-label="Sold again?">
