@@ -4,18 +4,20 @@
 // are read; the limits per listing (core/drift.ts: once an hour, six times a day) are separate and
 // hold whatever the interval.
 //
-// The time of the last timed check is kept in the settings, so a long interval means what it says
-// across restarts: a start before the next check is due waits for it; a start after it was due
-// (the app was closed when it fell) runs one check, once, as soon as the first check after a start
-// can run; the next one comes a whole interval after that. A saved time in the future (a clock
-// that went back) counts as due, as no saved time does: one check, as on every start before.
+// For an interval over an hour, the time of the last timed check is kept in the settings, so a
+// long interval means what it says across restarts: a start before the next check is due waits
+// for it; a start after it was due (the app was closed when it fell) runs one check, once, as soon
+// as the first check after a start can run; the next one comes a whole interval after that. A
+// saved time in the future (a clock that went back) counts as due, as no saved time does: one
+// check, as on every start before. At an hour or less the time stays in memory, and a start
+// checks at once.
 
-/** The intervals offered, in minutes: every 1, 2, 5, 10, 15 and 30 minutes, every hour, 2, 6 and 12 hours, once a day, once a week. */
 /** Only intervals over this many minutes save the time of the last check in the settings: a save
  *  (and the redraw of hidden pages it brings) then comes at most once an hour. */
 export const SAVED_ABOVE_MIN = 60;
 export const savesCheck = (every: number | undefined): boolean => every != null && every > SAVED_ABOVE_MIN;
 
+/** The intervals offered, in minutes: every 1, 2, 5, 10, 15 and 30 minutes, every hour, 2, 6 and 12 hours, once a day, once a week. */
 export const EVERY_CHOICES = [1, 2, 5, 10, 15, 30, 60, 120, 360, 720, 1440, 10080] as const;
 
 /** The interval from a saved file: one of the choices, or `fallback`. */

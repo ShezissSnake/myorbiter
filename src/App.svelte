@@ -136,6 +136,7 @@
   import Crest from "./lib/ui/Crest.svelte";
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import { checkDue } from "./lib/core/schedule";
+  import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -296,6 +297,8 @@
 
   let settings = $state<Settings>(defaultSettings());
   let settingsReady = false;
+  /** The saved settings replaced the defaults (set with them, before anything else awaits). */
+  let settingsLoaded = $state(false);
   /** Saved settings are in and drawn: until then a section's saved state is set, not folded to, so
    *  closed sections don't fold shut on every launch. */
   let railSettled = false;
@@ -356,9 +359,10 @@
   $effect(() => {
     if (!available.some((p) => p.id === settings.tab)) settings.tab = "home";
   });
-  // The market follows your platform; a new one means new order books and prices.
+  // The market follows your platform; a new one means new order books and prices. The defaults'
+  // platform, before the saved settings are in, is never a switch.
   $effect(() => {
-    void mkt.usePlatform(settings.market.platform, settings.market).catch(() => {});
+    void mkt.usePlatform(settings.market.platform, settingsLoaded ? settings.market : undefined).catch(() => {});
   });
   // Switching to or from a console changes what an empty TennoScope folder means.
   let wasConsole: boolean | null = null;
@@ -2247,6 +2251,8 @@
   const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
   /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
   let syncStep = $state<string | null>(null);
+  /** How the last sync ended, for its word between syncs (`syncIdleWord`). */
+  let syncEnd = $state<SyncEnd | null>(null);
   function refreshAll() {
     // Already at it (Ctrl+R again): the button flashes rather than the key doing nothing.
     if (syncJob.working) {
@@ -2319,7 +2325,12 @@
       } finally {
         syncStep = null;
       }
-    }).finally(syncFinished);
+    })
+      .then(() => {
+        if (syncJob.state === "failed") syncEnd = { failed: true, short: syncJob.short };
+        else if (syncJob.state === "done") syncEnd = { failed: false, note: syncJob.note };
+      })
+      .finally(syncFinished);
   }
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
@@ -2636,6 +2647,7 @@
       // licence: read before anything uses it. Without it there's simply nothing to dissolve into.
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
+      settingsLoaded = true;
       // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
       requestAnimationFrame(() => (railSettled = true));
       await wiki;
@@ -3014,7 +3026,7 @@
         <HelpMark part="rail.foot" corner />
       </div>
       <div class="tools" class:grid={!compact}>
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={error ? "Not synced" : bundle ? "Up to date" : "Waiting…"} sizer={["Waiting…", "Up to date", "Not synced"]}
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle)} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
       <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>

@@ -175,7 +175,8 @@ class MarketStore {
    * Switches market: every order book, price history and cheap-buy result read so far was the
    * other platform's, so they go.
    */
-  /** `s`: the market settings, whose saved check time goes with a switch (the old platform's). */
+  /** `s`: the saved market settings, once they're in; their saved check time goes with a switch (the
+   *  old platform's). Before them (the defaults) there's no `s`, and nothing counts as a switch. */
   async usePlatform(p: Platform, s?: { lastCheck?: number | null }) {
     // One switch at a time, in the order asked: PC → Xbox → PC quickly ends on PC.
     const run = this.switching.then(() => this.switchPlatform(p, s));
@@ -183,11 +184,12 @@ class MarketStore {
     return run;
   }
   private switching: Promise<void> = Promise.resolve();
-  /** The first platform this run is the one MyOrbiter starts on, not a switch. */
+  /** The saved settings' platform is in: the one MyOrbiter starts on, not a switch. Only a change
+   *  after it is one. */
   private chosen = false;
   private async switchPlatform(p: Platform, s?: { lastCheck?: number | null }) {
-    const first = !this.chosen;
-    this.chosen = true;
+    const isSwitch = !!s && this.chosen;
+    if (s) this.chosen = true;
     if (p === this.platform) return;
     await market.setPlatform(p);
     this.platform = p;
@@ -196,9 +198,9 @@ class MarketStore {
     this.deals = [];
     this.dealsAt = null;
     this.lastPass = null;
-    if (!first) {
+    if (isSwitch) {
       this.switched = true;
-      if (s) s.lastCheck = null;
+      s.lastCheck = null;
     }
     // The live feed subscribed to the old platform's new listings: started again if it's on.
     if (this.feedOn) {

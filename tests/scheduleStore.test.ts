@@ -112,14 +112,17 @@ test("a pass that stops after three failed reads is tried again within the hour 
 test("after a platform switch the saved time is set aside and cleared: the new platform is checked at once", async () => {
   market.setPlatform = (async () => {}) as never;
   const saved = Date.now() - MIN;
-  const s = settings({ every: 24 * 60, lastCheck: saved });
-  const other = mkt.platform === "pc" ? "ps4" : "pc";
-  // The platform MyOrbiter starts on is no switch: the saved time stands.
-  await mkt.usePlatform(other as never, s);
+  const s = settings({ platform: "ps4", every: 24 * 60, lastCheck: saved });
+  // As MyOrbiter starts: the defaults' platform first (PC, before the saved settings are in, so
+  // with none), then the saved settings' own, a console. Neither is a switch: the saved time stands.
+  await mkt.usePlatform(defaultMarketSettings().platform);
+  await mkt.usePlatform("ps4", s);
   assert.equal(s.lastCheck, saved);
   assert.equal(mkt.lastCheckOf(s), saved);
+  assert.equal(checkDue(mkt.lastCheckOf(s), mkt.passDelay(24 * 60 * MIN), Date.now()), false, "a start before it's due waits");
   // A switch while it runs: set aside now, and gone from the settings for the next start.
-  await mkt.usePlatform((other === "pc" ? "ps4" : "pc") as never, s);
+  s.platform = "pc";
+  await mkt.usePlatform("pc", s);
   assert.equal(mkt.lastCheckOf(s), null);
   assert.equal(s.lastCheck, null);
   assert.equal(checkDue(mkt.lastCheckOf(s), mkt.passDelay(24 * 60 * MIN), Date.now()), true);

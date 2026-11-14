@@ -286,7 +286,7 @@ const RAIL: Walkthrough = {
     {
       title: "Every button, under the status",
       lines: [
-        "Sync asks TennoScope for a new read (Ctrl+R); beside it, Up to date or Not synced.",
+        "Sync asks TennoScope for a new read (Ctrl+R). Its word speaks of your game data only.",
         "Notifications: what MyOrbiter told you lately; its number is how many are new.",
         "Settings (Ctrl+,); below, Search finds anything by name (Ctrl+K).",
         "Then Help (F1), Report a bug (Shift+F1) and TennoScope, its diamond filled when all is well.",
