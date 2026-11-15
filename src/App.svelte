@@ -68,6 +68,7 @@
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
   } from "./lib/backend";
@@ -162,7 +163,7 @@
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
-  import { leaveSetup } from "./lib/core/gettingIn";
+  import { leaveSetup, saveTroubleWords, type SaveTrouble } from "./lib/core/gettingIn";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -720,8 +721,9 @@
   const retryLater = (n: number, again: () => void) => {
     if (n < 5) setTimeout(again, 1000 * 2 ** n);
   };
-  // Saving settings failed (a full disk, a locked file): said above the page until it works again.
-  let saveError = $state<string | null>(null);
+  // Saving settings failed (a full disk, a locked file), or the saved ones couldn't be read: said above
+  // every page, the setup page and the "Can't read" pages included, until it works again.
+  let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
@@ -2647,6 +2649,9 @@
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
       settingsLoaded = true;
+      // Saved settings that couldn't be read are never saved over: said from the start, over every page.
+      const unreadable = settingsUnreadableWhy();
+      if (unreadable != null) saveError = { unreadable: true, cause: unreadable };
       // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
       requestAnimationFrame(() => (railSettled = true));
       await wiki;
@@ -3052,6 +3057,13 @@
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
+    <!-- Above every page, the setup page and the "Can't read" pages too: what's changed there (the
+         first start's answers, Finish later, Settings) is lost just the same. -->
+    {#if saveError}
+      <div class="stale" role="alert" title={saveError.cause}>
+        <span>{saveTroubleWords(saveError)}</span>
+      </div>
+    {/if}
     {#if !model && error && nothingYet(error)}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
@@ -3121,11 +3133,6 @@
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
-        </div>
-      {/if}
-      {#if saveError}
-        <div class="stale" role="alert" title={saveError}>
-          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. MyOrbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}

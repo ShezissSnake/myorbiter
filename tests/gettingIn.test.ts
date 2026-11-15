@@ -1,9 +1,9 @@
-// Getting in (App.svelte's setup page and the "Can't read" pages): what leaving the setup page does
-// to the automatic actions.
+// Getting in (App.svelte's setup page and the "Can't read" pages): saving trouble said on every
+// one of them, and what leaving the setup page does to the automatic actions.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { leaveSetup } from "../src/lib/core/gettingIn";
+import { leaveSetup, saveTroubleWords } from "../src/lib/core/gettingIn";
 
 const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
 const on = { auto: true, autoTrades: true, autoRep: true };
@@ -37,4 +37,27 @@ test("Finish later, Esc and the overlay step go through leaveSetup, and the log 
   assert.match(app, /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\("overlay"\);/);
   // The button's words are then true.
   assert.match(app, /data-field="setup\.later" title="[^"]*Automatic actions stay off\. \(Esc\)"/);
+});
+
+test("saving trouble: a write that failed is tried again; settings that couldn't be read are never saved over", () => {
+  const write = saveTroubleWords({ unreadable: false, cause: "No space left on device (os error 28)" });
+  assert.equal(write, "Couldn't save your settings (No space left on device (os error 28)): what you change now may not be kept. MyOrbiter keeps trying.");
+  const unreadable = saveTroubleWords({ unreadable: true, cause: "Permission denied (os error 13)" });
+  // Said as what it is, once, and without a promise the code doesn't keep.
+  assert.match(unreadable, /^MyOrbiter couldn't read your saved settings \(Permission denied \(os error 13\)\)/);
+  assert.doesNotMatch(unreadable, /keeps trying/);
+  assert.doesNotMatch(unreadable, /Couldn't save your settings \(MyOrbiter/);
+  assert.match(unreadable, /isn't kept/);
+  assert.match(unreadable, /Restart MyOrbiter/);
+});
+
+test("the saving banner is above the setup page, the \"Can't read\" pages and the collection alike", () => {
+  const banner = app.indexOf("{#if saveError}");
+  const chain = app.indexOf("{#if !model && error && ");
+  assert.ok(banner > 0 && chain > 0, "both found");
+  assert.ok(banner < chain, "the banner comes before the pages' branches, so every one of them has it");
+  assert.equal(app.split("{#if saveError}").length, 2, "one banner");
+  assert.match(app.slice(banner, banner + 300), /saveTroubleWords\(saveError\)/);
+  // Settings that couldn't be read are said from the start, not at the first change.
+  assert.match(app, /const unreadable = settingsUnreadableWhy\(\);\s*if \(unreadable != null\) saveError = \{ unreadable: true, cause: unreadable \};/);
 });
