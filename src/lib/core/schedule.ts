@@ -85,7 +85,8 @@ export function nextCheckWhy(every: number, failures: number, wait: number, next
   const missed = `warframe.market didn't answer the last ${failures === 1 ? "pass" : `${failures} passes`}`;
   if (next <= clock) return `${missed}, so it tries again now`;
   if (wait > every * 60_000) return `${missed}, so the timer waits longer (${Math.round(wait / 60_000)} min) before the next`;
-  if (every > 60 && next - clock <= 60 * 60_000) return `${missed}, so it tries again within the hour`;
+  // 61 minutes: the page's clock is up to a minute behind a pass that just ended.
+  if (every > 60 && next - clock <= 61 * 60_000) return `${missed}, so it tries again within the hour`;
   return plain;
 }
 

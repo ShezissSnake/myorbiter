@@ -122,6 +122,17 @@ test("the Next check tooltip: an hour or less waits longer; over an hour it trie
   assert.equal(nextCheckWhy(1440, 1, DAY, null, clock), "The timer checks once a day");
 });
 
+test("the Next check tooltip: within the hour right after a missed pass, with the page's clock up to a minute behind", () => {
+  const clock = Date.UTC(2026, 10, 14, 12, 0);
+  for (const every of [120, 1440]) {
+    // The missed pass ended 30 s after the clock last ticked, dated back to an hour before the next.
+    const pass = clock + 30_000;
+    const next = nextCheckShown(pass - (every - 60) * MIN, every * MIN, clock);
+    assert.equal(next, pass + HOUR);
+    assert.equal(nextCheckWhy(every, 1, every * MIN, next, clock), "warframe.market didn't answer the last pass, so it tries again within the hour");
+  }
+});
+
 test("the Next check tooltip follows the wait in force when the interval changed after a missed pass", () => {
   const clock = Date.UTC(2026, 10, 14, 12, 0);
   // No answer every 5 min (the pass is not dated back), then once a day: the wait is the whole
