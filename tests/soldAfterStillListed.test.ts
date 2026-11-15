@@ -134,7 +134,7 @@ test("two listings answered one after the other: one 'that sale' at a time for a
   /** The copies the question offers on a listing: the trade's not marked, at most what is listed (soldAnswers' "that"). */
   const shown = (l: SoldListing, sales: Sale[], out: Set<string>) => soldAnswers(1, Math.min(soldAfterUnmarked(l, sales, [trade], now, out)!.count, listed[l.id])).that;
 
-  test("the review's sequence: B's question opened while A's call is out, A back, then B answered: 3 closed in all, never 5", () => {
+  test("two listings for one trade: B's question opened while A's call is out, A back, then B answered: 3 closed in all, never 5", () => {
     listed.A = 2;
     listed.B = 5;
     const out = new Set<string>();
@@ -222,7 +222,7 @@ test("two listings answered one after the other: one 'that sale' at a time for a
     assert.equal(again.line, none);
   });
 
-  test("the review's case: X answered on B, B's call back after X's ten minutes, then A's answer", () => {
+  test("a call back after its trade's ten minutes: X answered on B, B's call back after X's ten minutes, then A's answer", () => {
     // Y is still listed on A; X has no sure listing. A's question shows 3, B's shows X's 2.
     const A: SoldListing = { ...o1, id: "A" };
     const B: SoldListing = { ...o1, id: "B" };
