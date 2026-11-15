@@ -35,9 +35,10 @@ export const DEAL_AGAIN_MS = 3_600_000;
  * restarts). The rule ("When that deal is gone"):
  * - an item announced is remembered with its price and when it was announced
  *   (`slug|rank@price@at`);
- * - it is forgotten once a scan read its order book (`read`, the slugs whose books the scan read)
- *   and it wasn't on the Cheap buys list: a later deal on it is news again. A scan that couldn't
- *   read its book forgets nothing;
+ * - it is forgotten once it isn't on the Cheap buys list (`deals`: the last scan's finds and what
+ *   the live feed caught since): a later deal on it is news again. Nothing is forgotten before the
+ *   first scan this run (`scanned`), nor an item whose order book the last scan meant to read and
+ *   couldn't (`unread`): of those the list says nothing;
  * - while it stays on the list, a lower price than the one announced is news, another seller at
  *   the same price or dearer isn't;
  * - either way, never within DEAL_AGAIN_MS (an hour) of the item's last announcement, counted from
@@ -45,10 +46,10 @@ export const DEAL_AGAIN_MS = 3_600_000;
  *   at the first scan past it, if it's still listed.
  * Entries an earlier version kept (`slug|rank@price`) count as announced long ago at that price.
  */
-export function dealNews<D extends DealSeen>(deals: D[], read: readonly string[], notified: string[], now: number): { fresh: D[]; notified: string[] } {
+export function dealNews<D extends DealSeen>(deals: D[], unread: readonly string[], notified: string[], now: number, scanned: boolean): { fresh: D[]; notified: string[] } {
   const said = (d: DealSeen) => `${d.slug}|${d.rank ?? ""}`;
   const listed = new Set(deals.map(said));
-  const readNow = new Set(read);
+  const unknown = new Set(unread);
   // What's remembered of each item: the price announced (null once forgotten) and when.
   const memo = new Map<string, { price: number | null; at: number }>();
   for (const k of notified) {
@@ -58,7 +59,7 @@ export function dealNews<D extends DealSeen>(deals: D[], read: readonly string[]
     memo.set(item, { price: Number.isFinite(p) ? p : null, at: at ? +at || 0 : 0 });
   }
   for (const [item, m] of memo) {
-    if (m.price != null && !listed.has(item) && readNow.has(item.slice(0, item.lastIndexOf("|")))) m.price = null;
+    if (scanned && m.price != null && !listed.has(item) && !unknown.has(item.slice(0, item.lastIndexOf("|")))) m.price = null;
   }
   // The cheapest deal per item: one announcement each.
   const best = new Map<string, D>();

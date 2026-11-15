@@ -21,7 +21,7 @@
   import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
-  import { couldntRead, unreadParts } from "../core/worldAge";
+  import { couldntRead, notInWorld, unreadParts } from "../core/worldAge";
   import { anyMark, NO_MARKS, rewardMarks, type RewardMarks } from "../core/rewardNeed";
   import NeedTags from "../ui/NeedTags.svelte";
   import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
@@ -832,7 +832,7 @@
           </div>
         {/if}
         {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>
-        {:else if unread.today.length}<p class="dim small">{couldntRead(unread.today)}</p>{/if}
+        {:else if unread.today.length}<p class="dim small">{notInWorld(unread.today)}</p>{/if}
       </div>
       <button class="link fold" aria-expanded={openToday} onclick={() => (openToday = !openToday)} title="The Sortie's missions and modifiers, the Archon Hunt's, Nightwave's challenges, Darvo's deal and the rest">{openToday ? "Fewer" : "Everything →"}</button>
     </section>

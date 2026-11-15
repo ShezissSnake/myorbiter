@@ -23,5 +23,5 @@ test("a deals scan whose book request fails does not announce a deal from a book
   await mkt.scanDeals(model, [{ name: "Thing Prime Barrel", kind: "part", rank: null, why: "the last part of Thing Prime" }]);
   assert.deepEqual(mkt.deals.map((d) => `${d.name} ${d.price}p from ${d.seller}`), [], "no deal from a five-hour-old book");
   assert.equal(mkt.dealsChecked, 0, "no book was read this scan");
-  assert.deepEqual(mkt.dealsRead, [], "and none counts as read");
+  assert.deepEqual(mkt.dealsUnread, ["thing_prime_barrel"], "and it counts as not read");
 });

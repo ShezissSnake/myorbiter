@@ -64,6 +64,15 @@ export function unreadParts(live: Live, read: WorldRead): Unread {
   };
 }
 
+/**
+ * "Nightwave and Darvo's deal aren't in the worldstate right now.": for the parts of Worth doing
+ * today, which also go when they end (the prune takes Darvo's deal out at its expiry, until the
+ * next read brings the new one), so "couldn't be read" would not always be true.
+ */
+export function notInWorld(names: string[]): string {
+  return couldntRead(names).replace(/ couldn't be read just now\.$/, names.length > 1 ? " aren't in the worldstate right now." : " isn't in the worldstate right now.");
+}
+
 /** "Alerts and invasions couldn't be read just now." */
 export function couldntRead(names: string[]): string {
   // After the first, the common nouns start small ("Alerts and invasions"); Nightwave and Darvo keep theirs.

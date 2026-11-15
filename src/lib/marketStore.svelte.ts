@@ -196,7 +196,7 @@ class MarketStore {
     this.books = {};
     this.histories.clear();
     this.deals = [];
-    this.dealsRead = [];
+    this.dealsUnread = [];
     this.dealsAt = null;
     this.lastPass = null;
     if (isSwitch) {
@@ -1206,8 +1206,8 @@ class MarketStore {
    */
   /** How many order books the last scan could read. */
   dealsChecked = $state(0);
-  /** The items (slugs) whose order books the last scan read: what its deals speak for. */
-  dealsRead = $state.raw<string[]>([]);
+  /** The items (slugs) the last scan meant to read and couldn't: its list says nothing of them. */
+  dealsUnread = $state.raw<string[]>([]);
 
   /** Items' last 90 days of trades, by slug, read at most once an hour. */
   private histories = new Map<string, { at: number; points: Promise<PricePoint[]> }>();
@@ -1365,7 +1365,7 @@ class MarketStore {
       }
       const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.dealsChecked = Object.values(books).filter(Boolean).length;
-      this.dealsRead = slugs.filter((sl) => !!books[sl]);
+      this.dealsUnread = slugs.filter((sl) => !got.has(sl));
       const me = this.me ?? { id: "", ingameName: "", platform: this.platform, crossplay: true };
       this.deals = findDeals(m, this.index, books, watch, me as Me);
       this.dealsAt = Date.now();

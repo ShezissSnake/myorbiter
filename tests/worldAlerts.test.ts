@@ -9,7 +9,7 @@ import { chosenFissures, missionTypes, MISSIONS } from "../src/lib/core/board";
 import { inFissure } from "../src/lib/core/mission";
 import { cycleTimers, matchedFissures, ruleLabel, ruleMatches, sameRule, type FissureRule } from "../src/lib/core/timers";
 import { alertNeeds, type WorldAlert } from "../src/lib/core/worldNeeds";
-import { fissuresOutOfDate, liveCurrent, unreadParts, watchingAlertsNote, type WorldRead } from "../src/lib/core/worldAge";
+import { couldntRead, fissuresOutOfDate, liveCurrent, notInWorld, unreadParts, watchingAlertsNote, type WorldRead } from "../src/lib/core/worldAge";
 import { circuitNews, dealNews, wishlistNews } from "../src/lib/core/worldOnce";
 import type { Fissure, Live, MissionState } from "../src/lib/core/types";
 
@@ -95,37 +95,45 @@ test("an Omnia fissure counts for the wishlist notice: it takes any relic but a 
 // ------------------------------------------------------------ 5: cheap buys
 
 const deal = (slug: string, price: number) => ({ slug, rank: null, price });
-test("a cheap buy that was announced is news again once it has left the Cheap buys list, at most once an hour", () => {
+/** Scans in a row: each gives the Cheap buys list, the books it couldn't read, and whether a scan has run yet. */
+const scans = () => {
   let notified: string[] = [];
-  const scan = (deals: ReturnType<typeof deal>[], readSlugs: string[], now: number) => {
-    const out = dealNews(deals, readSlugs, notified, now);
+  return (deals: ReturnType<typeof deal>[], unread: string[], now: number, scanned = true) => {
+    const out = dealNews(deals, unread, notified, now, scanned);
     notified = out.notified;
     return out.fresh.map((d) => `${d.slug} ${d.price}`);
   };
-  assert.deepEqual(scan([deal("thing", 40)], ["thing"], T0), ["thing 40"]);
-  assert.deepEqual(scan([deal("thing", 40)], ["thing"], T0 + 10 * MIN), [], "still listed: not news");
-  assert.deepEqual(scan([], ["thing"], T0 + 20 * MIN), [], "gone");
-  assert.deepEqual(scan([deal("thing", 45)], ["thing"], T0 + 30 * MIN), [], "back within the hour: not yet");
-  assert.deepEqual(scan([deal("thing", 45)], ["thing"], T0 + 70 * MIN), ["thing 45"], "still there past the hour: news, though dearer than the first");
-  assert.deepEqual(scan([], ["thing"], T0 + 80 * MIN), []);
-  assert.deepEqual(scan([deal("thing", 40)], ["thing"], T0 + 135 * MIN), ["thing 40"], "gone and back, an hour after the last: news");
+};
+test("a cheap buy that was announced is news again once it has left the Cheap buys list, at most once an hour", () => {
+  const scan = scans();
+  assert.deepEqual(scan([deal("thing", 40)], [], T0), ["thing 40"]);
+  assert.deepEqual(scan([deal("thing", 40)], [], T0 + 10 * MIN), [], "still listed: not news");
+  assert.deepEqual(scan([], [], T0 + 20 * MIN), [], "gone");
+  assert.deepEqual(scan([deal("thing", 45)], [], T0 + 30 * MIN), [], "back within the hour: not yet");
+  assert.deepEqual(scan([deal("thing", 45)], [], T0 + 70 * MIN), ["thing 45"], "still there past the hour: news, though dearer than the first");
+  assert.deepEqual(scan([], [], T0 + 80 * MIN), []);
+  assert.deepEqual(scan([deal("thing", 40)], [], T0 + 135 * MIN), ["thing 40"], "gone and back, an hour after the last: news");
 });
 
-test("a cheap buy is forgotten only when a scan read its book and it wasn't there", () => {
-  let notified: string[] = [];
-  const scan = (deals: ReturnType<typeof deal>[], readSlugs: string[], now: number) => {
-    const out = dealNews(deals, readSlugs, notified, now);
-    notified = out.notified;
-    return out.fresh.map((d) => `${d.slug} ${d.price}`);
-  };
-  assert.deepEqual(scan([deal("thing", 40)], ["thing"], T0), ["thing 40"]);
-  assert.deepEqual(scan([], [], T0 + 2 * HOUR), [], "its book couldn't be read: still remembered");
-  assert.deepEqual(scan([deal("thing", 40)], ["thing"], T0 + 3 * HOUR), [], "the same deal, still listed: not news");
-  assert.deepEqual(scan([deal("thing", 35)], ["thing"], T0 + 4 * HOUR), ["thing 35"], "a lower price, past the hour: news");
+test("a cheap buy isn't forgotten when its book couldn't be read, nor before the first scan", () => {
+  const scan = scans();
+  assert.deepEqual(scan([deal("thing", 40)], [], T0), ["thing 40"]);
+  assert.deepEqual(scan([], ["thing"], T0 + 2 * HOUR), [], "its book couldn't be read: still remembered");
+  assert.deepEqual(scan([], [], T0 + 2 * HOUR + MIN, false), [], "a restart, no scan yet: still remembered");
+  assert.deepEqual(scan([deal("thing", 40)], [], T0 + 3 * HOUR), [], "the same deal, still listed: not news");
+  assert.deepEqual(scan([deal("thing", 35)], [], T0 + 4 * HOUR), ["thing 35"], "a lower price, past the hour: news");
+});
+
+test("a cheap buy the live feed caught, outside the scan's own items, is forgotten once the list no longer has it", () => {
+  const scan = scans();
+  // The feed adds it between scans; the next scan's list doesn't hold it (the scan never asks its book).
+  assert.deepEqual(scan([deal("other", 30)], [], T0), ["other 30"]);
+  assert.deepEqual(scan([], [], T0 + 10 * MIN), [], "the scan's list: gone");
+  assert.deepEqual(scan([deal("other", 30)], [], T0 + 2 * HOUR), ["other 30"], "the feed catches it again later: news");
 });
 
 test("cheap buys remembered by an earlier version (item@price) carry over", () => {
-  const out = dealNews([deal("thing", 40), deal("other", 30)], ["thing", "other"], ["thing|@40"], T0);
+  const out = dealNews([deal("thing", 40), deal("other", 30)], [], ["thing|@40"], T0, true);
   assert.deepEqual(out.fresh.map((d) => d.slug), ["other"], "the same price as remembered: not news");
 });
 
@@ -172,6 +180,15 @@ test("Home names each part of the world state it couldn't read, where that part 
   assert.deepEqual(unreadParts({ ...all, nightwave: null }, read(T0)).today, ["Nightwave"], "Nightwave alone missing");
   assert.deepEqual(unreadParts({ ...all, alerts: null, darvo: null, events: null, cycles: all.cycles!.slice(1) }, read(T0)), { needs: ["Alerts"], today: ["Darvo's deal"], events: ["Events"], clocks: ["The Zariman's clock"] });
   assert.deepEqual(unreadParts(live({}), read(null)), { needs: [], today: [], events: [], clocks: [] }, "the first read on its way: nothing said yet");
+});
+
+test("Worth doing today's parts that ended (Darvo's deal at its rollover) aren't called unreadable", () => {
+  const l = pruneLive(live({ darvo: { item: "Lato", originalPrice: 10, salePrice: 5, expiry: new Date(T0 - MIN).toISOString() } }), T0);
+  const today = unreadParts({ ...l, nightwave: { activeChallenges: [] } as unknown as Live["nightwave"], steelPath: {} as Live["steelPath"], duviriCycle: {} as Live["duviriCycle"] }, read(T0 - 2 * MIN)).today;
+  assert.deepEqual(today, ["Darvo's deal"]);
+  assert.equal(notInWorld(today), "Darvo's deal isn't in the worldstate right now.");
+  assert.equal(notInWorld(["Darvo's deal", "Nightwave"]), "Darvo's deal and Nightwave aren't in the worldstate right now.");
+  assert.equal(couldntRead(["Alerts", "Invasions"]), "Alerts and invasions couldn't be read just now.");
 });
 
 // ------------------------------------------------------------ 8: a reward listed once
