@@ -118,6 +118,22 @@ test("missing data after a first read: said as not found, with the folder and th
   assert.equal(missingWords("database disk image is malformed", folder, true), null);
 });
 
+// MyOrbiter knows that an inventory was read on this install, not from which folder: after the
+// folder is changed in Settings, "where it read your inventory before" would be said of a folder
+// it never read from. Both texts say only that it has read one before.
+test("missing data after a first read: neither the page nor the sidebar says the folder now set is where it was read", () => {
+  const folder = "~/Games/elsewhere";
+  const line = (pickup: { error: string; missing: boolean }) =>
+    inventoryLine({ now: 0, status: null, tsError: null, since: 0, runningSince: 0, asked: null, gameSince: null, signedInSince: null, log: { found: true, signedIn: false }, pickup: { ...pickup, entries: 0, observedAt: null }, ptraceScope: null }).title;
+  const texts = [...[FOLDER_GONE, FILE_GONE, OS_GONE].map((e) => missingWords(e, folder, true) ?? ""), line({ error: FOLDER_GONE, missing: true })];
+  for (const w of texts) {
+    assert.doesNotMatch(w, /where it read/i, w);
+    assert.match(w, /MyOrbiter has read your inventory before/, w);
+    assert.match(w, /can't find TennoScope's data/, w);
+  }
+  assert.equal(missingWords(FOLDER_GONE, folder, true), `MyOrbiter has read your inventory before, and now can't find TennoScope's data in ${folder}. If TennoScope keeps it somewhere else, set that folder in Settings, Where things are.`);
+});
+
 test("the sidebar's Inventory line says the data isn't found, not \"Reading…\"", () => {
   const s = {
     now: 0,
