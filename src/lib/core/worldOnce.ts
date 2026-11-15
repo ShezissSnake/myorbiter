@@ -21,6 +21,9 @@ export function wishlistNews(before: Set<string> | null, fissures: Fissure[], no
   return { baseline: openNow, fresh: before ? [...openNow].filter((e) => !before.has(e) && wished.has(e)) : [] };
 }
 
+/** A saved list of past notifications as text entries: anything else in it (or instead of it) is passed over. */
+const textsOf = (xs: unknown): string[] => (Array.isArray(xs) ? xs.filter((x): x is string => typeof x === "string") : []);
+
 export interface DealSeen {
   slug: string;
   rank: number | null;
@@ -45,18 +48,20 @@ export const DEAL_AGAIN_MS = 3_600_000;
  *   the time kept with it, so a restart doesn't shorten it. A deal held back by the hour is news
  *   at the first scan past it, if it's still listed.
  * Entries an earlier version kept (`slug|rank@price`) count as announced long ago at that price.
+ * A damaged saved list (not a list, or an entry that isn't text) is passed over where damaged and
+ * the rest kept; a time later than now counts as now, so no entry silences its item for good.
  */
-export function dealNews<D extends DealSeen>(deals: D[], unread: readonly string[], notified: string[], now: number, scanned: boolean): { fresh: D[]; notified: string[] } {
+export function dealNews<D extends DealSeen>(deals: D[], unread: readonly string[], notified: unknown, now: number, scanned: boolean): { fresh: D[]; notified: string[] } {
   const said = (d: DealSeen) => `${d.slug}|${d.rank ?? ""}`;
   const listed = new Set(deals.map(said));
   const unknown = new Set(unread);
   // What's remembered of each item: the price announced (null once forgotten) and when.
   const memo = new Map<string, { price: number | null; at: number }>();
-  for (const k of notified) {
+  for (const k of textsOf(notified)) {
     const [item, price, at] = k.split("@");
     if (!item || memo.has(item)) continue;
     const p = price ? +price : NaN;
-    memo.set(item, { price: Number.isFinite(p) ? p : null, at: at ? +at || 0 : 0 });
+    memo.set(item, { price: Number.isFinite(p) ? p : null, at: Math.min(at ? +at || 0 : 0, now) });
   }
   for (const [item, m] of memo) {
     if (scanned && m.price != null && !listed.has(item) && !unknown.has(item.slice(0, item.lastIndexOf("|")))) m.price = null;
@@ -96,9 +101,10 @@ export interface CircuitWeek {
  * gains again isn't announced again. A week an earlier version announced as one list
  * (`circuit|<resets>|A,B`) counts each name in it as announced.
  */
-export function circuitNews(c: CircuitWeek, known: readonly string[]): { frames: string[]; incarnons: string[]; keys: string[] } {
+export function circuitNews(c: CircuitWeek, known: unknown): { frames: string[]; incarnons: string[]; keys: string[] } {
   const head = `circuit|${c.resets}|`;
-  const said = new Set(known.filter((k) => k.startsWith(head)).flatMap((k) => k.slice(head.length).split(",")));
+  // A damaged saved list is passed over where damaged (textsOf).
+  const said = new Set(textsOf(known).filter((k) => k.startsWith(head)).flatMap((k) => k.slice(head.length).split(",")));
   const fresh = (xs: { name: string; wanted: boolean }[]) => [...new Set(xs.filter((x) => x.wanted && !said.has(x.name)).map((x) => x.name))];
   const frames = fresh(c.frames);
   const incarnons = fresh(c.incarnons).filter((n) => !frames.includes(n));

@@ -1133,8 +1133,10 @@
   });
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
-    if (settings.game.worldNotified.includes(key)) return false;
-    settings.game.worldNotified = [key, ...settings.game.worldNotified].slice(0, 300);
+    // A damaged saved list (not a list) is started again rather than thrown on.
+    const seen = Array.isArray(settings.game.worldNotified) ? settings.game.worldNotified : [];
+    if (seen.includes(key)) return false;
+    settings.game.worldNotified = [key, ...seen].slice(0, 300);
     return true;
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
@@ -2052,7 +2054,8 @@
       // Once per deal (core/worldOnce.ts): an item announced is news again once a scan finds it gone
       // from Cheap buys, or at a lower price; never more than once an hour.
       const { fresh, notified } = dealNews(deals, mkt.dealsUnread, settings.game.dealsNotified, Date.now(), mkt.dealsAt != null);
-      if (notified.join() !== settings.game.dealsNotified.join()) settings.game.dealsNotified = notified;
+      const had = settings.game.dealsNotified;
+      if (!Array.isArray(had) || notified.join() !== had.join()) settings.game.dealsNotified = notified;
       if (!fresh.length) return;
       if (settings.notify.deals) tell("deals", fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
     });
