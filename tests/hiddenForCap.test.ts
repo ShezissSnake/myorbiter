@@ -27,6 +27,9 @@ test("120 and 1 load unchanged; a fraction of 1 or more rounds as before", async
   assert.equal(await loaded(1), 1);
   assert.equal(await loaded(45), 45);
   assert.equal(await loaded(5.4), 5);
+  assert.equal(await loaded(5.6), 6, "a fraction that rounds up");
+  assert.equal(await loaded(1.5), 2);
+  assert.equal(await loaded(119.5), 120);
 });
 
 test("0, a fraction under 1, a negative, text and nothing load as the default, as before", async () => {
