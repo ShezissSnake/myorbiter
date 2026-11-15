@@ -312,7 +312,9 @@ settings saved yet) has no channel until its first check hears back: that check 
 starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
 Experimental, which it then reads as every check does). If one it had to read doesn't answer, or
 Experimental too has no build yours or newer (as when github.com fails for every channel and
-gitlab.com's frozen copy answers), nothing is chosen and the next check asks again; a channel you pick meanwhile stays. A local build starts on Stable and a copy
+gitlab.com's frozen copy answers), nothing is chosen and the next check asks again; a channel you pick meanwhile stays. One
+case it can't tell: Stable's or Beta's file failing on github.com reads as that channel having no
+build, so if a less stable channel then answers with yours, the install starts there. A local build starts on Stable and a copy
 that doesn't check on Experimental, without reading anything for it. An install
 that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where

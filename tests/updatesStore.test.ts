@@ -415,7 +415,7 @@ test("every channel failing at the first address, the second with no manifest: u
   assert.equal(settings.channel, "stable", "the channel shown, unchanged");
   assert.equal(settings.lastCheck, Date.now());
   assert.match(u.status(Date.now()), /^No channel answered with this build or a newer one \(at \d\d:\d\d, just now\)\.$/);
-  assert.match(u.unsettled ?? "", /asks again at its next check/);
+  assert.match(u.unsettled ?? "", /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check/, "every channel answered: true here too");
   assert.equal(u.empty, null, "no channel is said empty: none is chosen");
   assert.equal(u.line, "0.2.104 · channel not chosen yet");
   for (let at = 0; at <= CHECK_EVERY; at += SCHEDULE_TICK) {
@@ -509,7 +509,7 @@ test("a new install, no answer from Stable: nothing settles, Settings says so, a
   assert.equal(settings.channel, "stable", "the channel shown, unchanged");
   assert.equal(settings.lastCheck, Date.now(), "a failed check like any other: the next in 6 hours, not at every tick");
   assert.match(u.status(Date.now()), /^Couldn't reach GitHub or GitLab \(at \d\d:\d\d, just now\)\.$/);
-  assert.match(u.unsettled ?? "", /couldn't reach the channels yet and asks again at its next check/);
+  assert.match(u.unsettled ?? "", /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check/);
   assert.equal(u.line, "0.2.104 · channel not chosen yet");
   t.mock.timers.tick(SCHEDULE_TICK);
   await micro();

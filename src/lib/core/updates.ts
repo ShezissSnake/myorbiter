@@ -227,10 +227,12 @@ export function newInstallWhy(running: string, channel: Channel, stable: Channel
 
 /**
  * What Settings, Updates says while a new install hasn't settled its channel: which channel is
- * shown, and that MyOrbiter is still finding out. `failed`: its last try got no answer.
+ * shown, and that MyOrbiter is still finding out. `failed`: its last try settled nothing, whether
+ * no channel answered or every channel answered without this build or a newer one; the words are
+ * true of both.
  */
 export function unsettledWords(shown: Channel, failed: boolean): string {
-  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "It couldn't reach the channels yet and asks again at its next check." : "It asks them at its first check."} A channel you pick yourself stays.`;
+  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check." : "It asks them at its first check."} A channel you pick yourself stays.`;
 }
 
 const VERSION = /^\d+\.\d+\.\d+$/;
