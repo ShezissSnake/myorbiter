@@ -19,7 +19,7 @@
   import Chip from "../ui/Chip.svelte";
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import { takeIntent } from "../intent.svelte";
   import { whileShown } from "../pane.svelte";
   import { typed } from "../typed.svelte";
@@ -104,7 +104,7 @@
     { key: "name", label: "Item", value: (r) => r.name, cell: nameCell, defaultDesc: false, width: "24rem" },
     { key: "kind", label: "Category", value: (r) => label(r.category), muted: true, defaultDesc: false, minor: true, cell: kindCell },
     { key: "price", label: "Price", value: (r) => r.price, sortValue: (r) => topPrice(r), align: "right", cell: priceCell, title: "What it sold for lately on warframe.market (the daily median). Mods and arcanes: unranked, then maxed" },
-    { key: "trades", label: "Sold/day", value: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sold a day on warframe.market lately (mods and arcanes: every rank together): below 1 sells slowly, blank hasn't sold lately" },
+    { key: "trades", label: "Sold/day", value: (r) => soldPerDay(r.tradesPerDay), sortValue: (r) => daily(r.tradesPerDay), align: "right", muted: true, title: "How many sold a day on warframe.market lately (mods and arcanes: every rank together): below 1 sells slowly, <0.1 less than once in ten days, blank hasn't sold lately" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell, minor: true, title: "What Baro gives for it" },
     { key: "have", label: "You have", value: (r) => r.have || null, align: "right", muted: true, minor: true, title: "How many you hold (sets: complete sets)" },
     { key: "buy", label: "", value: () => null, cell: buyCell, sortable: false, align: "right" },

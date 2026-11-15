@@ -23,6 +23,12 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
+/// A cache checked at `checked` still holds at `now`. A check stamped later than now (the clock
+/// ran ahead then, and was set right since) is old: else it would hold until real time caught up.
+fn fresh(checked: u64, now: u64) -> bool {
+    checked <= now && now - checked < FRESH
+}
+
 fn get(url: &str, timeout: u64) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(timeout))
@@ -163,7 +169,7 @@ pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     // used if the tables can't be reached.
     let complete = cached.as_ref().is_some_and(|c| c["bounties"].as_array().is_some_and(|b| b.iter().any(|t| t["place"] == "cetus" && t["rotation"].is_string())) && c["sortie"].is_array());
     if let Some(c) = cached.as_ref().filter(|_| complete) {
-        if !force && now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
+        if !force && fresh(c["checkedAt"].as_u64().unwrap_or(0), now()) {
             return Ok(c.clone());
         }
     }
@@ -200,6 +206,16 @@ pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_check_stamped_in_the_future_is_old() {
+        let t = 1_800_000_000;
+        assert!(fresh(t, t) && fresh(t, t + FRESH - 1), "fresh for FRESH after the check");
+        assert!(!fresh(t, t + FRESH), "then old");
+        // Stamped while the clock ran ahead, then set right: old at once, not fresh until real time catches up.
+        assert!(!fresh(t + 1, t), "a second ahead");
+        assert!(!fresh(t + 30 * 24 * 3600, t), "a month ahead");
+    }
 
     #[test]
     fn compact_names_relics_and_groups_drops() {
