@@ -1,5 +1,48 @@
-// Getting in: what leaving the setup page does to the automatic actions. App.svelte acts on it;
-// nothing here touches the app, so tests can run it.
+// Getting in: which page a start without a collection gets, what saving trouble says, and what
+// leaving the setup page does to the automatic actions. App.svelte acts on it; nothing here
+// touches the app, so tests can run it.
+
+import { nothingYet } from "../backend";
+
+/** TennoScope's data isn't where MyOrbiter looks: its folder or a file in it is missing. */
+export const dataMissing = (e: string) => /not found at|os error [23]\b/i.test(e);
+
+/**
+ * A read error that means nothing has been read yet: the setup page's case. `readBefore`: an
+ * inventory has been read here before. Then TennoScope's data missing from where MyOrbiter looks
+ * (TennoScope reinstalled, its folder moved or deleted, a drive not there) is not "not read yet":
+ * the "Can't read TennoScope's data" page says it can't be found, with the folder and Settings. A
+ * TennoScope that runs and hasn't read an inventory yet is still the setup page's.
+ */
+export function notReadYet(e: string, readBefore: boolean): boolean {
+  return nothingYet(e) && !(readBefore && dataMissing(e));
+}
+
+/**
+ * A read that failed gives an empty collection instead of an error: nothing read yet and the
+ * player chose to carry on without it, or TennoScope doesn't run here (a Mac, a console). Never
+ * for data that's missing once an inventory has been read. `held`: a collection with an inventory
+ * is on screen (a failed read keeps it, with a note).
+ */
+export function carryOnEmpty(o: { error: string; withoutInventory: boolean; noTennoScope: boolean; readBefore: boolean; held: boolean }): boolean {
+  if (o.held || !nothingYet(o.error)) return false;
+  if (o.noTennoScope) return true;
+  return o.withoutInventory && notReadYet(o.error, o.readBefore);
+}
+
+/** "Continue without inventory" (or Finish later) after a read: it counts until an inventory is read. */
+export function stillWithout(withoutInventory: boolean, read: { inventory: boolean }): boolean {
+  return withoutInventory && !read.inventory;
+}
+
+/** What went wrong reading TennoScope's data, in words, when its data is missing (null otherwise). */
+export function missingWords(e: string, folder: string, readBefore: boolean): string | null {
+  if (readBefore && dataMissing(e)) return `MyOrbiter can't find TennoScope's data in ${folder}, where it read your inventory before. If TennoScope keeps it somewhere else now, set that folder in Settings, Where things are.`;
+  const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
+  if (missing) return `TennoScope's data in ${folder} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
+  if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${folder} yet.`;
+  return null;
+}
 
 /** Saving the settings failed: the write itself, or nothing is saved because the saved settings couldn't be read at start. */
 export interface SaveTrouble {

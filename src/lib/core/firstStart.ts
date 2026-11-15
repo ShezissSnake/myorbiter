@@ -33,8 +33,11 @@ export interface Signs {
   signedInSince: number | null;
   /** MyOrbiter's own reading of the game's log: found, and whether it says the player signed in. */
   log: { found: boolean; signedIn: boolean } | null;
-  /** The last pick-up of TennoScope's data: its error (if it failed), and what it took in. */
-  pickup: { error: string | null; entries: number; observedAt: number | null };
+  /**
+   * The last pick-up of TennoScope's data: its error (if it failed), and what it took in.
+   * `missing`: the error is TennoScope's data not found, after an inventory was read here before.
+   */
+  pickup: { error: string | null; entries: number; observedAt: number | null; missing?: boolean };
   /** Linux's Yama ptrace_scope, when known. */
   ptraceScope: number | null;
 }
@@ -195,6 +198,7 @@ export function gameLine(s: Signs): { value: string; title: string; ok: boolean 
 /** The sidebar's Inventory line when nothing is loaded: which side it's waiting on, or why not. */
 export function inventoryLine(s: Signs): { value: string; title: string } {
   const r = s.status?.report;
+  if (s.pickup.missing) return { value: "Data not found", title: `MyOrbiter can't find TennoScope's data, where it read your inventory before (Settings, Where things are): ${s.pickup.error}` };
   if (!s.status?.running) return { value: "TennoScope off", title: "TennoScope isn't running, so nothing reads your inventory" };
   if (!r) return { value: "No report", title: "TennoScope runs but hasn't reported yet" };
   if (r.setup.access_mode !== "full") return { value: "Full mode off", title: "Your inventory is only read in Full mode (Settings, TennoScope)" };

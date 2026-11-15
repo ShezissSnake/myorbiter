@@ -3,7 +3,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { leaveSetup, saveTroubleWords } from "../src/lib/core/gettingIn";
+import { carryOnEmpty, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout } from "../src/lib/core/gettingIn";
+import { inventoryLine } from "../src/lib/core/firstStart";
 
 const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
 const on = { auto: true, autoTrades: true, autoRep: true };
@@ -60,4 +61,82 @@ test("the saving banner is above the setup page, the \"Can't read\" pages and th
   assert.match(app.slice(banner, banner + 300), /saveTroubleWords\(saveError\)/);
   // Settings that couldn't be read are said from the start, not at the first change.
   assert.match(app, /const unreadable = settingsUnreadableWhy\(\);\s*if \(unreadable != null\) saveError = \{ unreadable: true, cause: unreadable \};/);
+});
+
+// ------------------------------------------------------------------ data missing after a first read
+
+const FOLDER_GONE = "TennoScope data folder not found at ~/.local/share/io.github.deftera186.tennoscope. Open TennoScope once with Warframe running.";
+const FILE_GONE = "not found at ~/.local/share/io.github.deftera186.tennoscope/tennoscope.sqlite3: TennoScope hasn't written it yet";
+const OS_GONE = "No such file or directory (os error 2)";
+const NOT_YET = "No inventory read yet";
+
+test("before the first read, missing data is the setup page's \"not read yet\"; after it, never", () => {
+  for (const e of [FOLDER_GONE, FILE_GONE, OS_GONE, NOT_YET]) assert.equal(notReadYet(e, false), true, `new install: ${e}`);
+  for (const e of [FOLDER_GONE, FILE_GONE, OS_GONE]) assert.equal(notReadYet(e, true), false, `read before: ${e}`);
+  // A TennoScope that runs and has read nothing yet (a new one, say) is still that, said as that.
+  assert.equal(notReadYet(NOT_YET, true), true);
+  assert.equal(notReadYet("database disk image is malformed", false), false);
+});
+
+test("\"Continue without inventory\" counts until the first read: then missing data is an error, not an empty collection", () => {
+  const base = { withoutInventory: true, noTennoScope: false, readBefore: false, held: false };
+  // Chosen, nothing read yet: an empty collection until TennoScope reads one.
+  for (const e of [FOLDER_GONE, FILE_GONE, NOT_YET]) assert.equal(carryOnEmpty({ ...base, error: e }), true, e);
+  // Read since: the data not where MyOrbiter looks is said, never an empty collection.
+  for (const e of [FOLDER_GONE, FILE_GONE, OS_GONE]) assert.equal(carryOnEmpty({ ...base, readBefore: true, error: e }), false, e);
+  // Without the choice: the error, as before.
+  assert.equal(carryOnEmpty({ ...base, withoutInventory: false, error: FILE_GONE }), false);
+  // A Mac or a console: an empty collection, as before, read or not.
+  assert.equal(carryOnEmpty({ ...base, withoutInventory: false, noTennoScope: true, readBefore: true, error: FOLDER_GONE }), true);
+  // A collection on screen stays, with a note.
+  assert.equal(carryOnEmpty({ ...base, held: true, error: FILE_GONE }), false);
+  // The choice itself ends with the first inventory read, and stands while none is.
+  assert.equal(stillWithout(true, { inventory: true }), false);
+  assert.equal(stillWithout(true, { inventory: false }), true);
+  assert.equal(stillWithout(false, { inventory: false }), false);
+});
+
+test("missing data after a first read: said as not found, with the folder and the way to Settings", () => {
+  const folder = "~/.local/share/io.github.deftera186.tennoscope";
+  for (const e of [FOLDER_GONE, FILE_GONE, OS_GONE]) {
+    const w = missingWords(e, folder, true) ?? "";
+    assert.match(w, /can't find TennoScope's data/, e);
+    assert.ok(w.includes(folder), `the folder: ${w}`);
+    assert.match(w, /Settings/);
+    assert.doesNotMatch(w, /\byet\b/, `not "yet": ${w}`);
+  }
+  // Before the first read, as before.
+  assert.equal(missingWords(FILE_GONE, folder, false), `TennoScope's data in ${folder} is missing io.github.deftera186.tennoscope/tennoscope.sqlite3, so MyOrbiter can't load it yet.`);
+  assert.equal(missingWords("database disk image is malformed", folder, true), null);
+});
+
+test("the sidebar's Inventory line says the data isn't found, not \"Reading…\"", () => {
+  const s = {
+    now: 0,
+    status: { supported: true, running: true, binary: "x", report: { game_running: true, setup: { access_mode: "full" as const }, health: { game_reader: { state: "ready", message: "Warframe process connected" } }, last_error: null } },
+    tsError: null,
+    since: 0,
+    runningSince: 0,
+    asked: null,
+    gameSince: 0,
+    signedInSince: 0,
+    log: { found: true, signedIn: true },
+    pickup: { error: FOLDER_GONE, entries: 0, observedAt: null, missing: true },
+    ptraceScope: null,
+  };
+  assert.equal(inventoryLine(s).value, "Data not found");
+  assert.match(inventoryLine(s).title, /Settings/);
+  assert.equal(inventoryLine({ ...s, pickup: { ...s.pickup, missing: false } }).value, "Reading…");
+});
+
+test("App picks the page, the empty collection and the choice through these", () => {
+  assert.match(app, /const readBefore = \$derived\(settings\.game\.valueHistory\.length > 0\)/);
+  assert.match(app, /const notYet = \$derived\(!!error && notReadYet\(error, readBefore\)\)/);
+  assert.match(app, /const setupShown = \$derived\(!model && notYet && !noTennoScope\)/);
+  assert.match(app, /\{#if !model && error && notYet\}/);
+  assert.doesNotMatch(app, /\{#if !model && error && nothingYet\(error\)\}/);
+  const reload = app.slice(app.indexOf("async function reloadNow("), app.indexOf("function withoutInventory()"));
+  assert.match(reload, /carryOnEmpty\(\{ error: String\(e\), withoutInventory: settings\.withoutInventory, noTennoScope, readBefore, held: !!bundle && !noInventory \}\)/);
+  assert.match(reload, /settings\.withoutInventory = stillWithout\(settings\.withoutInventory, \{ inventory: !empty \}\)/);
+  assert.match(app, /function loadProblem\(e: string\) \{[\s\S]{0,400}missingWords\(e, /);
 });
