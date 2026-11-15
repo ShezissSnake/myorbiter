@@ -161,7 +161,7 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
-  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, type Action, type Signs } from "./lib/core/firstStart";
+  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -532,10 +532,9 @@
     lastSetupLine = line;
     logLine(setup.stuck ? "warn" : "info", "setup", line);
   });
-  /** A way on from a step: each starts that step's wait over. */
+  /** A way on from a step: each starts that step's wait over (the game's and the read's too). */
   function setupAct(a: Action) {
-    setupSince = Date.now();
-    tsRunningSince = ts.running ? setupSince : null;
+    ({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince } = tryAgain({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince }, Date.now(), ts.running));
     if (a === "retry") {
       if (setup.step === "start") void ts.check(true, true);
       else if (setup.step === "access") void ts.ask("--access=full");

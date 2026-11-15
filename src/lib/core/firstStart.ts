@@ -162,6 +162,22 @@ export function firstStart(s: Signs): StepState {
   return { ...base, stage: stuck ? "Signed in, but no inventory yet" : "Signed in: reading your inventory", waitingFor: "TennoScope to read your inventory", stuck, reason: stuck ? why : null, todo: stuck ? "Try again, and MyOrbiter asks TennoScope to read now." : "TennoScope reads it in a moment; this page turns into your collection by itself.", actions: ["retry"] };
 }
 
+/** When each wait began (ms): the setup's start or the last Try again, and the first time each sign was seen since. */
+export interface Waits {
+  since: number;
+  runningSince: number | null;
+  gameSince: number | null;
+  signedInSince: number | null;
+}
+
+/**
+ * Try again: every wait counts from `now`, the sign-in and the inventory steps' too. A sign
+ * already seen counts as seen now; one not seen yet starts its wait when it turns up.
+ */
+export function tryAgain(w: Waits, now: number, running: boolean): Waits {
+  return { since: now, runningSince: running ? now : null, gameSince: w.gameSince == null ? null : now, signedInSince: w.signedInSince == null ? null : now };
+}
+
 /** One line for MyOrbiter's log when the state changes: no names, no paths (the log writes ~ anyway). */
 export function logLine(x: StepState): string {
   return `first start: ${x.stage}${x.stuck && x.reason ? `; ${x.reason}` : x.waitingFor ? `; waiting for ${x.waitingFor}` : ""}`;
