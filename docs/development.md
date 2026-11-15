@@ -46,11 +46,19 @@ them stops and counts any world-state request, and fails if there was one.
 Those checks contact no host. The item pictures the demo's pages show (WFCD's, from
 raw.githubusercontent.com) and Rivens' weekly file (www-static.warframe.com) come from a cache
 outside the repository, `myorbiter-check-pictures` in `$XDG_CACHE_HOME` (by default `~/.cache`).
-Every other request off this machine, from a page or from a window it opens, is refused, counted
-and fails the run, so a run that passes ends with `requests outside this machine, 0`. A picture the
-cache lacks is not fetched: the run lists it by address and fails, and keeps its address for the
-fill step, the one part that fetches (by GET, from those two hosts only, a few at a time, each with
-a time and size limit), run by hand:
+Every other request or WebSocket off this machine, from a page, a frame or a window it opens, is
+refused, counted and fails the run, and so is using what could reach the network past that (a
+worker, a shared worker, a service worker, WebTransport, a peer connection), which the checks'
+pages don't have. A run that passes ends with `requests outside this machine, 0`.
+
+Not seen that way: a connection or name lookup a page could make ahead of any request
+(`<link rel=preconnect>`, `dns-prefetch`). The checks' browser resolves no name but `localhost`,
+which holds those.
+
+A picture the cache lacks is not fetched: the run lists it by address and fails, and keeps its
+address for the fill step. That step is the one part that fetches: by GET, from those two hosts
+only, only addresses shaped as the demo's are, a few at a time, each with a time and size limit.
+It is run by hand:
 
 ```fish
 node scripts/picture-cache.mjs --fill

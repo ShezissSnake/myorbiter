@@ -31,10 +31,11 @@
 // ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
 // to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
 // The sweep contacts no host: item pictures (and Rivens' weekly file) come from the picture cache,
-// so their shapes are measured on the real pictures; every other request off this machine
-// (warframe.market's included), from the page or a window it opens, is refused and counted, and
-// fails the sweep; a picture the cache lacks is listed by address and fails the sweep
-// (scripts/picture-cache.mjs, whose --fill step fills the cache).
+// so their shapes are measured on the real pictures; every other request or WebSocket off this
+// machine (warframe.market's included), from the page or a frame or window it opens, is refused
+// and counted, and fails the sweep; a picture the cache lacks is listed by address and fails the
+// sweep. scripts/picture-cache.mjs (whose --fill step fills the cache) says what its guard decides
+// and what it leaves to the browser's launch rule.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -428,9 +429,10 @@ function widePicture(w = 320, h = 160) {
 }
 const WIDE_PICTURE = widePicture();
 
+// Node's own requests ask the demo server's port only, and follow no redirect off it.
 const answers = async () => {
   try {
-    return (await fetch(url)).ok;
+    return (await fetch(url, { redirect: "manual" })).ok;
   } catch {
     return false;
   }
@@ -438,7 +440,7 @@ const answers = async () => {
 // The demo server (vite.config.ts) tags each demo file with its size and time in demo/.
 async function isDemo() {
   const st = statSync(join(root, "demo/dev-market.json"));
-  const res = await fetch(new URL("dev-market.json", url)).catch(() => null);
+  const res = await fetch(new URL("dev-market.json", url), { redirect: "manual" }).catch(() => null);
   return res?.headers.get("etag") === `"${st.size}-${Math.round(st.mtimeMs)}"`;
 }
 
@@ -473,13 +475,13 @@ async function open(size, { firstRun = false, noInventory = false, widePictures 
     const demo = new URL(url).origin;
     await p.route((u) => u.origin === demo && u.pathname === "/dev-reward-screen.json", async (r) => {
       try {
-        const res = await r.fetch();
+        const res = await r.fetch({ maxRedirects: 0 });
         await r.fulfill({ response: res, json: { ...(await res.json()), cards: FORMA_SCREEN.cards } });
       } catch {} // the page closed while it was asked
     });
     await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
   }
-  p.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
+  p.on("pageerror", (e) => console.error(`  page error: ${hidePaths(e.message)}`));
   await p.addInitScript((first) => {
     try {
       const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");

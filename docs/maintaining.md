@@ -281,10 +281,10 @@ writes the WebP files over the ones in the repository. It needs ImageMagick (`ma
 demo's order books, price histories and world state (fissures, Baro, the clocks and the rest) are
 files in `demo/`, so Home and Current fissure show the same world on every run, online or not
 (`demo/README.md`); any request to a world-state service is stopped and counted, and fails the run.
-It contacts no host: the item pictures come from the checks' picture cache, every other request off
-this machine (warframe.market's included) is refused and fails the run, and a picture the cache
-lacks fails the run until `node scripts/picture-cache.mjs --fill` has fetched it
-(`docs/development.md`). A run fails so only at its end, when it has already written the pictures
+It contacts no host: the item pictures come from the checks' picture cache, every other request or
+WebSocket off this machine (warframe.market's included) is refused and fails the run, and a picture
+the cache lacks fails the run until `node scripts/picture-cache.mjs --fill` has fetched it
+(`docs/development.md` says what else is refused, and what is left to the browser's launch rule). A run fails so only at its end, when it has already written the pictures
 it took, some of them without their item art: after the fill, take them again (the help pictures
 too). In a clone whose
 `node_modules` is a link to another folder, Vite refuses to serve the fonts and the pictures come

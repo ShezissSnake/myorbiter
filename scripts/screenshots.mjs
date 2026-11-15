@@ -19,10 +19,11 @@
 // moment they're served, so Home and Current fissure show the same world on every run, online or
 // not. No request goes to a world-state service: every one is stopped and counted, and a run that
 // saw any fails. It contacts no host: item pictures (and Rivens' weekly file) come from the
-// picture cache, every other request off this machine (warframe.market's included) is refused,
-// counted and fails the run, and a picture the cache lacks fails the run (scripts/picture-cache.mjs,
-// whose --fill step fills it). A run that fails so has already written the pictures it took, some
-// without their item art: take them again once the check passes.
+// picture cache, every other request or WebSocket off this machine (warframe.market's included) is
+// refused, counted and fails the run, and a picture the cache lacks fails the run.
+// scripts/picture-cache.mjs (whose --fill step fills the cache) says what its guard decides and
+// what it leaves to the browser's launch rule. A run that fails so has already written the
+// pictures it took, some without their item art: take them again once the check passes.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
@@ -89,9 +90,10 @@ const SIZES = {
   site: { w: 1280, h: 800, out: "site/shots", large: true, pages: ["home", "current-fissure", "relics", "mastery", "builds", "inventory", "orders", "sell-spares"] },
 };
 
+// Node's own requests ask the demo server's port only, and follow no redirect off it.
 const answers = async () => {
   try {
-    return (await fetch(url)).ok;
+    return (await fetch(url, { redirect: "manual" })).ok;
   } catch {
     return false;
   }
@@ -101,7 +103,7 @@ const answers = async () => {
 // that answers from public/ doesn't.
 async function isDemo() {
   const st = statSync(join(root, "demo/dev-market.json"));
-  const res = await fetch(new URL("dev-market.json", url)).catch(() => null);
+  const res = await fetch(new URL("dev-market.json", url), { redirect: "manual" }).catch(() => null);
   return res?.headers.get("etag") === `"${st.size}-${Math.round(st.mtimeMs)}"`;
 }
 
@@ -160,7 +162,7 @@ try {
     // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
     await guard(p);
     await stopWorldState(p);
-    p.on("pageerror", (e) => console.error(`${kind}: ${e.message}`));
+    p.on("pageerror", (e) => console.error(`${kind}: ${hidePaths(e.message)}`));
     // What's New, and on a first start the Full mode question, would open over the first page.
     await p.addInitScript(() => {
       try {

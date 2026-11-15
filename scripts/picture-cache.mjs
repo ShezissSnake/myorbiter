@@ -1,19 +1,30 @@
 // The checks' picture cache. In the browser dev mode the demo's pages load item pictures from
 // WFCD's copy on raw.githubusercontent.com, and Rivens reads Digital Extremes' weekly riven file
 // from www-static.warframe.com. The sweep (scripts/ui-sweep.mjs), the screenshots and the
-// help-picture check (scripts/screenshots.mjs, scripts/help-shots.mjs) contact no host: they
-// answer those requests from this cache, on disk outside the repository, and refuse every other
-// request that isn't to this machine, counting it; a run that refused any fails. The guard is on
-// each page's browser context, so it holds for any window a page opens too, and a script's own
-// routes that ask again (`route.fetch()`) only ever ask the demo server. Their browser resolves no
-// name but localhost either (LAUNCH_ARGS), so a request no route answered fails rather than
-// leaving the machine.
+// help-picture check (scripts/screenshots.mjs, scripts/help-shots.mjs) contact no host. The guard
+// (`guard`, on each page's browser context, so on every frame and window the page opens) answers
+// those requests from this cache, on disk outside the repository, and refuses every other request
+// and WebSocket that isn't to this machine, counting it. What a page could reach the network with
+// past a route (a worker, a shared worker, a service worker, WebTransport, a peer connection) is
+// taken from every page before it loads, and using one is refused and counted too. A run that
+// refused any fails. A script's own routes that ask again (`route.fetch()`) only ever ask the demo
+// server, and Node's own requests only the demo server's port, following no redirect.
+//
+// Not decided by the guard, as no route sees it: a connection or name lookup a page could make
+// ahead of any request (`<link rel=preconnect>`, `dns-prefetch`). The browser's launch rule holds
+// those: it resolves no name but localhost (LAUNCH_ARGS), so nothing a route didn't answer leaves
+// the machine.
+//
+// No printed line names the home folder, the repository's folder, this cache's, Playwright's
+// browsers' (when PLAYWRIGHT_BROWSERS_PATH is set) or the temporary folder (when it isn't /tmp):
+// each is shown as `~`, `<repository>`, the cache's variable, `$PLAYWRIGHT_BROWSERS_PATH` or
+// `$TMPDIR` (hidePaths), a stop before a run begins included. Another path an error names is not.
 //
 // A request the cache can't answer is refused and its address kept in the cache's wanted list.
 // One step, run by hand, fetches what that list holds and the cache hasn't got, by GET, from those
-// two hosts only (and only the paths the demo's pictures and the riven file are under), a few at
-// a time with a pause, each with a time limit and a size limit, and is the only part of the checks
-// that contacts a host:
+// two hosts only and only addresses of the two shapes the demo uses (SHAPES), a few at a time with
+// a pause, each with a time limit and a size limit, and is the only part of the checks that
+// contacts a host:
 //
 //   node scripts/picture-cache.mjs --fill
 //
@@ -27,14 +38,21 @@
 
 import { createHash } from "node:crypto";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { worldStateAsked } from "./no-world-state.mjs";
 
-/** The two hosts the fill step may fetch from and the cache answers for, each with the path the demo's addresses start with. */
-export const SOURCES = { "raw.githubusercontent.com": "/WFCD/warframe-items/", "www-static.warframe.com": "/repos/" };
+/**
+ * The two hosts the fill step may fetch from and the cache answers for, each with the one shape of
+ * path the demo's addresses there take: a WFCD item picture (`imageUrl` in src/lib/backend.ts) and
+ * the weekly riven file (`tradeUrl` in src/lib/core/rivens.ts).
+ */
+export const SHAPES = {
+  "raw.githubusercontent.com": /^\/WFCD\/warframe-items\/[A-Za-z0-9_-][A-Za-z0-9._-]*\/data\/img\/[A-Za-z0-9_~%-][A-Za-z0-9._~%-]*$/,
+  "www-static.warframe.com": /^\/repos\/weeklyRivens[A-Za-z0-9]*\.json$/,
+};
 /** The fill step, as a run's messages name it. */
 export const FILL = "node scripts/picture-cache.mjs --fill";
 /** Chromium resolves no host name but localhost: whatever no route answers can't leave the machine. */
@@ -53,15 +71,41 @@ const wantedFile = join(dir, "wanted.txt");
 const KEEP = ["content-type", "last-modified", "access-control-allow-origin", "access-control-expose-headers"];
 
 /**
- * Text with the cache's folder and the home folder as messages show them: for any line that may
- * carry a path (an error's message, a tool's output), since a resolved path holds a user name.
+ * The folders a printed line may name, each with what it shows instead, longest first: the
+ * cache's, Playwright's browsers' when set, the repository's, the temporary folder when it isn't
+ * /tmp, and the home folder. A resolved path can hold a user name, wherever the checkout is.
  */
+const HIDDEN = [
+  [dir, shown],
+  [process.env.PLAYWRIGHT_BROWSERS_PATH, "$PLAYWRIGHT_BROWSERS_PATH"],
+  [fileURLToPath(new URL("..", import.meta.url)), "<repository>"],
+  [tmpdir() === "/tmp" ? null : tmpdir(), "$TMPDIR"],
+  [homedir(), "~"],
+]
+  .filter(([p]) => p && isAbsolute(p) && p !== "/")
+  .flatMap(([p, as]) => {
+    const bare = p.replace(/[/\\]+$/, "");
+    // The path as written, and as a file: address writes it (an error's stack).
+    return [bare, pathToFileURL(bare).pathname].map((form) => [new RegExp(`${form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![^/\\\\:'"\`\\s),\\]])`, "g"), as]);
+  })
+  .sort((a, b) => b[0].source.length - a[0].source.length);
+
+/** Text with every folder of HIDDEN as messages show it: for any line that may carry a path. */
 export function hidePaths(text) {
-  let s = String(text).replaceAll(dir, shown);
-  const home = homedir();
-  if (home && home !== "/") s = s.replaceAll(home, "~");
+  let s = String(text);
+  for (const [re, as] of HIDDEN) s = s.replace(re, as);
   return s;
 }
+
+// A script that stops before its run begins (a bad argument, a missing file, a failed import)
+// would have Node print its error with the script's full path: printed here with the paths hidden
+// instead, for every script that loads this one.
+const stopped = (e) => {
+  console.error(hidePaths(e instanceof Error ? (e.stack ?? e.message) : e));
+  process.exit(1);
+};
+process.on("uncaughtException", stopped);
+process.on("unhandledRejection", stopped);
 
 /** A file error as a line may show it: its code and the cache's folder, never the path. */
 const fileError = (e) => `${e?.code ?? e?.name ?? "error"} in ${shown}`;
@@ -83,7 +127,21 @@ const cached = (address) => existsSync(metaFile(address));
 const fillable = (address) => {
   try {
     const u = new URL(address);
-    return u.protocol === "https:" && !u.port && Object.hasOwn(SOURCES, u.hostname) && u.pathname.startsWith(SOURCES[u.hostname]);
+    // Written as the browser writes it (no other spelling of the same address), with nothing but
+    // the host and the path: no port, sign-in, query or fragment, and no encoded slash, backslash
+    // or dot that a server might decode into another path.
+    return (
+      address === u.href &&
+      u.protocol === "https:" &&
+      !u.port &&
+      !u.username &&
+      !u.password &&
+      !u.search &&
+      !u.hash &&
+      Object.hasOwn(SHAPES, u.hostname) &&
+      SHAPES[u.hostname].test(u.pathname) &&
+      !/%2f|%5c|%2e/i.test(u.pathname)
+    );
   } catch {
     return false;
   }
@@ -111,15 +169,70 @@ const wanted = () => {
 
 /** What the windows of this run were answered and refused, together. */
 const run = { served: 0, missed: new Set(), missedAsked: 0, refused: new Map(), errors: new Set() };
+/** Counts one refused request or connection, by its host (or by what it was, for one with no address yet). */
+const refuse = (what) => run.refused.set(what, (run.refused.get(what) ?? 0) + 1);
+const hostOf = (address) => {
+  try {
+    return new URL(address).host || new URL(address).protocol;
+  } catch {
+    return "?";
+  }
+};
+/**
+ * What a page could reach the network with past a route: Playwright routes requests (from a page,
+ * its frames, its windows, a dedicated worker or a service worker) and WebSockets, but not what a
+ * shared worker asks, a WebTransport session, a peer connection's packets, or a worker's own
+ * sockets. The demo uses none of these, so each is taken from every page and frame before it
+ * loads: using one is refused, counted, and fails the run. (Vite's client asks for a shared worker
+ * only when its socket to the dev server has dropped.)
+ */
+const TAKEN = ["Worker", "SharedWorker", "WebTransport", "RTCPeerConnection", "webkitRTCPeerConnection"];
 
 /**
  * Before anything else on the page `p`, on its browser context (each `browser.newPage` has its
- * own), so a window it opens is held too: every request that isn't to this machine is answered
- * from the cache or refused and counted. The page's own routes come before its context's, so the
- * world-state stop (scripts/no-world-state.mjs) and a view's own stand-ins keep their own say.
+ * own), so a window or frame it opens is held too: every request and WebSocket that isn't to this
+ * machine is answered from the cache or refused and counted, and the ways past a route (TAKEN, and
+ * registering a service worker) are refused and counted. The page's own routes come before its
+ * context's, so the world-state stop (scripts/no-world-state.mjs) and a view's own stand-ins keep
+ * their own say. Left to the browser's launch rule (LAUNCH_ARGS), as no route sees them: a
+ * connection or name lookup made ahead of any request (`<link rel=preconnect>`, `dns-prefetch`).
  */
 export async function guard(p) {
-  await p.context().route(
+  const context = p.context();
+  await context.routeWebSocket(
+    (u) => !local(u.href),
+    (ws) => {
+      refuse(hostOf(ws.url()));
+      ws.close();
+    },
+  );
+  await context.exposeBinding("__checksRefuse", (_source, what) => refuse(String(what)));
+  await context.addInitScript((taken) => {
+    const no = (what) => {
+      try {
+        globalThis.__checksRefuse?.(what);
+      } catch {}
+      return new DOMException(`${what} is refused while the checks run`, "SecurityError");
+    };
+    for (const name of taken) {
+      if (!(name in globalThis)) continue;
+      Object.defineProperty(globalThis, name, {
+        configurable: false,
+        writable: false,
+        value: function () {
+          throw no(name);
+        },
+      });
+    }
+    if (globalThis.ServiceWorkerContainer) {
+      Object.defineProperty(ServiceWorkerContainer.prototype, "register", {
+        configurable: false,
+        writable: false,
+        value: () => Promise.reject(no("a service worker")),
+      });
+    }
+  }, TAKEN);
+  await context.route(
     (u) => !local(u.href),
     async (r) => {
       const address = r.request().url();
@@ -138,13 +251,7 @@ export async function guard(p) {
             mkdirSync(dir, { recursive: true });
             appendFileSync(wantedFile, `${address}\n`);
           }
-        } else {
-          let host = "?";
-          try {
-            host = new URL(address).host || new URL(address).protocol;
-          } catch {}
-          run.refused.set(host, (run.refused.get(host) ?? 0) + 1);
-        }
+        } else refuse(hostOf(address));
       } catch (e) {
         // The cache can't be read or written: the request is refused, and the run fails.
         run.errors.add(fileError(e));
