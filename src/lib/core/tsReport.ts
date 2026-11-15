@@ -10,15 +10,22 @@
 // passed on only in the shape the page reads it in, as TennoScope writes it (its `bridge_status`);
 // one in another shape is left out whole, as a TennoScope that hasn't read the inventory yet
 // leaves it out, so what was saved from the last good read stays. A list is never passed with
-// some of its rows dropped: a riven missing from the list loses its saved history, and a copy
-// of gear missing from it would count as not held. Keys no page reads (`snapshot`) aren't passed.
+// some of its rows dropped: a riven missing from the list loses its saved history, and a modular
+// build missing from the gear list would count as not built. Imprints are the one list taken as
+// it comes, whatever its rows: their readers skip a row that isn't one, and nothing saved hangs
+// on a row. Keys no page reads (`snapshot`) aren't passed. A field left out is named in the app's
+// log, by its key only, once a run (`noteLeftOut`).
 
-import type { GameState, Health, HealthState, TennoscopeReport, TennoscopeStatus } from "../backend";
+import { logLine, type GameState, type Health, type HealthState, type TennoscopeReport, type TennoscopeStatus } from "../backend";
 import { recordRivens } from "./rivens";
 
 type Obj = Record<string, unknown>;
 const isObj = (x: unknown): x is Obj => !!x && typeof x === "object" && !Array.isArray(x);
 const fine = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x);
+/** A count: a whole number, 0 or more (a riven's cycles index the Kuva costs). */
+const count = (x: unknown) => Number.isInteger(x) && (x as number) >= 0;
+/** A time a date can hold (ms): the Foundry, Home, Mastery and the side panel format it as one. */
+const when = (x: unknown) => fine(x) && Math.abs(x) <= 8.64e15;
 const str = (x: unknown): x is string => typeof x === "string";
 /** A list whose every row is `ok`. */
 const every = (x: unknown, ok: (row: unknown) => boolean): x is unknown[] => Array.isArray(x) && x.every(ok);
@@ -45,9 +52,15 @@ const fingerprint = (fp: unknown) =>
   isObj(fp) &&
   opt(fp, "buffs", (v) => every(v, rivenStat), true) &&
   opt(fp, "curses", (v) => every(v, rivenStat), true) &&
-  ["lvl", "lvlReq", "rerolls"].every((k) => opt(fp, k, fine, true)) &&
+  ["lvl", "lvlReq"].every((k) => opt(fp, k, fine, true)) &&
+  opt(fp, "rerolls", count, true) &&
   ["compat", "pol"].every((k) => opt(fp, k, str, true));
-const riven = (r: unknown) => isObj(r) && str(r.type) && str(r.id) && fingerprint(r.fp) && opt(r, "pending", fingerprint, true);
+/**
+ * A riven's id keys its saved history (`recordRivens`, `hist[raw.id]`): an id every object already
+ * has as a key ("constructor", "__proto__") would read the object's own member there, not a list.
+ */
+const rivenId = (id: unknown) => str(id) && !(id in Object.prototype);
+const riven = (r: unknown) => isObj(r) && str(r.type) && rivenId(r.id) && fingerprint(r.fp) && opt(r, "pending", fingerprint, true);
 
 /** A copy of gear as TennoScope writes it (`GearCopy`): its optional parts only when it has them. */
 const gearCopy = (g: unknown) =>
@@ -73,26 +86,47 @@ const FIELDS: Record<string, (v: unknown) => boolean> = {
   pid: fine,
   market,
   foundry: (v) => v === null || (isObj(v) && Object.values(v).every(fine)),
-  foundry_ready: (v) => v === null || every(v, (row) => tuple(row, str, fine)),
+  foundry_ready: (v) => v === null || every(v, (row) => tuple(row, str, when)),
   mastery_rank: (v) => v === null || fine(v),
   platinum: (v) => v === null || fine(v),
   credits: (v) => v === null || fine(v),
   endo: (v) => v === null || fine(v),
   rivens: (v) => v === null || every(v, riven),
-  // The inventory's own rows, read as objects of any keys (core/imprints.ts).
-  imprints: (v) => v === null || every(v, isObj),
+  // The inventory's own rows, any list as it comes: the readers skip a row that isn't an object
+  // (core/imprints.ts), and the saved game's loader keeps only those (backend.ts).
+  imprints: (v) => v === null || Array.isArray(v),
   gear: (v) => v === null || every(v, gearCopy),
   consumed_suits: (v) => v === null || every(v, str),
 };
 
-/** The report as the page may read it, or null when it lacks what the page reads. */
-export function reportOf(raw: unknown): TennoscopeReport | null {
+/** Calls `log` with each key the first time it comes, and never again. */
+export function onceEach(log: (key: string) => void): (key: string) => void {
+  const seen = new Set<string>();
+  return (key) => {
+    if (seen.has(key)) return;
+    seen.add(key);
+    log(key);
+  };
+}
+
+/** A field left out, in the app's log: its key only, never its value, once a run. */
+export const noteLeftOut = onceEach((key) => logLine("warn", "tennoscope", `report: "${key}" left out, not in the shape MyOrbiter reads`));
+
+/**
+ * The report as the page may read it, or null when it lacks what the page reads. `note` hears the
+ * key of each field left out.
+ */
+export function reportOf(raw: unknown, note: (key: string) => void = () => {}): TennoscopeReport | null {
   if (!isObj(raw) || !fine(raw.at) || typeof raw.game_running !== "boolean" || !isObj(raw.setup) || !isObj(raw.health)) return null;
   const setup = raw.setup;
   const h = raw.health;
   const e = raw.last_error;
   const out: Obj = { at: raw.at };
-  for (const [k, ok] of Object.entries(FIELDS)) if (k in raw && ok(raw[k])) out[k] = raw[k];
+  for (const [k, ok] of Object.entries(FIELDS)) {
+    if (!(k in raw)) continue;
+    if (ok(raw[k])) out[k] = raw[k];
+    else note(k);
+  }
   return {
     ...(out as unknown as TennoscopeReport),
     game_running: raw.game_running,
@@ -109,7 +143,7 @@ export function reportOf(raw: unknown): TennoscopeReport | null {
 /** A status check, its report checked. */
 export function statusOf(raw: TennoscopeStatus | null): TennoscopeStatus | null {
   if (!raw) return raw;
-  return { ...raw, report: raw.report == null ? null : reportOf(raw.report) };
+  return { ...raw, report: raw.report == null ? null : reportOf(raw.report, noteLeftOut) };
 }
 
 /**
