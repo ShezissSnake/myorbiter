@@ -196,6 +196,7 @@ class MarketStore {
     this.books = {};
     this.histories.clear();
     this.deals = [];
+    this.dealsRead = [];
     this.dealsAt = null;
     this.lastPass = null;
     if (isSwitch) {
@@ -1205,6 +1206,8 @@ class MarketStore {
    */
   /** How many order books the last scan could read. */
   dealsChecked = $state(0);
+  /** The items (slugs) whose order books the last scan read: what its deals speak for. */
+  dealsRead = $state.raw<string[]>([]);
 
   /** Items' last 90 days of trades, by slug, read at most once an hour. */
   private histories = new Map<string, { at: number; points: Promise<PricePoint[]> }>();
@@ -1346,10 +1349,13 @@ class MarketStore {
       await this.ensureItems();
       const slugs = [...new Set(watch.map((w) => findItem(this.index, w.name, null)?.slug).filter((x): x is string => !!x))];
       let failing = 0;
+      // The books read this scan: one whose read failed has no deal now, whatever an older copy says.
+      const got = new Set<string>();
       for (const slug of slugs) {
         if (this.busy) break; // something you asked for comes first
         try {
           await this.book(slug, 5 * 60_000);
+          got.add(slug);
           failing = 0;
         } catch {
           // One item failing doesn't stop the rest; three in a row is warframe.market not
@@ -1357,8 +1363,9 @@ class MarketStore {
           if (++failing >= 3) break;
         }
       }
-      const books = Object.fromEntries(slugs.map((sl) => [sl, this.books[sl]?.orders]));
+      const books = Object.fromEntries(slugs.map((sl) => [sl, got.has(sl) ? this.books[sl]?.orders : undefined]));
       this.dealsChecked = Object.values(books).filter(Boolean).length;
+      this.dealsRead = slugs.filter((sl) => !!books[sl]);
       const me = this.me ?? { id: "", ingameName: "", platform: this.platform, crossplay: true };
       this.deals = findDeals(m, this.index, books, watch, me as Me);
       this.dealsAt = Date.now();

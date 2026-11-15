@@ -21,6 +21,7 @@
   import { baroFlips, baroStock, shortCredits, varziaNeeds, until } from "../core/traders";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
+  import { couldntRead, unreadParts } from "../core/worldAge";
   import { anyMark, NO_MARKS, rewardMarks, type RewardMarks } from "../core/rewardNeed";
   import NeedTags from "../ui/NeedTags.svelte";
   import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
@@ -49,7 +50,7 @@
   import { crackableFirst, crackableNow, openEras, wishItem, type WishItem } from "../core/wishlist";
   import { eventViews } from "../core/events";
   import type { RelicReward } from "../core/types";
-  import { checkedWhen, cycleTimers, resetTimers, matchedFissures, planetOf, ruleLabel, sameRule, TIERS, KIND_LABEL as FISSURE_KIND, tidyRule, type FissureRule } from "../core/timers";
+  import { checkedWhen, cycleTimers, resetTimers, matchedFissures, missionName, planetOf, ruleLabel, sameRule, TIERS, KIND_LABEL as FISSURE_KIND, tidyRule, type FissureRule } from "../core/timers";
   import PickMany from "../ui/PickMany.svelte";
   import { details } from "../details.svelte";
   import { DEAL_MIN_REF, DEAL_SHARE } from "../core/deals";
@@ -72,6 +73,10 @@
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
   // A proxy set that can't be used: nothing is asked, and asking again won't change that.
+  /** The last world-state read, for what's said when a list is empty or old (core/worldAge.ts). */
+  const worldRead = $derived({ at: liveAt, error: liveError, read: liveRead });
+  /** Parts of the world state that couldn't be read, said where they'd be. */
+  const unread = $derived(unreadParts(live, worldRead));
   const liveNote = $derived(liveWaiting ? "Asking api.warframestat.us…" : (proxy.problem ?? "api.warframestat.us didn't answer; MyOrbiter asks again every few minutes."));
 
   // Countdowns tick once a minute.
@@ -257,7 +262,8 @@
     editing = null;
   }
   function editRule(r: FissureRule) {
-    draft = { kinds: [...r.kinds], tiers: [...r.tiers], missions: [...r.missions], planets: [...r.planets] };
+    // A mission saved by the list's old name ("Extermination") is ticked as the world state's.
+    draft = { kinds: [...r.kinds], tiers: [...r.tiers], missions: [...new Set(r.missions.map(missionName))], planets: [...r.planets] };
     editing = r.id;
     adding = true;
   }
@@ -533,7 +539,7 @@
     </section></div></div>
   {/if}
 
-  {#if alerts.length}
+  {#if alerts.length || unread.needs.length}
     <section class="alerts" data-card="alerts" aria-label="Needs you" class:off={off("alerts")}>
       <!-- Dismissed: the Undo line, then (once its time is up) it leaves and the rest close up. -->
       {#each alerts as a (a.key ?? a.title)}
@@ -563,6 +569,7 @@
         {/if}
         </div>
       {/each}
+      {#if unread.needs.length}<p class="dim small unread">{couldntRead(unread.needs)} Any with something you need would be here.</p>{/if}
       <HelpMark part="home.needs-you" corner />
     </section>
   {/if}
@@ -590,6 +597,7 @@
             <div><span class="register">{#if RESET_ICON[r.key]}<span class="rk-sm"><GameIcon name={RESET_ICON[r.key]} size={11} /></span>{/if}{r.label}</span><b class="mark">{until(r.ends, now)}</b><span class="dim small clip1">{RESET_SHORT[r.key] ?? r.state}</span></div>
           </div>
         {/each}
+        {#if unread.clocks.length && !liveWaiting}<p class="dim small unread">{couldntRead(unread.clocks)}</p>{/if}
         <HelpMark part="home.world" corner />
       </section>
     {/if}
@@ -655,8 +663,8 @@
         <p class="dim" class:waiting={liveWaiting}>{liveWaiting ? "Loading fissures…" : liveNote}</p>
       {:else}
         {#if liveError && liveAt != null}<p class="dim small fromgame">The worldstate can't be read right now: these are from the last read ({checkedWhen(liveAt, now)}), each gone once it ends. {proxy.problem ?? "MyOrbiter asks again every few minutes."}</p>
-        {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date, and alerts, invasions and Darvo's deal can't be read.</p>{/if}
-        <FissureBoard fissures={live.fissures} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
+        {:else if live.fromGame}<p class="dim small fromgame">Read from the game's own worldstate: api.warframestat.us isn't answering, so Nightwave and the Circuit may be out of date. What the game's file doesn't hold is said where it would be.</p>{/if}
+        <FissureBoard fissures={live.fissures} read={worldRead} bind:mode={settings.homeFissures} bind:only={settings.homeFissuresOnly} alerts={settings.fissureRules.length} {now} best={eraBest} watched={new Set(watched.map((w) => w.fissure.id))} onera={console ? null : (era) => go(`relics?era=${era}`)} saving={(era) => savingByEra.get(era) ?? null} />
       {/if}
       <div class="watch">
         <span class="register"><Icon name="bell" size={12} /> Fissure alerts</span>
@@ -709,9 +717,10 @@
     </section>
 
     <!-- Events -->
-    {#if events.length}
+    {#if events.length || unread.events.length}
       <section class="panel events" data-card="events" class:off={off("events")}>
         {@render head(null, "event", "Events", null, "", "home.events")}
+        {#if unread.events.length}<p class="dim small">{couldntRead(unread.events)}</p>{/if}
         <ul class="ev">
           {#each events as e (e.id)}
             <li>
@@ -822,7 +831,8 @@
             {#if day.nightwave.challenges.length > 6}{@const rest = day.nightwave.challenges.slice(6)}<p class="dim small more">+{rest.length} more, {rest.reduce((n, c) => n + c.reputation, 0).toLocaleString("en")} standing (soonest to go first above)</p>{/if}
           </div>
         {/if}
-        {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>{/if}
+        {#if !day.circuit && !day.steelPath && !day.nightwave && !day.sortie && !day.darvo}<p class="dim">{liveNote}</p>
+        {:else if unread.today.length}<p class="dim small">{couldntRead(unread.today)}</p>{/if}
       </div>
       <button class="link fold" aria-expanded={openToday} onclick={() => (openToday = !openToday)} title="The Sortie's missions and modifiers, the Archon Hunt's, Nightwave's challenges, Darvo's deal and the rest">{openToday ? "Fewer" : "Everything →"}</button>
     </section>
@@ -1071,6 +1081,9 @@
   .st-sorrow { color: var(--mood-sorrow); }
   .st-fear { color: var(--mood-fear); }
   .fromgame { margin: 0; }
+  /* What couldn't be read, across the grid it would be in. */
+  .unread { grid-column: 1 / -1; margin: 0; }
+  .world > .unread { padding: 0 1rem .6rem; }
   /* The same 7 + 5 split as the rows above, so the panel edges line up down the page. */
   .mastery { grid-column: span 7; grid-row: span 2; }
   .baro { grid-column: span 5; }
