@@ -64,23 +64,41 @@ const scenarios: [string, string[], string[]][] = [
   ["sold after the other account's read, then a new listing", ["O", "R", "SOLD", "N"], ["n->42"]],
 ];
 
+/** Run `ops` from the settings `s`; the passes' sends. */
+async function run(s0: MarketSettings, ops: string[]) {
+  let s = s0;
+  const sent: string[] = [];
+  for (const op of ops) {
+    const before = structuredClone({ approved: s.approved, a: owned(s).a });
+    if (op === "O" || op === "Ob") {
+      await read(s, op === "Ob" ? [order(50, "b")] : [], "other");
+      // The first account's saved approvals and the per-item prices are the same as before.
+      assert.deepEqual({ approved: s.approved, a: owned(s).a }, before, `${op}: nothing of the first account's moved`);
+    } else if (op === "A") await read(s, [order(75, "a")]);
+    else if (op === "R") s = restart(s);
+    else if (op === "P") sent.push(await pass(s, [order(75, "a")]));
+    else if (op === "Pb") sent.push(await pass(s, [order(50, "b")], "other"));
+    else if (op === "SOLD") await read(s, []);
+    else if (op === "N") sent.push(await pass(s, [order(60, "n")]));
+  }
+  return { s, sent };
+}
+
+// The same orders from the settings today's build saves: the 100p per item only. Every pass sends
+// what today's build sends, b and n included (the per-item price from before goes to every
+// listing up for that item, as today), and the per-item price stays 100p.
+for (const [name, ops] of scenarios) {
+  test(`from today's saved settings, another account's read, ${name}: every pass sends what today's build sends`, async () => {
+    const { s, sent } = await run(settings({ "it||": 100 }), ops);
+    const today = ops.filter((op) => op === "P" || op === "Pb" || op === "N").map((op) => (op === "P" ? "a->70" : "none"));
+    assert.deepEqual(sent, today, logText());
+    assert.deepEqual(s.approved, { "it||": 100 });
+  });
+}
+
 for (const [name, ops, expected] of scenarios) {
   test(`another account's read, ${name}: the first account's passes stop where today's build stops`, async () => {
-    let s = start();
-    const sent: string[] = [];
-    for (const op of ops) {
-      const before = structuredClone({ approved: s.approved, a: owned(s).a });
-      if (op === "O" || op === "Ob") {
-        await read(s, op === "Ob" ? [order(50, "b")] : [], "other");
-        // The first account's saved approvals and the per-item prices are the same as before.
-        assert.deepEqual({ approved: s.approved, a: owned(s).a }, before, `${op}: nothing of the first account's moved`);
-      } else if (op === "A") await read(s, [order(75, "a")]);
-      else if (op === "R") s = restart(s);
-      else if (op === "P") sent.push(await pass(s, [order(75, "a")]));
-      else if (op === "Pb") sent.push(await pass(s, [order(50, "b")], "other"));
-      else if (op === "SOLD") await read(s, []);
-      else if (op === "N") sent.push(await pass(s, [order(60, "n")]));
-    }
+    const { s, sent } = await run(start(), ops);
     assert.deepEqual(sent, expected, logText());
     const sold = ops.includes("SOLD");
     // What an older build reads after a step back: the first account's 100p while a is up; once a
@@ -126,6 +144,37 @@ test("a read during which the account changed settles nothing", async () => {
   asAccount("me");
   assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 100 }, owned: { a: { key: "it||", platinum: 100, by: ME } } });
 });
+
+for (const how of ["signing in to another account", "switching platform"] as const) {
+  test(`a read that overlaps ${how} (warframe.market answering for the new one before the store knows it) settles nothing`, async () => {
+    const s = start();
+    mkt.items = [h.it];
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    let change: Promise<void>;
+    if (how === "signing in to another account") {
+      market.signIn = (async () => {}) as never;
+      market.account = (async () => {
+        await held;
+        return { linked: true, backing: "keyring", profile: { ...me, id: "other" }, error: null };
+      }) as never;
+      change = mkt.signIn("player@example.com", "made-up");
+    } else {
+      market.setPlatform = (async () => {
+        await held;
+      }) as never;
+      change = mkt.usePlatform("xbox");
+    }
+    // The other one's listings: none of the first account's.
+    h.mine = [];
+    await mkt.refresh(s);
+    release();
+    await change;
+    mkt.platform = "pc";
+    asAccount("me");
+    assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 100 }, owned: { a: { key: "it||", platinum: 100, by: ME } } });
+  });
+}
 
 test("the other account ends 500 listings while the first is away: the first one's approval is kept", async () => {
   let s = start();

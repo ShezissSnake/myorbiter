@@ -194,8 +194,10 @@ class MarketStore {
     const isSwitch = !!s && this.chosen;
     if (s) this.chosen = true;
     if (p === this.platform) return;
-    await market.setPlatform(p);
-    this.platform = p;
+    await this.changingAccount(async () => {
+      await market.setPlatform(p);
+      this.platform = p;
+    });
     this.books = {};
     this.histories.clear();
     this.deals = [];
@@ -276,18 +278,41 @@ class MarketStore {
 
   async signIn(email: string, password: string) {
     await this.guard("Signing in", async () => {
-      await market.signIn(email, password);
-      this.account = await market.account();
+      await this.changingAccount(async () => {
+        await market.signIn(email, password);
+        this.account = await market.account();
+      });
       await this.refresh();
     });
   }
 
   async useToken(token: string) {
     await this.guard("Checking token", async () => {
-      await market.useToken(token);
-      this.account = await market.account();
+      await this.changingAccount(async () => {
+        await market.useToken(token);
+        this.account = await market.account();
+      });
       await this.refresh();
     });
+  }
+
+  /** Account or platform changes under way, and how many have begun or ended: a read across one settles no approval. */
+  private accountChanging = 0;
+  private accountTurn = 0;
+  /**
+   * Signing in, out, or switching platform: warframe.market answers for the new account or
+   * platform before the store knows it, so a read that overlaps the change can't tell whose
+   * listings it has.
+   */
+  private async changingAccount(change: () => Promise<void>) {
+    this.accountChanging++;
+    this.accountTurn++;
+    try {
+      await change();
+    } finally {
+      this.accountChanging--;
+      this.accountTurn++;
+    }
   }
 
   async pollStatus() {
@@ -348,11 +373,13 @@ class MarketStore {
   }
 
   async signOut() {
-    await market.signOut();
-    this.dropStatusTimer();
-    this.statusAsked = null;
-    this.status = null;
-    this.account = await market.account();
+    await this.changingAccount(async () => {
+      await market.signOut();
+      this.dropStatusTimer();
+      this.statusAsked = null;
+      this.status = null;
+      this.account = await market.account();
+    });
     this.orders = [];
     this.buys = [];
     this.otherOrders = 0;
@@ -365,8 +392,10 @@ class MarketStore {
    */
   async refresh(s: MarketSettings | null = this.rules) {
     const edits = this.localEdits;
-    // Whose listings these are: the account signed in and the platform, as the read starts.
-    const whose = this.whose;
+    // Whose listings these are: the account signed in and the platform, as the read starts (none
+    // while either is changing).
+    const whose = this.accountChanging ? null : this.whose;
+    const turn = this.accountTurn;
     const all = await market.myOrders();
     // A sale was marked on the spot while this read was on its way: the read may predate it, and
     // would bring the sold listing back. The next read has it.
@@ -380,9 +409,10 @@ class MarketStore {
     this.otherOrders = all.length - this.orders.length;
     this.ordersAt = Date.now();
     // Only a read that succeeded and was kept says a listing is gone (core/approved.ts), and only of
-    // the account and platform it was read for: with either not known, or changed while the read
-    // was on its way, the read settles nothing (no approval ends, moves or is recorded).
-    if (s && whose && whose === this.whose) this.settleApprovals(s, sell, whose);
+    // the account and platform it was read for: with either not known, or changing or changed
+    // while the read was on its way, the read settles nothing (no approval ends, moves or is
+    // recorded).
+    if (s && whose && turn === this.accountTurn && whose === this.whose) this.settleApprovals(s, sell, whose);
   }
 
   /** The account signed in and the platform read (core/approved.ts › whoseRead); null while the account isn't known. */
@@ -393,6 +423,23 @@ class MarketStore {
 
   /** Approvals of listings gone earlier in this run, by order id: one seen again gets back what it had. */
   readonly endedApprovals = new Map<string, Approval>();
+  /** Listings MyOrbiter made since the last read, by whose: each one's key and the price it was listed at (approved by the read that finds it). */
+  readonly madeHere = new Map<string, Map<string, number>>();
+  /**
+   * A listing made here at `platinum` (the listing form, a Sell spares plan): approved at that
+   * price. The key's saved price is set now, as older builds read it; the listing's own approval
+   * comes with the read that finds it, which tells its order id.
+   */
+  private approveMade(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, platinum: number, s: MarketSettings | null = this.rules) {
+    if (!s || !Number.isInteger(platinum) || platinum < 1) return;
+    const key = this.approvalKey(o);
+    if (s.approved?.[key] !== platinum) s.approved = { ...(s.approved ?? {}), [key]: platinum };
+    const whose = this.whose;
+    if (!whose) return;
+    const mine = this.madeHere.get(whose) ?? new Map<string, number>();
+    mine.set(key, platinum);
+    this.madeHere.set(whose, mine);
+  }
   /** Each listing's own approved price after a read of `whose` listings that succeeded (core/approved.ts › settleApprovals). */
   private settleApprovals(s: MarketSettings, sell: readonly MyOrder[], whose: string) {
     // Without the item list no key can be told: nothing ends or moves until it is in.
@@ -402,7 +449,11 @@ class MarketStore {
       return { id: o.id, itemId: o.itemId, platinum: o.platinum, key: known ? this.approvalKey(o) : null, starless: known && hasStars(o) ? this.approvalKey({ ...o, amberStars: null, cyanStars: null }) : null };
     });
     const w = s as MarketSettings & WithApprovedFor;
-    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, this.endedApprovals, whose);
+    const made = this.madeHere.get(whose) ?? new Map<string, number>();
+    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, this.endedApprovals, whose, made);
+    // One made here that this read doesn't have yet waits for the next read.
+    if (made.size) this.madeHere.set(whose, made);
+    else this.madeHere.delete(whose);
     // Assigned only when something changed: each assignment is a save.
     if (!sameEntries(next.approved, s.approved)) s.approved = next.approved;
     if (!sameEntries(next.owned, w.approvedFor as Record<string, unknown> | undefined)) w.approvedFor = next.owned;
@@ -1067,8 +1118,9 @@ class MarketStore {
         this.note(`Listed ${d.quantity}× ${tag} at ${d.platinum}p`, "ok");
       }
       // The price you listed at is the one you approved: for the listing this added to, now; a new
-      // listing's own price is its approved price from the read below (core/approved.ts).
+      // listing's from the read below, which tells its order id (core/approved.ts).
       if (existing) this.approve(existing, d.platinum!);
+      else this.approveMade(d, d.platinum!);
       this.draftDone = this.log[0]?.text ?? null;
       this.draft = null;
       await this.refresh();
@@ -1658,8 +1710,9 @@ class MarketStore {
         }
         try {
           if (a.type === "create") {
-            // A new listing's own price is its approved price, from the read at the end (core/approved.ts).
+            // A new listing is approved at the price it is listed at, from the read at the end (core/approved.ts).
             await market.create({ itemId: a.item.id, platinum: a.platinum, quantity: a.quantity, rank: a.rank, subtype: a.subtype, visible: true });
+            this.approveMade({ itemId: a.item.id, rank: a.rank, subtype: a.subtype }, a.platinum, s);
             this.note(`Listed ${a.quantity}× ${tag(a.item.name, a.rank)} at ${a.platinum}p`, "ok");
             this.audit(`Spares plan, ${KIND_LABEL[a.kind].toLowerCase()} (${a.why}; ${a.priceWhy})`, why);
           } else if (a.type === "update") {

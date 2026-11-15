@@ -127,13 +127,15 @@ const itemOfKey = (key: string) => key.slice(0, key.indexOf("|"));
  *   up for that key takes it (a filled sculpture takes its item's old key's), marked `legacy`, and
  *   the key keeps it for an older build, listing or not.
  * - A listing with none takes back what it had when `ended` has it (gone from an earlier read of
- *   this run), else its own price: new, whoever made it.
+ *   this run), else its own price: new, whoever made it. One MyOrbiter made (`made`: its key and
+ *   the price it was listed at, since the read before) takes that price as its own approval, the
+ *   key's saved price set to it as the listing was made.
  * - A listing of `whose` gone from the read ends its approval (into `ended`); its key's price goes
  *   too when it was that approval's and nothing else holds it, so the next listing starts from its
  *   own price. One recorded while the account wasn't known ends only when read again and gone.
  * - Nothing of an item whose key can't be told ends or moves.
  */
-export function settleApprovals(approved: Readonly<Record<string, number>>, owned: Readonly<ApprovedFor>, up: readonly UpListing[], ended: Map<string, Approval>, whose: string): { approved: Record<string, number>; owned: ApprovedFor } {
+export function settleApprovals(approved: Readonly<Record<string, number>>, owned: Readonly<ApprovedFor>, up: readonly UpListing[], ended: Map<string, Approval>, whose: string, made: Map<string, number> = new Map()): { approved: Record<string, number>; owned: ApprovedFor } {
   const unknown = new Set(up.filter((l) => l.key == null).map((l) => l.itemId));
   const theirs = (e: Approval) => e.by != null && e.by !== whose;
   // A key's saved price that an approval of this build agrees with (any account's) is this
@@ -151,6 +153,13 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
       continue;
     }
     const back = ended.get(l.id);
+    // Made in MyOrbiter at this price since the read before: approved at it, as listed.
+    if (!had && !(back && back.key === l.key) && made.get(l.key) === l.platinum) {
+      made.delete(l.key);
+      next[l.id] = { key: l.key, platinum: l.platinum, by: whose };
+      ended.delete(l.id);
+      continue;
+    }
     const own: Approval | null = unowned(l.key)
       ? { key: l.key, platinum: approved[l.key], legacy: true }
       : had

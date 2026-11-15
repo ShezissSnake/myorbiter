@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { h, mkt, order, seller, settings, timedPass, logText } from "./support/pass";
-import { approvedOf } from "../src/lib/core/approved";
+import { approvedOf, settleApprovals } from "../src/lib/core/approved";
 import { market, type MarketSettings } from "../src/lib/backend";
 import type { Model } from "../src/lib/core/model";
 import type { Draft } from "../src/lib/marketStore.svelte";
@@ -153,8 +153,8 @@ test("Reprice by hand and a typed price approve that listing only", async () => 
   assert.deepEqual(owned(s), { a: { key: "it||", platinum: 100 }, b: { key: "it||", platinum: 90 } });
 });
 
-test("a listing made with the listing form is approved at its own price by the read after it", async () => {
-  const s = settings({});
+/** Lists one of "it" at `platinum` with the listing form, with `s` as the settings. */
+async function listWithForm(s: MarketSettings, platinum: number) {
   mkt.items = [h.it];
   mkt.rules = s;
   mkt.model = { observedAt: null, inventoryByBase: new Map(), partByName: new Map() } as unknown as Model; // a console: no inventory read
@@ -163,7 +163,40 @@ test("a listing made with the listing form is approved at its own price by the r
     return {} as never;
   }) as never;
   await mkt.refresh(s);
-  mkt.draft = { itemId: "it", name: "It", slug: "it", platinum: 40, quantity: 1, rank: null, subtype: null, maxRank: null, subtypes: null, available: 1, priced: true, inGame: 0, ladder: [], addToExisting: true, held: [], asked: { rank: null, subtype: null, available: 1 } } as Draft;
+  mkt.draft = { itemId: "it", name: "It", slug: "it", platinum, quantity: 1, rank: null, subtype: null, maxRank: null, subtypes: null, available: 1, priced: true, inGame: 0, ladder: [], addToExisting: true, held: [], asked: { rank: null, subtype: null, available: 1 } } as Draft;
   await mkt.submitDraft();
-  assert.deepEqual(owned(s), { made: { key: "it||", platinum: 40 } }, logText());
+}
+
+test("a listing made with the listing form is approved at the price it was listed at, over a per-item price saved before", async () => {
+  const s = settings({ "it||": 100 });
+  await listWithForm(s, 40);
+  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 40 }, owned: { made: { key: "it||", platinum: 40 } } }, logText());
+});
+
+test("listed with the form at 100p over a per-item 40p saved before: a timed pass toward a 55p market stops at 70p", async () => {
+  const s = settings({ "it||": 40 });
+  await listWithForm(s, 100);
+  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 100 }, owned: { made: { key: "it||", platinum: 100 } } }, logText());
+  h.book = [seller(55), seller(55)];
+  h.sent = [];
+  h.now += 2 * 3600e3;
+  await timedPass(s);
+  assert.deepEqual(h.sent, [["made", 70]], logText());
+});
+
+test("a listing made with the listing form, with no price saved before, is approved at its price", async () => {
+  const s = settings({});
+  await listWithForm(s, 40);
+  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 40 }, owned: { made: { key: "it||", platinum: 40 } } }, logText());
+});
+
+test("a listing made here (the form or a Sell spares plan) is this listing's approval, not a per-item price from before; sold, it ends", () => {
+  // As the listing was made at 100p, the per-item price was set to it (over a 40p from before).
+  const made = new Map([["it||", 100]]);
+  const ended = new Map();
+  const r = settleApprovals({ "it||": 100 }, {}, [{ id: "n", itemId: "it", platinum: 100, key: "it||" }], ended, "me|pc", made);
+  assert.deepEqual(r, { approved: { "it||": 100 }, owned: { n: { key: "it||", platinum: 100, by: "me|pc" } } });
+  assert.equal(made.size, 0, "taken by the read that found it");
+  // Sold: its approval ends and the per-item price with it, so the next listing starts from its own.
+  assert.deepEqual(settleApprovals(r.approved, r.owned, [], ended, "me|pc"), { approved: {}, owned: {} });
 });
