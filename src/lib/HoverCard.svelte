@@ -22,6 +22,7 @@
   import { imageUrl } from "./backend";
   import { expectedBest } from "./core/advice";
   import { readyTag } from "./core/buildPlan";
+  import { soldPerDay } from "./ui/table";
   import Thumb from "./ui/Thumb.svelte";
   import ModCard from "./ui/ModCard.svelte";
   import Art from "./ui/Art.svelte";
@@ -102,7 +103,7 @@
         <span><span class="register">Held</span><b>{d.held}</b></span>
         <span><span class="register">Price</span><P v={d.price} /></span>
         <span><span class="register">Ducats</span><P v={d.ducats} d /></span>
-        {#if d.tradesPerDay != null}<span><span class="register">Sells</span><b>{Math.round(d.tradesPerDay * 10) / 10}<small>/day</small></b></span>{/if}
+        {#if d.tradesPerDay != null}<span><span class="register">Sells</span><b>{soldPerDay(d.tradesPerDay)}<small>/day</small></b></span>{/if}
       </div>
       {#if d.relics.length}
         <div class="register lbl">Drops from</div>
@@ -171,7 +172,7 @@
         <div class="ht"><b class="mark">{d.name}</b><span class="sub">{d.held ? `${d.held.toLocaleString("en")} held` : "none held"}</span></div>
         {#if d.price != null}<P v={d.price} />{/if}
       </header>
-      {#if d.tradesPerDay != null}<p class="more dim">Sells about {Math.round(d.tradesPerDay * 10) / 10} a day on warframe.market.</p>{/if}
+      {#if d.tradesPerDay != null}{@const pace = soldPerDay(d.tradesPerDay)}<p class="more dim">{pace === "<0.1" ? "Sells less than once in ten days" : `Sells about ${pace} a day`} on warframe.market.</p>{/if}
     {/if}
   </div>
 {/if}
