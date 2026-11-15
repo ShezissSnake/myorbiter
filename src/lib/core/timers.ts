@@ -38,6 +38,8 @@ export function cycleTimers(live: Live, now = Date.now()): Timer[] {
   for (const c of live.cycles ?? []) {
     let state = c.state;
     let ends = Date.parse(c.expiry);
+    // Not a time (a damaged read or kept copy): this clock is left out, the others count on.
+    if (!Number.isFinite(ends)) continue;
     // A reading kept from yesterday: Orb Vallis turns over about 110 times a day.
     for (let i = 0; ends <= now && i < 400; i++) {
       const next = NEXT[state];
@@ -89,6 +91,13 @@ export interface FissureRule {
   planets: string[];
 }
 
+/**
+ * A mission type by the world state's name. The mission list once offered "Extermination" where
+ * the world state says "Exterminate": an alert or a choice saved with the old name is read as the
+ * new one wherever it's matched, shown or compared (the saved settings themselves are left as they are).
+ */
+export const missionName = (m: string) => (m === "Extermination" ? "Exterminate" : m);
+
 export const planetOf = (node: string) => node.match(/\(([^)]+)\)\s*$/)?.[1] ?? "";
 
 const kindOf = (f: Fissure): FissureKind => (f.isStorm ? "storm" : f.isHard ? "steel" : "normal");
@@ -97,7 +106,7 @@ export function ruleMatches(r: FissureRule, f: Fissure): boolean {
   const kind = kindOf(f);
   if (r.kinds.length ? !r.kinds.includes(kind) : kind === "storm") return false;
   if (r.tiers.length && !r.tiers.includes(f.tier)) return false;
-  if (r.missions.length && !r.missions.includes(f.missionType)) return false;
+  if (r.missions.length && !r.missions.some((m) => missionName(m) === missionName(f.missionType))) return false;
   if (r.planets.length && !r.planets.includes(planetOf(f.node))) return false;
   return true;
 }
@@ -105,17 +114,22 @@ export function ruleMatches(r: FissureRule, f: Fissure): boolean {
 /** "Axi or Neo", "Lith, Meso or Neo". */
 const either = (xs: string[]) => (xs.length < 2 ? (xs[0] ?? "") : `${xs.slice(0, -1).join(", ")} or ${xs[xs.length - 1]}`);
 
-/** An alert as words: "Steel Path Axi fissure", "Lith Defense or Mobile Defense on Sedna", "Any fissure". */
+/**
+ * An alert as words: "Steel Path Axi fissure", "Lith Defense or Mobile Defense on Sedna", "Any
+ * fissure". No kind ticked (Normal or Steel Path) says no kind; all three name all three, so the
+ * two alerts never read the same.
+ */
 export function ruleLabel(r: FissureRule): string {
-  const kinds = r.kinds.length === 3 ? "" : either(KIND_ORDER.filter((k) => r.kinds.includes(k)).map((k) => KIND_LABEL[k]));
-  const what = [kinds, either(r.tiers), either(r.missions)].filter(Boolean).join(" ");
+  const rest = [either(r.tiers), either(r.missions.map(missionName))].filter(Boolean).join(" ");
+  const kinds = r.kinds.length === 3 && !rest ? "" : either(KIND_ORDER.filter((k) => r.kinds.includes(k)).map((k) => KIND_LABEL[k]));
+  const what = [kinds, rest].filter(Boolean).join(" ");
   const kind = r.kinds.length === 3 && !what ? "Any fissure or Void Storm" : !what ? "Any fissure" : r.missions.length ? what : `${what} fissure`;
   return r.planets.length ? `${kind} on ${either(r.planets)}` : kind;
 }
 
 const same = (a: string[], b: string[]) => a.length === b.length && [...a].sort().join("|") === [...b].sort().join("|");
 /** Two alerts for the same fissures. */
-export const sameRule = (a: Omit<FissureRule, "id">, b: Omit<FissureRule, "id">) => same(a.kinds, b.kinds) && same(a.tiers, b.tiers) && same(a.missions, b.missions) && same(a.planets, b.planets);
+export const sameRule = (a: Omit<FissureRule, "id">, b: Omit<FissureRule, "id">) => same(a.kinds, b.kinds) && same(a.tiers, b.tiers) && same([...new Set(a.missions.map(missionName))], [...new Set(b.missions.map(missionName))]) && same(a.planets, b.planets);
 
 /**
  * An alert as it's kept: copies of the lists, kinds in their usual order, and Normal plus Steel

@@ -13,7 +13,7 @@
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
-  import { buildModel, ERAS, type Model } from "./lib/core/model";
+  import { buildModel, type Model } from "./lib/core/model";
   import { readKey, sameRead } from "./lib/core/sameRead";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
@@ -127,6 +127,8 @@
   import { NEWEST } from "./lib/whatsNew";
   import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
+  import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
+  import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
@@ -832,7 +834,7 @@
       paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
       quietKind: o.quiet.includes(gate),
       // In a fissure: only the reward to take, which is what you'd want then.
-      quietFissure: o.quietInFissure && inFissure(mission) && gate !== "reward",
+      quietFissure: o.quietInFissure && inFissure(mission, Date.now(), live.fissures) && gate !== "reward",
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
@@ -1132,8 +1134,10 @@
   });
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
-    if (settings.game.worldNotified.includes(key)) return false;
-    settings.game.worldNotified = [key, ...settings.game.worldNotified].slice(0, 300);
+    // A damaged saved list (not a list) is started again rather than thrown on.
+    const seen = Array.isArray(settings.game.worldNotified) ? settings.game.worldNotified : [];
+    if (seen.includes(key)) return false;
+    settings.game.worldNotified = [key, ...seen].slice(0, 300);
     return true;
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
@@ -1194,17 +1198,17 @@
       tell("varzia", `Varzia: ${needs.length} prime${needs.length === 1 ? "" : "s"} you need`, `${names(needs.map((v) => v.name), 6)}${only ? `. ${only} only from her relics right now` : ""}. Rotation ends in ${until(exp)}.`);
     });
   });
-  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
+  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once
+  // a week for each (core/worldOnce.ts): one the wanted list gains mid-week is told alone.
   $effect(() => {
     const m = bgModel;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
       const c = today(m, live, Date.now(), settings.game.gear).circuit;
       if (!c) return;
-      const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
-      const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);
-      if (!frames.length && !incarnons.length) return;
-      if (!firstTime(`circuit|${c.resets}|${[...frames, ...incarnons].join(",")}`)) return;
+      const { frames, incarnons, keys } = circuitNews(c, settings.game.worldNotified);
+      if (!keys.length) return;
+      for (const k of keys) firstTime(k);
       tell("circuit", "Duviri Circuit this week", [frames.length ? `Warframes to master: ${names(frames)}` : "", incarnons.length ? `Steel Path Incarnon for weapons you have: ${names(incarnons)}` : ""].filter(Boolean).join("\n"));
     });
   });
@@ -1868,29 +1872,33 @@
     });
   });
 
-  // Wishlist: an era that had no fissure open gets one, and you hold relics of that era with a part
-  // you starred. Every era usually has fissures open (and Omnia takes any but Requiem), so this only speaks
-  // up after a gap; the Wishlist page shows what to crack at any moment.
+  // Wishlist: an era whose relics couldn't be cracked in any open fissure can be (its own or an
+  // Omnia one, which takes any but Requiem), and you hold relics of that era with a part you
+  // starred. Every era usually has fissures open, so this only speaks up after a gap; the Wishlist
+  // page shows what to crack at any moment. Only from a current world state (core/worldOnce.ts):
+  // not the one kept from last time, and after a sleep or failed reads the first fresh read is
+  // compared with the last list before them.
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {
     const fs = live.fissures;
     const m = bgModel;
-    // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
-    if (!m || !fs || !liveRead) return;
+    if (!m || !fs) return;
     untrack(() => {
-      const open = openEras(fs);
-      const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
-      const before = erasOpenBefore;
-      erasOpenBefore = openNow;
-      if (!before || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
-      const eras = wishlistEras(m, settings.favourites);
-      const fresh = [...openNow].filter((e) => !before.has(e) && eras.has(e));
-      if (!fresh.length) return;
+      const now = Date.now();
+      // The wishlist's relics by era, worked out only when an era opens.
+      let eras: ReturnType<typeof wishlistEras> | null = null;
+      const wished = () => (eras ??= settings.favourites.length ? wishlistEras(m, settings.favourites) : new Map());
+      const { baseline, fresh } = wishlistNews(erasOpenBefore, fs, now, liveCurrent({ at: liveAt, error: liveError, read: liveRead }, now), { has: (e) => wished().has(e) });
+      erasOpenBefore = baseline;
+      if (!fresh.length || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
+      // An era with no fissure of its own open is crackable in an Omnia one.
+      const open = openEras(fs, now);
+      const where = (e: string) => (open[e]?.length ? e : "Omnia");
       const lines = fresh.map((e) => {
-        const r = eras.get(e)![0];
-        return `${e}: crack ${r.relic} for ${r.part}`;
+        const r = wished().get(e)![0];
+        return `${e}${where(e) === e ? "" : " (in an Omnia fissure)"}: crack ${r.relic} for ${r.part}`;
       });
-      tell("wishlist", fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
+      tell("wishlist", fresh.length === 1 ? `${where(fresh[0])} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
     });
   });
 
@@ -2043,18 +2051,13 @@
   });
   $effect(() => {
     const deals = mkt.deals;
-    if (!deals.length) return;
     untrack(() => {
-      // Once per item and price: another seller at the same price isn't news, a lower price is.
-      const said = (d: (typeof deals)[number]) => `${d.slug}|${d.rank ?? ""}`;
-      const lowest = new Map<string, number>();
-      for (const k of settings.game.dealsNotified) {
-        const [item, price] = k.split("@");
-        if (price && !(lowest.get(item)! <= +price)) lowest.set(item, +price);
-      }
-      const fresh = deals.filter((d) => !(lowest.get(said(d))! <= d.price));
+      // Once per deal (core/worldOnce.ts): an item announced is news again once a scan finds it gone
+      // from Cheap buys, or at a lower price; never more than once an hour.
+      const { fresh, notified } = dealNews(deals, mkt.dealsUnread, settings.game.dealsNotified, Date.now(), mkt.dealsAt != null);
+      const had = settings.game.dealsNotified;
+      if (!Array.isArray(had) || notified.join() !== had.join()) settings.game.dealsNotified = notified;
       if (!fresh.length) return;
-      settings.game.dealsNotified = [...fresh.map((d) => `${said(d)}@${d.price}`), ...settings.game.dealsNotified].slice(0, 300);
       if (settings.notify.deals) tell("deals", fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
     });
   });
@@ -2821,7 +2824,7 @@
       // From every sign MyOrbiter has (core/firstStart.ts): not running, at sign-in, signed in; and
       // when nothing is loaded, which side the inventory waits on or why it isn't there.
       items.push({ label: "Game", ...gameLine(setupSigns) });
-      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
+      if (inFissure(mission, tick, live.fissures)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
       else if (model?.observedAt) items.push({ label: "Inventory", value: `Read ${ago(model.observedAt, tick)}`, title: `Inventory read ${fmtTime(model.observedAt)}`, ok: true });
       else items.push({ label: "Inventory", ...inventoryLine(setupSigns), ok: false });
     }
@@ -2985,7 +2988,7 @@
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={p.id === "home" ? 28 : 18} even />{:else}<Icon name={p.icon.line} size={16} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
-        {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
+        {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
         {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
       </button>
@@ -3166,7 +3169,7 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}><PaneId {id}>{@render body()}</PaneId></svelte:boundary></div>{/if}
       {/snippet}
-      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} fissures={live.fissures} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}{#await loadParts(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("parts", e)}><Page model={modelFor("parts")} bind:advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page model={modelFor("mastery")} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -3220,7 +3223,7 @@
     <div class="secscope" data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}><TourBar go={(t: string) => goTo(t)} /></div>
   </main>
   {#if sideShown && model}
-    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />{/await}
+    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} {liveAt} {liveRead} />{/await}
   {:else if sideTab}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}

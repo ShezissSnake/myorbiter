@@ -4,7 +4,7 @@
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
-  import type { MissionState } from "../core/types";
+  import type { Fissure, MissionState } from "../core/types";
   import { squadPool, squadRelics, yourRelicIndex, type SquadRelic } from "../core/views";
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -36,13 +36,15 @@
     windowMode = null,
     tennoscopeRunning = true,
     onsettings = null,
+    fissures = null,
     masteryRank = null,
-  }: { model: Model; masteryRank?: number | null; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
+  }: { model: Model; masteryRank?: number | null; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null; fissures?: Fissure[] | null } = $props();
 
   // Relics loaded, and the log heard from lately: a squad from hours ago is the last fissure, not this one.
   let liveNow = $state(Date.now());
   $effect(() => whileShownEvery("mission", 60_000, () => (liveNow = Date.now()), () => liveNow));
-  const live = $derived(inFissure(ms, liveNow));
+  // Without the log's clock, it ends with the fissure's own expiry (core/mission.ts).
+  const live = $derived(inFissure(ms, liveNow, fissures));
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived.by(whileShown("mission", () => squadRelics(model, paths)));
   const pool = $derived(squadPool(relics));
