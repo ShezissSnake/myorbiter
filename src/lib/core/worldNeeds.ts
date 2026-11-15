@@ -105,10 +105,13 @@ export interface AlertNeed {
   help: MasteryHelp | null;
 }
 
-const rewardsOf = (a: WorldAlert): { uniqueName?: string; name: string; count: number }[] => [
-  ...(a.mission.reward?.countedItems ?? []).map((r) => ({ uniqueName: r.uniqueName, name: r.type, count: r.count ?? 1 })),
-  ...(a.mission.reward?.items ?? []).filter((x): x is string => typeof x === "string").map((name) => ({ name, count: 1 })),
-];
+/** An alert's rewards, each once: `items` may name a counted reward again (as events.ts finds), and that copy is left out. */
+const rewardsOf = (a: WorldAlert): { uniqueName?: string; name: string; count: number }[] => {
+  const counted = (a.mission.reward?.countedItems ?? []).filter((r) => typeof r?.type === "string").map((r) => ({ uniqueName: r.uniqueName, name: r.type, count: r.count ?? 1 }));
+  const named = new Set(counted.map((r) => r.name));
+  const items = [...new Set((a.mission.reward?.items ?? []).filter((x): x is string => typeof x === "string" && !named.has(x)))];
+  return [...counted, ...items.map((name) => ({ name, count: 1 }))];
+};
 
 /**
  * Running alerts with a reward you'd want. `mastery`: toward something you haven't mastered (needs
