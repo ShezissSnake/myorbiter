@@ -94,7 +94,9 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   // The encoded forms: what works, and the gap beside it (both held by the tests below).
   assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
   // The known gaps the path tests pin ("known gaps, pinned as they are").
-  assert.match(para, /Left as written: the words after a word that ends in a full stop inside such a last name, in most shapes/);
+  assert.match(para, /Left as written: the words after a sure end or a mark inside such a last name .*, in most shapes/);
+  assert.match(para, /after a user name under `C:\\Users\\` .* written with backslashes and with no backslash after it, the words up to the next `:` go with it/);
+  assert.match(para, /hidden whole when a slash follows it, except under a bare `drive_c\\users`/);
   assert.match(para, /a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
   assert.match(para, /the words after the first of a user name under a `drive_c\\users` that is not inside a longer path/);
   assert.match(para, /a name with an apostrophe in a path in single quotes/);
@@ -295,11 +297,20 @@ test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
   assert.equal(redact("C:/Users/Orren A. Taskwell"), "C:/Users/[user]. Taskwell");
   assert.equal(redact("/home/Orren Taskwell Jr. Bo"), "/home/[user]. Bo");
   assert.equal(redact("D:\\Games\\Orren A. Taskwell"), "D:\\Games\\[folder]. Taskwell");
+  // Any other sure end or mark inside it does the same.
+  assert.equal(redact("D:\\Games\\Taskwell, Orren"), "D:\\Games\\[folder], Orren");
+  // After a user name under C:\\Users\\ written with backslashes and with no backslash after it,
+  // that rule takes the words up to the next ":", the next path's drive letter included: a path
+  // with one folder name after it keeps that name.
+  assert.equal(redact("C:\\Users\\Orren to E:\\Kestrel"), "C:\\Users\\[user]:\\Kestrel");
+  assert.equal(redact("C:\\Documents and Settings\\Orren to E:\\Kestrel"), "C:\\Documents and Settings\\[user]:\\Kestrel");
+  assert.equal(redact("C:\\Users\\Orren to E:\\Kestrel\\Bryn"), "C:\\Users\\[user]:\\[folder]\\[folder]");
   assert.equal(redact("C:\\Users\\Orren A. Taskwell"), "C:\\Users\\[user]");
   assert.equal(redact("C:/Users/Orren A. Taskwell/x"), "C:/Users/[user]/[folder]");
   // A bare drive_c/users/<name> outside a longer path is relative: only the name's first word
   // becomes [user], with or without a slash after it.
   assert.equal(redact("drive_c/users/Orren Taskwell"), "drive_c/users/[user] Taskwell");
+  assert.equal(redact("drive_c/users/Orren Taskwell/x"), "drive_c/users/[user] Taskwell/x");
   assert.equal(redact("drive_c\\users\\Orren Taskwell\\Documents"), "drive_c\\users\\[user] Taskwell\\Documents");
   assert.equal(redact("drive_c/users/Orren O'Taskwell"), "drive_c/users/[user] O'Taskwell");
   assert.equal(redact("drive_c/users/O'Taskwell"), "drive_c/users/[user]'Taskwell");

@@ -150,11 +150,12 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 // an early rule left runs on the same way. `'` is part of a name ("Alice's Games"). A path in
 // quotes runs to the closing quote.
 // Left as written (known gaps): a name's words after a sure end inside it ("…\Alice B. Smith"
-// keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next separator); a last
-// name whose first word is kept (a kept folder, a number, a file's name) and with no slash after it
-// ("D:\Games\Dev Alice"), as it can't be told from a kept name followed by other words ("found at
-// D:\Games\Warframe and more"); the words after the first of a user name under a bare
-// `drive_c\users` that no longer path holds (a relative path: "drive_c/users/[user] Smith"); in
+// keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next
+// separator); a last name whose first word is kept (a kept folder, a number, a file's name) and
+// with no slash after it ("D:\Games\Dev Alice"), as it can't be told from a kept name followed by
+// other words ("found at D:\Games\Warframe and more"); the words after the first of a user name
+// under a bare `drive_c\users` that is not inside a longer path (a relative path:
+// "drive_c/users/[user] Smith", and with an apostrophe "drive_c/users/[user]'Smith"); in
 // single quotes, a name with an apostrophe ("'D:\a\Alice O'Smith'"), where the apostrophe reads as
 // the closing quote; a path after a quote that never closes, whose last name runs to the end of the
 // line and is kept when it ends in a file's name ("\"/mnt/Alice see EE.log"); `~` with a name with
@@ -240,8 +241,8 @@ function pathEnd(s: string, from: number, quote: string | null, spacedFirst: boo
         while (j < s.length && !sepAt(s, j) && !/[\s"<>|*?:,;()`{}]/.test(s[j])) j++;
         while (j > i && /[.']/.test(s[j - 1])) j--;
         // A last name that is hidden takes the words after it with it, up to a sure end or the next
-        // mark ("…\Alice Smith: denied", "…\Alice Smith -> E:\x"): no word of the name is left
-        // behind. At a slash the path goes on ("/srv/Alice  Smith/x").
+        // mark ("…\Alice Smith: denied", "…\Alice Smith -> E:\x"): the name's words up to there go
+        // with it. At a slash the path goes on ("/srv/Alice  Smith/x").
         let run = false;
         if (j > i && /^\s/.test(s.slice(j, j + 1)) && hiddenName(s.slice(i, j))) {
           let e = j;
