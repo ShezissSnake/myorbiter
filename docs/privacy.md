@@ -175,7 +175,8 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
   - order books: when you open an item, price or list something, post a buy order, plan Sell spares
     or reprice; every 10 minutes on PC, once your inventory is read, for cheap buys (up to 20 things
     you're missing, plus one per price alert you set); and, if you turn on automatic checking or
-    repricing, each of your listings' books every 5 minutes or the interval you set;
+    repricing, each of your listings' books every 5 minutes or the interval you set (over an hour,
+    a pass that stopped part way is tried again an hour later);
   - price history: when you open an item's chart or the buy form, and once a day for each relic you
     hold;
   - riven searches: when you search, every 5 minutes for each riven you watch, when a riven cycle
