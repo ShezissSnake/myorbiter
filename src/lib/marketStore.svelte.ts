@@ -31,7 +31,7 @@ import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
-import { AUTO_FLOOR_SHARE, approvedForOf, cutTooFar, sameEntries, settleApprovals, unattendedMove, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
+import { AUTO_FLOOR_SHARE, approvedForOf, cutTooFar, endedOf, sameEntries, settleApprovals, unattendedMove, type ApprovedFor, type UpListing, type WithApprovals, type WithApprovedFor } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
 
@@ -381,9 +381,12 @@ class MarketStore {
     if (s) this.settleApprovals(s, sell);
   }
 
-  /** Approvals of listings gone earlier in this run, by order id: one seen again gets back what it had. */
-  readonly endedApprovals = new Map<string, { key: string; platinum: number }>();
-  /** Each listing's own approved price after a read of them that succeeded (core/approved.ts › settleApprovals). */
+  /**
+   * Each listing's own approved price after a read of them that succeeded (core/approved.ts ›
+   * settleApprovals). The approvals of listings this read hasn't got are kept in your settings by
+   * order id (`approvedEnded`), across restarts: a listing seen again after a read under another
+   * account or platform gets back what it had.
+   */
   private settleApprovals(s: MarketSettings, sell: readonly MyOrder[]) {
     // Without the item list no key can be told: nothing ends or moves until it is in.
     if (!this.items.length) return;
@@ -391,11 +394,12 @@ class MarketStore {
       const known = !!this.item(o.itemId);
       return { id: o.id, itemId: o.itemId, platinum: o.platinum, key: known ? this.approvalKey(o) : null, starless: known && hasStars(o) ? this.approvalKey({ ...o, amberStars: null, cyanStars: null }) : null };
     });
-    const w = s as MarketSettings & WithApprovedFor;
-    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, this.endedApprovals);
+    const w = s as MarketSettings & WithApprovals;
+    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, endedOf(w.approvedEnded), Date.now());
     // Assigned only when something changed: each assignment is a save.
     if (!sameEntries(next.approved, s.approved)) s.approved = next.approved;
     if (!sameEntries(next.owned, w.approvedFor as Record<string, unknown> | undefined)) w.approvedFor = next.owned;
+    if (!sameEntries(next.ended, w.approvedEnded as Record<string, unknown> | undefined)) w.approvedEnded = next.ended;
   }
   /** The price you last set or approved for this listing, if MyOrbiter has one. */
   approvedPrice(o: MyOrder, s: MarketSettings): number | undefined {

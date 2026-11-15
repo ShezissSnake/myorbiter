@@ -71,7 +71,9 @@ test("a listing sold out or deleted ends its approval; the next one, made on the
   mkt.items = [h.it];
   h.mine = [];
   await mkt.refresh(s);
-  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: {}, owned: {} }, "sold out: the approval ends");
+  // Sold out: the approval ends (kept by order id, for a read that only missed it); the key's price
+  // stays for an older build after a step back, as it read it before.
+  assert.deepEqual({ approved: s.approved, owned: owned(s), ended: (s as unknown as { approvedEnded: unknown }).approvedEnded }, { approved: { "it||": 40 }, owned: {}, ended: { a: { key: "it||", platinum: 40, at: h.now } } }, "sold out: the approval ends");
   h.mine = [order(90, "b")];
   await mkt.refresh(s);
   assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 90 }, owned: { b: { key: "it||", platinum: 90 } } });

@@ -312,7 +312,7 @@ test("on a timer: at most six changes a day per listing, with a category minimum
   assert.ok(sent.some(([, p]) => p === 95), "held at the minimum, not at 90p");
 });
 
-test("a listing under its category minimum is raised to it, once the cooldown allows", async () => {
+test("a listing under its category minimum is raised to it, whatever the gap", async () => {
   await asMod();
   const s = { ...settings(), minPrice: 10, minByCategory: { mods: 40 }, approved: { "it||": 30 } };
   mine = [order(30)];
