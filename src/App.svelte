@@ -54,7 +54,7 @@
     restoreLive,
     saved,
     saveSettings,
-    discordAsk,
+    discordAtStart,
     discordPost,
     notify,
     quit,
@@ -68,6 +68,7 @@
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsReadWhole,
     settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
@@ -2673,9 +2674,10 @@
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
       // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
-      // here, rather than at the first notification, which may come while they're away.
-      // A yes given after the field was emptied is undone (`discordAsk`); nothing more here.
-      if (settings.notifyOptions.discord.url) void discordAsk(settings.notifyOptions.discord.url, () => settings.notifyOptions.discord.url).catch(() => {});
+      // here, rather than at the first notification, which may come while they're away. None saved
+      // in settings read whole: the confirmed address's file an older MyOrbiter left is removed
+      // (`discordAtStart`). A failure is logged by the app, without the address, and stops nothing.
+      void discordAtStart(() => settings.notifyOptions.discord.url, settingsReadWhole()).catch(() => {});
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
       updates.start(() => settings.updates);
       // The channel this build came from, as Settings names it ("local build" for one made here).

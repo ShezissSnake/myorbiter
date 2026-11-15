@@ -1,6 +1,7 @@
 // backend.ts: saving before quitting, an unreachable worldstate, and loading the bundle in two parts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readdirSync, readFileSync } from "node:fs";
 import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings } from "../src/lib/backend";
 import type { CatalogPart, CollectionPart } from "../src/lib/core/types";
 
@@ -210,6 +211,67 @@ test("a yes that comes back after the Discord field was emptied is undone, for e
   const forgot: string[] = [];
   const result = await discordAsk(hook, () => field, { confirm: async () => ((field = ""), true), forget: async (f) => void forgot.push(f) });
   assert.deepEqual({ result, forgot }, { result: "emptied", forgot: [""] });
+});
+
+test("at start, with no Discord address saved, the confirmed address's file is removed; with one, it is asked about", async () => {
+  const { discordAtStart } = await import("../src/lib/backend");
+  const hook = "https://discord.com/api/webhooks/1234567890/AbC_dEf-123";
+  const run = async (field: string, readWhole: boolean) => {
+    const asked: string[] = [];
+    const forgot: string[] = [];
+    const io = { confirm: async (u: string) => (asked.push(u), true), forget: async (f: string) => void forgot.push(f) };
+    return { result: await discordAtStart(() => field, readWhole, io), asked, forgot };
+  };
+  // None saved: the file goes, given the saved (empty) value, so the app refuses anything else.
+  assert.deepEqual(await run("", true), { result: "forgot", asked: [], forgot: [""] }, "no address saved");
+  assert.deepEqual(await run("  ", true), { result: "forgot", asked: [], forgot: ["  "] }, "a blank one is none, as in the field");
+  // One saved: asked about as before, and nothing removed.
+  assert.deepEqual(await run(hook, true), { result: "asked", asked: [hook], forgot: [] }, "an address saved");
+  assert.deepEqual(await run("not an address", true), { result: "asked", asked: ["not an address"], forgot: [] }, "anything in the field keeps the file");
+  // Settings not read whole (unreadable, damaged): not "none saved", so nothing at all.
+  assert.deepEqual(await run("", false), { result: "none", asked: [], forgot: [] }, "settings not read whole");
+  assert.deepEqual(await run(hook, false), { result: "none", asked: [], forgot: [] });
+  // A failure to remove reaches the caller as a rejection, which the start drops.
+  await assert.rejects(discordAtStart(() => "", true, { confirm: async () => true, forget: async () => { throw new Error("couldn't remove the Discord address: denied"); } }));
+  // Outside the app (the browser preview, the demo): no call that needs it, so nothing fails.
+  assert.equal(await discordAtStart(() => "", true), "forgot");
+  assert.equal(await discordAtStart(() => hook, true), "asked");
+});
+
+test("settings are read whole when they are a settings object or there are none, and only then", async () => {
+  const { loadSettings, settingsReadWhole } = await import("../src/lib/backend");
+  const cases: [() => string | null, boolean, string][] = [
+    [() => JSON.stringify({ notifyOptions: { discord: { url: "" } } }), true, "a settings object"],
+    [() => JSON.stringify({}), true, "an empty one"],
+    [() => null, true, "none at all: a new install"],
+    [() => "{damaged", false, "damaged"],
+    [() => JSON.stringify(42), false, "not a settings object"],
+    [() => JSON.stringify(["x"]), false, "a list"],
+    [() => { throw new Error("denied"); }, false, "couldn't be read"],
+  ];
+  for (const [getItem, whole, what] of cases) {
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem };
+    const s = await loadSettings();
+    assert.equal(settingsReadWhole(), whole, what);
+    if (!whole) assert.equal(s.notifyOptions.discord.url, "", `${what}: the defaults, which say nothing of an address`);
+  }
+});
+
+test("the start removes the Discord file only once the settings are read, and nothing else removes it", () => {
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  const read = app.indexOf("settings = await loadSettings();");
+  const ready = app.indexOf("settingsReady = true;", read);
+  const call = app.indexOf("void discordAtStart(() => settings.notifyOptions.discord.url, settingsReadWhole()).catch(() => {});");
+  assert.ok(read > 0 && ready > read && call > ready, "called once the settings are read and ready");
+  assert.equal(app.split("discordAtStart(").length - 1, 1, "called once");
+  // The app's removal is reached through discordForget alone: the field (NoticesSheet), a yes after
+  // it was emptied (discordAsk) and the start (discordAtStart).
+  const src = new URL("../src/", import.meta.url);
+  const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f));
+  const invoking = files.filter((f) => readFileSync(new URL(f, src), "utf8").includes('"discord_forget"'));
+  assert.deepEqual(invoking, ["lib/backend.ts"]);
+  const callers = files.filter((f) => /\bdiscordForget\(/.test(readFileSync(new URL(f, src), "utf8"))).sort();
+  assert.deepEqual(callers, ["lib/NoticesSheet.svelte", "lib/backend.ts"]);
 });
 
 test("a kept worldstate part whose end has passed isn't kept", async () => {
