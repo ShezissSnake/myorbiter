@@ -896,12 +896,13 @@ const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof 
 const MAX_SAVED_PRICE = 100_000;
 
 /**
- * A group of yes-or-no fields as loaded: the fields of `base` and no others, each the saved value
- * only when it is a real true or false (a text such as "false" reads as on, so it is the usual one).
+ * A group of yes-or-no switches as loaded: the fields of `base` and no others. A field missing
+ * from the file is its usual value; a field that is there is on only when it is a real true, and
+ * off otherwise (a damaged switch never turns something on that read as off before).
  */
 function flagsOf<T extends object>(v: unknown, base: T): T {
   const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
-  return Object.fromEntries(Object.entries(base).map(([k, d]) => [k, typeof r[k] === "boolean" ? r[k] : d])) as T;
+  return Object.fromEntries(Object.entries(base).map(([k, d]) => [k, Object.hasOwn(r, k) ? r[k] === true : d])) as T;
 }
 
 /** A platform MyOrbiter lists, by its own name only: "constructor" or "toString" are not platforms. */
@@ -1045,7 +1046,7 @@ export async function loadSettings(): Promise<Settings> {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
-    jumpToPick: typeof raw?.jumpToPick === "boolean" ? raw.jumpToPick : base.jumpToPick,
+    jumpToPick: raw && Object.hasOwn(raw, "jumpToPick") ? (raw.jumpToPick as unknown) === true : base.jumpToPick,
     // Only the four sections' names, once each: anything else is dropped.
     sectionsClosed: Array.isArray(raw?.sectionsClosed) ? [...new Set(raw.sectionsClosed.filter((k: unknown): k is string => typeof k === "string" && SECTION_NAMES.includes(k)))] : [],
     // Pairs of a short key and a number only, each key once, at most METER_CAP.

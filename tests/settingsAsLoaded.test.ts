@@ -51,13 +51,13 @@ test("a relic price entry whose prices is not an object is left out, the others 
 
 test("a relic price entry with a time in the future, or no real time, is left out", async () => {
   const prices = { intact: 4 };
-  const got = await priced({ f: { at: NOW() + 86_400_000, prices }, t: { at: "1700000000000", prices }, n: { prices }, nan: { at: null, prices }, inf: { at: 1e999, prices }, ok: { at: 1_700_000_000_000, prices } });
+  const got = await priced({ f: { at: NOW() + 86_400_000, prices }, t: { at: "1700000000000", prices }, n: { prices }, nan: { at: null, prices }, ok: { at: 1_700_000_000_000, prices } });
   assert.deepEqual(got, { ok: { at: 1_700_000_000_000, prices } });
 });
 
 test("a relic price that is not a finite number above 0 and within 100000 is left out, the rest of the entry kept", async () => {
   const at = NOW() - 5000;
-  const got = await priced({ "Axi C3": { at, how: "median", prices: { intact: 3, exceptional: 0, flawless: -2, radiant: 100_001, a: "9", b: null, c: true, d: 1e999, e: 100_000, f: 0.5 } } });
+  const got = await priced({ "Axi C3": { at, how: "median", prices: { intact: 3, exceptional: 0, flawless: -2, radiant: 100_001, a: "9", b: null, c: true, e: 100_000, f: 0.5 } } });
   assert.deepEqual(got, { "Axi C3": { at, how: "median", prices: { intact: 3, e: 100_000, f: 0.5 } } });
 });
 
@@ -88,16 +88,22 @@ test("only a platform the app lists is accepted; anything else loads as pc", asy
 
 // Yes or no, and numbers
 
-test("a text where a yes or no is read loads as the usual value, in every group", async () => {
+test("a switch that is there but not a real true loads as off; one that is missing is the usual value", async () => {
   const d = defaultSettings();
-  const s = await load({
-    tennoscope: { launch: "false", opaqueOverlay: "true" },
-    overlay: { show: { mastered: "false", vault: 0, set: null, plat: {}, ducats: [], pick: "no" } },
-    notify: { reward: "false", sold: 0, whispers: null, deals: "off", fissures: [] },
-  });
-  assert.deepEqual(s.tennoscope, d.tennoscope);
-  assert.deepEqual(s.overlay.show, d.overlay.show);
-  assert.deepEqual(s.notify, d.notify);
+  const off = <T extends object>(o: T) => Object.fromEntries(Object.keys(o).map((k) => [k, false])) as T;
+  for (const bad of ["false", "true", "yes", 0, 1, null, "", {}, []]) {
+    const s = await load({ tennoscope: { launch: bad }, overlay: { show: { mastered: bad, pick: bad } }, notify: { reward: bad, sold: bad, deals: bad }, jumpToPick: bad });
+    const at = JSON.stringify(bad);
+    assert.equal(s.tennoscope.launch, false, at);
+    assert.equal(s.tennoscope.opaqueOverlay, d.tennoscope.opaqueOverlay, `${at}: the missing one stays usual`);
+    assert.deepEqual(s.overlay.show, { ...d.overlay.show, mastered: false, pick: false }, at);
+    assert.deepEqual(s.notify, { ...d.notify, reward: false, sold: false, deals: false }, at);
+    assert.equal(s.jumpToPick, false, at);
+  }
+  // Nothing that is off in a saved file reads as on: every switch given a damaged value is off.
+  const all = (v: unknown) => ({ tennoscope: off(d.tennoscope), overlay: { show: off(d.overlay.show) }, notify: off(d.notify) });
+  const s = await load(JSON.parse(JSON.stringify({ tennoscope: Object.fromEntries(Object.keys(d.tennoscope).map((k) => [k, 0])), notify: Object.fromEntries(Object.keys(d.notify).map((k) => [k, null])), overlay: { show: Object.fromEntries(Object.keys(d.overlay.show).map((k) => [k, ""])) } })));
+  assert.deepEqual([s.tennoscope, s.overlay.show, s.notify], [all(0).tennoscope, all(0).overlay.show, all(0).notify]);
 });
 
 test("a true or false is kept, the others of the group stay the usual", async () => {
@@ -125,7 +131,7 @@ test("the older single switch for the listings' notices still turns off sold and
 
 test("a reward-card weight that is not a finite number loads as the usual one", async () => {
   const d = defaultSettings().pick;
-  const s = await load({ pick: { plat: "9", needed: null, ducats: 1e999, set: {}, forma: "5" } });
+  const s = await load({ pick: { plat: "9", needed: null, ducats: "x", set: {}, forma: "5" } });
   assert.deepEqual(s.pick, d);
   assert.deepEqual((await load({ pick: { plat: 9, needed: 0, ducats: 7, set: 2, forma: 1.5 } })).pick, { plat: 9, needed: 0, ducats: 7, set: 2, forma: 1.5 });
   assert.equal((await load({ pick: { forma: -1 } })).pick.forma, d.forma);
@@ -135,7 +141,22 @@ test("a text as the pick weights does not spread its letters into them", async (
   assert.deepEqual((await load({ pick: "abc" })).pick, defaultSettings().pick);
 });
 
-test("Switch to Current fissure is a yes or no: a text loads as the usual one", async () => {
-  for (const bad of ["false", 0, null, {}]) assert.equal((await load({ jumpToPick: bad })).jumpToPick, true, JSON.stringify(bad));
+test("Switch to Current fissure: missing is on as usual, a real false is off", async () => {
+  assert.equal((await load({})).jumpToPick, true);
   assert.equal((await load({ jumpToPick: false })).jumpToPick, false);
+  assert.equal((await load({ jumpToPick: true })).jumpToPick, true);
+});
+
+test("a kinds value of null with no address loads as empty, nothing to post to either way", async () => {
+  assert.deepEqual((await load({ notifyOptions: { discord: { kinds: null } } })).notifyOptions.discord, { url: "", kinds: [] });
+});
+
+test("a relic price with a time of exactly now is kept (not in the future)", async () => {
+  const real = Date.now;
+  Date.now = () => 1_800_000_000_000;
+  try {
+    assert.deepEqual(await priced({ x: { at: 1_800_000_000_000, prices: { intact: 2 } }, y: { at: 1_800_000_000_001, prices: { intact: 2 } } }), { x: { at: 1_800_000_000_000, prices: { intact: 2 } } });
+  } finally {
+    Date.now = real;
+  }
 });
