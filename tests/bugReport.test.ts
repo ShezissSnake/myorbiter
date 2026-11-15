@@ -94,8 +94,10 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   // The encoded forms: what works, and the gap beside it (both held by the tests below).
   assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
   // The known gaps the path tests pin ("known gaps, pinned as they are").
-  assert.match(para, /Left as written: the words after a sure end or a mark inside such a last name .*, in most shapes/);
-  assert.match(para, /after a user name under `C:\\Users\\` .* written with backslashes and with no backslash after it, the words up to the next `:` go with it/);
+  assert.match(para, /Left as written: the words after a sure end or a mark inside such a last name, such as .*, in most shapes: not under/);
+  assert.match(para, /after a user name under `C:\\Users\\` .* written with backslashes and with no backslash after it, the words up to the next `:`, slash or quote go with it/);
+  assert.match(para, /a `\. `, `, ` or `; ` straight after a one-word user name under a home folder does not end it/);
+  assert.match(para, /The marks, shapes and cases this page names are examples, not whole lists/);
   assert.match(para, /hidden whole when a slash follows it, except under a bare `drive_c\\users`/);
   assert.match(para, /a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
   assert.match(para, /the words after the first of a user name under a `drive_c\\users` that is not inside a longer path/);
@@ -299,6 +301,19 @@ test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
   assert.equal(redact("D:\\Games\\Orren A. Taskwell"), "D:\\Games\\[folder]. Taskwell");
   // Any other sure end or mark inside it does the same.
   assert.equal(redact("D:\\Games\\Taskwell, Orren"), "D:\\Games\\[folder], Orren");
+  assert.equal(redact("D:\\Games\\Orren(Bex) Taskwell"), "D:\\Games\\[folder](Bex) Taskwell");
+  // ": " inside a name, even with a slash after it.
+  assert.equal(redact("/srv/Orren: Taskwell/x"), "/srv/[folder]: Taskwell/x");
+  // But ". ", ", " or "; " straight after a one-word user name under a home folder is kept in the
+  // name by the home rule, so it does not end the run: a price after it goes too. With a
+  // two-word name, or outside a home folder, the run stops there.
+  assert.equal(redact("/home/Orren, has 30p"), "/home/[user]");
+  assert.equal(redact("/home/Orren. Has 30p"), "/home/[user]");
+  assert.equal(redact("C:/Users/Orren; has 30p"), "C:/Users/[user]");
+  assert.equal(redact("/home/Orren Taskwell, has 30p"), "/home/[user], has 30p");
+  assert.equal(redact("D:\\Games\\Orren, has 30p"), "D:\\Games\\[folder], has 30p");
+  // A bare ~name with nothing after it is not a recognised shape.
+  assert.equal(redact("found ~orren here"), "found ~orren here");
   // After a user name under C:\\Users\\ written with backslashes and with no backslash after it,
   // that rule takes the words up to the next ":", the next path's drive letter included: a path
   // with one folder name after it keeps that name.

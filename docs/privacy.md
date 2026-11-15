@@ -348,34 +348,44 @@ either slash, bare or in quotes. A user name becomes `[user]`, a drive's label `
 computer's name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's
 name, the root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and
 MyOrbiter make stay. A folder or user name with spaces in it is hidden whole when a slash follows
-it, except under a bare `drive_c\users` (below). A last name that is hidden, with spaces or not,
-takes the words after it with it, unless it is a folder name whose first word is one of those
-kept folders, a number or a file's name: up to the end of the sentence (`. `, `, `, `; ` and ` (` included), a mark such as
-`:`, `>` or `|`, or the next path, except after a user name under `C:\Users\` written with
-backslashes (below). So a word too many may be hidden, prices and amounts included
-(`/home/name has 30p` becomes `/home/[user]`), and none of those words is kept as the file's name.
-Left as written: the words after a sure end or a mark inside such a last name (`. `, `, `, `; `,
-` (`, `: `, `{`, a backtick), in most shapes (`D:\Games\Name A. Other` becomes
+it, except under a bare `drive_c\users` (below) or after a `: `, `{` or backtick inside it
+(`/srv/Name: Other/x` becomes `/srv/[folder]: Other/x`). A last name that is hidden, with spaces or
+not, takes the words after it with it, unless it is a folder name whose first word is one of those
+kept folders, a number or a file's name: up to the end of the sentence (`. `, `, `, `; ` and ` (`
+included), a mark such as `:`, `>` or `|`, or the next path, except after a user name under
+`C:\Users\` written with backslashes (below), and except that a `. `, `, ` or `; ` straight after a
+one-word user name under a home folder does not end it, as the home rule keeps the mark in the name
+(`/home/name, has 30p` becomes `/home/[user]`). So a word too many may be hidden, prices and
+amounts included (`/home/name has 30p` becomes `/home/[user]`), and none of those words is kept as
+the file's name. The marks, shapes and cases this page names are examples, not whole lists: another
+mark inside a name can leave the words after it as written, or a name can take more words with it
+than named here. Left as written: the words after a sure end or a mark inside such a last name, such
+as `. `, `, `, `; `, ` (`, `: `, `{`, a backtick, `"`, `?`, `*`, `}`, `)`, a lone `~`, `/` or `\`
+after a space, or `(`, `,` or `;` with no space before it (`D:\Games\Name A. Other` becomes
 `D:\Games\[folder]. Other`, `D:\Games\Name, Other` becomes `D:\Games\[folder], Other`,
-`/home/Name A. Other` becomes `/home/[user]. Other`); after a user name under `C:\Users\` (or
-`C:\Documents and Settings\`, or `file:///C:\Users\`) written with backslashes and with no
-backslash after it, the words up to the next `:` go with it, the next path's drive letter
-included, so that path's last folder name stays when it has only one (`C:\Users\Name to E:\Other`
-becomes `C:\Users\[user]:\Other`); a last folder name whose first word is a kept folder, a number
-or a file's name, with no slash after it (`D:\Games\Dev Name`, `~/Steam Name`,
-`D:\Games\2024 Name`), as it can't be told from a kept folder followed by other words; the words
-after the first of a user name under a `drive_c\users` that is not inside a longer path, which is a
-relative path, with or without a slash after it (`drive_c/users/Name Other` becomes
-`drive_c/users/[user] Other`, `drive_c/users/Name Other/x` becomes `drive_c/users/[user] Other/x`,
-`drive_c/users/O'Name` becomes `drive_c/users/[user]'Name`); a name with an apostrophe in a path in
-single quotes (`'D:\a\O'Name'`), where the apostrophe reads as the closing quote; a path after a
-quote that never closes, whose last name runs to the end of the line and is kept when it ends in a
-file's name (`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); and
+`D:\Games\Name(Old) Other` becomes `D:\Games\[folder](Old) Other`, `/home/Name A. Other` becomes
+`/home/[user]. Other`), in most shapes: not under `C:\Users\` with backslashes (except after `: `),
+not in quotes, not with a slash after the name (except after `: `, `{` or a backtick), and not for a
+`. `, `, ` or `; ` straight after a one-word user name under a home folder, where those words, and a
+price among them, are hidden; after a user name under `C:\Users\` (or `C:\Documents and Settings\`,
+or `file:///C:\Users\`) written with backslashes and with no backslash after it, the words up to the
+next `:`, slash or quote go with it, the next path's drive letter included, so that path's last
+folder name stays when it has only one (`C:\Users\Name to E:\Other` becomes
+`C:\Users\[user]:\Other`); a last folder name whose first word is a kept folder, a number or a
+file's name, with no slash after it (`D:\Games\Dev Name`, `~/Steam Name`, `D:\Games\2024 Name`),
+as it can't be told from a kept folder followed by other words; the words after the first of a user
+name under a `drive_c\users` that is not inside a longer path, which is a relative path, with or
+without a slash after it (`drive_c/users/Name Other` becomes `drive_c/users/[user] Other`,
+`drive_c/users/Name Other/x` becomes `drive_c/users/[user] Other/x`, `drive_c/users/O'Name` becomes
+`drive_c/users/[user]'Name`); a name with an apostrophe in a path in single quotes
+(`'D:\a\O'Name'`), where the apostrophe reads as the closing quote; a path after a quote that never
+closes, whose last name runs to the end of the line and is kept when it ends in a file's name
+(`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); and
 `//computer/share` straight after `://`, which reads as an address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
 `file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a
-relative path (`./a/b`), a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
+relative path (`./a/b`), `~name` with nothing after it, a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
 after `GET` and the like). A path of an unusual shape can pass, which is why the report is shown to
 you in full before anything is sent: read it first. The prices of listings and sales are kept,
 except those that go with a hidden name as above: they are public on warframe.market and help
