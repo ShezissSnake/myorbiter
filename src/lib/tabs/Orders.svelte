@@ -11,7 +11,7 @@
   import { untrack } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
-  import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, ownFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
+  import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
@@ -234,10 +234,10 @@
   const rankLabel = (o: { rank: number | null; subtype: string | null }) =>
     [o.rank != null ? `R${o.rank}` : null, o.subtype].filter(Boolean).join(" · ");
 
-  /** The item's first variant: a listing that names none is that one (core/market.ts › ownFloor). */
+  /** The item's first variant: a listing that names none is that one (core/market.ts › typedFloor). */
   const firstVariant = (o: MyOrder) => mkt.item(o.itemId)?.subtypes?.[0] ?? null;
-  /** The listing's own floor, as repricing reads it (saved under an older key of it included). */
-  const floorOf = (o: MyOrder) => ownFloor(settings.floors, o, firstVariant(o));
+  /** The floor typed for this listing (saved under another key of it included); one it falls back on shows in the placeholder, as the plan counts it. */
+  const floorOf = (o: MyOrder) => typedFloor(settings.floors, o, firstVariant(o));
   function setFloor(o: MyOrder, v: string) {
     const n = Math.round(Number(v));
     settings.floors = withOwnFloor(settings.floors, o, firstVariant(o), !v || !Number.isFinite(n) || n <= 0 ? null : n);
@@ -953,7 +953,7 @@
           <section class="pg" aria-labelledby="auto-apply-h">
             <h3 class="register" id="auto-apply-h">Changing prices</h3>
             <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
-            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS}, at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing; a listing under its own floor (in its row) or Never under is lifted to it at once, within the {DRIFT.perDay}.</p>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS}, at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing; a listing under its own floor (in its row) or Never under is lifted to it at once.</p>
             <p class="dim small why">It never lowers a price under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved for that listing, nor under the floors below; that mark never holds back a raise, and more than halving waits for Reprice. {GREY_AREA}.</p>
             <div class="grp">
               <span class="register">Floor</span>

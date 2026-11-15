@@ -567,8 +567,10 @@ class MarketStore {
   approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">): string {
     return listingKey({ ...o, subtype: o.subtype ?? this.item(o.itemId)?.subtypes?.[0] ?? null });
   }
-  /** Listings whose 70% floor was told, with the price it was 70% of: told once, not every pass. */
+  /** Listings (by order id) whose 70% floor was told, with the price it was 70% of: told once, not every pass. */
   private floorTold = new Set<string>();
+  /** When warframe.market refused a raise up to a floor, by order id: tried again after the hour. */
+  private floorRefused = new Map<string, number>();
 
   /**
    * The floors repricing holds a listing at: its own (Orders' Floor column, read as `ownFloor`
@@ -720,6 +722,7 @@ class MarketStore {
           }
           let target = p.target;
           let atFloor = false;
+          let toFloor = false;
           if (timed) {
             const tag = `${it.name}${o.rank != null ? ` R${o.rank}` : ""}`;
             // Never lowered under 70% of the price you last set or approved for this listing (a
@@ -731,8 +734,8 @@ class MarketStore {
             const mark = `${Math.round(AUTO_FLOOR_SHARE * 100)}% of the ${approved}p you last set`;
             if (!move.go) {
               held++;
-              if (!this.floorTold.has(`${key}|${approved}`)) {
-                this.floorTold.add(`${key}|${approved}`);
+              if (!this.floorTold.has(`${o.id}|${approved}`)) {
+                this.floorTold.add(`${o.id}|${approved}`);
                 // At the mark, or already under it (a price typed or changed on the website): it
                 // stays where it is, and the market is lower still.
                 const where = o.platinum === move.floor ? mark : `already under ${mark} (${move.floor}p)`;
@@ -753,16 +756,18 @@ class MarketStore {
             if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) {
               if (atFloor) {
                 held++;
-                if (!this.floorTold.has(`${key}|${approved}`)) {
-                  this.floorTold.add(`${key}|${approved}`);
+                if (!this.floorTold.has(`${o.id}|${approved}`)) {
+                  this.floorTold.add(`${o.id}|${approved}`);
                   this.note(`${tag}: stays at ${o.platinum}p, too close to ${mark} (${target}p) for a change; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
                 }
               }
               continue;
             }
             // At most one change an hour and six a day per listing, by itself (core/drift.ts); a
-            // raise up to a hard floor the listing is under waits for no hour, as for no dead band.
-            if (!cooldown(s.changes?.[key], Date.now(), o.platinum < p.hard && target > o.platinum).ok) {
+            // raise up to a hard floor the listing is under waits for neither, as for no dead band,
+            // unless warframe.market refused it within the hour.
+            toFloor = o.platinum < p.hard && target > o.platinum;
+            if (!cooldown(s.changes?.[key], Date.now(), toFloor, this.floorRefused.get(o.id)).ok) {
               cooling++;
               continue;
             }
@@ -772,6 +777,7 @@ class MarketStore {
           s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
           try {
             await market.update(o.id, { platinum: target });
+            this.floorRefused.delete(o.id);
             writeFailing = 0;
             changed++;
             // Pressed Reprice: the price you approved.
@@ -783,11 +789,12 @@ class MarketStore {
               // A raise stops at the cheapest seller (core/market.ts): then it's their price.
               : p.competitor.lowest && target === p.competitor.lowest.platinum && p.competitor.lowest.platinum !== p.competitor.price ? `up to the cheapest seller, ${p.competitor.lowest.name ?? "?"}`
               : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
-            if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${this.approvedPrice(o, s)}`);
+            if (atFloor) this.floorTold.add(`${o.id}|${this.approvedPrice(o, s)}`);
             this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
             if (isAuthError(e)) throw e;
             failed++;
+            if (toFloor) this.floorRefused.set(o.id, Date.now());
             this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
             // Refused again and again (an outage): stop sending changes this pass.
             if (++writeFailing >= WRITE_FAILS) {

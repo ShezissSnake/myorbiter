@@ -55,6 +55,8 @@ beforeEach(() => {
   mkt.rules = null;
   mkt.error = null;
   mkt.endedApprovals.clear();
+  (mkt as unknown as { floorRefused: Map<string, number>; floorTold: Set<string> }).floorRefused.clear();
+  (mkt as unknown as { floorRefused: Map<string, number>; floorTold: Set<string> }).floorTold.clear();
   mkt.model = null;
   mkt.draft = null;
   market.items = async () => [h.it];

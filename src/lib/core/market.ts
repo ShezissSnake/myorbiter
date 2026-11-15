@@ -310,6 +310,22 @@ export function ownFloor(floors: Readonly<Record<string, number>>, o: Keyed, def
   return null;
 }
 
+/** The keys `withOwnFloor` writes and clears for this listing: its own, and when it is the item's first variant, the others it is saved under. */
+function ownKeys(o: Keyed, defaultSubtype: string | null): string[] {
+  const variant = o.subtype ?? defaultSubtype;
+  return [listingKey(o), ...(variant === defaultSubtype ? [null, defaultSubtype].map((subtype) => listingKey({ ...o, subtype })) : [])];
+}
+
+/**
+ * The floor typed for this very listing, as Orders' Floor field shows it: one it only falls back on
+ * (the empty sculpture's for a filled one, a relic's saved for no refinement) isn't, since clearing
+ * the field can't take that one away; the plan still counts it (ownFloor).
+ */
+export function typedFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null): number | null {
+  for (const k of ownKeys(o, defaultSubtype)) if (floors[k] != null) return floors[k];
+  return null;
+}
+
 /**
  * The floors with this listing's own floor set to `floor` (null clears it). It goes under the
  * listing's own key; a floor saved for the same listing under its other key (the variant unnamed,
@@ -318,10 +334,8 @@ export function ownFloor(floors: Readonly<Record<string, number>>, o: Keyed, def
  */
 export function withOwnFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null, floor: number | null): Record<string, number> {
   const out = { ...floors };
-  const variant = o.subtype ?? defaultSubtype;
   // The other keys of this very listing: only when it is the item's first variant (or the item has none).
-  if (variant === defaultSubtype) for (const subtype of [null, defaultSubtype]) delete out[listingKey({ ...o, subtype })];
-  delete out[listingKey(o)];
+  for (const k of ownKeys(o, defaultSubtype)) delete out[k];
   if (floor != null) out[listingKey(o)] = floor;
   return out;
 }

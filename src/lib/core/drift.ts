@@ -10,8 +10,8 @@
 // - A cooldown: at most one change per listing an hour, and at most six a day. The changes are
 //   kept in your settings, so a restart doesn't start the count again. A listing under one of its
 //   hard floors (its own floor, a relic's crack value, a prime's ducats, the minimum) skips the
-//   dead band and the hour: it is raised to that floor at once, never left broken. The day's six
-//   still hold it.
+//   dead band and both limits: it is raised to that floor at once, never left broken. Only a raise
+//   warframe.market refused waits an hour before it is tried again.
 //
 // warframe.market calls automation a grey area. With these rules a listing changes a few times a
 // day at most, within bounds that can be stated in a sentence. The numbers live here only.
@@ -43,7 +43,7 @@ export const BAND_WORDS = `${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 
 /** The plain sentence Settings, Orders and the Guide show. */
 export const DRIFT_RULES =
   `A price changes only when it has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, or sits under a listing's own floor or your minimum, ` +
-  `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing (a raise up to such a floor goes at once, within the ${DRIFT.perDay})`;
+  `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing (a raise up to such a floor goes at once)`;
 /** The same rule as a clause, to follow "it changes a price only when it has drifted". */
 export const DRIFT_CLAUSE = DRIFT_RULES.replace(/^A price changes only when it has drifted /, "");
 
@@ -75,14 +75,15 @@ export type Cooldown =
 
 /**
  * Whether a listing changed at `times` may change again at `now`. `toFloor`: a raise up to a hard
- * floor the listing sits under, which waits for no hour; the day's limit still holds it, so a
- * change warframe.market refuses isn't tried again on every pass.
+ * floor the listing sits under, which waits for neither limit; only a raise warframe.market refused
+ * at `refused` waits the hour, so it isn't tried again on every pass.
  */
-export function cooldown(times: readonly number[] | undefined, now: number, toFloor = false): Cooldown {
+export function cooldown(times: readonly number[] | undefined, now: number, toFloor = false, refused?: number): Cooldown {
+  if (toFloor) return refused != null && now - refused < DRIFT.cooldownMs ? { ok: false, until: refused + DRIFT.cooldownMs, why: "hour" } : { ok: true };
   // Times ahead of now (a clock set back) count too: they hold the listing longer, never less.
   const day = (times ?? []).filter((t) => t > now - DRIFT.dayMs).sort((a, b) => a - b);
   const last = day[day.length - 1];
-  if (!toFloor && last != null && now - last < DRIFT.cooldownMs) return { ok: false, until: last + DRIFT.cooldownMs, why: "hour" };
+  if (last != null && now - last < DRIFT.cooldownMs) return { ok: false, until: last + DRIFT.cooldownMs, why: "hour" };
   if (day.length >= DRIFT.perDay) return { ok: false, until: day[day.length - DRIFT.perDay] + DRIFT.dayMs, why: "day" };
   return { ok: true };
 }

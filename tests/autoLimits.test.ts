@@ -48,9 +48,9 @@ test("what it says of a raise is what a pass does: the 70% mark never holds one 
   assert.deepEqual(h.sent, [["a", 66]], logText());
 });
 
-test("what it says of a listing under its own floor or the minimum is what a pass does: raised at once, within the day's limit", async () => {
-  for (const s of both) assert.match(s, /never goes under a listing's own floor \(the one in its row, a relic's crack value, a prime part's ducats\) or your minimum price, and raises a listing that sits under one of them up to it at once, within the day's limit of changes/);
-  assert.match(DRIFT_RULES, new RegExp(`a raise up to such a floor goes at once, within the ${DRIFT.perDay}`));
+test("what it says of a listing under its own floor or the minimum is what a pass does: raised at once, whatever the hour or the day's count", async () => {
+  for (const s of both) assert.match(s, /never goes under a listing's own floor \(the one in its row, a relic's crack value, a prime part's ducats\) or your minimum price, and raises a listing that sits under one of them to at least that at once/);
+  assert.match(DRIFT_RULES, /a raise up to such a floor goes at once\)$/);
   // Changed 10 minutes ago, under a 10p minimum: raised now.
   h.mine = [order(5)];
   h.book = [seller(3), seller(3)];

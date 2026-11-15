@@ -29,7 +29,7 @@ test("a 50p floor typed on the listing when it had no variant holds after it rea
   assert.deepEqual({ floorKey, sent: h.sent }, { floorKey: "r||", sent: [["a", 50]] }, logText());
 });
 
-test("the floor field shows the floor in force, and a change to it is the listing's own", () => {
+test("a listing's floor is read under either key of it, and a change to it is the listing's own", () => {
   const { ownFloor, withOwnFloor } = core;
   const intact = order(60, "a", { itemId: "r", subtype: "intact" });
   assert.equal(ownFloor({ "r||": 50 }, intact, "intact"), 50, "saved with no variant, read as intact");
@@ -42,6 +42,22 @@ test("the floor field shows the floor in force, and a change to it is the listin
   assert.deepEqual(withOwnFloor({ "r||": 50, "x||": 7 }, intact, "intact", null), { "x||": 7 });
   // A radiant listing's floor is its own: clearing it leaves the intact one's.
   assert.deepEqual(withOwnFloor({ "r||": 50, "r||radiant": 9 }, order(60, "b", { itemId: "r", subtype: "radiant" }), "intact", null), { "r||": 50 });
+});
+
+test("the field shows only a floor clearing it takes away; one the listing falls back on still counts", () => {
+  const { ownFloor, typedFloor, withOwnFloor } = core;
+  const radiant = order(60, "b", { itemId: "r", subtype: "radiant" });
+  assert.equal(typedFloor({ "r||": 50 }, radiant, "intact"), null, "saved with no variant: not the radiant listing's own");
+  assert.equal(ownFloor({ "r||": 50 }, radiant, "intact"), 50, "yet the plan holds it");
+  assert.equal(typedFloor({ "r||": 50 }, order(60, "a", { itemId: "r", subtype: "intact" }), "intact"), 50, "the intact listing's, under its older key");
+  const filled = order(60, "f", { itemId: "ay", subtype: null, amberStars: 2, cyanStars: 2 });
+  assert.equal(typedFloor({ "ay||": 20 }, filled, null), null, "the empty sculpture's: not the filled one's");
+  assert.equal(ownFloor({ "ay||": 20 }, filled, null), 20);
+  // Typed, then cleared: the field is empty again, and the empty sculpture's floor stays.
+  const typed = withOwnFloor({ "ay||": 20 }, filled, null, 45);
+  assert.equal(typedFloor(typed, filled, null), 45);
+  assert.equal(typedFloor(withOwnFloor(typed, filled, null, null), filled, null), null);
+  assert.deepEqual(withOwnFloor(typed, filled, null, null), { "ay||": 20 });
 });
 
 /** A relic whose daily price is 20p and which sellers ask 25p for; a crack of it is worth 31p to the player. */

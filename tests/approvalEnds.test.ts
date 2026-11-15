@@ -7,7 +7,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { h, mkt, order, seller, settings, timedPass, logText } from "./support/pass";
 import { approvedOf } from "../src/lib/core/approved";
-import type { MarketSettings } from "../src/lib/backend";
+import { market, type MarketSettings } from "../src/lib/backend";
+import type { Model } from "../src/lib/core/model";
+import type { Draft } from "../src/lib/marketStore.svelte";
 
 type Owned = Record<string, { key: string; platinum: number }>;
 const owned = (s: MarketSettings) => (s as MarketSettings & { approvedFor?: Owned }).approvedFor ?? {};
@@ -146,4 +148,19 @@ test("Reprice by hand and a typed price approve that listing only", async () => 
   await mkt.refresh(s);
   await mkt.update(mkt.orders.find((o) => o.id === "b")!, { platinum: 90 });
   assert.deepEqual(owned(s), { a: { key: "it||", platinum: 100 }, b: { key: "it||", platinum: 90 } });
+});
+
+test("a listing made with the listing form is approved at its own price by the read after it", async () => {
+  const s = settings({ "it||": 100 });
+  mkt.items = [h.it];
+  mkt.rules = s;
+  mkt.model = { observedAt: null, inventoryByBase: new Map(), partByName: new Map() } as unknown as Model; // a console: no inventory read
+  market.create = (async (o: { platinum: number; quantity: number }) => {
+    h.mine = [...h.mine, order(o.platinum, "made", { quantity: o.quantity })];
+    return {} as never;
+  }) as never;
+  await mkt.refresh(s);
+  mkt.draft = { itemId: "it", name: "It", slug: "it", platinum: 40, quantity: 1, rank: null, subtype: null, maxRank: null, subtypes: null, available: 1, priced: true, inGame: 0, ladder: [], addToExisting: true, held: [], asked: { rank: null, subtype: null, available: 1 } } as Draft;
+  await mkt.submitDraft();
+  assert.deepEqual(owned(s), { made: { key: "it||", platinum: 40 } }, logText());
 });

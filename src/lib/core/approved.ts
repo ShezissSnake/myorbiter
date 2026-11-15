@@ -39,7 +39,7 @@ const cutWords = AUTO_LEAST_KEPT === 0.5 ? "never more than halves a price" : `n
 const limits = (how: string) =>
   `On its own it never lowers a price under ${percent(AUTO_FLOOR_SHARE)} of the one you last set or approved for that listing in MyOrbiter (${how}; a price changed on warframe.market's website doesn't move it): it stops there and says so, and that mark never holds back a raise. ` +
   "The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it. " +
-  `It ${cutWords} (that waits for you to press Reprice), never goes under a listing's own floor (the one in its row, a relic's crack value, a prime part's ducats) or your minimum price, and raises a listing that sits under one of them up to it at once, within the day's limit of changes`;
+  `It ${cutWords} (that waits for you to press Reprice), never goes under a listing's own floor (the one in its row, a relic's crack value, a prime part's ducats) or your minimum price, and raises a listing that sits under one of them to at least that at once`;
 export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice, or a Sell spares line that changes it");
 /** The same for a console, where there is no Sell spares. */
 export const AUTO_LIMITS_CONSOLE = limits("listing it, typing it or pressing Reprice");
