@@ -145,6 +145,6 @@ test("every control that picks a mode goes through the store, so a newer choice 
   for (const [f, text] of sources) assert.ok(!/\btennoscope\.ask\(/.test(text), `${f} asks TennoScope directly`);
   assert.match(src("lib/FullMode.svelte"), /ts\.ask\(full \? "--access=full" : "--access=overlay"\)/);
   // The setup page's "Not now: overlay only" asks through the store, then carries on without an inventory.
-  assert.match(src("App.svelte"), /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\(\);/);
+  assert.match(src("App.svelte"), /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\("overlay"\);/);
   assert.match(src("App.svelte"), /a === "overlay" \? "Not now: overlay only"/);
 });

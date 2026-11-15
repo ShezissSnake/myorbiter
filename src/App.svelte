@@ -162,6 +162,7 @@
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
+  import { leaveSetup } from "./lib/core/gettingIn";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -543,21 +544,20 @@
     } else if (a === "full") void ts.ask("--access=full");
     else if (a === "overlay") {
       void ts.ask("--access=overlay");
-      finishLater();
+      finishLater("overlay");
     } else if (a === "settings") showSettings = true;
   }
   /**
-   * Finish later (or Esc): out of the first start with safe defaults, at any step. MyOrbiter
-   * carries on without an inventory until TennoScope reads one, and on a first start (nothing
-   * chosen yet) every automatic action on warframe.market stays off.
+   * Finish later (or Esc): out of the setup page with safe defaults, at any step. MyOrbiter
+   * carries on without an inventory until TennoScope reads one, and every automatic action on
+   * warframe.market is switched off, first start or not, until the player turns it on again
+   * (core/gettingIn.ts). "Not now: overlay only" leaves the same way, but switches them off on a
+   * first start only.
    */
-  function finishLater() {
-    logLine("info", "setup", `first start: finished later at "${setup.stage}"`);
-    if (!settings.fullModeAsked || firstStartRun) {
-      settings.market.auto = false;
-      settings.market.autoTrades = false;
-      settings.market.autoRep = false;
-    }
+  function finishLater(how: "later" | "overlay" = "later") {
+    const { next, off } = leaveSetup(how, settings.market, !settings.fullModeAsked || firstStartRun);
+    Object.assign(settings.market, next);
+    logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
   }
   /** This start began with the first start's question: a new install's first run. */
@@ -3087,7 +3087,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={finishLater}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}

@@ -178,10 +178,11 @@ test("every step has a way on without TennoScope ever answering", () => {
 test("Finish later and Esc are on every step, and leave the automatic actions off", () => {
   const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
   assert.match(app, /data-field="setup\.later"/, "the Finish later button");
-  assert.match(app, /function finishLater\(\)/);
-  const body = app.slice(app.indexOf("function finishLater()"), app.indexOf("function finishLater()") + 1200);
+  assert.match(app, /function finishLater\(how/);
+  const body = app.slice(app.indexOf("function finishLater("), app.indexOf("function finishLater(") + 1200);
   assert.match(body, /withoutInventory\(\)/);
-  for (const k of ["auto", "autoTrades", "autoRep"]) assert.match(body, new RegExp(`settings\\.market\\.${k} = false`), k);
+  // The automatic actions: switched off by leaveSetup, first start or not (gettingIn.test.ts).
+  assert.match(body, /Object\.assign\(settings\.market, next\)/);
   // While it's open the sidebar waits: inert (out of the Tab order, not clickable) and dimmed.
   assert.match(app, /<aside class="rail" aria-label="MyOrbiter" inert=\{setupOpen\}/);
   // Esc leaves it.
