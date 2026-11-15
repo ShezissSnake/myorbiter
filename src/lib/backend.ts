@@ -312,6 +312,14 @@ export interface Sale {
    * (milliseconds). A Sold click on that listing soon after asks first (soldAfterTrade).
    */
   lowered?: { listing: string; count: number; at: number };
+  /**
+   * Copies of this trade's sale the marking logged but could not mark sold: the listing it tried
+   * (null: none was a sure match, or the marking closed it), how many, when (milliseconds), and
+   * the refinement the trade's line names (a relic's, when the log gives it). A Sold click on that
+   * listing soon after (or, with none, on a listing of that item, rank and refinement) asks
+   * whether it is this sale (soldAfterUnmarked).
+   */
+  unmarked?: { listing: string | null; count: number; at: number; subtype?: string };
 }
 
 export interface GameState {
