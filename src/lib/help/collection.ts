@@ -123,7 +123,7 @@ const PARTS: Walkthrough = {
   title: "Prime parts",
   guide: guideOf("parts"),
   does: [
-    { text: "Shows each part's best use: keep, set, sell or ducats", icon: "ducats" },
+    { text: "Shows each prime part's best use, from keeping to ducats", icon: "ducats" },
     { text: "Shows what a part sells for and the ducats Baro pays", icon: "platinum" },
     { text: "Shows your ducats, and when Baro comes or leaves", icon: "baro" },
     { text: "Lists the parts with the most ducats per platinum", icon: "ducats" },
