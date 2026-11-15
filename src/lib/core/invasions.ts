@@ -1,9 +1,8 @@
 // Invasions that reward a part you need: a blueprint or component of something you haven't
 // mastered or built, that you don't already hold enough of. Invasion rewards are mostly weapon
 // parts (Dera Vandal, Twin Vipers Wraith…), the only regular way to get those.
-import { masteryPoints } from "./acquire";
 import type { Model } from "./model";
-import { RARE_REWARD } from "./worldNeeds";
+import { masteryHelp, RARE_REWARD } from "./worldNeeds";
 
 export interface InvasionReward {
   uniqueName: string;
@@ -24,6 +23,8 @@ export interface Invasion {
 export interface InvasionNeed {
   /** Invasion id plus the reward: what a notification is sent once for. */
   key: string;
+  /** The reward's path, as the world state gives it. */
+  uniqueName: string;
   node: string;
   reward: string;
   count: number;
@@ -44,35 +45,27 @@ export interface InvasionNeed {
 
 export function invasionNeeds(m: Model, invasions: Invasion[] | null | undefined): InvasionNeed[] {
   if (!invasions?.length) return [];
-  // Every component of something masterable, by its path.
-  const byComponent = new Map<string, { parent: string; parentName: string; needed: number; points: number }>();
-  for (const item of m.catalogByUnique.values()) {
-    if (!item.masterable) continue;
-    for (const c of item.components ?? []) {
-      if (!/\/Recipes\//.test(c.uniqueName)) continue;
-      byComponent.set(c.uniqueName, { parent: item.uniqueName, parentName: item.name, needed: c.itemCount ?? 1, points: masteryPoints(item) });
-    }
-  }
   const out: InvasionNeed[] = [];
   for (const inv of invasions) {
     if (inv.completed) continue;
     for (const side of [inv.attacker, inv.defender]) {
       for (const r of side?.reward?.countedItems ?? []) {
-        const part = byComponent.get(r.uniqueName);
-        if (!part) continue;
-        if (m.isMastered(part.parent) || m.owned(part.parent) > 0) continue;
-        const have = (m.inventoryByBase.get(r.uniqueName) ?? []).reduce((n, x) => n + x.quantity, 0);
-        if (have >= part.needed) continue;
+        // The same rule as an alert's reward (worldNeeds.ts): a blueprint or part of something you
+        // haven't mastered or built, that you don't hold enough of.
+        if (!/\/Recipes\//.test(r.uniqueName)) continue;
+        const part = masteryHelp(m, { uniqueName: r.uniqueName, name: r.type });
+        if (!part || part.whole) continue;
         out.push({
           key: `${inv.id}|${r.uniqueName}`,
+          uniqueName: r.uniqueName,
           node: inv.node,
           reward: r.type,
           count: r.count,
           side: side?.faction ?? "?",
-          item: part.parentName,
-          itemImage: m.imageOf(part.parentName),
+          item: part.item,
+          itemImage: m.imageOf(part.item),
           points: part.points,
-          have,
+          have: part.have,
           needed: part.needed,
           completion: typeof inv.completion === "number" ? inv.completion : null,
           attacker: inv.attacker?.faction ?? null,
@@ -91,6 +84,8 @@ export interface InvasionRare {
   node: string;
   /** "Orokin Reactor Blueprint", or "3 × Forma Blueprint". */
   reward: string;
+  /** The reward itself, without the count: its path and name. */
+  item: { uniqueName?: string; name: string };
   side: string;
   completion: number | null;
 }
@@ -110,6 +105,7 @@ export function invasionRares(invasions: Invasion[] | null | undefined): Invasio
           key: `${inv.id}|${r.uniqueName ?? r.type}`,
           node: inv.node,
           reward: (r.count ?? 1) > 1 ? `${r.count} × ${r.type}` : r.type,
+          item: { uniqueName: r.uniqueName, name: r.type },
           side: side?.faction ?? "?",
           completion: typeof inv.completion === "number" ? inv.completion : null,
         });

@@ -10,6 +10,7 @@
 import type { Walkthrough } from "./types";
 import { guideCard } from "./guide";
 import { AUTO_FLOOR_SHARE } from "../core/approved";
+import { DEFAULT_HIDE_MINUTES, MAX_HIDE_MINUTES } from "../core/lastCopy";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
@@ -32,9 +33,8 @@ const CHOOSE = { click: `${N} .top button[role=radio]:has-text('Choose')` };
 const GROUP = `${N} section.how + section.grp`;
 
 const T = `.sheet[aria-label="TennoScope"]`;
-/** TennoScope's panel opens from the foot's More menu. */
-const MORE = { click: ".rail .foot button.more" };
-const TSBTN = { click: ".moremenu [data-item='TennoScope']" };
+/** TennoScope's panel opens from its button in the full sidebar's foot. */
+const TSBTN = { click: ".rail .foot [data-item='TennoScope']" };
 const tsSec = (part: string) => `${T} section:has([data-help="${part}"])`;
 
 const SETTINGS_MAIN: Walkthrough = {
@@ -269,7 +269,7 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Hide last copies (off to start): any whisper hides each listing you have one copy of.",
         "Selling rules live on Sell spares: sets, veiled rivens, minimum prices.",
-        "Back after 10 minutes (or your time) if a newer inventory read has it.",
+        `Back after ${DEFAULT_HIDE_MINUTES} minutes (up to ${MAX_HIDE_MINUTES}) if a newer inventory read has it.`,
         "A later whisper doesn't lengthen the wait; showing or hiding one ends its wait.",
       ],
       shot: {
@@ -283,17 +283,31 @@ const SETTINGS_TRADES: Walkthrough = {
       },
     },
     {
-      title: "Automatic repricing",
+      title: "Checking prices on a timer",
       lines: [
-        "Off until you turn it on; also Apply automatically on Orders.",
-        "It follows the second-cheapest seller online or in game, not a lone bait listing.",
-        "A gap over 2p and 5% moves it; once an hour, six a day per listing.",
-        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved in MyOrbiter, never more than halved.`,
+        "Check my prices on a timer (off to start): reads them, sends nothing.",
+        "How often is set on Orders: every minute up to once a week.",
+        "The same switch as Check automatically on Orders.",
       ],
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${TRADES} > :is(.hmark, h3), ${TRADES} ${sw("settings.auto-reprice")}`,
+        part: `${TRADES} > :is(.hmark, h3), ${TRADES} ${sw("settings.auto-check")}`,
+        marks: [{ at: `${TRADES} ${sw("settings.auto-check")} .track`, is: "arrow", from: "left" }],
+      },
+    },
+    {
+      title: "Automatic repricing",
+      lines: [
+        "Change my prices by itself (off to start): also sends them; Apply automatically on Orders.",
+        "It follows the second-cheapest seller online or in game, past a 2p and 5% gap.",
+        "Once an hour at most, six a day per listing.",
+        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,
+      ],
+      shot: {
+        open: "settings",
+        size: SIZE,
+        part: `${TRADES} ${sw("settings.auto-reprice")}`,
         marks: [{ at: `${TRADES} ${sw("settings.auto-reprice")} .track`, is: "arrow", from: "left" }],
       },
     },
@@ -415,7 +429,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [MORE, TSBTN, { wait: 2000 }],
+        steps: [TSBTN, { wait: 2000 }],
         part: `${T} > header, ${T} section.state, ${tsSec("tennoscope.screen-capture")}, ${tsSec("tennoscope.reward-overlay")}`,
         marks: [
           { at: `${T} section.state .line`, is: "n", n: 1, from: "corner" },
@@ -435,7 +449,7 @@ const TENNOSCOPE: Walkthrough = {
       shot: {
         open: "home",
         size: SIZE,
-        steps: [MORE, TSBTN, { wait: 2000 }],
+        steps: [TSBTN, { wait: 2000 }],
         part: `${tsSec("tennoscope.inventory")}, ${tsSec("tennoscope.health")}`,
         marks: [
           { at: `${tsSec("tennoscope.inventory")} .kv`, is: "n", n: 1, from: "corner" },
