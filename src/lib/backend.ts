@@ -1222,7 +1222,8 @@ export interface TennoscopeStatus {
   restart?: { tries: number; gave_up: boolean; retry_in_ms: number | null };
 }
 
-export type HealthState = "ready" | "idle" | "degraded" | "failed";
+/** "unknown": a component the running TennoScope doesn't report (core/tsReport.ts). */
+export type HealthState = "ready" | "idle" | "degraded" | "failed" | "unknown";
 export interface Health {
   state: HealthState;
   message: string;
