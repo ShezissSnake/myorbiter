@@ -303,7 +303,7 @@ the last check, so a check missed while the computer slept runs when it wakes), 
 now and when you change the channel. They read the channel's `latest.json` from this
 project's releases on github.com and, only if github.com can't be reached or doesn't serve that
 channel's manifest, from its package registry on gitlab.com, with the updater's own User-Agent
-(`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
+(`tauri-plugin-updater/<version>`); the address names only the channel it asks (stable, beta or
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
 the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
