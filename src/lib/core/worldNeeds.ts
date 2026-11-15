@@ -98,6 +98,8 @@ export interface AlertNeed {
   mission: string;
   faction: string;
   reward: string;
+  /** The reward itself, without the count: its path (when the world state gives one) and name. */
+  item: { uniqueName?: string; name: string };
   expiry: string;
   /** For mastery: what it's toward. Null for a rare reward. */
   help: MasteryHelp | null;
@@ -118,7 +120,7 @@ export function alertNeeds(m: Model | null, alerts: WorldAlert[] | null | undefi
   for (const a of alerts ?? []) {
     if (!a?.mission || Date.parse(a.expiry) <= now) continue;
     for (const r of rewardsOf(a)) {
-      const base = { key: `${a.id}|${r.uniqueName ?? r.name}`, node: a.mission.node, mission: a.mission.type, faction: a.mission.faction ?? "", reward: r.count > 1 ? `${r.count} × ${r.name}` : r.name, expiry: a.expiry };
+      const base = { key: `${a.id}|${r.uniqueName ?? r.name}`, node: a.mission.node, mission: a.mission.type, faction: a.mission.faction ?? "", reward: r.count > 1 ? `${r.count} × ${r.name}` : r.name, item: { uniqueName: r.uniqueName, name: r.name }, expiry: a.expiry };
       const help = m ? masteryHelp(m, r) : null;
       if (help) mastery.push({ ...base, help });
       else if (RARE_REWARD.test(r.name)) rare.push({ ...base, help: null });

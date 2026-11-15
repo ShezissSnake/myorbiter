@@ -48,6 +48,9 @@ const ARCANES: Walkthrough = {
       ],
       shot: {
         open: "arcanes",
+        // All arcanes: no packs between the tabs and the filters (Still collecting opens with which
+        // packs to open, a page of its own; Sell or dissolve with Loid's packs).
+        steps: [{ click: ".pane.shown .modes button[role=tab]:has-text('All arcanes')" }, { wait: 1200 }],
         part: `.pane.shown .modes, ${holder("arcanes.filters")}`,
         marks: [
           { at: ".pane.shown .modes [role=tablist]", is: "n", n: 1, from: "corner" },
@@ -67,6 +70,7 @@ const ARCANES: Walkthrough = {
       ],
       shot: {
         open: "arcanes",
+        steps: [{ click: ".pane.shown .modes button[role=tab]:has-text('Still collecting')" }, { wait: 1200 }],
         part: `${holder("arcanes.filters")}, ${CARDS}:nth-child(-n+3)`,
         marks: [
           { at: `${CARDS}:first-child .coll`, is: "n", n: 1, from: "left" },
@@ -126,6 +130,38 @@ const ARCANES: Walkthrough = {
     "arcane-spares.sheet": 4,
     "arcanes.packs": 5,
   },
+};
+
+// Still collecting's "Which packs to open": the same pack figures as Sell or dissolve's (core/vosfor.ts,
+// packValues), ranked by how many of the arcanes still to collect each pack can give.
+const OPEN = ".pane.shown section.toopen";
+const ARCANES_OPEN: Walkthrough = {
+  id: "arcanes-open",
+  app: "arcanes",
+  title: "Arcanes: which packs to open",
+  guide: guideOf("arcanes"),
+  pages: [
+    {
+      title: "Which packs to open",
+      lines: [
+        "First: the pack whose three arcanes are most often ones you're still collecting.",
+        "Each pack: how many you still need from it, and those arcanes.",
+        "About n of each pack's 3: on average, how many of its arcanes you need.",
+        "Packs with nothing you need are named at the foot. Each costs 200 Vosfor.",
+      ],
+      shot: {
+        open: "arcanes",
+        part: `${OPEN} > header, ${OPEN} .lead, ${OPEN} .openlist > li:nth-child(-n+2)`,
+        marks: [
+          { at: `${OPEN} .lead`, is: "n", n: 1, from: "corner" },
+          { at: `${OPEN} .openlist > li:first-child .oh .dim`, is: "n", n: 2, from: "right" },
+          { at: `${OPEN} .openlist > li:first-child .wanted > span:last-child`, is: "n", n: 3, from: "right" },
+        ],
+      },
+    },
+  ],
+  good: { text: "Sell or dissolve values the same packs in platinum, for weighing a dissolution." },
+  covers: { "arcanes.open": 1 },
 };
 
 const RIVENS: Walkthrough = {
@@ -207,4 +243,4 @@ const RIVENS: Walkthrough = {
   },
 };
 
-export const COLLECTION_B: Walkthrough[] = [ARCANES, RIVENS];
+export const COLLECTION_B: Walkthrough[] = [ARCANES, ARCANES_OPEN, RIVENS];

@@ -14,7 +14,8 @@
   import WeightSliders from "./ui/WeightSliders.svelte";
   import { NOX_SETTING } from "./core/builds/noxsframe";
   import { BAND_WORDS, DRIFT, GREY_AREA, every } from "./core/drift";
-  import { AUTO_REP_LINE, AUTO_TRADES_LINE } from "./core/automation";
+  import { AUTO_REP_LINE, AUTO_TRADES_LINE, LAST_COPY_LINE } from "./core/automation";
+  import { everyWords } from "./core/schedule";
   import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "./core/approved";
   import FullMode from "./FullMode.svelte";
   import Seg from "./ui/Seg.svelte";
@@ -283,9 +284,14 @@
 
   <section id="settings-trades">
     <div class="hmark"><h3 class="register">Trades</h3><HelpMark part="settings.trades" /></div>
+    <!-- Every switch that makes MyOrbiter act on warframe.market by itself, the same list as Orders'
+         automatic panel. Checking first: the same switch as Check automatically on Orders. -->
+    <Switch name="settings.auto-check" bind:on={() => settings.market.autoCheck, (on) => { settings.market.autoCheck = on; if (!on) settings.market.auto = false; }} label="Check my prices on a timer (Check automatically)">
+      Off unless you turn it on. While MyOrbiter is open, it reads the order books for your listings {everyWords(settings.market.every)} (how often is set on Orders) and shows what each would change to; it sends nothing by itself. Turning it off turns automatic repricing off too.
+    </Switch>
     <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
     <Switch name="settings.auto-reprice" bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
-      Off unless you turn it on. While MyOrbiter is open, it checks your listings every {settings.market.every} min (Orders) and sends a new price without asking, only when a listing's price has drifted:
+      Off unless you turn it on. While MyOrbiter is open, it checks your listings {everyWords(settings.market.every)} (Orders) and sends a new price without asking, only when a listing's price has drifted:
       more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
       {onConsole ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.
@@ -298,7 +304,7 @@
     {#if !onConsole}<Switch name="settings.auto-rep" bind:on={settings.market.autoRep} label="Give +rep by itself after a trade">{AUTO_REP_LINE}</Switch>{/if}
     {#if !onConsole}<Switch name="settings.auto-trades" bind:on={settings.market.autoTrades} label="Mark sales sold from the game">{AUTO_TRADES_LINE}</Switch>{/if}
     {#if !onConsole}<Switch name="settings.hide-last-copies" bind:on={settings.market.lastCopy.optIn} label="Hide last copies while someone whispers you">
-      When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below, and only if an inventory read newer than the whisper still has the copy; until then it stays hidden. With Full access while Warframe runs, Sync asks TennoScope for a read now, and a listing's Shown switch on Orders shows it at any time, with the checks any listing you show yourself gets. A later whisper doesn't make the wait longer, and one you show or hide yourself is left as you set it until the next whisper.
+      Off unless you turn it on. {LAST_COPY_LINE}
     </Switch>
     {#if settings.market.lastCopy.optIn}<label class="field minutes" data-field="settings.last-copy-minutes">
       <span class="register">Hidden for</span>
