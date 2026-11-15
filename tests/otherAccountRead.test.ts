@@ -16,8 +16,9 @@ const x = { ...h.it, id: "x", slug: "x", gameRef: "/x", name: "X" };
 const start = () => settings({ "it||": 100 }, { approvedFor: { a: { key: "it||", platinum: 100 } } });
 /** MyOrbiter closed and started again: the settings as saved, nothing the store held in memory. */
 function restart(s: MarketSettings): MarketSettings {
-  mkt.endedApprovals.clear();
-  (mkt as unknown as { floorTold: Set<string> }).floorTold.clear();
+  // Whatever the store holds in memory (written so the same file also runs on older builds).
+  const held = mkt as unknown as Record<"endedApprovals" | "madeHere" | "floorTold" | "floorRefused", { clear(): void } | undefined>;
+  for (const k of ["endedApprovals", "madeHere", "floorTold", "floorRefused"] as const) held[k]?.clear();
   mkt.orders = [];
   mkt.ordersAt = null;
   return JSON.parse(JSON.stringify(s));
