@@ -495,10 +495,10 @@ writes `settings.json` as it runs):
   Linux `screencast.token`.
 
 Emptying the Discord address in Notifications removes `discord-webhook`, the address you confirmed,
-from the config folder (pausing notifications or unticking kinds keeps it). One left by an older
-MyOrbiter, which kept the file when the field was emptied, is removed when MyOrbiter starts with
-no Discord address in its settings; settings that couldn't be read, or were damaged, remove
-nothing. The trade log (other players' names, items and
+from the config folder (pausing notifications or unticking kinds keeps it). MyOrbiter also removes
+it when it starts with no Discord address in its settings, such as a file an older MyOrbiter kept
+after the field was emptied; settings that couldn't be read, or were damaged, remove nothing. The
+trade log (other players' names, items and
 platinum, up to 2000 trades) has no removal in the app: nothing there takes out a trade, a player or
 the whole log. `settings.json` can be edited by hand (the log is `trades`, under `market`) or deleted.
 

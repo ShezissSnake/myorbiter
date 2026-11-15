@@ -267,7 +267,7 @@ test("the start removes the Discord file only once the settings are read, and no
   // The app's removal is reached through discordForget alone: the field (NoticesSheet), a yes after
   // it was emptied (discordAsk) and the start (discordAtStart).
   const src = new URL("../src/", import.meta.url);
-  const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f));
+  const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f)).map((f) => f.replaceAll("\\", "/"));
   const invoking = files.filter((f) => readFileSync(new URL(f, src), "utf8").includes('"discord_forget"'));
   assert.deepEqual(invoking, ["lib/backend.ts"]);
   const callers = files.filter((f) => /\bdiscordForget\(/.test(readFileSync(new URL(f, src), "utf8"))).sort();
