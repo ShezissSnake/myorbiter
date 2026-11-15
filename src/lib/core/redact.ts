@@ -91,6 +91,20 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
   [new RegExp(`(["']?\\b(?:partner|buyer|seller|player|ingame_?name|user(?:name)?)["']?\\s*[=:]\\s*["']?)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
 ];
 
+/** Where a name rule's match from `at` to `end` runs into a path's root: the root's start (also
+ *  when the match ends on the mark the root needs before it, "/profile/Name,//host"), or the
+ *  start of the `smb` or `file` it ends in when `://` follows (`file:///…` has no root of its own
+ *  around the scheme). Null when it doesn't. */
+function rootCut(s: string, roots: readonly (readonly [number, number])[], at: number, end: number): number | null {
+  const root = roots.find(([a, b]) => (end > a && end <= b) || (end === a && end > at && /[\s"'(=[,;<>:`{|]/.test(s[end - 1])));
+  if (root) return Math.max(root[0], at);
+  if (s.startsWith("://", end)) {
+    const scheme = /(?:smb|file)$/i.exec(s.slice(at, end));
+    if (scheme) return at + scheme.index;
+  }
+  return null;
+}
+
 /** One line (or several) with nothing private left in it. */
 export function redact(text: string, opts: RedactOptions = {}): string {
   let s = text;
@@ -102,13 +116,30 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   }
   for (const [re, to] of RULES) s = s.replace(re, to as never);
   // Names by their shape before the paths: cleaning a path first could take a rule's anchor
-  // ("/profile/", "buyer:"), its closing bracket or its reach. A name that ends inside a path's
-  // root ("traded with smb://…") is left for the path's own cleaning.
+  // ("/profile/", "buyer:"), its closing bracket or its reach. A path's root is never read as a
+  // name: a match that runs into one ("traded with smb://…", "buyer: Name.smb://…", "to file:///…")
+  // is read again up to the root, and the root is left for the path's own cleaning.
   for (const [re, to] of NAME_LINES) {
     const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
+    const once = new RegExp(re.source, re.flags.replace("g", "") + "y");
+    const src = s;
     s = s.replace(re, (...m) => {
-      const end = (m[m.length - 2] as number) + (m[0] as string).length;
-      return roots.some(([a, b]) => end > a && end <= b) ? (m[0] as string) : (to as (...x: string[]) => string)(...(m as string[]));
+      const whole = m[0] as string;
+      const at = m[m.length - 2] as number;
+      let end = at + whole.length;
+      let args = m as unknown[];
+      for (let tries = 0; tries < 4; tries++) {
+        const cut = rootCut(src, roots, at, end);
+        if (cut == null) return (to as (...x: unknown[]) => string)(...args) + src.slice(end, at + whole.length);
+        // Read the rule again on the text before the root, without the marks a path may follow.
+        const before = src.slice(0, cut).replace(/[\s"'(=[,;<>:`{|.-]+$/, "");
+        once.lastIndex = at;
+        const again = once.exec(before);
+        if (!again) return whole;
+        end = at + again[0].length;
+        args = [...again, at, before];
+      }
+      return whole;
     });
   }
   s = cleanPaths(s);
@@ -153,12 +184,13 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 // it. A last name that is hidden takes the words after it with it, up to a sure end (`: `, `, `,
 // `; `, `. `, ` (`, a double quote, the end of the line) or the next mark (`:`, `<`, `>`, `|`,
 // `*`, `?`, `{`, `}`, a backtick, an arrow, or a space before another path or an address), where
-// reading goes on; at a slash the path goes on. The words up to there go with the name ("…\Alice
-// Smith to E:\x" keeps only "E:\x"), a word too many may go with it (an amount too: "/home/alice
-// has 30p" becomes "/home/[user]"), and what it took is never kept as a file's name. A `[user]`
-// or `[player]` an early rule left runs on the same way. A later slash on the line takes the words
-// before it as folder names, a file's name and a price among them ("…\EE.log, retrying 1/3"
-// becomes "…\[folder]/3"), and a price written like `~name/x` is read as one ("~50p/each"). `'` is part of a name ("Alice's Games"). A path in
+// reading goes on; at a slash the path goes on. The words up to there go with the name
+// ("D:\a\Alice Smith to E:\x" becomes "D:\[folder]\[folder] E:\[folder]"), a word too many may go
+// with it (an amount too: "/home/alice has 30p" becomes "/home/[user]"), and what it took is never
+// kept as a file's name. A `[user]` or `[player]` an early rule left runs on the same way. A later
+// slash on the line takes the words before it as folder names, a file's name and a price among
+// them ("D:\Games\EE.log, retrying 1/3" becomes "D:\Games\[folder]/3"), and a price written like
+// `~name/x` is read as one ("~50p/each"). `'` is part of a name ("Alice's Games"). A path in
 // quotes runs to the closing quote.
 // Left as written (known gaps): a name's words after a sure end inside it ("…\Alice B. Smith"
 // keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next

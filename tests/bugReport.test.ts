@@ -373,6 +373,17 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     ["partner: Kestrel in /srv/old/notes", "partner: [player] in /srv/[folder]/[folder]"],
     // A rule's name that ends in a share's scheme leaves it to the path: the computer is hidden.
     ["traded with smb://EXAMPLE-PC/share", "traded with smb://[host]/share"],
+    // A match that runs into a root is read again up to it: the names before it are hidden.
+    ["3 people whispered you: Kestrel, smb://host/share", "3 people whispered you: [players], smb://[host]/share"],
+    ["3 people whispered you: Kestrel, Bryn_2, Ostra.smb://box/s", "3 people whispered you: [players].smb://[host]/[folder]"],
+    ["buyer: Quillon.smb://box/s", "buyer: [player].smb://[host]/[folder]"],
+    ["see https://warframe.market/profile/Quillon,D:/x", "see https://warframe.market/profile/[player],D:/[folder]"],
+    ["see https://warframe.market/profile/Quillon,//box/s", "see https://warframe.market/profile/[player],//[host]/[folder]"],
+    // A scheme is never read as a name, so file:///'s path is still cleaned.
+    ["sold the list to file:///srv/Kestrel/x.json", "sold the list to file:///srv/[folder]/x.json"],
+    ["sold the list to file:///D:/Kestrel", "sold the list to file:///D:/[folder]"],
+    ["buyer: file:///mnt/Kestrel Disk/x", "buyer: file:///mnt/[drive]/[folder]"],
+    ["buyer: Quillonfile:///srv/a/x", "buyer: [player]file:///srv/[folder]/[folder]"],
   ];
   for (const [line, want] of cases) {
     assert.equal(redact(line), want, line);
