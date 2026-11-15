@@ -22,3 +22,17 @@ test("the pages with a tape still have it in the Guide, and they do draw one", (
   for (const page of ["Market", "Sales", "Stats"]) assert.match(readFileSync(`src/lib/tabs/${page}.svelte`, "utf8"), /<Ticker\b/, `${page} draws a ticker`);
   assert.match(section, /Browse market, Sales and Stats carry a tape under the title/);
 });
+
+test("the Guide says who sees the Trades left tile: a PC player whose Mastery Rank has been read", () => {
+  // Orders draws the tile on PC only, and only once the Mastery Rank is known (TennoScope's read).
+  assert.match(orders, /\{#if !console && trades\.limit != null\}[\s\S]{0,800}<span class="register">Trades left<\/span>/);
+  assert.match(orders, /const trades = \$derived\(tradeAllowance\(settings\.trades, masteryRank, minute\)\)/);
+  // The Guide's Orders section is the PC guide's: a console player reads the short guide instead.
+  const pcGuide = guide.indexOf("{:else}", guide.indexOf("{#if console}"));
+  assert.ok(pcGuide > 0 && guide.indexOf("{#each ROUTINES", pcGuide) > pcGuide, "the routines are drawn in the PC guide only");
+  const at = section.indexOf("Trades left today");
+  // From the tile before it to the end of its own bracket.
+  const clause = section.slice(section.lastIndexOf("Undercut (", at), section.indexOf(")", at));
+  assert.match(clause, /on PC/, "the tile is PC-only");
+  assert.match(clause, /once your Mastery Rank has been read/, "and shows only once the Mastery Rank is known");
+});
