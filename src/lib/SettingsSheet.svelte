@@ -27,6 +27,7 @@
   import { CHANNELS, CHANNEL_LABEL, REPO_URL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
   import TimingSetting from "./ui/TimingSetting.svelte";
+  import { MAX_HIDE_MINUTES } from "./core/lastCopy";
 
   let {
     open = $bindable(),
@@ -140,6 +141,13 @@
   const optional = $derived(all.filter((p) => p.id !== "home" && p.id !== "guide"));
   const shown = $derived(all.filter((p) => !settings.pagesHidden.includes(p.id)));
   const groups = $derived(grouped(optional));
+  /** A "Hidden for" time typed past the limit is cut to it as it is entered, in the field and in the saved value. */
+  function cutHideMinutes(e: Event & { currentTarget: HTMLInputElement }) {
+    if (e.currentTarget.valueAsNumber > MAX_HIDE_MINUTES) {
+      e.currentTarget.value = String(MAX_HIDE_MINUTES);
+      settings.market.lastCopy.minutes = MAX_HIDE_MINUTES;
+    }
+  }
   function move(id: string, step: -1 | 1) {
     settings.pageOrder = movePage(groups, id, step);
   }
@@ -308,7 +316,7 @@
     </Switch>
     {#if settings.market.lastCopy.optIn}<label class="field minutes" data-field="settings.last-copy-minutes">
       <span class="register">Hidden for</span>
-      <span class="row"><input type="number" min="1" max="120" step="1" bind:value={settings.market.lastCopy.minutes} aria-label="Minutes hidden" /> <span class="hint">minutes: the arrows stop at 120, but a longer time typed in is kept</span></span>
+      <span class="row"><input type="number" min="1" max={MAX_HIDE_MINUTES} step="1" bind:value={settings.market.lastCopy.minutes} oninput={cutHideMinutes} aria-label="Minutes hidden" /> <span class="hint">minutes, at most {MAX_HIDE_MINUTES}</span></span>
     </label>{/if}{/if}
   </section>
 
