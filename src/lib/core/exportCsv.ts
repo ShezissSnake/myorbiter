@@ -8,13 +8,18 @@ export const field = (v: string | number | null | undefined): string => {
 };
 const row = (xs: (string | number | null | undefined)[]) => xs.map(field).join(",");
 const date = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+/**
+ * The file: a byte-order mark first, so Excel on Windows reads it as UTF-8 and not in the system
+ * code page ("2× Serration", accented names); LibreOffice and other readers skip the mark.
+ */
+const file = (lines: string[]) => `\uFEFF${lines.join("\n")}\n`;
 
 export function salesCsv(sales: Sale[]): string {
   const lines = [row(["date", "item", "rank", "quantity", "platinum_each", "platinum_total", "median_then", "source"])];
   for (const s of [...sales].sort((a, b) => a.at - b.at)) {
     lines.push(row([date(s.at), s.item, s.rank, s.quantity, s.platinum, s.quantity * s.platinum, s.median != null ? Math.round(s.median) : null, s.trade ? "game trade" : s.wfm ? "warframe.market" : "by hand"]));
   }
-  return lines.join("\n") + "\n";
+  return file(lines);
 }
 
 const items = (xs: TradeLogEntry["offered"]) => xs.map((x) => `${x.count > 1 ? `${x.count}× ` : ""}${x.name}${x.rank != null ? ` R${x.rank}` : ""}`).join("; ");
@@ -22,5 +27,5 @@ const items = (xs: TradeLogEntry["offered"]) => xs.map((x) => `${x.count > 1 ? `
 export function tradesCsv(trades: TradeLogEntry[]): string {
   const lines = [row(["date", "partner", "gave", "got", "platinum_in", "platinum_out"])];
   for (const t of [...trades].sort((a, b) => a.at - b.at)) lines.push(row([date(t.at), t.partner, items(t.offered), items(t.received), t.platIn, t.platOut]));
-  return lines.join("\n") + "\n";
+  return file(lines);
 }

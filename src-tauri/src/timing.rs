@@ -162,6 +162,11 @@ pub fn timing_save_report(text: String) -> Result<String, String> {
 }
 
 fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
+    save_with(dir, text, secs, |f| f)
+}
+
+/// `save_in`, writing through what `wrap` makes of the new file (a test fills the disk up partway).
+fn save_with<W: std::io::Write>(dir: &Path, text: &str, secs: u64, wrap: impl Fn(std::fs::File) -> W) -> std::io::Result<String> {
     // Cut first, so redacting never works through more than the cap.
     let mut cut = text.len().min(MAX_BYTES);
     while !text.is_char_boundary(cut) {
@@ -182,13 +187,14 @@ fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
         use std::os::unix::fs::OpenOptionsExt;
         options.mode(0o600);
     }
-    use std::io::Write;
     for n in 1..100 {
         let name = if n == 1 { format!("{PREFIX}{stamp}.txt") } else { format!("{PREFIX}{stamp}-{n}.txt") };
-        match options.open(dir.join(&name)) {
-            Ok(mut f) => {
-                f.write_all(text.as_bytes())?;
-                prune(dir);
+        let path = dir.join(&name);
+        match options.open(&path) {
+            Ok(f) => {
+                // All of it or no file: a disk full partway leaves no half a report.
+                crate::write_whole(&path, wrap(f), text.as_bytes())?;
+                prune(dir, &name);
                 return Ok(name);
             }
             Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
@@ -198,15 +204,16 @@ fn save_in(dir: &Path, text: &str, secs: u64) -> std::io::Result<String> {
     Err(std::io::Error::other("too many reports this second"))
 }
 
-/// Keeps the `KEEP` newest reports (their names sort by time).
-fn prune(dir: &Path) {
+/// Keeps the `KEEP` newest reports (their names sort by time), `saved` always among them: with
+/// the clock set back, the report just saved sorts as the oldest, and the oldest of the others goes.
+fn prune(dir: &Path, saved: &str) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     let mut names: Vec<((String, u32), String)> = entries.flatten().filter(|e| e.file_type().is_ok_and(|t| t.is_file())).filter_map(|e| {
         let n = e.file_name().to_string_lossy().into_owned();
         report_key(&n).map(|k| (k, n))
-    }).collect();
+    }).filter(|(_, n)| n != saved).collect();
     names.sort();
-    let extra = names.len().saturating_sub(KEEP);
+    let extra = (names.len() + 1).saturating_sub(KEEP);
     for (_, n) in &names[..extra] {
         let _ = std::fs::remove_file(dir.join(n));
     }
@@ -298,6 +305,60 @@ mod tests {
         assert_eq!(std::fs::read_to_string(dir.join(&a)).unwrap(), "first");
         let long = save_in(&dir, &"é".repeat(MAX_BYTES), 1_762_100_000).unwrap();
         assert!(std::fs::read_to_string(dir.join(long)).unwrap().ends_with("(cut here: too long)\n"));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The reports in `dir`, by name.
+    fn reports(dir: &Path) -> Vec<String> {
+        let mut names: Vec<String> = std::fs::read_dir(dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.starts_with(PREFIX)).collect();
+        names.sort();
+        names
+    }
+
+    #[test]
+    fn the_report_just_saved_is_kept_with_the_clock_set_back() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-timing-back-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        for i in 0..KEEP as u64 {
+            save_in(&dir, "earlier", 1_762_000_000 + i).unwrap();
+        }
+        // The clock goes back a day: the new report's name sorts as the oldest.
+        let name = save_in(&dir, "after the clock moved", 1_762_000_000 - 86_400).unwrap();
+        assert_eq!(std::fs::read_to_string(dir.join(&name)).unwrap(), "after the clock moved", "the name returned is a file that's there");
+        let left = reports(&dir);
+        assert_eq!(left.len(), KEEP, "{left:?}");
+        assert!(left.contains(&name));
+        assert!(!left.contains(&"timings-2025-11-01-122640.txt".to_owned()), "the oldest of the others went instead: {left:?}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A disk that fills up after `room` bytes.
+    struct FillsUp {
+        file: std::fs::File,
+        room: usize,
+    }
+    impl std::io::Write for FillsUp {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            if self.room == 0 {
+                return Err(std::io::Error::from(std::io::ErrorKind::StorageFull));
+            }
+            let n = buf.len().min(self.room);
+            self.room -= n;
+            self.file.write(&buf[..n])
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            self.file.flush()
+        }
+    }
+
+    #[test]
+    fn a_failed_write_leaves_no_partial_report() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-timing-full-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let kept = save_in(&dir, "a whole one", 1_762_000_000).unwrap();
+        let err = save_with(&dir, &"x".repeat(10_000), 1_762_000_100, |file| FillsUp { file, room: 4096 }).unwrap_err();
+        assert_eq!(err.kind(), std::io::ErrorKind::StorageFull);
+        assert_eq!(reports(&dir), [kept], "no half-written report left");
         let _ = std::fs::remove_dir_all(&dir);
     }
 

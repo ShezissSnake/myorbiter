@@ -48,12 +48,13 @@ const WATCHING: Walkthrough = {
         "Fissures your fissure alerts match, and listings for more copies than you hold.",
         "Alerts and invasions paying something you need for gear you haven't mastered.",
         "Or something rare: Forma, an Orokin Catalyst or Reactor, an Exilus Adapter, Nitain.",
-        "Each shows where; alerts the time left, invasions the side to fight for.",
+        "Each shows where; alerts the time left, invasions the side. Unread ones are said so.",
       ],
       shot: {
         open: "relics",
         size: WIDE,
-        // Live: with nothing to show it says "Nothing that needs you right now."
+        // Live: with nothing to show it says "Nothing that needs you right now"; alerts or
+        // invasions that couldn't be read are said as that.
         part: `${card("watching.alerts")} > .hmark, ${card("watching.alerts")} > p, ${card("watching.alerts")} > ul.cards > li:nth-child(-n+3)`,
         marks: [],
       },
@@ -383,7 +384,7 @@ const FIRST_RUN: Walkthrough = {
       lines: [
         "Each step says where it is: Warframe not running, at sign-in, or signed in.",
         "Finish later or Esc: use MyOrbiter without your inventory; automatic actions stay off.",
-        "Every wait has a limit; past it, the step says why, with Try again.",
+        "Every wait ends at a limit, saying why; Try again starts it over.",
         "The sidebar waits meanwhile; its Game and Inventory lines say the same.",
       ],
       shot: {

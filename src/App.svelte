@@ -13,7 +13,7 @@
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
-  import { buildModel, ERAS, type Model } from "./lib/core/model";
+  import { buildModel, type Model } from "./lib/core/model";
   import { readKey, sameRead } from "./lib/core/sameRead";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
@@ -62,13 +62,13 @@
     type ScreenCards,
     type Settings,
     emptyBundle,
-    nothingYet,
     PLATFORM_LABEL,
     type Platform,
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
   } from "./lib/backend";
@@ -127,6 +127,8 @@
   import { NEWEST } from "./lib/whatsNew";
   import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
+  import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
+  import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
@@ -162,7 +164,8 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
-  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, type Action, type Signs } from "./lib/core/firstStart";
+  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
+  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -336,6 +339,15 @@
   let liveRead = $state(false);
   /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
   let error = $state<string | null>(null);
+  /** An inventory has been read here before: the value history keeps a point for every read (Stats). */
+  const readBefore = $derived(settings.game.valueHistory.length > 0);
+  /**
+   * The read failed because nothing has been read yet: the setup page's case. Once an inventory
+   * has been read, TennoScope's data missing is not that: it's said as not found (core/gettingIn.ts).
+   */
+  const notYet = $derived(!!error && notReadYet(error, readBefore));
+  /** That missing data, said in the sidebar's Inventory line too. */
+  const dataNotFound = $derived(!!error && readBefore && !notYet && dataMissing(error));
   /**
    * Running without an inventory: TennoScope hasn't read one yet and you chose to carry on, or
    * this is a Mac, where TennoScope doesn't run. The pages work from an empty collection, and the
@@ -375,7 +387,7 @@
   /** Linux's limit on reading another program's memory, when it stops TennoScope reading the game. */
   let ptraceScope = $state<number | null>(null);
   $effect(() => {
-    if (!model && error && nothingYet(error) && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
+    if (!model && notYet && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
   });
   /** When the data on screen was read. */
   let loadedAt = $state<number | null>(null);
@@ -469,7 +481,7 @@
   // (core/firstStart.ts): each wait has a time limit and ends in a plain state with a way on, and
   // Finish later (or Esc) leaves it at any step. While it's open the sidebar waits (inert).
   /** The setup page is up: nothing read yet, and TennoScope is meant to read it. */
-  const setupShown = $derived(!model && !!error && nothingYet(error) && !noTennoScope);
+  const setupShown = $derived(!model && notYet && !noTennoScope);
   /** The first start is open: its question, or the setup page. The rest of the window waits. */
   const setupOpen = $derived(!!firstRun || setupShown);
   /** A clock for the waits' limits, every second while the setup page is up. */
@@ -498,7 +510,7 @@
     setupWasUp = up;
   });
   /** The last pick-up of TennoScope's data: its error, and what it took in. */
-  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null });
+  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null, missing: !model && dataNotFound });
   const setupSigns = $derived.by((): Signs => ({
     now: setupNow,
     status: ts.status ? { supported: ts.status.supported !== false, running: ts.status.running, binary: ts.status.binary, report: ts.report } : null,
@@ -533,10 +545,9 @@
     lastSetupLine = line;
     logLine(setup.stuck ? "warn" : "info", "setup", line);
   });
-  /** A way on from a step: each starts that step's wait over. */
+  /** A way on from a step: each starts that step's wait over (the game's and the read's too). */
   function setupAct(a: Action) {
-    setupSince = Date.now();
-    tsRunningSince = ts.running ? setupSince : null;
+    ({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince } = tryAgain({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince }, Date.now(), ts.running));
     if (a === "retry") {
       if (setup.step === "start") void ts.check(true, true);
       else if (setup.step === "access") void ts.ask("--access=full");
@@ -545,21 +556,20 @@
     } else if (a === "full") void ts.ask("--access=full");
     else if (a === "overlay") {
       void ts.ask("--access=overlay");
-      finishLater();
+      finishLater("overlay");
     } else if (a === "settings") showSettings = true;
   }
   /**
-   * Finish later (or Esc): out of the first start with safe defaults, at any step. MyOrbiter
-   * carries on without an inventory until TennoScope reads one, and on a first start (nothing
-   * chosen yet) every automatic action on warframe.market stays off.
+   * Finish later (or Esc): out of the setup page with safe defaults, at any step. MyOrbiter
+   * carries on without an inventory until TennoScope reads one, and every automatic action on
+   * warframe.market is switched off, first start or not, until the player turns it on again
+   * (core/gettingIn.ts). "Not now: overlay only" leaves the same way, but switches them off on a
+   * first start only.
    */
-  function finishLater() {
-    logLine("info", "setup", `first start: finished later at "${setup.stage}"`);
-    if (!settings.fullModeAsked || firstStartRun) {
-      settings.market.auto = false;
-      settings.market.autoTrades = false;
-      settings.market.autoRep = false;
-    }
+  function finishLater(how: "later" | "overlay" = "later") {
+    const { next, off } = leaveSetup(how, settings.market, !settings.fullModeAsked || firstStartRun);
+    Object.assign(settings.market, next);
+    logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
   }
   /** This start began with the first start's question: a new install's first run. */
@@ -722,8 +732,9 @@
   const retryLater = (n: number, again: () => void) => {
     if (n < 5) setTimeout(again, 1000 * 2 ** n);
   };
-  // Saving settings failed (a full disk, a locked file): said above the page until it works again.
-  let saveError = $state<string | null>(null);
+  // Saving settings failed (a full disk, a locked file), or the saved ones couldn't be read: said above
+  // every page, the setup page and the "Can't read" pages included, until it works again.
+  let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
@@ -832,7 +843,7 @@
       paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
       quietKind: o.quiet.includes(gate),
       // In a fissure: only the reward to take, which is what you'd want then.
-      quietFissure: o.quietInFissure && inFissure(mission) && gate !== "reward",
+      quietFissure: o.quietInFissure && inFissure(mission, Date.now(), live.fissures) && gate !== "reward",
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
@@ -1132,8 +1143,10 @@
   });
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
-    if (settings.game.worldNotified.includes(key)) return false;
-    settings.game.worldNotified = [key, ...settings.game.worldNotified].slice(0, 300);
+    // A damaged saved list (not a list) is started again rather than thrown on.
+    const seen = Array.isArray(settings.game.worldNotified) ? settings.game.worldNotified : [];
+    if (seen.includes(key)) return false;
+    settings.game.worldNotified = [key, ...seen].slice(0, 300);
     return true;
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
@@ -1194,17 +1207,17 @@
       tell("varzia", `Varzia: ${needs.length} prime${needs.length === 1 ? "" : "s"} you need`, `${names(needs.map((v) => v.name), 6)}${only ? `. ${only} only from her relics right now` : ""}. Rotation ends in ${until(exp)}.`);
     });
   });
-  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
+  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once
+  // a week for each (core/worldOnce.ts): one the wanted list gains mid-week is told alone.
   $effect(() => {
     const m = bgModel;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
       const c = today(m, live, Date.now(), settings.game.gear).circuit;
       if (!c) return;
-      const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
-      const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);
-      if (!frames.length && !incarnons.length) return;
-      if (!firstTime(`circuit|${c.resets}|${[...frames, ...incarnons].join(",")}`)) return;
+      const { frames, incarnons, keys } = circuitNews(c, settings.game.worldNotified);
+      if (!keys.length) return;
+      for (const k of keys) firstTime(k);
       tell("circuit", "Duviri Circuit this week", [frames.length ? `Warframes to master: ${names(frames)}` : "", incarnons.length ? `Steel Path Incarnon for weapons you have: ${names(incarnons)}` : ""].filter(Boolean).join("\n"));
     });
   });
@@ -1868,29 +1881,33 @@
     });
   });
 
-  // Wishlist: an era that had no fissure open gets one, and you hold relics of that era with a part
-  // you starred. Every era usually has fissures open (and Omnia takes any but Requiem), so this only speaks
-  // up after a gap; the Wishlist page shows what to crack at any moment.
+  // Wishlist: an era whose relics couldn't be cracked in any open fissure can be (its own or an
+  // Omnia one, which takes any but Requiem), and you hold relics of that era with a part you
+  // starred. Every era usually has fissures open, so this only speaks up after a gap; the Wishlist
+  // page shows what to crack at any moment. Only from a current world state (core/worldOnce.ts):
+  // not the one kept from last time, and after a sleep or failed reads the first fresh read is
+  // compared with the last list before them.
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {
     const fs = live.fissures;
     const m = bgModel;
-    // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
-    if (!m || !fs || !liveRead) return;
+    if (!m || !fs) return;
     untrack(() => {
-      const open = openEras(fs);
-      const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
-      const before = erasOpenBefore;
-      erasOpenBefore = openNow;
-      if (!before || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
-      const eras = wishlistEras(m, settings.favourites);
-      const fresh = [...openNow].filter((e) => !before.has(e) && eras.has(e));
-      if (!fresh.length) return;
+      const now = Date.now();
+      // The wishlist's relics by era, worked out only when an era opens.
+      let eras: ReturnType<typeof wishlistEras> | null = null;
+      const wished = () => (eras ??= settings.favourites.length ? wishlistEras(m, settings.favourites) : new Map());
+      const { baseline, fresh } = wishlistNews(erasOpenBefore, fs, now, liveCurrent({ at: liveAt, error: liveError, read: liveRead }, now), { has: (e) => wished().has(e) });
+      erasOpenBefore = baseline;
+      if (!fresh.length || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
+      // An era with no fissure of its own open is crackable in an Omnia one.
+      const open = openEras(fs, now);
+      const where = (e: string) => (open[e]?.length ? e : "Omnia");
       const lines = fresh.map((e) => {
-        const r = eras.get(e)![0];
-        return `${e}: crack ${r.relic} for ${r.part}`;
+        const r = wished().get(e)![0];
+        return `${e}${where(e) === e ? "" : " (in an Omnia fissure)"}: crack ${r.relic} for ${r.part}`;
       });
-      tell("wishlist", fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
+      tell("wishlist", fresh.length === 1 ? `${where(fresh[0])} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
     });
   });
 
@@ -2043,18 +2060,13 @@
   });
   $effect(() => {
     const deals = mkt.deals;
-    if (!deals.length) return;
     untrack(() => {
-      // Once per item and price: another seller at the same price isn't news, a lower price is.
-      const said = (d: (typeof deals)[number]) => `${d.slug}|${d.rank ?? ""}`;
-      const lowest = new Map<string, number>();
-      for (const k of settings.game.dealsNotified) {
-        const [item, price] = k.split("@");
-        if (price && !(lowest.get(item)! <= +price)) lowest.set(item, +price);
-      }
-      const fresh = deals.filter((d) => !(lowest.get(said(d))! <= d.price));
+      // Once per deal (core/worldOnce.ts): an item announced is news again once a scan finds it gone
+      // from Cheap buys, or at a lower price; never more than once an hour.
+      const { fresh, notified } = dealNews(deals, mkt.dealsUnread, settings.game.dealsNotified, Date.now(), mkt.dealsAt != null);
+      const had = settings.game.dealsNotified;
+      if (!Array.isArray(had) || notified.join() !== had.join()) settings.game.dealsNotified = notified;
       if (!fresh.length) return;
-      settings.game.dealsNotified = [...fresh.map((d) => `${said(d)}@${d.price}`), ...settings.game.dealsNotified].slice(0, 300);
       if (settings.notify.deals) tell("deals", fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
     });
   });
@@ -2508,12 +2520,15 @@
         bundleKey = key;
       }
       noInventory = empty;
+      // "Continue without inventory" counts until an inventory is read.
+      settings.withoutInventory = stillWithout(settings.withoutInventory, { inventory: !empty });
       loadedAt = Date.now();
       error = null;
     } catch (e) {
       // Nothing to read yet, and you'd rather carry on (or TennoScope can't run here): an empty
-      // collection until it can. The stamp poll reloads once TennoScope writes its data.
-      if (nothingYet(String(e)) && (settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) {
+      // collection until it can. The stamp poll reloads once TennoScope writes its data. Never for
+      // data that's gone missing once an inventory has been read: that's said (core/gettingIn.ts).
+      if (carryOnEmpty({ error: String(e), withoutInventory: settings.withoutInventory, noTennoScope, readBefore, held: !!bundle && !noInventory })) {
         bundle = emptyBundle();
         bundleKey = null;
         noInventory = true;
@@ -2531,10 +2546,9 @@
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
     if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
-    // Which file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
-    const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
-    if (missing) return `TennoScope's data in ${settings.dataDir || defaultDir || "its folder"} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
-    if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
+    // Once an inventory has been read, missing data is said as not found, never as "not yet".
+    const missing = missingWords(e, settings.dataDir || defaultDir || "its folder", readBefore);
+    if (missing) return missing;
     if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
     return "MyOrbiter couldn't read TennoScope's data.";
   }
@@ -2649,6 +2663,9 @@
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
       settingsLoaded = true;
+      // Saved settings that couldn't be read are never saved over: said from the start, over every page.
+      const unreadable = settingsUnreadableWhy();
+      if (unreadable != null) saveError = { unreadable: true, cause: unreadable };
       // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
       requestAnimationFrame(() => (railSettled = true));
       await wiki;
@@ -2821,7 +2838,7 @@
       // From every sign MyOrbiter has (core/firstStart.ts): not running, at sign-in, signed in; and
       // when nothing is loaded, which side the inventory waits on or why it isn't there.
       items.push({ label: "Game", ...gameLine(setupSigns) });
-      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
+      if (inFissure(mission, tick, live.fissures)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
       else if (model?.observedAt) items.push({ label: "Inventory", value: `Read ${ago(model.observedAt, tick)}`, title: `Inventory read ${fmtTime(model.observedAt)}`, ok: true });
       else items.push({ label: "Inventory", ...inventoryLine(setupSigns), ok: false });
     }
@@ -2836,7 +2853,7 @@
       ok: mkt.linked,
     });
     const p = settings.game.platinum;
-    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
+    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString("en"), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
     const next: Status = { items, plat, repricing };
     if (statusKept && JSON.stringify(statusKept) === JSON.stringify(next)) return statusKept;
     return (statusKept = next);
@@ -2985,7 +3002,7 @@
         <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={p.id === "home" ? 28 : 18} even />{:else}<Icon name={p.icon.line} size={16} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
-        {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
+        {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
         {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
       </button>
@@ -3054,7 +3071,14 @@
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
-    {#if !model && error && nothingYet(error)}
+    <!-- Above every page, the setup page and the "Can't read" pages too: what's changed there (the
+         first start's answers, Finish later, Settings) is lost just the same. -->
+    {#if saveError}
+      <div class="stale" role="alert" title={saveError.cause}>
+        <span>{saveTroubleWords(saveError)}</span>
+      </div>
+    {/if}
+    {#if !model && error && notYet}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up{#if !noTennoScope}<HelpMark part="setup.steps" />{/if}</h2>
@@ -3089,7 +3113,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={finishLater}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -3108,7 +3132,11 @@
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
+        {#if dataNotFound}
+          <p class="prose">TennoScope may have been reinstalled, its folder moved or deleted, or the drive it's on may not be there. When TennoScope writes its data again, MyOrbiter picks it up by itself; until then the TennoScope panel says what TennoScope is doing.</p>
+        {:else}
         <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
+        {/if}
         <details class="why"><summary>Details</summary><code>{error}</code></details>
         <div class="row">
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
@@ -3123,11 +3151,6 @@
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
-        </div>
-      {/if}
-      {#if saveError}
-        <div class="stale" role="alert" title={saveError}>
-          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. MyOrbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}
@@ -3166,7 +3189,7 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}><PaneId {id}>{@render body()}</PaneId></svelte:boundary></div>{/if}
       {/snippet}
-      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} fissures={live.fissures} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}{#await loadParts(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("parts", e)}><Page model={modelFor("parts")} bind:advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page model={modelFor("mastery")} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -3220,7 +3243,7 @@
     <div class="secscope" data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}><TourBar go={(t: string) => goTo(t)} /></div>
   </main>
   {#if sideShown && model}
-    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />{/await}
+    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} {liveAt} {liveRead} />{/await}
   {:else if sideTab}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}

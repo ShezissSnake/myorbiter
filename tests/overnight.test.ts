@@ -77,7 +77,12 @@ test("a fissure the log hasn't mentioned in 45 minutes is over", async () => {
   assert.equal(inFissure(ms(["/a"], 3500), now), true, "100 s ago");
   assert.equal(inFissure(ms(["/a"], 600), now), false, "50 min ago");
   assert.equal(inFissure(ms([], 3500), now), false, "no relics loaded");
-  assert.equal(inFissure({ relics: ["/a"], last_event: 10, session_start: null } as never, now), true, "no clock: can't tell, so live");
+  // No clock: the log can't tell how long ago, so the fissure's own expiry does.
+  const at = (mins: number) => [{ id: "f", node: "Ukko (Void)", missionType: "Capture", enemy: "Corrupted", tier: "Lith", tierNum: 1, isStorm: false, isHard: false, expiry: new Date(now + mins * 60_000).toISOString() }];
+  const noClock = { mission: "Ukko (Void)", relics: ["/a"], last_event: 10, session_start: null } as never;
+  assert.equal(inFissure(noClock, now, at(20)), true, "no clock, its fissure still open: live");
+  assert.equal(inFissure(noClock, now, at(-1)), false, "no clock, its fissure ended: over");
+  assert.equal(inFissure(noClock, now), false, "no clock and no fissure list: nothing says it's live");
 });
 
 test("trades left today: your rank's worth, counted since 00:00 UTC", async () => {

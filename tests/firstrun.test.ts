@@ -69,9 +69,10 @@ test("the question shows Full mode's warning, word for word; Esc is the safe ans
 
 // ------------------------------------------------------------------ the store's gate
 
+// A report as TennoScope writes it: the store takes one without game_running, setup or health as none (core/tsReport.ts).
 function stubTennoscope(report: { mode: string | null } | null, running = false) {
   const calls: string[] = [];
-  const status = () => ({ running, supported: true, binary: "/home/user/tennoscope", custom: null, bundled: true, started_by_myorbiter: false, report: report && { setup: { setup_complete: !!report.mode, access_mode: report.mode, desktop_capture_action_available: false } } }) as never;
+  const status = () => ({ running, supported: true, binary: "/home/user/tennoscope", custom: null, bundled: true, started_by_myorbiter: false, report: report && { at: 1, pid: 1, game_running: false, health: {}, last_error: null, setup: { setup_complete: !!report.mode, access_mode: report.mode, desktop_capture_action_available: false } } }) as never;
   const real = { start: tennoscope.start, status: tennoscope.status, ask: tennoscope.ask };
   tennoscope.start = async () => {
     calls.push("start");
@@ -144,6 +145,6 @@ test("every control that picks a mode goes through the store, so a newer choice 
   for (const [f, text] of sources) assert.ok(!/\btennoscope\.ask\(/.test(text), `${f} asks TennoScope directly`);
   assert.match(src("lib/FullMode.svelte"), /ts\.ask\(full \? "--access=full" : "--access=overlay"\)/);
   // The setup page's "Not now: overlay only" asks through the store, then carries on without an inventory.
-  assert.match(src("App.svelte"), /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\(\);/);
+  assert.match(src("App.svelte"), /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\("overlay"\);/);
   assert.match(src("App.svelte"), /a === "overlay" \? "Not now: overlay only"/);
 });

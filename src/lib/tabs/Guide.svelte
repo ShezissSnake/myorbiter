@@ -12,7 +12,7 @@
   import { NEWS, batches, tourStops } from "../whatsNew";
   import { DRIFT_CLAUSE, GREY_AREA } from "../core/drift";
   import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
-  import { startTour } from "../tour.svelte";
+  import { startTour, tourKept } from "../tour.svelte";
   import NewsItems from "../ui/NewsItems.svelte";
   import Rich from "../ui/Rich.svelte";
   import { BUILD } from "../build";
@@ -112,7 +112,7 @@
           `Check prices reads the order books and shows what each listing would change to (Will set, with why); Reprice sends those changes. A prime part or set is never listed or repriced at or under what its ducats are worth to you (your ducat rate, on Prime parts): it waits for Baro instead. Check and Apply automatically do it on a timer, from every minute to every hour, every 2, 6 or 12 hours, once a day or once a week; a check that fell due while MyOrbiter was closed runs once, soon after the next start, and over an hour one that stopped part way is tried again an hour later. ${AUTO_LIMITS}. It changes a price only when it has drifted ${DRIFT_CLAUSE}, so one bait listing far under everyone else is never followed. ${GREY_AREA}: Apply automatically is off unless you turn it on (Orders, or Settings, Trades).`,
           "Floor and never-under keep prices from dropping too far, overall or per listing; Auto-price off leaves a price as you set it; Shown off hides a listing from buyers. Hide last copies (Settings, Trades): a whisper hides each listing down to its last copy for a while.",
           "Sold marks one sold (Sold several for more), with a few seconds to undo; on a listing a trade in game marked sold in the last ten minutes, it asks first, as it may be the same sale; and so on the listing a trade in the last ten minutes logged a sale for but couldn't mark sold (with no sure listing, one of the item, rank and refinement it sold; when the trade names no refinement, the question says which listing it would lower), where Yes, that sale marks those copies sold and logs nothing more; if a trade also marked that listing sold in those ten minutes, the first question is asked instead, and its Yes logs a sale. A listing for more than you hold asks Sold?: Yes logs the sale and lowers the listing, No just lowers it.",
-          "The tape under the title (Orders, Browse market, Sales, Stats): the page's live figures in a line (two on a narrow window); a gold ▲ or ▼ marks one that moved since you last looked at the page. On Orders: trades left today (as many as your Mastery Rank, refreshed at 00:00 UTC, counted from the game's log), listed value, listings to reprice and the last check.",
+          "Under the title, while you're signed in, a tile for each figure you trade by: Listings (of as many as warframe.market allows you, and how many are hidden), Listed value, Undercut (your shown listings with a cheaper seller, at the last check) and, on PC once your Mastery Rank has been read from the game, Trades left today (as many as your Mastery Rank, refreshed at 00:00 UTC, counted from the game's log). Browse market, Sales and Stats carry a tape under the title instead: the page's live figures in a line (two on a narrow window), a gold ▲ or ▼ on one that moved since you last looked at the page.",
           "Sell spares, one line at the top, says what your spares plan would list and opens its page (Trade, after Orders); while a plan is applied it says how far it got. Remove all my listings, under your listings, takes every one down after asking.",
           "Your status lives at the top and on Home (Online in game while TennoScope sees Warframe running). By keyboard, the arrow keys move along it and Enter or Space picks, so nothing is sent on the way. Your buy orders and riven auctions are listed below your listings.",
         ]],
@@ -300,7 +300,7 @@
         <li>Prices: the warframe.market summary TennoScope downloads when it starts (a note at the top says when it's a day or more behind). Orders uses live order books, but when everyone in game asks more than twice what something has sold for lately, it's priced at what it sells for (marked <b>sells for</b>): matching them, it would never sell.</li>
         <li>Relic prices by refinement: what each relic you hold sold for on warframe.market over the last 30 days, intact to radiant, read once a day while relic selling is on (TennoScope's summary mostly has the intact price only). Fewer than two sales: the intact price stands in. Relics have their own minimum on Sell spares (3p to start), since they go in stacks.</li>
         <li>Your ducat rate: while Baro is here, the best price per ducat among what he sells that trades daily is worked out and offered next to Your rates on Prime parts.</li>
-        <li>Fissures, Varzia and Baro (with his stock): api.warframestat.us, refreshed every few minutes. When it isn't answering, these, the Sortie, the Archon Hunt, the open worlds' bounties and the clocks are read from the game's own worldstate instead (its places named by WFCD's tables), and Home says so. The last read is kept for the next start (up to a day), so these show at once; each fissure, alert and offer in it goes when it ends.</li>
+        <li>Fissures, Varzia and Baro (with his stock): api.warframestat.us, refreshed every few minutes. When it isn't answering, these, the Sortie, the Archon Hunt, the open worlds' bounties and the clocks are read from the game's own worldstate instead (its places named by WFCD's tables), and Home says so; what that file doesn't hold (alerts, invasions, Darvo, Teshin, Nightwave, the Circuit, events) Home names where it would be. A fissure list left old by a sleep or failed reads is said as out of date, never as none open. The last read is kept for the next start (up to a day), so these show at once; each fissure, alert and offer in it goes when it ends.</li>
         <li>Relics, what each one holds at each refinement, and which are vaulted: the official drop tables (through drops.warframestat.us, checked twice a day), laid over TennoScope's relic list, so a new Prime Access's relics show up within a day or two even before TennoScope has them. A relic that drops nowhere is vaulted; Requiem relics never are: Requiem Eterna drops from Kuva Siphons and Kuva Floods (and Lich thralls), and Palladino sells the retired Requiem I–IV for Riven Slivers.</li>
         <li>Sales: trades read from the game log and what you record with Sold, kept on this computer.</li>
         <li>Foundry, mastery rank and platinum held: the patched TennoScope's read of your account. Value over time on Stats is recorded from each read.</li>
@@ -328,9 +328,11 @@
       <span class="dim small">Every update, newest first. Each day's changes count as one update.</span>
     </div>
     {#each updates as u (u.ids[0])}
+      <!-- The stops the tour will make: none in Settings, none on a page this player lacks. -->
+      {@const stops = tourKept(u.stops)}
       <div class="day">
         <h4 class="register">{longDay(u.date)} <span class="n">· {u.items.length} {u.items.length === 1 ? "change" : "changes"}</span></h4>
-        {#if u.stops.length > 1}<button class="stamp" title="Step through the {u.stops.length} changes of {shortDay(u.date)} that have a place to show, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(u.stops)}>Tour {shortDay(u.date)} <span class="dim">{u.stops.length} stops</span></button>{/if}
+        {#if stops.length > 1}<button class="stamp" title="Step through the {stops.length} changes of {shortDay(u.date)} that have a place to show, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(stops)}>Tour {shortDay(u.date)} <span class="dim">{stops.length} stops</span></button>{/if}
       </div>
       <NewsItems items={u.items} {go} />
     {/each}
