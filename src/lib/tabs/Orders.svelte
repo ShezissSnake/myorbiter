@@ -1072,7 +1072,7 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="err small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
+            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
             <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
@@ -1431,6 +1431,9 @@
   .willnote.up { color: var(--verdigris); }
   :global(html[data-room~="lt950"]) .willnote { display: block; }
   /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
+  /* The column is narrow: the refusal shows under the field, over the next row, in one line. */
+  .floorcol { position: relative; }
+  .floorerr { position: absolute; z-index: 4; right: .6rem; top: calc(100% - .5rem); margin: 0; padding: .2rem .45rem; white-space: nowrap; color: var(--oxblood); background: var(--plate); border: 1px solid var(--oxblood); box-shadow: 0 .4rem 1rem rgb(0 0 0 / 45%); }
   .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
   /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
      the table): half a 1080p screen leaves the page about 800 px, where it no longer fits. */
