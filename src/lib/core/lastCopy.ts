@@ -16,6 +16,16 @@ export interface HiddenForWhisper {
 }
 
 export const DEFAULT_HIDE_MINUTES = 10;
+/** The longest a listing stays hidden, in minutes: the field's `max`, and the most a saved time loads as. */
+export const MAX_HIDE_MINUTES = 120;
+
+/**
+ * A saved "hidden for" time as it loads: a number of 1 or more, rounded to a whole number and cut
+ * to MAX_HIDE_MINUTES. Anything else (text, 0, a fraction under 1, nothing) is the default.
+ */
+export function hideMinutesOf(v: unknown): number {
+  return typeof v === "number" && v >= 1 ? Math.min(Math.round(v), MAX_HIDE_MINUTES) : DEFAULT_HIDE_MINUTES;
+}
 
 /** Sell listings still shown with one copy left: the ones a second buyer would find already gone. */
 export function lastCopies(orders: MyOrder[]): MyOrder[] {
