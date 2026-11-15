@@ -14,7 +14,8 @@
 //   warframe.market refused waits an hour before it is tried again.
 //
 // warframe.market calls automation a grey area. With these rules a listing changes a few times a
-// day at most, within bounds that can be stated in a sentence. The numbers live here only.
+// day at most (a raise up to a floor aside, which only ever goes up), within bounds that can be
+// stated in a sentence. The numbers live here only.
 
 /** The rules' numbers. */
 export const DRIFT = {
@@ -43,7 +44,7 @@ export const BAND_WORDS = `${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 
 /** The plain sentence Settings, Orders and the Guide show. */
 export const DRIFT_RULES =
   `A price changes only when it has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, or sits under a listing's own floor or your minimum, ` +
-  `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing (a raise up to such a floor goes at once)`;
+  `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing (a raise up to such a floor waits for neither)`;
 /** The same rule as a clause, to follow "it changes a price only when it has drifted". */
 export const DRIFT_CLAUSE = DRIFT_RULES.replace(/^A price changes only when it has drifted /, "");
 

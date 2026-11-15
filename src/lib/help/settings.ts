@@ -301,7 +301,7 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Change my prices by itself (off to start): also sends them; Apply automatically on Orders.",
         "It follows the second-cheapest seller online or in game, past a 2p and 5% gap.",
-        "Hourly at most (a floor lift at once), six a day per listing.",
+        "Hourly at most, six a day per listing; a floor lift waits for neither.",
         `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,
       ],
       shot: {
