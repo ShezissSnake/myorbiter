@@ -14,6 +14,12 @@ const STATS_WT: Walkthrough = {
   app: "stats",
   title: "Stats",
   guide: guideOf("stats"),
+  does: [
+    { text: "Shows your inventory's value at each read" },
+    { text: "Charts platinum, credits and Endo over time", icon: "credits" },
+    { text: "Shows what your relic runs come to per hour", icon: "relic-axi-intact" },
+    { text: "Lists every trade you've made, from the game's log", icon: "player" },
+  ],
   pages: [
     {
       title: "Your account at a glance",

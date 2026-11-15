@@ -18,6 +18,12 @@ const ORDERS: Walkthrough = {
   app: "market",
   title: "Orders",
   guide: guideOf("market"),
+  does: [
+    { text: "Compares your listings with the market price", icon: "market" },
+    { text: "Reprices listings, never under your floors", icon: "platinum" },
+    { text: "Shows trades left today and how many are undercut" },
+    { text: "Marks a listing sold and logs the sale" },
+  ],
   pages: [
     {
       title: "The day at a glance",
@@ -130,6 +136,12 @@ const SPARES: Walkthrough = {
   app: "spares",
   title: "Sell spares",
   guide: guideOf("spares"),
+  does: [
+    { text: "Lists everything you can spare, one row per kind", icon: "duplicates" },
+    { text: "Lists nothing under your minimum prices" },
+    { text: "Shows the plan to look over before anything is sent" },
+    { text: "Lists it all at once when you apply the plan" },
+  ],
   pages: [
     {
       title: "Tick what to sell",
@@ -211,6 +223,12 @@ const SALES: Walkthrough = {
   app: "sales",
   title: "Sales",
   guide: guideOf("sales"),
+  does: [
+    { text: "Shows what you sold today, in 7 days and in 30", icon: "platinum" },
+    { text: "Charts platinum per day over 7 or 30 days" },
+    { text: "Lists each sale against the market price that day" },
+    { text: "Logs sales made in game, once you turn that on" },
+  ],
   pages: [
     {
       title: "What your sales made",
@@ -269,6 +287,12 @@ const BROWSE: Walkthrough = {
   app: "browse",
   title: "Browse market",
   guide: guideOf("browse"),
+  does: [
+    { text: "Lists everything warframe.market trades, yours or not", icon: "browse-lens" },
+    { text: "Shows what each item sold for lately, and how often", icon: "platinum" },
+    { text: "Sorts by price, sales a day, ducats or what you hold" },
+    { text: "Opens a buy order for anything it lists" },
+  ],
   pages: [
     {
       title: "Find something on the market",

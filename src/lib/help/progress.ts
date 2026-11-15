@@ -28,6 +28,12 @@ const MASTERY: Walkthrough = {
   app: "mastery",
   title: "Mastery",
   guide: guideOf("mastery"),
+  does: [
+    { text: "Shows what you've mastered of each category", icon: "mastered" },
+    { text: "Lists what's left to master, easiest first" },
+    { text: "Shows how hard each is to get, and how" },
+    { text: "Shows what buying the rest with platinum costs", icon: "platinum" },
+  ],
   pages: [
     {
       title: "What's left to master",
@@ -116,6 +122,12 @@ const FOUNDRY: Walkthrough = {
   app: "foundry",
   title: "Foundry",
   guide: guideOf("foundry"),
+  does: [
+    { text: "Lists every item with its parts, gold when you hold them", icon: "foundry" },
+    { text: "Shows what you can build now" },
+    { text: "Shows what is building and the time left" },
+    { text: "Stars what you're after for your Wishlist", icon: "wishlist" },
+  ],
   pages: [
     {
       title: "Everything you can master",
@@ -185,6 +197,12 @@ const BUILDS: Walkthrough = {
   app: "builds",
   title: "Builds",
   guide: guideOf("builds"),
+  does: [
+    { text: "Lists mod and arcane builds for anything that takes them", icon: "forma" },
+    { text: "Sorts builds into three tiers, by how far along you are" },
+    { text: "Shows what you're missing for each build" },
+    { text: "Reads a pasted build or a Nox's Frame build code" },
+  ],
   pages: [
     {
       title: "Pick something to build",
@@ -355,6 +373,12 @@ const WISHLIST: Walkthrough = {
   app: "wishlist",
   title: "Wishlist",
   guide: guideOf("wishlist"),
+  does: [
+    { text: "Lists the things you starred and the parts you lack", icon: "wishlist" },
+    { text: "Shows which relics you hold for each missing part", icon: "relic-axi-intact" },
+    { text: "Says where to farm a part, or what buying it costs", icon: "platinum" },
+    { text: "Shows the chance your relics finish each item" },
+  ],
   pages: [
     {
       title: "Star what you're after",

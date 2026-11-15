@@ -190,20 +190,25 @@ main > section, main > details { margin: 0 0 64px; }
 .tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
 .tabs[hidden] { display: none; }
 .tab { position: relative; min-height: 40px; padding: 8px 18px; color: var(--platinum-dim); }
-.tab svg { color: var(--sec); }
+.tab .sg { width: 18px; height: 18px; }
 /* Selected: a flat tint of the section's colour and its 2 px bar, as the sidebar marks the open page. */
 .tab[aria-selected="true"] { color: var(--platinum); border-color: var(--sec); background: color-mix(in srgb, var(--sec) 14%, transparent); box-shadow: inset 0 -2px 0 var(--sec); }
-.panel { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 8fr); gap: 24px 40px; align-items: start; padding: 24px 28px 28px; margin: 0 0 24px; background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule); box-shadow: var(--plate-light); clip-path: var(--cut); }
+.panel { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px 40px; align-items: start; padding: 24px 28px 28px; margin: 0 0 24px; background: var(--plate-sheen), var(--plate); border: 1px solid var(--rule); box-shadow: var(--plate-light); clip-path: var(--cut); }
 .panel[hidden] { display: none; }
 .ptx { display: grid; gap: 16px; align-content: start; min-width: 0; }
 .phead { display: flex; align-items: center; gap: 16px; }
 .phead h3 { font-size: 44px; line-height: 1; margin-top: 6px; }
-/* The crest: two squares turned to diamonds, the inner in the section's colour, and its glyph. */
+/* The crest, as the app draws it (src/lib/ui/Crest.svelte at 104 px): two squares turned to diamonds,
+   the inner in the section's colour, and inside it the game's glyph drawn flat in that colour. */
 .crest { position: relative; flex: none; width: 104px; height: 104px; margin: -8px 0 -8px -12px; display: grid; place-items: center; overflow: hidden; color: var(--sec); }
 .crest i { position: absolute; transform: rotate(45deg); }
 .crest .outer { inset: 16px; border: 1px solid var(--rule); }
-.crest .inner { inset: 26px; border: 1px solid color-mix(in srgb, var(--sec) 55%, transparent); background: color-mix(in srgb, var(--sec) 7%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--sec) 22%, transparent); }
-.crest svg { position: relative; }
+.crest .inner { inset: 26px; border: 1px solid color-mix(in srgb, var(--sec) 58%, transparent); background: color-mix(in srgb, var(--sec) 8%, transparent); box-shadow: 0 0 14px color-mix(in srgb, var(--sec) 24%, transparent); }
+.crest .glyph { position: relative; width: 37px; height: 37px; }
+/* A section's glyph: the game's picture as a stencil filled with the section's colour. Its file and
+   centring are added below this sheet's end (scripts/site.mjs). */
+.sg { display: block; position: relative; background: var(--sec); -webkit-mask-size: contain; mask-size: contain; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; }
+.crest .sg { position: absolute; inset: 0; }
 .line { margin: 0; font-size: 1.05rem; color: var(--platinum); }
 .chips, .kinds { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
 .chip { justify-content: flex-start; padding: 6px 12px; font-weight: 500; letter-spacing: .1em; }
@@ -211,8 +216,23 @@ main > section, main > details { margin: 0 0 64px; }
 /* The game's own picture, where the app's sidebar shows one for the page. */
 .chip .gi { flex: none; width: 18px; height: 18px; object-fit: contain; }
 .chip[aria-current="true"], .chip[aria-pressed="true"] { border-color: var(--sec); background: color-mix(in srgb, var(--sec) 14%, transparent); }
-/* A page without a screenshot here: a fact, not a control. */
+/* A page without a screenshot here: a fact without the script; with it, a control for its lines. */
 .chip.tag { cursor: default; border-color: var(--rule); background: var(--raised); color: var(--platinum-dim); }
+/* What the page does: a few lines under the chips, the chosen page's. Without the script every page's
+   list reads in turn under its name; with it the lists stand in one cell and only the chosen one is
+   seen, so the section keeps the height of the longest. */
+.dos { display: grid; gap: 14px; }
+.does ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.does li { display: flex; align-items: center; gap: 10px; color: var(--platinum); font-size: .9rem; line-height: 1.35; }
+.does li .mk { flex: none; width: 16px; height: 16px; }
+.does li .dia { position: relative; }
+.does li .dia::before { content: ""; position: absolute; inset: 4.5px; background: var(--sec); transform: rotate(45deg); }
+.dname { margin: 0 0 6px; color: var(--platinum-dim); }
+.js .dname { display: none; }
+.js.ready .dos { gap: 0; }
+.js.ready .does { grid-area: 1 / 1; }
+.js.ready .does:not(.on) { visibility: hidden; }
+.js:not(.ready) .does:not(.on) { display: none; }
 .kinds { gap: 6px; }
 .kind { display: inline-flex; align-items: center; gap: 7px; padding: 3px 9px 3px 7px; background: var(--raised); border: 1px solid var(--rule-bright); font-family: var(--face-mark); font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-dim); }
 .kind svg { color: var(--sec); }
@@ -336,6 +356,8 @@ kbd { border: 1px solid var(--rule-bright); background: var(--raised); padding: 
 @media (max-width: 1100px) {
   .hero { grid-template-columns: minmax(0, 1fr); margin-top: 32px; }
   .panel { grid-template-columns: minmax(0, 1fr); }
+  /* Stacked, a caption that wraps to a second row would move the section when the chip changes: keep room for two. */
+  .panel figcaption { min-height: 56px; }
 }
 @media (max-width: 640px) {
   .head { margin-top: 24px; min-height: 0; }

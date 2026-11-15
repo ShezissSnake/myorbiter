@@ -12,6 +12,12 @@ const MISSION: Walkthrough = {
   app: "mission",
   title: "Current fissure",
   guide: guideOf("mission"),
+  does: [
+    { text: "Shows each reward's platinum and ducat value", icon: "platinum" },
+    { text: "Marks parts for gear you haven't built or mastered", icon: "mastered" },
+    { text: "Marks the reward that completes a set", icon: "prime-plate" },
+    { text: "Scores each card by your weights and says which to take" },
+  ],
   pages: [
     {
       title: "Which reward to take",
@@ -69,6 +75,12 @@ const RELICS: Walkthrough = {
   app: "relics",
   title: "Relics",
   guide: guideOf("relics"),
+  does: [
+    { text: "Lists your relics by era, and how many are radiant", icon: "relic-axi-intact" },
+    { text: "Shows what one crack is worth, intact and radiant", icon: "platinum" },
+    { text: "Shows your Void Traces against the cap", icon: "void-traces" },
+    { text: "Counts the fissures open now for each era" },
+  ],
   pages: [
     {
       title: "Your relics, era by era",
@@ -128,6 +140,11 @@ const PLANNER: Walkthrough = {
   app: "planner",
   title: "Planner",
   guide: guideOf("planner"),
+  does: [
+    { text: "Lists sets close to done and the relics that finish them", icon: "prime-plate" },
+    { text: "Ranks relics by what a crack adds toward sets" },
+    { text: "Shows where your Void Traces gain the most", icon: "void-traces" },
+  ],
   pages: [
     {
       title: "Complete sets or make radiant",

@@ -18,6 +18,12 @@ const ARCANES: Walkthrough = {
   app: "arcanes",
   title: "Arcanes",
   guide: guideOf("arcanes"),
+  does: [
+    { text: "Shows each arcane's price and how close you are to max" },
+    { text: "Sorts spare copies into sell or dissolve for Vosfor", icon: "vosfor" },
+    { text: "Shows which of Loid's packs to open first" },
+    { text: "Shows your Vosfor and what dissolving would add", icon: "vosfor" },
+  ],
   pages: [
     {
       title: "Your arcanes at a glance",
@@ -169,6 +175,12 @@ const RIVENS: Walkthrough = {
   app: "rivens",
   title: "Rivens",
   guide: guideOf("rivens"),
+  does: [
+    { text: "Grades each roll of your rivens, from S to F", icon: "riven" },
+    { text: "Estimates what a riven like yours is listed for", icon: "platinum" },
+    { text: "Shows both rolls side by side while you cycle" },
+    { text: "Alerts you when a riven you want is at your price" },
+  ],
   pages: [
     {
       title: "Your rivens at a glance",
