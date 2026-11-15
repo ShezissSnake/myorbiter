@@ -347,22 +347,32 @@ Those shapes are `/a/b`, `\a\b`, `~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\
 either slash, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a
 computer's name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's
 name, the root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and
-MyOrbiter make stay. A user name with spaces in it becomes `[user]` whole. Another folder name with
-spaces is hidden whole when a slash follows it, or when it is the last one and its first word is
-not one of those kept folders, a number or a file's name; the words after such a last name go with it up to
-the end of the sentence, a mark such as `:`, `>` or `|`, or the next path, so a word too many may be
-hidden, and none of them is kept as the file's name. Left as written: a last folder name whose
-first word is a kept folder, a number or a file's name, with no slash after it (`D:\Games\Dev Name`,
-`~/Steam Name`, `D:\Games\2024 Name`), as it can't be told from a kept folder followed by other
-words; a name with an apostrophe in a path in single quotes (`'D:\a\O'Name'`), where the apostrophe
-reads as the closing quote; and `//computer/share` straight after `://`, which reads as an address.
+MyOrbiter make stay. A folder or user name with spaces in it is hidden whole when a slash follows
+it. A last name that is hidden, with spaces or not, takes the words after it with it, unless its
+first word is one of those kept folders, a number or a file's name: up to the end of the sentence
+(`. ` included), a mark such as `:`, `>` or `|`, or the next path. So a word too many may be
+hidden, prices and amounts included (`/home/name has 30p` becomes `/home/[user]`), and none of
+those words is kept as the file's name. Left as written: the words after a
+word that ends in a full stop inside such a last name, in most shapes (`D:\a\Name A. Other` becomes
+`D:\a\[folder]. Other`, `/home/Name A. Other` becomes `/home/[user]. Other`); a last folder name
+whose first word is a kept folder, a number or a file's name, with no slash after it
+(`D:\Games\Dev Name`, `~/Steam Name`, `D:\Games\2024 Name`), as it can't be told from a kept
+folder followed by other words; the words after the first of a user name under a `drive_c\users`
+that is not inside a longer path, which is a relative path (`drive_c/users/Name Other` becomes
+`drive_c/users/[user] Other`, `drive_c/users/O'Name` becomes `drive_c/users/[user]'Name`); a name
+with an apostrophe in a path in single quotes (`'D:\a\O'Name'`), where the apostrophe reads as the
+closing quote; a path after a quote that never closes, whose last name runs to the end of the line
+and is kept when it ends in a file's name (`"/mnt/Name see EE.log`); `~` with a name that has
+spaces in it (`~Name Other/x`); and `//computer/share` straight after `://`, which reads as an
+address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
 `file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a
 relative path (`./a/b`), a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
 after `GET` and the like). A path of an unusual shape can pass, which is why the report is shown to
-you in full before anything is sent: read it first. The prices of listings and sales are kept:
-they are public on warframe.market and help find a repricing fault.
+you in full before anything is sent: read it first. The prices of listings and sales are kept,
+except those that go with a hidden name as above: they are public on warframe.market and help
+find a repricing fault.
 
 ## Links
 

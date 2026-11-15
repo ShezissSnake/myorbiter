@@ -56,9 +56,8 @@ const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   [/(\/(?:home|Users|var\/home|run\/media|media)\/)(?!\[user\])[^/\s"':]+/g, (_m, p) => `${p}[user]`],
   // The same under Wine's Z: drive, which maps / (Z:\home\<name>\…).
   [/(\b[A-Za-z]:\\+home\\+)(?!\[user\])[^\\\s"':]+/gi, (_m, p) => `${p}[user]`],
-  // Wine's own users folder: Proton's is always "steamuser"; another Wine prefix uses the real name,
-  // which may have spaces in it (its words, up to one that starts with a mark: "… -> E:\x").
-  [/(drive_c[\\/]+users[\\/]+)(?!steamuser\b|Public\b|\[user\])[^\\/\s"':]+(?:[ \t]+[^\\/\s"':<>|*?`{}\u2190-\u21ff-][^\\/\s"':]*)*/gi, (_m, p) => `${p}[user]`],
+  // Wine's own users folder: Proton's is always "steamuser"; another Wine prefix uses the real name.
+  [/(drive_c[\\/]+users[\\/]+)(?!steamuser\b|Public\b|\[user\])[^\\/\s"':]+/gi, (_m, p) => `${p}[user]`],
   // A Windows user name may have spaces in it: up to the next separator.
   [/(\b[A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)(?!\[user\])[^\\/\n"':]+/gi, (_m, p) => `${p}[user]`],
   // Ids: 16+ hex digits (a 7–12 digit commit hash stays), and 24+ letters and digits mixed.
@@ -135,23 +134,31 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 //   (Steam's app ids), except the one after `userdata` (a Steam account's); `.` and `..`; and the
 //   last name when it has a file's extension (`EE.log`): the file's name (not a bare one taken
 //   over spaces, below).
-// - Replaced: the name under `home`, `Users` or `drive_c\users` becomes `[user]`, all of it when it
-//   has spaces (Proton's `steamuser` stays), and so does `~name`'s; a drive's label under `/mnt`,
-//   `/Volumes`, `/media/<user>` or `/run/media/<user>` becomes `[drive]`; a share's computer `[host]`; the
+// - Replaced: the name under `home`, `Users` or `drive_c\users` becomes `[user]` (Proton's
+//   `steamuser` stays), and so does `~name`'s; in a recognised path, a user name with spaces goes
+//   with its words as a last name does below; a drive's label under `/mnt`, `/Volumes`,
+//   `/media/<user>` or `/run/media/<user>` becomes `[drive]`; a share's computer `[host]`; the
 //   number after `userdata` `[id]`; any other name `[folder]`.
 //
 // Where a bare path ends: a name with spaces in it ("My Games") is taken whole when a slash follows
 // it. A last name that is hidden takes the words after it with it, up to a sure end (`: `, `, `,
 // `; `, `. `, ` (`, a double quote, the end of the line) or the next mark (`:`, `<`, `>`, `|`,
 // `*`, `?`, `{`, `}`, a backtick, an arrow, or a space before another path or an address), where
-// reading goes on; at a slash the path goes on. So in those cases no word of the name is left
-// behind ("…\Alice Smith to E:\x" keeps only "E:\x"), a word too many may go with it, and what
-// it took is never kept as a file's name. `'` is part of a name ("Alice's Games"). A path in quotes
-// runs to the closing quote.
-// Left as written (known gaps): a last name whose first word is kept (a kept folder, a number, a
-// file's name) and with no slash after it ("D:\Games\Dev Alice"), as it can't be told from a kept
-// name followed by other words ("found at D:\Games\Warframe and more"); in single quotes, a name
-// with an apostrophe ("'D:\a\Alice O'Smith'"), where the apostrophe reads as the closing quote.
+// reading goes on; at a slash the path goes on. The words up to there go with the name ("…\Alice
+// Smith to E:\x" keeps only "E:\x"), a word too many may go with it (an amount too: "/home/alice
+// has 30p" becomes "/home/[user]"), and what it took is never kept as a file's name. A `[user]`
+// an early rule left runs on the same way. `'` is part of a name ("Alice's Games"). A path in
+// quotes runs to the closing quote.
+// Left as written (known gaps): a name's words after a sure end inside it ("…\Alice B. Smith"
+// keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next separator); a last
+// name whose first word is kept (a kept folder, a number, a file's name) and with no slash after it
+// ("D:\Games\Dev Alice"), as it can't be told from a kept name followed by other words ("found at
+// D:\Games\Warframe and more"); the words after the first of a user name under a bare
+// `drive_c\users` that no longer path holds (a relative path: "drive_c/users/[user] Smith"); in
+// single quotes, a name with an apostrophe ("'D:\a\Alice O'Smith'"), where the apostrophe reads as
+// the closing quote; a path after a quote that never closes, whose last name runs to the end of the
+// line and is kept when it ends in a file's name ("\"/mnt/Alice see EE.log"); `~` with a name with
+// spaces ("~Alice Smith/x").
 
 /** Folder names that name no one, compared without case. */
 const KEEP_FOLDERS = new Set([

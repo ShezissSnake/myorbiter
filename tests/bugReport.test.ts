@@ -94,10 +94,15 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   // The encoded forms: what works, and the gap beside it (both held by the tests below).
   assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
   // The known gaps the path tests pin ("known gaps, pinned as they are").
-  assert.match(para, /Left as written: a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
+  assert.match(para, /Left as written: the words after a word that ends in a full stop inside such a last name, in most shapes/);
+  assert.match(para, /a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
+  assert.match(para, /the words after the first of a user name under a `drive_c\\users` that is not inside a longer path/);
   assert.match(para, /a name with an apostrophe in a path in single quotes/);
+  assert.match(para, /a path after a quote that never closes/);
+  assert.match(para, /`~` with a name that has spaces in it/);
+  assert.match(para, /prices and amounts included/);
   assert.match(para, /`\/\/computer\/share` straight after `:\/\/`/);
-  assert.match(para, /prices of listings and sales are kept/);
+  assert.match(para, /prices of listings and sales are kept, except those that go with a hidden name/);
   assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
 
@@ -205,7 +210,7 @@ test("paths: no word of a spaced last name passes, whatever follows it", () => {
   assert.equal(redact("opened D:\\Orren\\EE.log and more"), "opened D:\\[folder]\\EE.log and more");
 });
 
-test("paths: a user name with a space in it, as the last name of a home shape, is hidden whole", () => {
+test("paths: a user name with a space in it, as the last name of a recognised home shape, is hidden whole", () => {
   const gone = /Orren|Taskwell/;
   const cases: [string, string][] = [
     // Windows, with either slash, and as an address.
@@ -220,12 +225,11 @@ test("paths: a user name with a space in it, as the last name of a home shape, i
     ["/media/Orren Taskwell", "/media/[user]"],
     ["/run/media/Orren Taskwell", "/run/media/[user]"],
     ["Z:\\home\\Orren Taskwell", "Z:\\home\\[user]"],
-    // Wine's users folder, in a path and on its own, with and without a slash after it.
+    // Wine's users folder inside a Proton path, with and without a slash after it, and with an
+    // apostrophe in the name.
     ["/home/x/pfx/drive_c/users/Orren Taskwell", "/home/[user]/pfx/drive_c/users/[user]"],
     ["/home/x/pfx/drive_c/users/Orren Taskwell/Documents", "/home/[user]/pfx/drive_c/users/[user]/Documents"],
-    ["drive_c\\users\\Orren Taskwell\\Documents", "drive_c\\users\\[user]\\Documents"],
-    ["drive_c/users/Orren Taskwell", "drive_c/users/[user]"],
-    ["drive_c/users/Orren Taskwell -> E:\\x", "drive_c/users/[user] -> E:\\[folder]"],
+    ["/home/x/pfx/drive_c/users/Orren O'Taskwell", "/home/[user]/pfx/drive_c/users/[user]"],
   ];
   for (const [input, want] of cases) {
     const out = redact(input);
@@ -235,6 +239,25 @@ test("paths: a user name with a space in it, as the last name of a home shape, i
   }
   // Proton's own user stays.
   assert.equal(redact("drive_c/users/steamuser/Documents"), "drive_c/users/steamuser/Documents");
+});
+
+test("paths: after a bare drive_c/users/<name>, the next path or address is read as one", () => {
+  // The path or address that follows a Wine user name is cleaned as a path of its own, bare and
+  // inside a Proton path: its drive letter or ~ is never taken as a word of the name.
+  const cases: [string, string][] = [
+    ["drive_c/users/Orren to E:\\Kestrel", "drive_c/users/[user] to E:\\[folder]"],
+    ["drive_c/users/Orren copied to ~/Kestrel", "drive_c/users/[user] copied to ~/[folder]"],
+    ["drive_c/users/Orren see C:/Users/Kestrel", "drive_c/users/[user] see C:/Users/[user]"],
+    ["drive_c/users/Orren see https://example.org/x", "drive_c/users/[user] see https://example.org/x"],
+    ["/home/x/pfx/drive_c/users/Orren to E:\\Kestrel", "/home/[user]/pfx/drive_c/users/[user] E:\\[folder]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell copied to ~/Kestrel", "/home/[user]/pfx/drive_c/users/[user] ~/[folder]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell see https://example.org/x", "/home/[user]/pfx/drive_c/users/[user] https://example.org/x"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!/Kestrel|Orren|Taskwell/.test(out), `nothing of the names: ${out}`);
+  }
 });
 
 test("paths: a bare name taken over spaces is never kept as a file's name; in quotes it is", () => {
@@ -266,6 +289,30 @@ test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
   assert.equal(redact("'D:\\Games\\Orren O'Taskwell'"), "'D:\\Games\\[folder]'Taskwell'");
   // "//host" straight after a scheme's "://" is an address, not a share.
   assert.equal(redact("path://EXAMPLE-PC/share/Orren"), "path://EXAMPLE-PC/share/Orren");
+  // A sure end inside a last name (". " after an initial) ends the run: the words after it stay.
+  // Under C:\\Users\\ with a backslash the name runs to the next separator; with a slash after
+  // it, the name is hidden.
+  assert.equal(redact("C:/Users/Orren A. Taskwell"), "C:/Users/[user]. Taskwell");
+  assert.equal(redact("/home/Orren Taskwell Jr. Bo"), "/home/[user]. Bo");
+  assert.equal(redact("D:\\Games\\Orren A. Taskwell"), "D:\\Games\\[folder]. Taskwell");
+  assert.equal(redact("C:\\Users\\Orren A. Taskwell"), "C:\\Users\\[user]");
+  assert.equal(redact("C:/Users/Orren A. Taskwell/x"), "C:/Users/[user]/[folder]");
+  // A bare drive_c/users/<name> outside a longer path is relative: only the name's first word
+  // becomes [user], with or without a slash after it.
+  assert.equal(redact("drive_c/users/Orren Taskwell"), "drive_c/users/[user] Taskwell");
+  assert.equal(redact("drive_c\\users\\Orren Taskwell\\Documents"), "drive_c\\users\\[user] Taskwell\\Documents");
+  assert.equal(redact("drive_c/users/Orren O'Taskwell"), "drive_c/users/[user] O'Taskwell");
+  assert.equal(redact("drive_c/users/O'Taskwell"), "drive_c/users/[user]'Taskwell");
+  assert.equal(redact("drive_c/users/Orren\u00a0Taskwell"), "drive_c/users/[user]\u00a0Taskwell");
+  // A path after a quote that never closes: its last name runs to the end of the line, and is
+  // kept when it ends in a file's name.
+  assert.equal(redact('"/mnt/Orren see EE.log'), '"/mnt/Orren see EE.log');
+  // ~ with a name with spaces in it is not a recognised shape.
+  assert.equal(redact("~Orren Taskwell/x"), "~Orren Taskwell/x");
+  // A hidden last name takes the words after it, an amount included (a one-word user name too).
+  assert.equal(redact("/home/someone has 1,234 platinum"), "/home/[user]");
+  assert.equal(redact("C:/Users/someone sold for 120 platinum"), "C:/Users/[user]");
+  assert.equal(redact("D:\\Games\\Orren has 30p"), "D:\\Games\\[folder]");
 });
 
 test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {

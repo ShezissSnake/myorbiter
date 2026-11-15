@@ -155,7 +155,7 @@
 
     <section class="tech" class:off={!d.include}>
       <div class="techrow">
-        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids, players' names and the folder names in the paths it recognises hidden. Untick to leave them out of the report (the form still opens with the version and your system).">
+        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden, and folder names hidden by a path's shape in the paths it recognises (read it first: a word of a name can pass). Untick to leave them out of the report (the form still opens with the version and your system).">
           <input type="checkbox" bind:checked={d.include} />
           <span class="box" aria-hidden="true"><Icon name="check" size={10} /></span>
           Include technical details
@@ -174,7 +174,7 @@
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids, every player's name and the folder names in the paths MyOrbiter recognises are hidden, here and in what you wrote. Listing and sale prices stay. Hiding goes by a path's shape: read it before sending, as a path of an unusual shape, or one with %2F or %5C for its slashes, can pass.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids and every player's name are hidden, here and in what you wrote, and folder names by a path's shape, in the paths MyOrbiter recognises. Listing and sale prices stay, unless they follow a hidden folder name. Read it before sending: a word of a name can pass, and so can a path of an unusual shape, or one with %2F or %5C for its slashes.{/if}</p>
     </section>
 
     {#if handed === "pasted" && copiedText === paste}
