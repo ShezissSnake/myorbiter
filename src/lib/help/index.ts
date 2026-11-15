@@ -1,6 +1,7 @@
 // The help list and its lookups: which walk-through a part's "?" opens, and at which page.
 
-import type { HelpPage, Shot, Walkthrough } from "./types";
+import type { PageId } from "../pages";
+import type { Does, HelpPage, Shot, Walkthrough } from "./types";
 import { HOME } from "./home";
 import { FISSURES } from "./fissures";
 import { PROGRESS } from "./progress";
@@ -11,10 +12,18 @@ import { STATS } from "./stats";
 import { SETTINGS } from "./settings";
 import { PANELS } from "./panels";
 
-export type { HelpPage, Mark, Shot, Step, Walkthrough } from "./types";
+export type { Does, HelpPage, Mark, Shot, Step, Walkthrough } from "./types";
 
 /** Every walk-through, in the sidebar's order, then the panels every page has. */
 export const WALKTHROUGHS: Walkthrough[] = [...HOME, ...FISSURES, ...PROGRESS, ...COLLECTION, ...COLLECTION_B, ...TRADE, ...STATS, ...SETTINGS, ...PANELS];
+
+/** The limits of a page's lines on the website's landing page (tests/landing.test.ts): how many, and how long. */
+export const LANDING = { lines: [2, 4] as const, chars: 60 };
+
+/** What an app page does, as the landing page shows it: the `does` of the walk-through that has it. */
+export function doesOf(page: PageId): Does[] {
+  return WALKTHROUGHS.filter((w) => w.app === page && w.does).flatMap((w) => w.does ?? []);
+}
 
 export const walkthroughById: Record<string, Walkthrough> = Object.fromEntries(WALKTHROUGHS.map((w) => [w.id, w]));
 

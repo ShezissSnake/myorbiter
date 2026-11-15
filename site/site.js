@@ -38,19 +38,28 @@ function tour() {
     const well = panel.querySelector("a.shot");
     const img = well.querySelector("img");
     const cap = panel.querySelector("figcaption");
-    // A chip that names a page with a screenshot becomes a button that shows it here.
-    for (const a of panel.querySelectorAll("a.chip[data-pick]")) {
+    // Every chip becomes a button that shows its page's lines (what the page does) beside it. A chip
+    // that names a page with a screenshot shows that here too; one without leaves the picture as it is.
+    const lists = new Map([...panel.querySelectorAll(".does")].map((d) => [d.dataset.page, d]));
+    for (const a of panel.querySelectorAll(".chip[data-does]")) {
       const b = document.createElement("button");
       b.type = "button";
       b.className = "chip";
-      b.dataset.pick = a.dataset.pick;
+      b.dataset.does = a.dataset.does;
+      if (a.dataset.pick) b.dataset.pick = a.dataset.pick;
+      else b.title = "No screenshot of this page here: its lines show, the picture stays";
       b.setAttribute("aria-pressed", String(a.hasAttribute("aria-current")));
       b.append(...a.childNodes);
       a.replaceWith(b);
       b.addEventListener("click", () => {
-        const s = shots.get(b.dataset.pick);
         for (const c of panel.querySelectorAll("button.chip")) c.setAttribute("aria-pressed", String(c === b));
-        if (well.dataset.shot === s.file) return;
+        const now = lists.get(b.dataset.does);
+        if (now && !now.classList.contains("on")) {
+          for (const l of lists.values()) l.classList.toggle("on", l === now);
+          fadeIn(now);
+        }
+        const s = b.dataset.pick ? shots.get(b.dataset.pick) : null;
+        if (!s || well.dataset.shot === s.file) return;
         well.href = s.large;
         well.dataset.shot = s.file;
         img.alt = s.alt;

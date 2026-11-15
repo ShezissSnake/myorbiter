@@ -101,17 +101,9 @@
   };
   export type IconName = keyof typeof PATHS;
 
-  // The four sections' glyphs and the fold chevrons, drawn on a 24 px grid (same pen, square ends):
-  // the sidebar's section bars, a page head's crest and kicker.
+  // The Arsenal's slots and the fold chevrons, drawn on a 24 px grid (same pen, square ends). The
+  // sections' glyphs are the game's own, in ui/Crest.svelte.
   const PATHS24: Record<string, string> = {
-    // Fissures: the rift, torn down the middle, with its sparks.
-    "sec-fissures": "M12.5 2.5l-2 4.5 3.5 3-4 4.5 2.5 3-2.5 4M14 10l4-1.5M10 14.5l-3.5 1",
-    // Progress: the mastery star.
-    "sec-progress": "M12 3.5l2.3 6.2 6.6.3-5.2 4.1 1.8 6.4-5.5-3.7-5.5 3.7 1.8-6.4-5.2-4.1 6.6-.3z",
-    // Collection: a cut-cornered case with its label.
-    "sec-collection": "M6 5h14.5v11.5L18 19H3.5V7.5zM8.5 10h7",
-    // Trade: the platinum hexagon with its P.
-    "sec-trade": "M12 2.4l8.3 4.8v9.6L12 21.6l-8.3-4.8V7.2zM10 16.5v-9h3.6l1.9 1.9v1.9l-1.9 1.9H10",
     // The Arsenal's slots (core/kinds.ts), at the left of every kind label.
     // Warframe: a helm over its shoulders.
     "kind-warframe": "M12 3l4 3v4l-4 3-4-3V6zM5.5 21v-3.5L12 14l6.5 3.5V21",
