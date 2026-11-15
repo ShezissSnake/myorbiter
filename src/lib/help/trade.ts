@@ -108,7 +108,7 @@ const ORDERS: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: `Apply automatically is off unless you turn it on. Unattended, it never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved in MyOrbiter.`,
+    text: `Apply automatically is off unless you turn it on. Unattended, it never lowers a listing under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved for it in MyOrbiter.`,
   },
   covers: {
     "orders.tiles": 1,
@@ -395,9 +395,9 @@ const ORDERS_AUTO: Walkthrough = {
       title: "Checking and changing prices",
       lines: [
         "Check automatically only reads prices, every minute to weekly.",
-        "Apply automatically sends past a 2p/5% gap, or up to your own floors or Never under.",
-        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your set or approved price, nor your floors; never more than halved.`,
-        "Per listing: hourly at most, six a day. Missed checks run once after restart.",
+        "Apply automatically sends past a 2p/5% gap, or up to a listing's floor or Never under.",
+        `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your approved price, nor your floors; never more than halved.`,
+        "Per listing: hourly (floor lifts at once), six a day. Missed checks run once after restart.",
       ],
       shot: {
         open: "market",

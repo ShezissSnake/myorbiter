@@ -1,22 +1,46 @@
 // The price you last set or approved for a listing, and how far an automatic repricing pass may
-// take it from there. You set or approve a price by listing it (the listing form, a Sell spares
-// plan you apply), by editing it on Orders, or by pressing Reprice; a pass on the timer never
-// does. Unattended, a listing never goes under AUTO_FLOOR_SHARE of that price: it stops there and
-// MyOrbiter says so, for you to decide.
+// take it from there. You set or approve a price by listing it (the listing form; a Sell spares
+// plan you apply, for the lines whose price it changes or makes), by editing it on Orders, or by
+// pressing Reprice; a pass on the timer never does. Unattended, a listing is never lowered under
+// AUTO_FLOOR_SHARE of that price: it stops there and MyOrbiter says so, for you to decide. The line
+// only ever stops a price going down; a raise is never held back by it.
+//
+// An approved price belongs to one listing, told from the next by warframe.market's own order id
+// (`approvedFor`). When that listing is gone from a read of your listings that succeeded (sold
+// out, deleted, or made again under a new id), its approval ends, and a new listing's own price
+// is its approved price, whoever made it. A failed read ends nothing, a hidden listing is still
+// there, and a listing seen again in the same run gets back what it had.
+//
+// `approved` stays as older builds saved and read it, one price per listing key; this build keeps
+// it as each key's price for a step back. A price there that no listing's own entry agrees with
+// was saved before listings were told apart (or by an older build after a step back): it goes to
+// every listing up for that key, and an approval whose key has none up ends.
 
 /** The share of your last approved price an unattended pass may lower a listing to. */
 export const AUTO_FLOOR_SHARE = 0.7;
+/** An unattended pass keeps at least this share of the price it starts from: more than halving waits for Reprice. */
+export const AUTO_LEAST_KEPT = 0.5;
+
+/** Whether a move from `current` to `target` takes off more than an unattended pass may (it waits for Reprice). */
+export const cutTooFar = (target: number, current: number) => target < current * AUTO_LEAST_KEPT;
+
+const percent = (share: number) => `${Math.round(share * 100)}%`;
+/** "never more than halves a price", or the same for another share. */
+const cutWords = AUTO_LEAST_KEPT === 0.5 ? "never more than halves a price" : `never takes more than ${percent(1 - AUTO_LEAST_KEPT)} off a price`;
 
 /**
  * What automatic repricing never does, in words: Settings, Orders and the Guide show this one
- * sentence. The 70% is `unattendedMove`; the halving is the pass in marketStore; the floors and the
- * raise to them are `planFor` in market.ts.
+ * sentence (tests/autoLimits.test.ts holds it to the code). The 70% and the raise are
+ * `unattendedMove`; the halving is `cutTooFar`; the floors and the raise to them, at once, are
+ * `planFor` and the pass in marketStore. "A listing's own floor" is Orders' Floor column (with a
+ * relic's crack value and a prime's ducats), never Orders' Floor share of the market price, which
+ * the dead band may leave a listing a little under.
  */
 const limits = (how: string) =>
-  `On its own it never takes a price under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter (${how}; a price changed on warframe.market's website doesn't move it, except that a listing never priced in MyOrbiter starts from the price it is listed at; it stops there and says so) ` +
-  "and never more than halves one (that waits for you to press Reprice). It never goes under your own floors or your minimum price, and it raises a listing that sits under one of them up to it, within the hour and day limits. " +
-  `A listing already at or under that ${Math.round(AUTO_FLOOR_SHARE * 100)}% mark (rounded up to a whole platinum) stays put until you press Reprice when the price it would go to, the market's or your floor's, is under the mark too`;
-export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice or applying a Sell spares plan");
+  `On its own it never lowers a price under ${percent(AUTO_FLOOR_SHARE)} of the one you last set or approved for that listing in MyOrbiter (${how}; a price changed on warframe.market's website doesn't move it): it stops there and says so, and that mark never holds back a raise. ` +
+  "The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it. " +
+  `It ${cutWords} (that waits for you to press Reprice), never goes under a listing's own floor (the one in its row, a relic's crack value, a prime part's ducats) or your minimum price, and raises a listing that sits under one of them up to it at once, within the day's limit of changes`;
+export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice, or a Sell spares line that changes it");
 /** The same for a console, where there is no Sell spares. */
 export const AUTO_LIMITS_CONSOLE = limits("listing it, typing it or pressing Reprice");
 
@@ -31,12 +55,13 @@ export type Unattended =
 
 /**
  * What an unattended pass may do with a listing at `current` that the market would take to
- * `target`, given the price you last approved. Above the floor it goes as planned; under it, down
- * to the floor and no further (`atFloor`), or not at all once it's there.
+ * `target`, given the price you last approved. A raise (or no move) always goes as planned: the
+ * floor only ever stops a price going down. Above the floor it goes as planned; under it, down to
+ * the floor and no further (`atFloor`), or not at all once it's there.
  */
 export function unattendedMove(target: number, current: number, approved: number): Unattended {
   const floor = autoFloor(approved);
-  if (target >= floor) return { go: true, target, atFloor: false };
+  if (target >= floor || target >= current) return { go: true, target, atFloor: false };
   if (current <= floor) return { go: false, floor };
   return { go: true, target: floor, atFloor: true };
 }
@@ -45,4 +70,90 @@ export function unattendedMove(target: number, current: number, approved: number
 export function approvedOf(raw: unknown): Record<string, number> {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => typeof k === "string" && Number.isInteger(v) && (v as number) >= 1)) as Record<string, number>;
+}
+
+/** Per listing (warframe.market's order id): its key and its approved price. */
+export type ApprovedFor = Record<string, { key: string; platinum: number }>;
+/** Settings that carry `approvedFor` (saved beside `approved`; older builds keep it as they find it). */
+export type WithApprovedFor = { approved: Record<string, number>; approvedFor?: unknown };
+
+/** Saved approvals per listing, kept only where each has a key and a whole positive price (a damaged settings file). */
+export function approvedForOf(raw: unknown): ApprovedFor {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: ApprovedFor = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    const e = v as { key?: unknown; platinum?: unknown } | null;
+    if (id && e && typeof e === "object" && typeof e.key === "string" && Number.isInteger(e.platinum) && (e.platinum as number) >= 1) out[id] = { key: e.key, platinum: e.platinum as number };
+  }
+  return out;
+}
+
+/** One of your listings as a read of them found it. */
+export interface UpListing {
+  id: string;
+  itemId: string;
+  platinum: number;
+  /** Its approval key; null when its item isn't in warframe.market's item list (its key can't be told). */
+  key: string | null;
+  /** A filled sculpture: the key it had before a filled one was a listing of its own. */
+  starless?: string | null;
+}
+
+/** The item a listing key is for. */
+const itemOfKey = (key: string) => key.slice(0, key.indexOf("|"));
+
+/**
+ * The approvals after a read of your listings that succeeded (`up`: every sell listing it found,
+ * hidden ones included). Each listing keeps its own approval; one saved without its listing goes
+ * to every listing up for its key (and to a filled sculpture of that item, at the first read that
+ * has it); a listing with none (new, whoever made it) takes its own price, or what it had when
+ * `ended` says it was seen earlier in this run. A listing gone ends its approval (kept in `ended`).
+ * Nothing of an item whose key can't be told ends or moves.
+ */
+export function settleApprovals(approved: Readonly<Record<string, number>>, owned: Readonly<ApprovedFor>, up: readonly UpListing[], ended: Map<string, { key: string; platinum: number }>): { approved: Record<string, number>; owned: ApprovedFor } {
+  const unknown = new Set(up.filter((l) => l.key == null).map((l) => l.itemId));
+  // A key's saved price that a listing's own entry agrees with is this build's; any other was
+  // saved before listings were told apart, or by an older build after a step back.
+  const agreed = new Set(Object.values(owned).filter((e) => approved[e.key] === e.platinum).map((e) => e.key));
+  const unowned = (key: string | null | undefined): key is string => key != null && approved[key] != null && !agreed.has(key);
+  const next: ApprovedFor = {};
+  const seen = new Set<string>();
+  for (const l of up) {
+    seen.add(l.id);
+    const had = owned[l.id];
+    if (l.key == null) {
+      if (had) next[l.id] = had;
+      continue;
+    }
+    const back = ended.get(l.id);
+    const platinum = unowned(l.key)
+      ? approved[l.key]
+      : had
+        ? had.platinum
+        : back && back.key === l.key
+          ? back.platinum
+          : unowned(l.starless)
+            ? approved[l.starless]
+            : l.platinum;
+    next[l.id] = { key: l.key, platinum };
+    ended.delete(l.id);
+  }
+  for (const [id, e] of Object.entries(owned)) {
+    if (seen.has(id)) continue;
+    if (unknown.has(itemOfKey(e.key))) next[id] = e;
+    else ended.set(id, e);
+  }
+  // Each key's price as older builds read it: the one it had when a listing still has it, else
+  // the first listing's. Keys of items that can't be told are kept as they are.
+  const keyed: Record<string, number> = {};
+  for (const [k, v] of Object.entries(approved)) if (unknown.has(itemOfKey(k))) keyed[k] = v;
+  for (const e of Object.values(next)) if (keyed[e.key] == null || e.platinum === approved[e.key]) keyed[e.key] = e.platinum;
+  return { approved: keyed, owned: next };
+}
+
+/** Two flat records with the same entries, in any order. */
+export function sameEntries(a: Readonly<Record<string, unknown>> | undefined, b: Readonly<Record<string, unknown>> | undefined): boolean {
+  const x = Object.entries(a ?? {});
+  if (x.length !== Object.keys(b ?? {}).length) return false;
+  return x.every(([k, v]) => JSON.stringify(v) === JSON.stringify((b ?? {})[k]));
 }

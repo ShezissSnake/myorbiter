@@ -299,9 +299,10 @@
     </Switch>
     <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
     <Switch name="settings.auto-reprice" bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
-      Off unless you turn it on. While MyOrbiter is open, it checks your listings {everyWords(settings.market.every)} (Orders) and sends a new price without asking, only when a listing's price has drifted:
+      Off unless you turn it on. While MyOrbiter is open, it checks your listings {everyWords(settings.market.every)} (Orders) and sends a new price without asking when a listing's price has drifted:
       more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
+      The one exception is a listing under its own floor or your minimum: it is lifted to it at once, within the {DRIFT.perDay} a day.
       {onConsole ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.
     </Switch>
     <label class="field" data-field="settings.rep-text">

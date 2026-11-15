@@ -280,8 +280,57 @@ export function overAsked(cheapest: number, reference: number | null | undefined
   return reference != null && reference > 0 && cheapest > reference * OVER_ASKED ? Math.max(1, Math.round(reference)) : null;
 }
 
-/** Stable key for per-listing settings (floor, paused): item, rank and subtype. */
-export const listingKey = (o: Pick<MyOrder, "itemId" | "rank" | "subtype">) => `${o.itemId}|${o.rank ?? ""}|${o.subtype ?? ""}`;
+type Keyed = Pick<MyOrder, "itemId" | "rank" | "subtype"> & Stars;
+
+/**
+ * Stable key for per-listing settings (floor, paused, approved price, recent changes): item, rank
+ * and subtype, and an Ayatan sculpture's stars when it has any ("ay|||2|2"). A filled sculpture is
+ * a listing of its own; every other key, an empty sculpture's included, reads as it always has.
+ */
+export const listingKey = (o: Keyed) => `${o.itemId}|${o.rank ?? ""}|${o.subtype ?? ""}${hasStars(o) ? `|${o.amberStars ?? 0}|${o.cyanStars ?? 0}` : ""}`;
+
+/** The same listing with its stars left out: the key a filled sculpture's settings were saved under before it had its own. */
+const starless = <T extends Keyed>(o: T): T => (hasStars(o) ? { ...o, amberStars: null, cyanStars: null } : o);
+
+/**
+ * The keys a listing's own floor may be saved under, the first that has one counting: its own
+ * key; the key with its variant unnamed or named as the item's first (warframe.market can leave an
+ * intact relic's unnamed, and Orders keyed a floor by the listing as the site gave it then);
+ * the same with no variant at all, as Sell spares has always read it; and for a filled sculpture,
+ * the same keys without its stars (saved before a filled one was a listing of its own).
+ */
+function floorKeys(o: Keyed, defaultSubtype: string | null): string[] {
+  const keys = (x: Keyed) => [listingKey(x), listingKey({ ...x, subtype: x.subtype ?? defaultSubtype }), listingKey({ ...x, subtype: null })];
+  return [...new Set([...keys(o), ...(hasStars(o) ? keys(starless(o)) : [])])];
+}
+
+/** The listing's own floor (Orders' Floor column), wherever it was saved; null when it has none. */
+export function ownFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null): number | null {
+  for (const k of floorKeys(o, defaultSubtype)) if (floors[k] != null) return floors[k];
+  return null;
+}
+
+/**
+ * The floors with this listing's own floor set to `floor` (null clears it). It goes under the
+ * listing's own key; a floor saved for the same listing under its other key (the variant unnamed,
+ * or named as the item's first) goes, so the one typed is the one that counts. Floors of other
+ * listings stay, the empty sculpture's a filled one fell back on included.
+ */
+export function withOwnFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null, floor: number | null): Record<string, number> {
+  const out = { ...floors };
+  const variant = o.subtype ?? defaultSubtype;
+  // The other keys of this very listing: only when it is the item's first variant (or the item has none).
+  if (variant === defaultSubtype) for (const subtype of [null, defaultSubtype]) delete out[listingKey({ ...o, subtype })];
+  delete out[listingKey(o)];
+  if (floor != null) out[listingKey(o)] = floor;
+  return out;
+}
+
+/** Whether the player set this listing to be left alone; a filled sculpture also by a pause saved before it had its own key. */
+export function isPaused(paused: Readonly<Record<string, boolean>>, o: Keyed): boolean {
+  const own = paused[listingKey(o)];
+  return own ?? (hasStars(o) ? paused[listingKey(starless(o))] === true : false);
+}
 
 // ---------------------------------------------------------------- matching to your collection
 
