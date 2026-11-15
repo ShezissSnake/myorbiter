@@ -39,6 +39,13 @@ export function fixedScale(columns: { width?: string; minor?: boolean }[]): numb
   return rest > 0 ? Math.max(0.3, (rest - minor) / rest) : 1;
 }
 
+/**
+ * Sold a day, to a tenth: something that sells under a tenth a day reads "<0.1", never 0; none
+ * lately (null) stays blank. Text then, so a column showing it sorts by the number itself.
+ */
+export const soldPerDay = (t: number | null | undefined): number | string | null =>
+  t == null ? null : t > 0 && t < 0.05 ? "<0.1" : Math.round(t * 10) / 10;
+
 export const plat = (n: number | null | undefined) => (n == null ? null : `${Math.round(n * 10) / 10}p`);
 export const num = (n: number | null | undefined, digits = 0) =>
   n == null ? null : numberFormat(digits).format(n);
