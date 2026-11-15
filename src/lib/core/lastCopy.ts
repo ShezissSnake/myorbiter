@@ -16,7 +16,7 @@ export interface HiddenForWhisper {
 }
 
 export const DEFAULT_HIDE_MINUTES = 10;
-/** The longest a listing stays hidden, in minutes: the field's `max`, and the most a saved time loads as. */
+/** The longest time that can be set for "Hidden for", in minutes: the field's `max`, and the most a saved time loads as. (A listing can stay hidden longer, until an inventory read holds the copy again.) */
 export const MAX_HIDE_MINUTES = 120;
 
 /**
