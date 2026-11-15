@@ -41,7 +41,7 @@
     { key: "collection_prices", label: "Daily prices" },
     { key: "market_account", label: "warframe.market" },
   ];
-  const STATE_WORD: Record<HealthState, string> = { ready: "OK", idle: "Waiting", degraded: "Needs attention", failed: "Not working" };
+  const STATE_WORD: Record<HealthState, string> = { ready: "OK", idle: "Waiting", degraded: "Needs attention", failed: "Not working", unknown: "Not known" };
 
   const ACCESS: Record<string, { name: string; note: string }> = {
     full: { name: "Full", note: "Reads your inventory when the game starts, and the reward screen." },
