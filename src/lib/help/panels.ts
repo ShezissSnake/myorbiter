@@ -383,7 +383,7 @@ const FIRST_RUN: Walkthrough = {
       lines: [
         "Each step says where it is: Warframe not running, at sign-in, or signed in.",
         "Finish later or Esc: use MyOrbiter without your inventory; automatic actions stay off.",
-        "Every wait has a limit; past it, the step says why, with Try again.",
+        "Every wait ends at a limit, saying why; Try again starts it over.",
         "The sidebar waits meanwhile; its Game and Inventory lines say the same.",
       ],
       shot: {
