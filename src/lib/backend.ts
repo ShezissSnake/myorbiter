@@ -23,6 +23,7 @@ import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, hideMinutesOf, type HiddenForWhisper } from "./core/lastCopy";
 import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
+import type { SaveTrouble } from "./core/gettingIn";
 import { everyOf, lastCheckOf } from "./core/schedule";
 import { choiceFromHome, fissureChoiceOf, type FissureChoice, type SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
@@ -1214,7 +1215,7 @@ export async function flushSettings() {
   // Your saved settings couldn't be read: saving now would replace them (sales, floors) with these.
   if (loadFailed) {
     saveFailed = true;
-    saveListener?.(`MyOrbiter couldn't read your saved settings (${loadFailed}), so it won't save over them. Restart MyOrbiter`);
+    saveListener?.({ unreadable: true, cause: loadFailed });
     return;
   }
   try {
@@ -1228,7 +1229,7 @@ export async function flushSettings() {
   } catch (e) {
     console.error("saving settings failed", e);
     saveFailed = true;
-    saveListener?.(String(e).replace(/^Error:\s*/, ""));
+    saveListener?.({ unreadable: false, cause: String(e).replace(/^Error:\s*/, "") });
     // Tried again shortly (a file briefly locked, a full disk freed up), unless a newer save came in.
     if (!pendingSave) {
       pendingSave = get;
@@ -1241,13 +1242,15 @@ export async function flushSettings() {
 let saveFailed = false;
 /** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
 let loadFailed: string | null = null;
-let saveListener: ((error: string | null) => void) | null = null;
-/** Told when saving settings fails (the error), and when a save goes through again (null). */
-export function onSaveTrouble(f: (error: string | null) => void) {
+let saveListener: ((trouble: SaveTrouble | null) => void) | null = null;
+/** Told when saving settings fails (why, and whether it's because they couldn't be read), and when a save goes through again (null). */
+export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
   saveListener = f;
 }
 /** Whether the saved settings couldn't be read at start (then nothing is saved, so nothing is asked). */
 export const settingsUnreadable = () => loadFailed != null;
+/** Why the saved settings couldn't be read at start, or null when they could. */
+export const settingsUnreadableWhy = () => loadFailed;
 
 /**
  * Opens a link MyOrbiter has already checked (`openable` in core/links.ts) in your browser: the
@@ -1287,7 +1290,8 @@ export interface TennoscopeStatus {
   restart?: { tries: number; gave_up: boolean; retry_in_ms: number | null };
 }
 
-export type HealthState = "ready" | "idle" | "degraded" | "failed";
+/** "unknown": a component the running TennoScope doesn't report (core/tsReport.ts). */
+export type HealthState = "ready" | "idle" | "degraded" | "failed" | "unknown";
 export interface Health {
   state: HealthState;
   message: string;
