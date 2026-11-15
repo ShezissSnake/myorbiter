@@ -310,9 +310,12 @@ export const KUVA_COSTS = [900, 1000, 1200, 1400, 1700, 2000, 2350, 2750, 3150, 
 export const cycleCost = (done: number) => KUVA_COSTS[Math.min(done, KUVA_COSTS.length - 1)];
 /** Kuva spent on a riven cycled `rerolls` times. */
 export function kuvaSpent(rerolls: number): number {
+  // The costs up to the tenth, then the last one for every cycle after it: no loop over the
+  // count, so a count however large is summed at once.
+  const head = Math.max(0, Math.min(rerolls, KUVA_COSTS.length));
   let t = 0;
-  for (let i = 0; i < rerolls; i++) t += cycleCost(i);
-  return t;
+  for (let i = 0; i < head; i++) t += KUVA_COSTS[i];
+  return t + Math.max(0, Math.ceil(rerolls) - KUVA_COSTS.length) * KUVA_COSTS[KUVA_COSTS.length - 1];
 }
 
 const sameRoll = (a: { buffs: RivenStatRaw[]; curses: RivenStatRaw[] }, b: { buffs: RivenStatRaw[]; curses: RivenStatRaw[] }) =>

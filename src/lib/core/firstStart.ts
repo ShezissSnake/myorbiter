@@ -198,7 +198,7 @@ export function gameLine(s: Signs): { value: string; title: string; ok: boolean 
 /** The sidebar's Inventory line when nothing is loaded: which side it's waiting on, or why not. */
 export function inventoryLine(s: Signs): { value: string; title: string } {
   const r = s.status?.report;
-  if (s.pickup.missing) return { value: "Data not found", title: `MyOrbiter can't find TennoScope's data, where it read your inventory before (Settings, Where things are): ${s.pickup.error}` };
+  if (s.pickup.missing) return { value: "Data not found", title: `MyOrbiter has read your inventory before, and now can't find TennoScope's data (Settings, Where things are): ${s.pickup.error}` };
   if (!s.status?.running) return { value: "TennoScope off", title: "TennoScope isn't running, so nothing reads your inventory" };
   if (!r) return { value: "No report", title: "TennoScope runs but hasn't reported yet" };
   if (r.setup.access_mode !== "full") return { value: "Full mode off", title: "Your inventory is only read in Full mode (Settings, TennoScope)" };
