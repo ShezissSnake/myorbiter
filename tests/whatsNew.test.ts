@@ -2,8 +2,8 @@
 // the changes that have a place to show, and every Show me lands on a page and spot that exist.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { NEWS, batches, sinceSeen, tourStops, type NewsEntry } from "../src/lib/whatsNew";
 import { PAGES } from "../src/lib/pages";
 
@@ -35,20 +35,31 @@ test("the tour stops at each change with a place to show, in order", () => {
   assert.deepEqual(stops.map((s) => s.title), ["a", "c"]);
 });
 
-/** Every .svelte file under src, read once. */
-function sources(dir = "src"): string {
-  let out = "";
-  for (const e of readdirSync(dir, { withFileTypes: true })) {
-    const p = join(dir, e.name);
-    if (e.isDirectory()) out += sources(p);
-    else if (e.name.endsWith(".svelte")) out += readFileSync(p, "utf8");
-  }
+/** The page `id`'s file, as App loads it (Home is imported whole). */
+function pageFile(id: string): string {
+  if (id === "home") return "src/lib/tabs/Home.svelte";
+  const app = readFileSync("src/App.svelte", "utf8");
+  const loader = app.split("\n").map((l) => l.match(/\{#await (load\w+)\(lazyTry\)\}.*pageError\("(\w+)"/)).find((m) => m?.[2] === id)?.[1];
+  assert.ok(loader, `App draws no page ${id}`);
+  const file = app.match(new RegExp(`const ${loader} = once\\(\\(\\) => import\\("\\./(lib/tabs/\\w+\\.svelte)"\\)\\)`))?.[1];
+  assert.ok(file, `${loader} imports no page`);
+  return `src/${file}`;
+}
+
+/** A .svelte file and every .svelte component it draws, read once each. */
+function drawn(file: string, seen = new Set<string>()): string {
+  // A store imported as "./x.svelte" is x.svelte.ts, not a component.
+  if (seen.has(file) || !existsSync(file)) return "";
+  seen.add(file);
+  const src = readFileSync(file, "utf8");
+  let out = src;
+  for (const m of src.matchAll(/from "(\.{1,2}\/[^"]+\.svelte)"/g)) out += drawn(join(dirname(file), m[1]), seen);
   return out;
 }
 
 test("every Show me opens a real page, at a spot that page (or the sidebar) has", () => {
   const ids = new Set<string>(PAGES.map((p) => p.id));
-  const src = sources();
+  const sidebar = readFileSync("src/App.svelte", "utf8");
   for (const n of NEWS) {
     for (const x of n.items) {
       if (typeof x === "string" || !x.open) continue;
@@ -60,9 +71,17 @@ test("every Show me opens a real page, at a spot that page (or the sidebar) has"
       }
       assert.ok(ids.has(t.page), `${x.title}: no page ${t.page}`);
       if (!t.spot) continue;
-      // data-card="spot", id="spot", Stat's spot="spot", or a spot chosen in code ("spot" : …).
-      const at = [`data-card="${t.spot}"`, `id="${t.spot}"`, `spot="${t.spot}"`, `"${t.spot}" :`, `: "${t.spot}"`].some((s) => src.includes(s));
-      assert.ok(at, `${x.title}: nothing on ${t.page} is marked "${t.spot}"`);
+      const file = pageFile(t.page);
+      // The hero under the title: PageHead marks it only when the page gives it one.
+      if (t.spot === "hero") {
+        assert.match(readFileSync(file, "utf8"), /<PageHead[^>]*\bhero=\{|\{#snippet hero\(\)\}/, `${x.title}: ${t.page} has no hero under its title`);
+        continue;
+      }
+      // On the page, in what it draws, or in the sidebar: data-card="spot", id="spot", Stat's
+      // spot="spot", or a spot chosen in code ("spot" : …).
+      const marks = [`data-card="${t.spot}"`, `id="${t.spot}"`, `spot="${t.spot}"`, `"${t.spot}" :`, `: "${t.spot}"`];
+      const src = drawn(file);
+      assert.ok(marks.some((s) => src.includes(s) || sidebar.includes(s)), `${x.title}: nothing on ${t.page} is marked "${t.spot}"`);
     }
   }
 });

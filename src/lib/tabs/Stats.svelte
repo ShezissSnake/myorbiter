@@ -1,6 +1,6 @@
 <script lang="ts">
   import HelpMark from "../ui/HelpMark.svelte";
-  import { whileShown } from "../pane.svelte";
+  import { whileShown, whileShownEvery } from "../pane.svelte";
   import { exportFile } from "../backend";
   import { numberFormat } from "../ui/table";
   import { tradesCsv } from "../core/exportCsv";
@@ -46,7 +46,10 @@
   const DAY = 86_400_000;
   // A month, like Sales: the span most questions are about.
   let span = $state<"30" | "90" | "all">("30");
-  const since = $derived(span === "all" ? 0 : Date.now() - Number(span) * DAY);
+  // The page stays open for days: the span moves on with the time, as Sales' does.
+  let now = $state(Date.now());
+  $effect(() => whileShownEvery("stats", 60_000, () => (now = Date.now()), () => now));
+  const since = $derived(span === "all" ? 0 : now - Number(span) * DAY);
   const hist = $derived.by(whileShown("stats", () => settings.game.valueHistory.filter((p) => p.at >= since)));
   const at = $derived(hist.map((p) => p.at));
   /** The read the figures beside the value chart's title are from. */
