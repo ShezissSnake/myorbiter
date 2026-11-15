@@ -357,7 +357,10 @@ included), a mark such as `:`, `>` or `|`, or the next path, except after a user
 one-word user name under a home folder does not end it, as the home rule keeps the mark in the name
 (`/home/name, has 30p` becomes `/home/[user]`). So a word too many may be hidden, prices and
 amounts included (`/home/name has 30p` becomes `/home/[user]`), and none of those words is kept as
-the file's name. The marks, shapes and cases this page names are examples, not whole lists: another
+the file's name. A later slash on the line takes the words before it as folder names, a file's
+name and a price among them (`couldn't read D:\Games\Warframe\EE.log, retrying 1/3` becomes
+`couldn't read D:\Games\Warframe\[folder]/3`), and a price written like `~name/a` is read as one
+(`costs ~50p/each` becomes `costs ~[user]/[folder]`). The marks, shapes and cases this page names are examples, not whole lists: another
 mark inside a name can leave the words after it as written, or a name can take more words with it
 than named here. Left as written: the words after a sure end or a mark inside such a last name, such
 as `. `, `, `, `; `, ` (`, `: `, `{`, a backtick, `"`, `?`, `*`, `}`, `)`, a lone `~`, `/` or `\`
@@ -380,7 +383,10 @@ without a slash after it (`drive_c/users/Name Other` becomes `drive_c/users/[use
 `drive_c/users/[user]'Name`); a name with an apostrophe in a path in single quotes
 (`'D:\a\O'Name'`), where the apostrophe reads as the closing quote; a path after a quote that never
 closes, whose last name runs to the end of the line and is kept when it ends in a file's name
-(`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); and
+(`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); the folder
+names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces, which that name
+takes up to the path's drive letter (`/home/Name Other,D:\Folder\Name` becomes
+`/home/[user]:\Folder\Name`); and
 `//computer/share` straight after `://`, which reads as an address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
@@ -388,7 +394,7 @@ a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccompute
 relative path (`./a/b`), `~name` with nothing after it, a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
 after `GET` and the like). A path of an unusual shape can pass, which is why the report is shown to
 you in full before anything is sent: read it first. The prices of listings and sales are kept,
-except those that go with a hidden name as above: they are public on warframe.market and help
+except those that go with a hidden name or are read as part of a path, as above: they are public on warframe.market and help
 find a repricing fault.
 
 ## Links

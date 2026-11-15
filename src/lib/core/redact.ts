@@ -101,8 +101,17 @@ export function redact(text: string, opts: RedactOptions = {}): string {
     s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
   for (const [re, to] of RULES) s = s.replace(re, to as never);
+  // Names by their shape before the paths: cleaning a path first could take a rule's anchor
+  // ("/profile/", "buyer:"), its closing bracket or its reach. A name that ends inside a path's
+  // root ("traded with smb://…") is left for the path's own cleaning.
+  for (const [re, to] of NAME_LINES) {
+    const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
+    s = s.replace(re, (...m) => {
+      const end = (m[m.length - 2] as number) + (m[0] as string).length;
+      return roots.some(([a, b]) => end > a && end <= b) ? (m[0] as string) : (to as (...x: string[]) => string)(...(m as string[]));
+    });
+  }
   s = cleanPaths(s);
-  for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
   return s;
 }
 
@@ -147,7 +156,9 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 // reading goes on; at a slash the path goes on. The words up to there go with the name ("…\Alice
 // Smith to E:\x" keeps only "E:\x"), a word too many may go with it (an amount too: "/home/alice
 // has 30p" becomes "/home/[user]"), and what it took is never kept as a file's name. A `[user]`
-// an early rule left runs on the same way. `'` is part of a name ("Alice's Games"). A path in
+// or `[player]` an early rule left runs on the same way. A later slash on the line takes the words
+// before it as folder names, a file's name and a price among them ("…\EE.log, retrying 1/3"
+// becomes "…\[folder]/3"), and a price written like `~name/x` is read as one ("~50p/each"). `'` is part of a name ("Alice's Games"). A path in
 // quotes runs to the closing quote.
 // Left as written (known gaps): a name's words after a sure end inside it ("…\Alice B. Smith"
 // keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next
@@ -159,7 +170,9 @@ export function redact(text: string, opts: RedactOptions = {}): string {
 // single quotes, a name with an apostrophe ("'D:\a\Alice O'Smith'"), where the apostrophe reads as
 // the closing quote; a path after a quote that never closes, whose last name runs to the end of the
 // line and is kept when it ends in a file's name ("\"/mnt/Alice see EE.log"); `~` with a name with
-// spaces ("~Alice Smith/x").
+// spaces ("~Alice Smith/x"); a path glued to `,`, `;`, `=` or a bracket after a last name with
+// spaces, which the run takes up to its drive letter, so its folder names stay
+// ("/home/Alice Smith,D:\x\y" becomes "/home/[user]:\x\y").
 
 /** Folder names that name no one, compared without case. */
 const KEEP_FOLDERS = new Set([
@@ -216,9 +229,10 @@ const RUN_STOP = /^(?:[\n"<>|*?:`{}\u2190-\u21ff]|, |; |\. | \()/;
 /** Another path or an address, after a space: the words before it are the name's, not it. */
 const PATH_AHEAD = /^(?:[A-Za-z]:[\\/%]|[~$%\\/]|\.{1,2}[\\/]|[A-Za-z][A-Za-z0-9+.-]*:\/\/)/;
 
-/** Whether a last name (no spaces) would be hidden: then it may run on over spaces. A `[user]` an
- *  early rule left runs on too: those rules stop at a space ("/home/[user] Smith"). */
-const hiddenName = (t: string) => t === "[user]" || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
+/** Whether a last name (no spaces) would be hidden: then it may run on over spaces. A `[user]` or
+ *  `[player]` an early rule left runs on too: those rules stop at a space ("/home/[user] Smith",
+ *  "/profile/[player] Smith"). */
+const hiddenName = (t: string) => t === "[user]" || t === "[player]" || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
 
 /** Where the path whose names start at `from` ends. `quote`: the quote it is in, if any.
  *  `spacedFirst`: whether its first name may have spaces in it. */
@@ -278,8 +292,10 @@ function cleanFolder(name: string, before: string[], kind: PathKind, last: boole
   const prev2 = (before[before.length - 2] ?? "").toLowerCase();
   if (kind === "share" && before.length === 0) return "[host]";
   if (PLACEHOLDER.test(name) || name === "." || name === "..") return name;
-  // A user name with a space in it, which an early rule cut at the space: all of it is the user's.
-  if (/^\[user\]\s/.test(name)) return "[user]";
+  // A user's or player's name with a space in it, which an early rule cut at the space: all of it
+  // is the name.
+  const cut = /^\[(user|player)\]\s/.exec(name);
+  if (cut) return `[${cut[1]}]`;
   // The user name: under /home, /Users, C:\Users, and Wine's drive_c\users (where Proton's is steamuser).
   if (prev === "home" || prev === "users" || prev === "documents and settings") return low === "public" || low === "default" || low === "steamuser" ? name : "[user]";
   // Steam's userdata\<account id>.

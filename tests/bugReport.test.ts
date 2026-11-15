@@ -106,7 +106,10 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   assert.match(para, /`~` with a name that has spaces in it/);
   assert.match(para, /prices and amounts included/);
   assert.match(para, /`\/\/computer\/share` straight after `:\/\/`/);
-  assert.match(para, /prices of listings and sales are kept, except those that go with a hidden name/);
+  assert.match(para, /prices of listings and sales are kept, except those that go with a hidden name or are read as part of a path/);
+  assert.match(para, /A later slash on the line takes the words before it as folder names, a file's name and a price among them/);
+  assert.match(para, /a price written like `~name\/a` is read as one \(`costs ~50p\/each` becomes `costs ~\[user\]\/\[folder\]`\)/);
+  assert.match(para, /the folder names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces/);
   assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
 
@@ -339,6 +342,42 @@ test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
   assert.equal(redact("/home/someone has 1,234 platinum"), "/home/[user]");
   assert.equal(redact("C:/Users/someone sold for 120 platinum"), "C:/Users/[user]");
   assert.equal(redact("D:\\Games\\Orren has 30p"), "D:\\Games\\[folder]");
+  // A later slash on the line takes the words before it as folder names, a file's name and a
+  // price among them.
+  assert.equal(redact("couldn't read D:\\Games\\Warframe\\EE.log, retrying 1/3"), "couldn't read D:\\Games\\Warframe\\[folder]/3");
+  // A price written like ~name/x is read as one: ~ and its name, then a folder.
+  assert.equal(redact("costs ~50p/each"), "costs ~[user]/[folder]");
+  // A path glued to ",", ";", "=" or a bracket after a last name with spaces: the run takes it up
+  // to its drive letter, and that path's folder names stay.
+  assert.equal(redact("/home/Orren Taskwell,D:\\Kestrel\\Bryn"), "/home/[user]:\\Kestrel\\Bryn");
+  assert.equal(redact("D:\\Games\\Orren Taskwell;E:\\Kestrel\\Bryn"), "D:\\Games\\[folder]:\\Kestrel\\Bryn");
+});
+
+test("names and chats: a path on the line takes no rule's anchor, bracket or reach", () => {
+  const cases: [string, string][] = [
+    // The rule's anchor inside the path, a closing bracket after it, or a path before the name.
+    ["opened /profile/Lag.exe", "opened /[folder]/[player]"],
+    ["siteChat: Chatty messaged you on warframe.market (Chatty: see D:\\Stuff\\old notes)", "siteChat: [player] messaged you on warframe.market ([chat hidden])"],
+    ["saved D:\\Stuff\\notes buyer: Kestrel", "saved D:\\[folder]\\[folder]: [player]"],
+    ["sold /a/b/c/d/e/f/g/h/i/j, to Kestrel", "sold /[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder], to [player]"],
+    // Each rule for names and chats, with a path on the line and a name the app does not know.
+    ["siteChat: Chatty messaged you on warframe.market (Chatty: see /srv/old/notes)", "siteChat: [player] messaged you on warframe.market ([chat hidden])"],
+    ["Kestrel whispered you about D:\\Stuff\\old notes", "[player] whispered you about D:\\[folder]\\[folder]"],
+    ["3 people whispered you: Kestrel, Bryn in /srv/old/notes", "3 people whispered you: [players] in /srv/[folder]/[folder]"],
+    ["Ash Prime Set: 20p from Kestrel at /srv/old/notes", "Ash Prime Set: 20p from [player] at /srv/[folder]/[folder]"],
+    ["sold Ash Prime Set to Kestrel, saved /srv/old/notes", "sold Ash Prime Set to [player], saved /srv/[folder]/[folder]"],
+    ["Couldn't give Kestrel +rep, see /srv/old/notes", "Couldn't give [player] +rep, see /srv/[folder]/[folder]"],
+    ["D:\\Stuff\\old notes /w Kestrel hi", "D:\\[folder]\\[folder] /w [player] hi"],
+    ["see /profile/Kestrel and /srv/old/notes", "see /[folder]/[player] /srv/[folder]/[folder]"],
+    ["D:\\Stuff\\old notes /chat/with/Kestrel", "D:\\[folder]\\[folder] /[folder]/[folder]/[player]"],
+    ["partner: Kestrel in /srv/old/notes", "partner: [player] in /srv/[folder]/[folder]"],
+    // A rule's name that ends in a share's scheme leaves it to the path: the computer is hidden.
+    ["traded with smb://EXAMPLE-PC/share", "traded with smb://[host]/share"],
+  ];
+  for (const [line, want] of cases) {
+    assert.equal(redact(line), want, line);
+    assert.equal(redact(want), want, `a second pass changes nothing: ${want}`);
+  }
 });
 
 test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {

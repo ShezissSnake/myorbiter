@@ -174,7 +174,7 @@
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids and every player's name are hidden, here and in what you wrote, and folder names by a path's shape, in the paths MyOrbiter recognises. Listing and sale prices stay, unless they follow a hidden folder name. Read it before sending: a word of a name can pass, and so can a path of an unusual shape, or one with %2F or %5C for its slashes.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids and every player's name are hidden, here and in what you wrote, and folder names by a path's shape, in the paths MyOrbiter recognises. Listing and sale prices stay, unless they follow a hidden folder name or are read as part of a path. Read it before sending: a word of a name can pass, and so can a path of an unusual shape, or one with %2F or %5C for its slashes.{/if}</p>
     </section>
 
     {#if handed === "pasted" && copiedText === paste}
