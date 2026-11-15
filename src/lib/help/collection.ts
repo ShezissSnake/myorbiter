@@ -22,6 +22,12 @@ const INVENTORY: Walkthrough = {
   app: "inventory",
   title: "Inventory",
   guide: guideOf("inventory"),
+  does: [
+    { text: "Lists everything you own with what it is worth", icon: "locker" },
+    { text: "Shows which copies are spare and what they sell for", icon: "platinum" },
+    { text: "Shows how many copies you keep, and why" },
+    { text: "Opens the sell form for your spare copies" },
+  ],
   pages: [
     {
       title: "What your inventory is worth",
@@ -116,6 +122,12 @@ const PARTS: Walkthrough = {
   app: "parts",
   title: "Prime parts",
   guide: guideOf("parts"),
+  does: [
+    { text: "Shows each prime part's best use, from keeping to ducats", icon: "ducats" },
+    { text: "Shows what a part sells for and the ducats Baro pays", icon: "platinum" },
+    { text: "Shows your ducats, and when Baro comes or leaves", icon: "baro" },
+    { text: "Lists the parts with the most ducats per platinum", icon: "ducats" },
+  ],
   pages: [
     {
       title: "What your spare parts are worth",
@@ -216,6 +228,12 @@ const SETS: Walkthrough = {
   app: "sets",
   title: "Sets",
   guide: guideOf("sets"),
+  does: [
+    { text: "Lists complete sets you can sell, with their price", icon: "prime-plate" },
+    { text: "Lists sets one or two parts short, with the cost" },
+    { text: "Shows sets your loose parts are worth more as" },
+    { text: "Holds back sets of gear you haven't built or mastered" },
+  ],
   pages: [
     {
       title: "Sets worth selling",
@@ -301,6 +319,12 @@ const MODS: Walkthrough = {
   app: "mods",
   title: "Mods",
   guide: guideOf("mods"),
+  does: [
+    { text: "Lists mod copies you can spare, keeping your best", icon: "endo" },
+    { text: "Shows spares' worth and the days of trades to sell them", icon: "platinum" },
+    { text: "Shows the Endo to max your best copy", icon: "endo" },
+    { text: "Starts by hiding mods that can't sell or don't sell daily" },
+  ],
   pages: [
     {
       title: "Your spare mods",

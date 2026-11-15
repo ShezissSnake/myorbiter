@@ -6,6 +6,7 @@
 
 import type { PageId } from "../pages";
 import type { StandIn } from "../core/standIn";
+import type { GameIconName } from "../ui/GameIcon.svelte";
 
 /**
  * A step that brings the demo to the state a picture shows. Selectors are Playwright's (CSS, plus
@@ -57,6 +58,14 @@ export interface Shot {
   emptyChannel?: boolean;
 }
 
+/** One line of what an app page does, for the website's tour (site/, scripts/site.mjs). */
+export interface Does {
+  /** At most LANDING.chars characters, starting with what the page does for the player ("Shows", "Marks", "Lists", "Warns"). */
+  text: string;
+  /** The app's own picture for the thing the line is about (public/game/); a plain diamond without one. */
+  icon?: GameIconName;
+}
+
 /** One page of a walk-through: one idea. */
 export interface HelpPage {
   /** At most six words. */
@@ -74,6 +83,12 @@ export interface Walkthrough {
   title: string;
   /** Where "More in the Guide" goes: the Guide's entry for that page (goTo target). */
   guide: string;
+  /**
+   * What the app page does, in two to four short lines, on the one walk-through that names the page
+   * as its main one (the page's other walk-throughs leave it out). The website's landing page shows
+   * them beside the page's picture; tests/landing.test.ts holds them to LANDING.
+   */
+  does?: Does[];
   pages: HelpPage[];
   /** A rule or warning the player relies on, on the last page. `warn` shows the state diamond in red. */
   good?: { text: string; warn?: boolean };
