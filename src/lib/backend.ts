@@ -1045,6 +1045,7 @@ export async function loadSettings(): Promise<Settings> {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
+    jumpToPick: typeof raw?.jumpToPick === "boolean" ? raw.jumpToPick : base.jumpToPick,
     // Only the four sections' names, once each: anything else is dropped.
     sectionsClosed: Array.isArray(raw?.sectionsClosed) ? [...new Set(raw.sectionsClosed.filter((k: unknown): k is string => typeof k === "string" && SECTION_NAMES.includes(k)))] : [],
     // Pairs of a short key and a number only, each key once, at most METER_CAP.

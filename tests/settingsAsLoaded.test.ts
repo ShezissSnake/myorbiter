@@ -134,3 +134,8 @@ test("a reward-card weight that is not a finite number loads as the usual one", 
 test("a text as the pick weights does not spread its letters into them", async () => {
   assert.deepEqual((await load({ pick: "abc" })).pick, defaultSettings().pick);
 });
+
+test("Switch to Current fissure is a yes or no: a text loads as the usual one", async () => {
+  for (const bad of ["false", 0, null, {}]) assert.equal((await load({ jumpToPick: bad })).jumpToPick, true, JSON.stringify(bad));
+  assert.equal((await load({ jumpToPick: false })).jumpToPick, false);
+});
