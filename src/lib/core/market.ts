@@ -332,6 +332,17 @@ export function typedFloor(floors: Readonly<Record<string, number>>, o: Keyed, d
  * or named as the item's first) goes, so the one typed is the one that counts. Floors of other
  * listings stay, the empty sculpture's a filled one fell back on included.
  */
+/**
+ * What Orders' Floor field makes of `typed`: a floor (whole platinum), null to clear it (empty, 0
+ * or less), or "over" when it is above `max`, which the field refuses rather than save a floor the
+ * next start would not keep.
+ */
+export function floorTyped(typed: string, max: number): number | null | "over" {
+  const n = Math.round(Number(typed));
+  if (!typed.trim() || !Number.isFinite(n) || n <= 0) return null;
+  return n > max ? "over" : n;
+}
+
 export function withOwnFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null, floor: number | null): Record<string, number> {
   const out = { ...floors };
   // The other keys of this very listing: only when it is the item's first variant (or the item has none).

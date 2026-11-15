@@ -10,8 +10,8 @@
   import { until } from "../core/traders";
   import { untrack } from "svelte";
   import type { Model } from "../core/model";
-  import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
-  import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
+  import { MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
+  import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
@@ -238,9 +238,18 @@
   const firstVariant = (o: MyOrder) => mkt.item(o.itemId)?.subtypes?.[0] ?? null;
   /** The floor typed for this listing (saved under another key of it included); one it falls back on shows in the placeholder, as the plan counts it. */
   const floorOf = (o: MyOrder) => typedFloor(settings.floors, o, firstVariant(o));
-  function setFloor(o: MyOrder, v: string) {
-    const n = Math.round(Number(v));
-    settings.floors = withOwnFloor(settings.floors, o, firstVariant(o), !v || !Number.isFinite(n) || n <= 0 ? null : n);
+  /** Listings whose Floor field refused the last value typed (over the limit), by order id. */
+  let floorRefused = $state<Record<string, boolean>>({});
+  function setFloor(o: MyOrder, input: HTMLInputElement) {
+    const floor = floorTyped(input.value, MAX_SAVED_PRICE);
+    if (floor === "over") {
+      // Refused here rather than saved and cut at the next start: the floor stays as it was.
+      floorRefused = { ...floorRefused, [o.id]: true };
+      input.value = String(floorOf(o) ?? "");
+      return;
+    }
+    if (floorRefused[o.id]) floorRefused = Object.fromEntries(Object.entries(floorRefused).filter(([id]) => id !== o.id));
+    settings.floors = withOwnFloor(settings.floors, o, firstVariant(o), floor);
   }
   function togglePause(o: MyOrder) {
     // Kept under the listing's own key: a filled sculpture's pause is its own once set here.
@@ -1063,7 +1072,7 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={floorOf(o) ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
+            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="err small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
             <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
