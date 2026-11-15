@@ -21,6 +21,12 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
+/// A cache checked at `checked` still holds at `now`. A check stamped later than now (the clock
+/// ran ahead then, and was set right since) is old: else it would hold until real time caught up.
+fn fresh(checked: u64, now: u64) -> bool {
+    checked <= now && now - checked < FRESH
+}
+
 fn get(url: &str) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(90))
@@ -77,7 +83,7 @@ pub fn recipe_data(dir: &Path) -> Result<Value, String> {
     let path = dir.join(FILE);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(c) = &cached {
-        if now().saturating_sub(c["checkedAt"].as_u64().unwrap_or(0)) < FRESH {
+        if fresh(c["checkedAt"].as_u64().unwrap_or(0), now()) {
             return Ok(c.clone());
         }
     }
@@ -101,6 +107,16 @@ pub fn recipe_data(dir: &Path) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_check_stamped_in_the_future_is_old() {
+        let t = 1_800_000_000;
+        assert!(fresh(t, t) && fresh(t, t + FRESH - 1), "fresh for FRESH after the check");
+        assert!(!fresh(t, t + FRESH), "then old");
+        // Stamped while the clock ran ahead, then set right: old at once, not fresh until real time catches up.
+        assert!(!fresh(t + 1, t), "a second ahead");
+        assert!(!fresh(t + 30 * 24 * 3600, t), "a month ahead");
+    }
 
     #[test]
     fn compact_keeps_ingredients_and_names_resources() {
