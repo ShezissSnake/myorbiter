@@ -18,6 +18,8 @@
   import { recruitLine } from "../core/recruit";
   import CopyButton from "./CopyButton.svelte";
   import { reveal } from "../motion";
+  import { fissuresOutOfDate, type WorldRead } from "../core/worldAge";
+  import { checkedWhen } from "../core/timers";
 
   type Pick = { name: string; refinement: string; held: string; plat: number; radiant: number };
   /** Your best relic for the era, and the next ones (`more`) behind a click. */
@@ -32,6 +34,7 @@
     watched = new Set<string>(),
     onera = null,
     saving = () => null,
+    read = { at: null, error: null, read: true },
   }: {
     fissures: Fissure[] | null;
     mode: FissureMode;
@@ -43,6 +46,8 @@
     onera?: ((era: string) => void) | null;
     /** Sets you're saving parts for that a relic of yours of this era drops a missing part of, and those relics. */
     saving?: (era: string) => { sets: string[]; relics: string[] } | null;
+    /** The last world-state read: an old list is said as old, never as none open. */
+    read?: WorldRead;
   } = $props();
   /** The era whose next-best relics are open. */
   let opened = $state<string | null>(null);
@@ -51,8 +56,8 @@
   // Only with alerts to go by: none set, it's the whole board again.
   const mine = $derived(only && alerts > 0);
   const eras = $derived(mine ? fissuresByEra((fissures ?? []).filter((f) => watched.has(f.id)), "all", now) : fissuresByEra(fissures, mode, now));
-  /** Every fissure read has closed: the read is stale (the worldstate couldn't be read since), not a quiet hour. */
-  const outOfDate = $derived(!!fissures?.length && counts.normal + counts.steel + counts.storm === 0);
+  /** None open, and the list is old (every fissure read has closed, or the read is stale: a sleep, failed reads), not a quiet hour. */
+  const outOfDate = $derived(fissuresOutOfDate(fissures, read, now));
   /** "A, B and 3 more" */
   const some = (xs: string[], n = 4) => (xs.length <= n ? xs.join(", ") : `${xs.slice(0, n).join(", ")} and ${xs.length - n} more`);
   const left = (f: Fissure) => until(f.expiry, now).replace("under a minute", "<1 min");
@@ -72,7 +77,7 @@
 </div>
 
 {#if outOfDate}
-  <p class="dim small">The fissure list is out of date: every fissure MyOrbiter last read has closed, and the worldstate can't be read right now (api.warframestat.us and the game's own list). {proxy.problem ?? "MyOrbiter tries again every few minutes."}</p>
+  <p class="dim small">The fissure list is out of date: every fissure MyOrbiter last read{read.at != null ? ` (${checkedWhen(read.at, now)})` : ""} has closed{read.error ? ", and the worldstate can't be read right now (api.warframestat.us and the game's own list)" : ""}. {proxy.problem ?? (read.error ? "MyOrbiter tries again every few minutes." : "The next read brings the fissures open now.")}</p>
 {:else if !eras.length}
   <p class="dim small">{mine ? "None of the fissures open right now match your alerts." : `No ${mode === "steel" ? "Steel Path fissures" : mode === "storm" ? "Void Storms" : "fissures"} open right now.`}</p>
 {:else}

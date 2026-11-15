@@ -2,7 +2,7 @@
 // but not when you leave for the Orbiter or the game closes: a squad loaded hours ago would stay
 // "live" until the next mission. With nothing in the log for a while, it's over.
 
-import type { MissionState } from "./types";
+import type { Fissure, MissionState } from "./types";
 
 /** No log line about the fissure for this long (a round is 5 minutes or less): it's over. */
 export const MISSION_STALE_MS = 45 * 60_000;
@@ -13,9 +13,15 @@ export function lastEventAt(ms: MissionState | null | undefined): number | null 
   return (ms.session_start + ms.last_event) * 1000;
 }
 
-/** In a fissure right now: relics loaded for a round, and the log heard from recently. */
-export function inFissure(ms: MissionState | null | undefined, now = Date.now()): boolean {
+/**
+ * In a fissure right now: relics loaded for a round, and the log heard from recently. Without the
+ * log's clock (its "Current time" line missing or unread), how long ago is unknown: then it lasts
+ * while a fissure on the mission's node (`fissures`, the world state's) is open, and ends with
+ * that fissure's own expiry; with nothing to go by, it isn't.
+ */
+export function inFissure(ms: MissionState | null | undefined, now = Date.now(), fissures: Fissure[] | null = null): boolean {
   if (!ms?.relics.length) return false;
   const at = lastEventAt(ms);
-  return at == null || now - at < MISSION_STALE_MS;
+  if (at != null) return now - at < MISSION_STALE_MS;
+  return !!ms.mission && (fissures ?? []).some((f) => f.node === ms.mission && Date.parse(f.expiry) > now);
 }
