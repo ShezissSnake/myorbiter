@@ -5,7 +5,8 @@ import type { Model } from "./model";
 import { masteryHelp, RARE_REWARD } from "./worldNeeds";
 
 export interface InvasionReward {
-  uniqueName: string;
+  /** The reward's path: the catalog's, or the store's ("/Lotus/StoreItems/…"); not always given. */
+  uniqueName?: string;
   type: string;
   count: number;
 }
@@ -23,8 +24,8 @@ export interface Invasion {
 export interface InvasionNeed {
   /** Invasion id plus the reward: what a notification is sent once for. */
   key: string;
-  /** The reward's path, as the world state gives it. */
-  uniqueName: string;
+  /** The reward's path, as the world state gives it (when it gives one). */
+  uniqueName?: string;
   node: string;
   reward: string;
   count: number;
@@ -50,13 +51,15 @@ export function invasionNeeds(m: Model, invasions: Invasion[] | null | undefined
     if (inv.completed) continue;
     for (const side of [inv.attacker, inv.defender]) {
       for (const r of side?.reward?.countedItems ?? []) {
-        // The same rule as an alert's reward (worldNeeds.ts): a blueprint or part of something you
-        // haven't mastered or built, that you don't hold enough of.
-        if (!/\/Recipes\//.test(r.uniqueName)) continue;
+        if (!r?.type) continue;
+        // The same rule as an alert's reward (worldNeeds.ts, which reads a store path as the
+        // catalog's and goes by the name where there's no path): a blueprint or part of something
+        // you haven't mastered or built, that you don't hold enough of.
+        if (r.uniqueName && !/\/Recipes\//.test(r.uniqueName)) continue;
         const part = masteryHelp(m, { uniqueName: r.uniqueName, name: r.type });
         if (!part || part.whole) continue;
         out.push({
-          key: `${inv.id}|${r.uniqueName}`,
+          key: `${inv.id}|${r.uniqueName ?? r.type}`,
           uniqueName: r.uniqueName,
           node: inv.node,
           reward: r.type,
