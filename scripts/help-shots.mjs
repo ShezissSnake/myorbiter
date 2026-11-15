@@ -178,9 +178,9 @@ async function reach(p, shot, where) {
     await p.waitForTimeout(400);
   }
   if (shot.open === "settings") {
-    // Settings is in the foot's More menu.
-    await p.locator(".rail .foot button.more").first().click();
-    await p.locator(".moremenu [data-item='Settings']").first().click();
+    // Settings: in the full sidebar's foot; folded, in More's menu (the same `data-item`).
+    if (!(await p.locator(".rail .foot [data-item='Settings']").count())) await p.locator(".rail .foot button.more").first().click();
+    await p.locator(":is(.rail .foot, .moremenu) [data-item='Settings']").first().click();
   } else {
     const label = pageById[shot.open]?.label;
     if (!label) throw new Error(`${where}: no page ${shot.open}`);

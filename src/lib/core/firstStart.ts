@@ -33,8 +33,11 @@ export interface Signs {
   signedInSince: number | null;
   /** MyOrbiter's own reading of the game's log: found, and whether it says the player signed in. */
   log: { found: boolean; signedIn: boolean } | null;
-  /** The last pick-up of TennoScope's data: its error (if it failed), and what it took in. */
-  pickup: { error: string | null; entries: number; observedAt: number | null };
+  /**
+   * The last pick-up of TennoScope's data: its error (if it failed), and what it took in.
+   * `missing`: the error is TennoScope's data not found, after an inventory was read here before.
+   */
+  pickup: { error: string | null; entries: number; observedAt: number | null; missing?: boolean };
   /** Linux's Yama ptrace_scope, when known. */
   ptraceScope: number | null;
 }
@@ -162,6 +165,22 @@ export function firstStart(s: Signs): StepState {
   return { ...base, stage: stuck ? "Signed in, but no inventory yet" : "Signed in: reading your inventory", waitingFor: "TennoScope to read your inventory", stuck, reason: stuck ? why : null, todo: stuck ? "Try again, and MyOrbiter asks TennoScope to read now." : "TennoScope reads it in a moment; this page turns into your collection by itself.", actions: ["retry"] };
 }
 
+/** When each wait began (ms): the setup's start or the last Try again, and the first time each sign was seen since. */
+export interface Waits {
+  since: number;
+  runningSince: number | null;
+  gameSince: number | null;
+  signedInSince: number | null;
+}
+
+/**
+ * Try again: every wait counts from `now`, the sign-in and the inventory steps' too. A sign
+ * already seen counts as seen now; one not seen yet starts its wait when it turns up.
+ */
+export function tryAgain(w: Waits, now: number, running: boolean): Waits {
+  return { since: now, runningSince: running ? now : null, gameSince: w.gameSince == null ? null : now, signedInSince: w.signedInSince == null ? null : now };
+}
+
 /** One line for MyOrbiter's log when the state changes: no names, no paths (the log writes ~ anyway). */
 export function logLine(x: StepState): string {
   return `first start: ${x.stage}${x.stuck && x.reason ? `; ${x.reason}` : x.waitingFor ? `; waiting for ${x.waitingFor}` : ""}`;
@@ -179,6 +198,7 @@ export function gameLine(s: Signs): { value: string; title: string; ok: boolean 
 /** The sidebar's Inventory line when nothing is loaded: which side it's waiting on, or why not. */
 export function inventoryLine(s: Signs): { value: string; title: string } {
   const r = s.status?.report;
+  if (s.pickup.missing) return { value: "Data not found", title: `MyOrbiter can't find TennoScope's data, where it read your inventory before (Settings, Where things are): ${s.pickup.error}` };
   if (!s.status?.running) return { value: "TennoScope off", title: "TennoScope isn't running, so nothing reads your inventory" };
   if (!r) return { value: "No report", title: "TennoScope runs but hasn't reported yet" };
   if (r.setup.access_mode !== "full") return { value: "Full mode off", title: "Your inventory is only read in Full mode (Settings, TennoScope)" };

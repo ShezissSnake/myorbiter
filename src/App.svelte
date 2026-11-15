@@ -6,13 +6,14 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { tradeLineSale } from "./lib/core/soldMarks";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
-  import { buildModel, ERAS, type Model } from "./lib/core/model";
+  import { buildModel, type Model } from "./lib/core/model";
   import { readKey, sameRead } from "./lib/core/sameRead";
   import { mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
@@ -61,13 +62,13 @@
     type ScreenCards,
     type Settings,
     emptyBundle,
-    nothingYet,
     PLATFORM_LABEL,
     type Platform,
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
   } from "./lib/backend";
@@ -126,6 +127,8 @@
   import { NEWEST } from "./lib/whatsNew";
   import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
+  import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
+  import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
@@ -135,6 +138,8 @@
   import Icon from "./lib/ui/Icon.svelte";
   import Crest from "./lib/ui/Crest.svelte";
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
+  import { checkDue } from "./lib/core/schedule";
+  import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -159,7 +164,8 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
-  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, type Action, type Signs } from "./lib/core/firstStart";
+  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
+  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -295,6 +301,8 @@
 
   let settings = $state<Settings>(defaultSettings());
   let settingsReady = false;
+  /** The saved settings replaced the defaults (set with them, before anything else awaits). */
+  let settingsLoaded = $state(false);
   /** Saved settings are in and drawn: until then a section's saved state is set, not folded to, so
    *  closed sections don't fold shut on every launch. */
   let railSettled = false;
@@ -331,6 +339,15 @@
   let liveRead = $state(false);
   /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
   let error = $state<string | null>(null);
+  /** An inventory has been read here before: the value history keeps a point for every read (Stats). */
+  const readBefore = $derived(settings.game.valueHistory.length > 0);
+  /**
+   * The read failed because nothing has been read yet: the setup page's case. Once an inventory
+   * has been read, TennoScope's data missing is not that: it's said as not found (core/gettingIn.ts).
+   */
+  const notYet = $derived(!!error && notReadYet(error, readBefore));
+  /** That missing data, said in the sidebar's Inventory line too. */
+  const dataNotFound = $derived(!!error && readBefore && !notYet && dataMissing(error));
   /**
    * Running without an inventory: TennoScope hasn't read one yet and you chose to carry on, or
    * this is a Mac, where TennoScope doesn't run. The pages work from an empty collection, and the
@@ -355,9 +372,10 @@
   $effect(() => {
     if (!available.some((p) => p.id === settings.tab)) settings.tab = "home";
   });
-  // The market follows your platform; a new one means new order books and prices.
+  // The market follows your platform; a new one means new order books and prices. The defaults'
+  // platform, before the saved settings are in, is never a switch.
   $effect(() => {
-    void mkt.usePlatform(settings.market.platform).catch(() => {});
+    void mkt.usePlatform(settings.market.platform, settingsLoaded ? settings.market : undefined).catch(() => {});
   });
   // Switching to or from a console changes what an empty TennoScope folder means.
   let wasConsole: boolean | null = null;
@@ -369,7 +387,7 @@
   /** Linux's limit on reading another program's memory, when it stops TennoScope reading the game. */
   let ptraceScope = $state<number | null>(null);
   $effect(() => {
-    if (!model && error && nothingYet(error) && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
+    if (!model && notYet && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
   });
   /** When the data on screen was read. */
   let loadedAt = $state<number | null>(null);
@@ -463,7 +481,7 @@
   // (core/firstStart.ts): each wait has a time limit and ends in a plain state with a way on, and
   // Finish later (or Esc) leaves it at any step. While it's open the sidebar waits (inert).
   /** The setup page is up: nothing read yet, and TennoScope is meant to read it. */
-  const setupShown = $derived(!model && !!error && nothingYet(error) && !noTennoScope);
+  const setupShown = $derived(!model && notYet && !noTennoScope);
   /** The first start is open: its question, or the setup page. The rest of the window waits. */
   const setupOpen = $derived(!!firstRun || setupShown);
   /** A clock for the waits' limits, every second while the setup page is up. */
@@ -492,7 +510,7 @@
     setupWasUp = up;
   });
   /** The last pick-up of TennoScope's data: its error, and what it took in. */
-  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null });
+  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null, missing: !model && dataNotFound });
   const setupSigns = $derived.by((): Signs => ({
     now: setupNow,
     status: ts.status ? { supported: ts.status.supported !== false, running: ts.status.running, binary: ts.status.binary, report: ts.report } : null,
@@ -527,10 +545,9 @@
     lastSetupLine = line;
     logLine(setup.stuck ? "warn" : "info", "setup", line);
   });
-  /** A way on from a step: each starts that step's wait over. */
+  /** A way on from a step: each starts that step's wait over (the game's and the read's too). */
   function setupAct(a: Action) {
-    setupSince = Date.now();
-    tsRunningSince = ts.running ? setupSince : null;
+    ({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince } = tryAgain({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince }, Date.now(), ts.running));
     if (a === "retry") {
       if (setup.step === "start") void ts.check(true, true);
       else if (setup.step === "access") void ts.ask("--access=full");
@@ -539,21 +556,20 @@
     } else if (a === "full") void ts.ask("--access=full");
     else if (a === "overlay") {
       void ts.ask("--access=overlay");
-      finishLater();
+      finishLater("overlay");
     } else if (a === "settings") showSettings = true;
   }
   /**
-   * Finish later (or Esc): out of the first start with safe defaults, at any step. MyOrbiter
-   * carries on without an inventory until TennoScope reads one, and on a first start (nothing
-   * chosen yet) every automatic action on warframe.market stays off.
+   * Finish later (or Esc): out of the setup page with safe defaults, at any step. MyOrbiter
+   * carries on without an inventory until TennoScope reads one, and every automatic action on
+   * warframe.market is switched off, first start or not, until the player turns it on again
+   * (core/gettingIn.ts). "Not now: overlay only" leaves the same way, but switches them off on a
+   * first start only.
    */
-  function finishLater() {
-    logLine("info", "setup", `first start: finished later at "${setup.stage}"`);
-    if (!settings.fullModeAsked || firstStartRun) {
-      settings.market.auto = false;
-      settings.market.autoTrades = false;
-      settings.market.autoRep = false;
-    }
+  function finishLater(how: "later" | "overlay" = "later") {
+    const { next, off } = leaveSetup(how, settings.market, !settings.fullModeAsked || firstStartRun);
+    Object.assign(settings.market, next);
+    logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
   }
   /** This start began with the first start's question: a new install's first run. */
@@ -716,8 +732,9 @@
   const retryLater = (n: number, again: () => void) => {
     if (n < 5) setTimeout(again, 1000 * 2 ** n);
   };
-  // Saving settings failed (a full disk, a locked file): said above the page until it works again.
-  let saveError = $state<string | null>(null);
+  // Saving settings failed (a full disk, a locked file), or the saved ones couldn't be read: said above
+  // every page, the setup page and the "Can't read" pages included, until it works again.
+  let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
@@ -826,7 +843,7 @@
       paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
       quietKind: o.quiet.includes(gate),
       // In a fissure: only the reward to take, which is what you'd want then.
-      quietFissure: o.quietInFissure && inFissure(mission) && gate !== "reward",
+      quietFissure: o.quietInFissure && inFissure(mission, Date.now(), live.fissures) && gate !== "reward",
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
@@ -1126,8 +1143,10 @@
   });
   /** Marks a world event announced; false when it was already. Remembers the last 300. */
   function firstTime(key: string): boolean {
-    if (settings.game.worldNotified.includes(key)) return false;
-    settings.game.worldNotified = [key, ...settings.game.worldNotified].slice(0, 300);
+    // A damaged saved list (not a list) is started again rather than thrown on.
+    const seen = Array.isArray(settings.game.worldNotified) ? settings.game.worldNotified : [];
+    if (seen.includes(key)) return false;
+    settings.game.worldNotified = [key, ...seen].slice(0, 300);
     return true;
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
@@ -1188,17 +1207,17 @@
       tell("varzia", `Varzia: ${needs.length} prime${needs.length === 1 ? "" : "s"} you need`, `${names(needs.map((v) => v.name), 6)}${only ? `. ${only} only from her relics right now` : ""}. Rotation ends in ${until(exp)}.`);
     });
   });
-  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once a week.
+  // The Duviri Circuit's week: warframes you haven't mastered, adapters for weapons you have. Once
+  // a week for each (core/worldOnce.ts): one the wanted list gains mid-week is told alone.
   $effect(() => {
     const m = bgModel;
     if (!m || !live.duviriCycle || !settingsReady || onConsole) return;
     untrack(() => {
       const c = today(m, live, Date.now(), settings.game.gear).circuit;
       if (!c) return;
-      const frames = c.frames.filter((x) => x.wanted).map((x) => x.name);
-      const incarnons = c.incarnons.filter((x) => x.wanted).map((x) => x.name);
-      if (!frames.length && !incarnons.length) return;
-      if (!firstTime(`circuit|${c.resets}|${[...frames, ...incarnons].join(",")}`)) return;
+      const { frames, incarnons, keys } = circuitNews(c, settings.game.worldNotified);
+      if (!keys.length) return;
+      for (const k of keys) firstTime(k);
       tell("circuit", "Duviri Circuit this week", [frames.length ? `Warframes to master: ${names(frames)}` : "", incarnons.length ? `Steel Path Incarnon for weapons you have: ${names(incarnons)}` : ""].filter(Boolean).join("\n"));
     });
   });
@@ -1538,9 +1557,9 @@
           // in this trade (or a Sold click) closed meanwhile isn't listed any more.
           const order = stillListed(s.order, mkt.orders);
           const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
-          // Which listing this lowered, by how much: a Sold click on it soon after asks first.
-          const lowered = order && marked ? { lowered: { listing: order.id, count: marked.quantity, at: Date.now() } } : {};
-          settings.market.sales = [{ at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key, ...lowered }, ...settings.market.sales].slice(0, 2000);
+          // Which listing this lowered, and the copies it couldn't mark: a Sold click soon after asks first.
+          const sale = tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order, marked: marked?.quantity ?? 0, now: Date.now() });
+          settings.market.sales = [sale, ...settings.market.sales].slice(0, 2000);
           lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
           done++;
         }
@@ -1862,29 +1881,33 @@
     });
   });
 
-  // Wishlist: an era that had no fissure open gets one, and you hold relics of that era with a part
-  // you starred. Every era usually has fissures open (and Omnia takes any but Requiem), so this only speaks
-  // up after a gap; the Wishlist page shows what to crack at any moment.
+  // Wishlist: an era whose relics couldn't be cracked in any open fissure can be (its own or an
+  // Omnia one, which takes any but Requiem), and you hold relics of that era with a part you
+  // starred. Every era usually has fissures open, so this only speaks up after a gap; the Wishlist
+  // page shows what to crack at any moment. Only from a current world state (core/worldOnce.ts):
+  // not the one kept from last time, and after a sleep or failed reads the first fresh read is
+  // compared with the last list before them.
   let erasOpenBefore: Set<string> | null = null;
   $effect(() => {
     const fs = live.fissures;
     const m = bgModel;
-    // Not from the worldstate kept from last time: eras whose fissures ended since would seem to open.
-    if (!m || !fs || !liveRead) return;
+    if (!m || !fs) return;
     untrack(() => {
-      const open = openEras(fs);
-      const openNow = new Set(ERAS.filter((e) => (open[e]?.length ?? 0) > 0));
-      const before = erasOpenBefore;
-      erasOpenBefore = openNow;
-      if (!before || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
-      const eras = wishlistEras(m, settings.favourites);
-      const fresh = [...openNow].filter((e) => !before.has(e) && eras.has(e));
-      if (!fresh.length) return;
+      const now = Date.now();
+      // The wishlist's relics by era, worked out only when an era opens.
+      let eras: ReturnType<typeof wishlistEras> | null = null;
+      const wished = () => (eras ??= settings.favourites.length ? wishlistEras(m, settings.favourites) : new Map());
+      const { baseline, fresh } = wishlistNews(erasOpenBefore, fs, now, liveCurrent({ at: liveAt, error: liveError, read: liveRead }, now), { has: (e) => wished().has(e) });
+      erasOpenBefore = baseline;
+      if (!fresh.length || onConsole || !settings.favourites.length || !settings.notify.wishlist) return;
+      // An era with no fissure of its own open is crackable in an Omnia one.
+      const open = openEras(fs, now);
+      const where = (e: string) => (open[e]?.length ? e : "Omnia");
       const lines = fresh.map((e) => {
-        const r = eras.get(e)![0];
-        return `${e}: crack ${r.relic} for ${r.part}`;
+        const r = wished().get(e)![0];
+        return `${e}${where(e) === e ? "" : " (in an Omnia fissure)"}: crack ${r.relic} for ${r.part}`;
       });
-      tell("wishlist", fresh.length === 1 ? `${fresh[0]} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
+      tell("wishlist", fresh.length === 1 ? `${where(fresh[0])} fissure open for your wishlist` : "Fissures open for your wishlist", lines.join("\n"));
     });
   });
 
@@ -2037,18 +2060,13 @@
   });
   $effect(() => {
     const deals = mkt.deals;
-    if (!deals.length) return;
     untrack(() => {
-      // Once per item and price: another seller at the same price isn't news, a lower price is.
-      const said = (d: (typeof deals)[number]) => `${d.slug}|${d.rank ?? ""}`;
-      const lowest = new Map<string, number>();
-      for (const k of settings.game.dealsNotified) {
-        const [item, price] = k.split("@");
-        if (price && !(lowest.get(item)! <= +price)) lowest.set(item, +price);
-      }
-      const fresh = deals.filter((d) => !(lowest.get(said(d))! <= d.price));
+      // Once per deal (core/worldOnce.ts): an item announced is news again once a scan finds it gone
+      // from Cheap buys, or at a lower price; never more than once an hour.
+      const { fresh, notified } = dealNews(deals, mkt.dealsUnread, settings.game.dealsNotified, Date.now(), mkt.dealsAt != null);
+      const had = settings.game.dealsNotified;
+      if (!Array.isArray(had) || notified.join() !== had.join()) settings.game.dealsNotified = notified;
       if (!fresh.length) return;
-      settings.game.dealsNotified = [...fresh.map((d) => `${said(d)}@${d.price}`), ...settings.game.dealsNotified].slice(0, 300);
       if (settings.notify.deals) tell("deals", fresh.length === 1 ? `Cheap: ${fresh[0].name} for ${fresh[0].price}p` : `${fresh.length} cheap buys`, fresh.map((d) => `${d.name}: ${d.price}p from ${d.seller} (usually ${d.usual}p)`).join("\n"));
     });
   });
@@ -2246,6 +2264,8 @@
   const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
   /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
   let syncStep = $state<string | null>(null);
+  /** How the last sync ended, for its word between syncs (`syncIdleWord`). */
+  let syncEnd = $state<SyncEnd | null>(null);
   function refreshAll() {
     // Already at it (Ctrl+R again): the button flashes rather than the key doing nothing.
     if (syncJob.working) {
@@ -2318,7 +2338,12 @@
       } finally {
         syncStep = null;
       }
-    }).finally(syncFinished);
+    })
+      .then(() => {
+        if (syncJob.state === "failed") syncEnd = { failed: true, short: syncJob.short };
+        else if (syncJob.state === "done") syncEnd = { failed: false, note: syncJob.note };
+      })
+      .finally(syncFinished);
   }
 
   // ---------------------------------------------------------------- keyboard, like a desktop app
@@ -2495,12 +2520,15 @@
         bundleKey = key;
       }
       noInventory = empty;
+      // "Continue without inventory" counts until an inventory is read.
+      settings.withoutInventory = stillWithout(settings.withoutInventory, { inventory: !empty });
       loadedAt = Date.now();
       error = null;
     } catch (e) {
       // Nothing to read yet, and you'd rather carry on (or TennoScope can't run here): an empty
-      // collection until it can. The stamp poll reloads once TennoScope writes its data.
-      if (nothingYet(String(e)) && (settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) {
+      // collection until it can. The stamp poll reloads once TennoScope writes its data. Never for
+      // data that's gone missing once an inventory has been read: that's said (core/gettingIn.ts).
+      if (carryOnEmpty({ error: String(e), withoutInventory: settings.withoutInventory, noTennoScope, readBefore, held: !!bundle && !noInventory })) {
         bundle = emptyBundle();
         bundleKey = null;
         noInventory = true;
@@ -2518,10 +2546,9 @@
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
     if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
-    // Which file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
-    const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
-    if (missing) return `TennoScope's data in ${settings.dataDir || defaultDir || "its folder"} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
-    if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
+    // Once an inventory has been read, missing data is said as not found, never as "not yet".
+    const missing = missingWords(e, settings.dataDir || defaultDir || "its folder", readBefore);
+    if (missing) return missing;
     if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
     return "MyOrbiter couldn't read TennoScope's data.";
   }
@@ -2635,6 +2662,10 @@
       // licence: read before anything uses it. Without it there's simply nothing to dissolve into.
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
+      settingsLoaded = true;
+      // Saved settings that couldn't be read are never saved over: said from the start, over every page.
+      const unreadable = settingsUnreadableWhy();
+      if (unreadable != null) saveError = { unreadable: true, cause: unreadable };
       // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
       requestAnimationFrame(() => (railSettled = true));
       await wiki;
@@ -2743,7 +2774,9 @@
         }
         // Check (and, with Apply automatically, send) on your timer.
         if (!model || !(s.auto || s.autoCheck) || !mkt.linked || mkt.busy) return;
-        if (mkt.lastPass && Date.now() - mkt.lastPass < mkt.passDelay(s.every * 60_000)) return;
+        // Due a whole interval after the last check, this run's or the one saved from an earlier
+        // run; a check that fell while MyOrbiter was closed runs now, once (core/schedule.ts).
+        if (!checkDue(mkt.lastCheckOf(s), mkt.passDelay(s.every * 60_000), Date.now())) return;
         const m = model;
         void timing.tick("market poll", () => mkt.reprice(m, s, s.auto, true));
       }, 15_000);
@@ -2805,7 +2838,7 @@
       // From every sign MyOrbiter has (core/firstStart.ts): not running, at sign-in, signed in; and
       // when nothing is loaded, which side the inventory waits on or why it isn't there.
       items.push({ label: "Game", ...gameLine(setupSigns) });
-      if (inFissure(mission, tick)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
+      if (inFissure(mission, tick, live.fissures)) items.push({ label: "Fissure", value: mission?.mission ?? "In progress", title: "A fissure mission is under way", ok: true });
       else if (model?.observedAt) items.push({ label: "Inventory", value: `Read ${ago(model.observedAt, tick)}`, title: `Inventory read ${fmtTime(model.observedAt)}`, ok: true });
       else items.push({ label: "Inventory", ...inventoryLine(setupSigns), ok: false });
     }
@@ -2820,7 +2853,7 @@
       ok: mkt.linked,
     });
     const p = settings.game.platinum;
-    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
+    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString("en"), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
     const next: Status = { items, plat, repricing };
     if (statusKept && JSON.stringify(statusKept) === JSON.stringify(next)) return statusKept;
     return (statusKept = next);
@@ -2847,6 +2880,10 @@
       ? [{ label: "TennoScope", tone: tsTone, title: tsTone === "ok" ? "TennoScope: status, inventory sync, screen capture" : tsTone === "bad" ? "TennoScope: not running, or something failed. Open for details" : "TennoScope: something needs a look. Open for details", run: () => (showTennoscope = true) }]
       : []),
   ]);
+  /** The full bar's foot shows the rest of the buttons, all of them: Settings first, in the row with
+   *  Sync and Notifications, then Search, Help, Report a bug, TennoScope. */
+  const FOOT_ORDER = ["Settings", "Search", "Help", "Report a bug", "TennoScope"];
+  const footCells = $derived([...moreItems].sort((a, b) => FOOT_ORDER.indexOf(a.label) - FOOT_ORDER.indexOf(b.label)));
   // The page list scrolls on a short window: a fade at its foot says there's more below, and at
   // its head that there's more above.
   let navEl = $state<HTMLElement | null>(null);
@@ -2953,17 +2990,19 @@
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
            version the updater compares), small and muted, and your platinum with its picture. -->
       {#if compact}<Wordmark glyph height={26} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><GameIcon name="platinum" size={16} even /><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><GameIcon name="platinum" size={16} even /></span>{/if}</span></span>{/if}
-      <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
-        <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
-      </button>
     </div>
+    <!-- The fold arrow: one spot on screen in both widths (inside the folded bar's width, at the top),
+         the same size and look, so two clicks without moving the pointer fold and unfold. -->
+    <button class="fold" aria-label={compact ? "Show labels" : "Icons only"} title={compact ? "Show the page names" : "Icons only"} onclick={() => (settings.folded = !compact)}>
+      <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path d={compact ? "M6 3l5 5-5 5" : "M10 3 5 8l5 5"} fill="none" stroke="currentColor" stroke-width="1.5" /></svg>
+    </button>
 
     {#snippet navItem(p: Page)}
       <button class="nav" class:home={p.id === "home"} class:on={(navTo ?? settings.tab) === p.id} data-section={p.group || undefined} title={shortcutOf(p.id) ? `${p.label}: ${p.hint} (${shortcutOf(p.id)})` : `${p.label}: ${p.hint}`} aria-current={settings.tab === p.id ? "page" : undefined} onclick={() => navigate(p.id)}>
-        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={28} even />{:else}<Icon name={p.icon.line} size={22} stroke={1.5} />{/if}</span>
+        <span class="ic">{#if "game" in p.icon}<GameIcon name={p.icon.game} size={p.id === "home" ? 28 : 18} even />{:else}<Icon name={p.icon.line} size={16} stroke={1.5} />{/if}</span>
         <span class="lbl">{p.label}</span>
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
-        {#if p.id === "mission" && inFissure(mission, tick)}<span class="live" title="Fissure in progress"></span>{/if}
+        {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
         {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
       </button>
@@ -2992,8 +3031,11 @@
 
     <!-- The one place that says how the app is doing: the game, the inventory read (or the fissure
          under way) and warframe.market, each with a diamond (filled: fine; hollow: not yet or off).
-         Folded, the three diamonds alone (each line on hover). Then Sync, Notifications and More,
-         one a row; More holds the rest. The foot's "?" sits at the status's top right corner. -->
+         Folded, the three diamonds alone (each line on hover). The foot's "?" sits at the status's
+         top right corner. Then the buttons: in the full bar every one shows, a grid of even cells
+         (Sync, Notifications, Search, Settings, Help, Report a bug, TennoScope while it runs);
+         folded, one column: Sync, Notifications and More, which holds the rest. Each of the rest
+         carries its name as `data-item` in both places, so "open Settings" has one name. -->
     <div class="foot">
       <div class="state" role="group" aria-label="Status" data-card="status">
         {#each statusNow.items as it (it.label)}
@@ -3001,14 +3043,22 @@
         {/each}
         <HelpMark part="rail.foot" corner />
       </div>
-      <div class="tools">
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={24} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} sizer={["Waiting…", "Up to date", "Not synced"]}
+      <div class="tools" class:grid={!compact}>
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle)} sizer={["Waiting…", "Up to date", "Not synced"]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
-      {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
-      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={24} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
-      <MoreMenu items={moreItems} {compact} />
+      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      {#if compact}
+        <MoreMenu items={moreItems} {compact} />
+      {:else}
+        {#each footCells as it (it.label)}
+          <button type="button" class="tool cell" class:on={it.on} data-item={it.label} aria-label={it.label} aria-current={it.on ? "page" : undefined} title={it.title} onclick={it.run}>
+            <span class="ti">{#if it.icon}<Icon name={it.icon} size={18} stroke={1.4} />{:else}<i class="tsd tone-{it.tone ?? 'off'}"></i>{/if}</span>
+          </button>
+        {/each}
+      {/if}
       </div>
+      {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
     </div>
   </aside>
 
@@ -3021,7 +3071,14 @@
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
-    {#if !model && error && nothingYet(error)}
+    <!-- Above every page, the setup page and the "Can't read" pages too: what's changed there (the
+         first start's answers, Finish later, Settings) is lost just the same. -->
+    {#if saveError}
+      <div class="stale" role="alert" title={saveError.cause}>
+        <span>{saveTroubleWords(saveError)}</span>
+      </div>
+    {/if}
+    {#if !model && error && notYet}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up{#if !noTennoScope}<HelpMark part="setup.steps" />{/if}</h2>
@@ -3056,7 +3113,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={finishLater}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -3075,7 +3132,11 @@
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
+        {#if dataNotFound}
+          <p class="prose">TennoScope may have been reinstalled, its folder moved or deleted, or the drive it's on may not be there. When TennoScope writes its data again, MyOrbiter picks it up by itself; until then the TennoScope panel says what TennoScope is doing.</p>
+        {:else}
         <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
+        {/if}
         <details class="why"><summary>Details</summary><code>{error}</code></details>
         <div class="row">
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
@@ -3090,11 +3151,6 @@
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
-        </div>
-      {/if}
-      {#if saveError}
-        <div class="stale" role="alert" title={saveError}>
-          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. MyOrbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}
@@ -3133,7 +3189,7 @@
       {#snippet pane(id: string, body: import("svelte").Snippet)}
         {#if visited[id] && available.some((p) => p.id === id)}<div class="pane" class:shown={settings.tab === id} data-section={pageById[id as PageId]?.group || undefined}><svelte:boundary failed={pageFailed} onerror={(e) => pageError(id, e)}><PaneId {id}>{@render body()}</PaneId></svelte:boundary></div>{/if}
       {/snippet}
-      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
+      {#snippet pMission()}{#await loadMission(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mission", e)}><Page model={modelFor("mission")} masteryRank={settings.game.masteryRank} state={mission} error={missionError} cards={freshCards} bind:weights={settings.pick} {windowMode} tennoscopeRunning={!!ts.status?.running} fissures={live.fissures} onsettings={() => (showSettings = true)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pSets()}{#await loadSets(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sets", e)}><Page model={modelFor("sets")} advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pParts()}{#await loadParts(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("parts", e)}><Page model={modelFor("parts")} bind:advice={settings.advice} sell={settings.market.sellable} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMastery()}{#await loadMastery(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mastery", e)}><Page model={modelFor("mastery")} masteryRank={settings.game.masteryRank} bind:wishlist={settings.favourites} foundryReady={settings.game.foundryReady} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -3187,7 +3243,7 @@
     <div class="secscope" data-section={model ? pageById[settings.tab as PageId]?.group || undefined : undefined}><TourBar go={(t: string) => goTo(t)} /></div>
   </main>
   {#if sideShown && model}
-    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} />{/await}
+    {#await loadSideWatch(lazyTry) then { default: SideWatch }}<SideWatch {model} {live} bind:settings console={onConsole} bountyTables={relicTables?.bounties ?? null} go={(t: string) => goTo(t)} {shortListings} {liveError} {liveAt} {liveRead} />{/await}
   {:else if sideTab}
     <button class="sidetab" title="Show the Watching column: fissures, alerts, clocks and more beside every page" onclick={() => (settings.side.on = true)}>«</button>
   {/if}
@@ -3275,12 +3331,15 @@
      track under the section's glyph. Foot: how the app is doing, then the tools. Only the page list
      scrolls. */
   .rail {
-    display: flex; flex-direction: column; min-height: 0; overflow: hidden;
+    /* One row height for every page (28 px, its picture 18 px), and the gaps around a section's
+       pages: under its bar at least the gap between two pages, after its last page more. */
+    --row: 28px; --pic: 18px; --sec-in: 6px; --sec-out: 8px;
+    position: relative; display: flex; flex-direction: column; min-height: 0; overflow: hidden;
     background: #0e1013; border-right: 1px solid var(--rule);
   }
   /* The first start is open: the sidebar waits (it is inert too). */
   .rail.waits { opacity: .38; filter: saturate(.4); }
-  .brand { flex: none; display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 16px; }
+  .brand { flex: none; display: flex; align-items: flex-start; gap: .6rem; padding: 18px 12px 8px 58px; }
   .brand-text { flex: 1; display: grid; gap: 6px; min-width: 0; color: var(--platinum); }
   .brand-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
   /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
@@ -3288,25 +3347,29 @@
   /* Platinum: the one gold in the frame, always with its picture. */
   .brand-plat { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--gold); }
   .brand-plat b { font-family: var(--face-mark); font-weight: 700; font-size: 15px; line-height: 1; font-variant-numeric: tabular-nums; }
-  .fold { margin-left: auto; padding: .35rem; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
-  .fold:hover { color: var(--platinum); }
-  /* The page list scrolls on a short window; the top and the foot stay. One row height, 34 px, for
-     Home, every section's bar, every page and every button in the foot, in both widths. */
+  /* The fold arrow: the same 28 px square at the same spot in both widths, centred on the folded
+     bar's middle (35 px from the left edge), level with the wordmark. */
+  .fold { position: absolute; z-index: 1; top: 19px; left: 21px; width: 28px; height: 28px; display: grid; place-items: center; padding: 0; line-height: 0; border-color: transparent; background: transparent; color: var(--platinum-deep); }
+  .fold:hover:not(:disabled) { color: var(--platinum); background: rgb(255 255 255 / 5%); }
+  .fold:active:not(:disabled) { transform: none; }
+  /* The page list scrolls on a short window; the top and the foot stay. Home and every section's
+     bar are 34 px tall; every page and every button in the foot one row (28 px), in both widths. */
   nav { display: flex; flex-direction: column; padding: 0 0 6px; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; }
   nav { scroll-padding-block: 2.5rem 3rem; }
   nav.more { mask-image: linear-gradient(180deg, #000 calc(100% - 3rem), transparent); }
   nav.above { mask-image: linear-gradient(0deg, #000 calc(100% - 2.5rem), transparent); }
   nav.more.above { mask-image: linear-gradient(180deg, transparent, #000 2.5rem, #000 calc(100% - 3rem), transparent); }
   .nav {
-    position: relative; flex: none; display: flex; align-items: center; gap: 10px; width: 100%; height: 34px; text-align: left;
+    position: relative; flex: none; display: flex; align-items: center; gap: 10px; width: 100%; height: var(--row); text-align: left;
     border: 0; background: transparent; padding: 0 12px 0 36px; color: var(--platinum-dim);
     font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none;
   }
   /* The track: one hairline under the section's crest, the pages' pictures hung beside it. */
   .nav::before { content: ""; position: absolute; left: 22px; top: 0; bottom: 0; width: 1px; background: var(--rule); }
-  /* A page's picture, 28 px, in its own colours: quieter at rest, near full hovered, full when open.
-     No glow: that is kept for the page's primary action and the crest. */
-  .nav .ic { width: 28px; height: 28px; display: grid; place-items: center; flex: none; opacity: .7; }
+  /* A page's picture, 18 px (inside the label's line, smaller than the section's crest), in its own
+     colours: quieter at rest, near full hovered, full when open. No glow: that is kept for the page's
+     primary action and the crest. */
+  .nav .ic { width: var(--pic); height: var(--pic); display: grid; place-items: center; flex: none; opacity: .7; }
   .nav :global(.gi) { overflow: visible; }
   .nav:hover:not(:disabled) { color: var(--platinum); background: linear-gradient(rgb(241 243 246 / 4%), rgb(241 243 246 / 4%)) no-repeat 22px 0 / calc(100% - 22px) 100%; }
   .nav:hover .ic { opacity: .9; }
@@ -3317,7 +3380,8 @@
   .nav.on::before { width: 2px; background: var(--sec); }
   /* Home: the root, level with the section names, white, in the title's type; no track, its mark on
      the track's line. Open, a neutral tint across the full width and a white bar at the edge. */
-  .nav.home { padding-left: 8px; color: var(--platinum); }
+  .nav.home { height: 34px; padding-left: 8px; color: var(--platinum); }
+  .nav.home .ic { width: 28px; height: 28px; }
   .nav.home::before { display: none; }
   .nav.home .ic { opacity: .92; }
   .nav.home .lbl { font-family: var(--face-mark); font-weight: 700; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; }
@@ -3329,7 +3393,7 @@
      chevron points right, the bar says how many pages it holds and carries a 2 px rule in its
      colour along its foot; holding the open page, it keeps the section's 2 px mark at its edge. */
   .secbar {
-    flex: none; display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin-top: 4px; padding: 0 12px 0 6px;
+    flex: none; display: flex; align-items: center; gap: 8px; width: 100%; height: 34px; margin-top: var(--sec-out); padding: 0 12px 0 6px;
     background: var(--raised); border: 0; border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule);
     color: var(--sec); text-align: left;
   }
@@ -3342,15 +3406,18 @@
   .secbar[aria-expanded="false"] .chv { transform: rotate(-90deg); }
   .secbar[aria-expanded="false"] { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--sec) 75%, transparent); }
   .secbar.here { box-shadow: inset 0 -2px 0 color-mix(in srgb, var(--sec) 75%, transparent), inset 2px 0 0 var(--sec); }
-  .secpages > div { display: flex; flex-direction: column; }
+  /* A section's pages, a little apart from its bar and from the next section; the track runs
+     through the gaps. */
+  .secpages > div { position: relative; display: flex; flex-direction: column; padding: var(--sec-in) 0 0; }
+  .secpages > div::before { content: ""; position: absolute; left: 22px; top: 0; height: var(--sec-in); width: 1px; background: var(--rule); }
   .lbl { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .badge { margin-left: auto; }
   /* State: a diamond. Filled, under way (a fissure); hollow, on (automatic repricing). */
   .nav .live { margin-left: auto; width: 7px; height: 7px; background: var(--platinum); transform: rotate(45deg); flex: none; }
   .nav .live.dim { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
 
-  /* The foot: the status, then Sync, Notifications and More, one a row, never scrolled. One column,
-     never wider than the rail: a wide label can't push a row past the rail's edge. */
+  /* The foot: the status, then the buttons, never scrolled. Folded, one column; full, a grid of even
+     cells. Never wider than the rail: a wide label can't push a row past the rail's edge. */
   .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); padding: 6px 0; border-top: 1px solid var(--rule); }
   /* The foot's "?" at the status's top right corner; the lines keep clear of it. */
   .state { position: relative; display: grid; gap: 4px; min-width: 0; padding: 4px 36px 8px 18px; }
@@ -3360,17 +3427,38 @@
   .st .v { min-width: 0; color: var(--platinum); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dia { width: 7px; height: 7px; flex: none; background: var(--platinum); transform: rotate(45deg); }
   .dia.hollow { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
-  /* Sync, Notifications and More: a row each, the picture on the track's line, the label after it. */
+  /* Folded: Sync, Notifications and More, a row each. */
   .tools { display: grid; grid-template-columns: minmax(0, 1fr); }
+  /* Full: every button a cell of one size, as tall as a page row, four to a row; pictures alone on
+     one baseline, no box round each; the name and the shortcut in the tooltip. */
+  .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); padding: 0 8px; }
+  .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
+  .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
+  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
+     picture without pointing at it; its name is the picture and the tooltip. */
+  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 6px; padding: 0 0 0 8px; }
+  .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
+  /* Two cells are narrow for the register's capitals: the state in plain words there. */
+  .tools.grid :global(.sync .lbls.aside) { font-family: var(--face-text); font-size: 11px; letter-spacing: 0; text-transform: none; }
+  .tools.grid :global(.tool.on) { box-shadow: inset 0 -2px 0 var(--platinum); }
+  .tools.grid .bell .count { position: absolute; top: -2px; right: 4px; margin: 0; }
+  .tools.grid .bell.paused::after { left: 50%; }
+  .tools.grid .cell .ti { color: var(--platinum-dim); }
+  .tools.grid .cell:hover .ti { color: var(--platinum); }
+  /* TennoScope's state: a diamond, filled when fine, red when it needs you (as in More's menu). */
+  .tsd { width: 9px; height: 9px; flex: none; transform: rotate(45deg); box-shadow: inset 0 0 0 1px var(--platinum-dim); }
+  .tsd.tone-ok { background: var(--platinum); box-shadow: none; }
+  .tsd.tone-warn { box-shadow: inset 0 0 0 1px var(--oxblood); }
+  .tsd.tone-bad { background: var(--oxblood); box-shadow: none; }
   .foot :global(.tool) {
-    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: 34px; min-width: 0;
+    position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: var(--row); min-width: 0;
     padding: 0 12px 0 10px; border: 0; background: transparent; color: var(--platinum-dim);
     font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; text-align: left;
   }
   .foot :global(.tool:hover:not(:disabled)) { color: var(--platinum); background: rgb(255 255 255 / 4%); }
   .foot :global(.tool:active:not(:disabled)) { transform: none; }
   .foot :global(.tool:focus-visible) { outline-offset: -2px; }
-  .foot :global(.tool .ti), .foot :global(.tool .mark.pic) { width: 24px; height: 24px; display: grid; place-items: center; flex: none; opacity: .82; }
+  .foot :global(.tool .ti), .foot :global(.tool .mark.pic) { width: 20px; height: 20px; display: grid; place-items: center; flex: none; opacity: .82; }
   .foot :global(.tool:hover .ti), .foot :global(.tool:hover .mark.pic) { opacity: 1; }
   .foot :global(.tool.on) { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .foot :global(.tool.on .ti) { opacity: 1; }
@@ -3380,7 +3468,7 @@
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
-  .syncerr { margin: 0; padding: 0 12px 4px 44px; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
+  .syncerr { margin: 0; padding: 4px 12px 0 18px; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
   .compact .syncerr { display: none; }
   /* How many new: a neutral tag, at the row's end; folded, on the picture's corner. */
   .bell .count { margin-left: auto; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; color: var(--platinum); animation: pop .25s ease-out; }
@@ -3392,15 +3480,14 @@
 
   /* ---- icons only: folded by hand, or a narrow window. Home, every bar, every page and every
      button in the foot on one centre line; no track, no indent, no chevron. */
-  .compact .brand { justify-content: center; padding: 14px 0 4px; flex-direction: column; align-items: center; gap: 6px; }
-  .compact .fold { margin-left: 0; }
+  .compact .brand { justify-content: center; padding: 55px 0 4px; flex-direction: column; align-items: center; gap: 6px; }
   .compact .brand-plat { margin: 0; gap: 4px; }
   .compact .brand-plat b { font-size: 13px; }
   .compact .brand-text, .compact .lbl { display: none; }
   .compact .secbar { justify-content: center; padding: 0; }
   .compact .secbar .n, .compact .secbar .chv { display: none; }
   .compact .nav { justify-content: center; padding: 0; }
-  .compact .nav::before { display: none; }
+  .compact .nav::before, .compact .secpages > div::before { display: none; }
   .compact .nav.on { background: color-mix(in srgb, var(--sec) 14%, transparent); box-shadow: inset 2px 0 0 var(--sec); }
   .compact .nav.home.on { background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .compact .nav .badge { position: absolute; top: 1px; right: 5px; margin: 0; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
@@ -3418,6 +3505,8 @@
   /* A short window: the top tighter, so more of the list shows before it scrolls. Rows keep their height. */
   @media (max-height: 820px) {
     .brand { padding-top: 12px; padding-bottom: 4px; }
+    .fold { top: 13px; }
+    .compact .brand { padding-top: 47px; }
     .shell:not(.compact) .brand :global(.wm) { height: 27px; width: auto; }
   }
 

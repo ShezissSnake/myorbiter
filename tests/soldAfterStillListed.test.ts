@@ -1,0 +1,363 @@
+// A sale a trade logged without marking its listing sold ("still listed", or no sure listing):
+// a Sold click on that listing soon after asks whether it is that sale, and "that sale" marks the
+// copies the trade could not, logging nothing more. The Sales page says so before a sale typed
+// there is added a second time.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { salesCoveredByTrades } from "../src/lib/core/market";
+import { claimTradeSale, markedForTrade, secondPress, SECOND_PRESS_MS, soldAfterTrade, soldAfterUnmarked, soldAnswers, tradeLineSale, tradeSaleLine, tradeSaleNear, type SoldListing } from "../src/lib/core/soldMarks";
+import { salesOf } from "../src/lib/core/saleLog";
+import type { Sale, TradeLogEntry } from "../src/lib/backend";
+
+const at = 1_792_512_340_000;
+/** Stats' revenue as Stats.svelte adds it: every sale trade's platinum, plus the copies no trade covers. */
+function revenue(sales: Sale[], trades: TradeLogEntry[]) {
+  const covered = salesCoveredByTrades(sales, trades);
+  return trades.reduce((n, t) => n + t.platIn, 0) + sales.reduce((n, s) => n + (s.quantity - (covered.get(s) ?? 0)) * s.platinum, 0);
+}
+const trade: TradeLogEntry = { key: "s|1", at, partner: "Buyer1", offered: [{ name: "Serration", rank: 10, count: 2 }], received: [], platOut: 0, platIn: 40 };
+/** The trade's sale as the marking logs it when warframe.market refused the listing's mark ("still listed"). */
+const stillListed: Sale = { at, item: "Serration", rank: 10, quantity: 2, platinum: 20, trade: "s|1", unmarked: { listing: "o1", count: 2, at: at + 5_000 } };
+const o1: SoldListing = { id: "o1", name: "Serration", rank: 10, subtype: null };
+const o2: SoldListing = { ...o1, id: "o2" };
+/** The same sale with no sure listing ("not listed" on the notification, a listing of it up all the same). */
+const noListing: Sale = { ...stillListed, unmarked: { listing: null, count: 2, at: at + 5_000 } };
+/** What a Sold click on Orders logs when it goes the usual way (sendSale). */
+const clicked = (quantity: number, t = at + 60_000): Sale => ({ at: t, item: "Serration", rank: 10, quantity, platinum: 20 });
+const now = at + 60_000;
+
+test("before: a Sold click after 'still listed' logs the sale again, and Stats counts it twice with marking on", () => {
+  // Marking on: the trade's sale names the trade, so the hand-logged one pairs with nothing.
+  assert.equal(revenue([clicked(2), stillListed], [trade]), 80);
+  // Marking off: no sale from the trade; Stats pairs the click with the trade itself.
+  assert.equal(revenue([clicked(2)], [trade]), 40);
+  // The question the last change added is not asked: no trade lowered that listing.
+  assert.equal(soldAfterTrade("o1", [stillListed], [trade], now), null);
+});
+
+test("the trade's line logs its sale with what the marking did: lowered, and the copies not marked", () => {
+  const line = { at, name: "Serration", rank: 10, subtype: null, left: 2, platinumEach: 20, key: "s|1", now: at + 5_000 };
+  // warframe.market refused the listing's mark: the listing it tried.
+  assert.deepEqual(tradeLineSale({ ...line, order: { id: "o1" }, marked: 0 }), stillListed);
+  // No sure listing: none named.
+  assert.deepEqual(tradeLineSale({ ...line, order: null, marked: 0 }), noListing);
+  // Marked whole: lowered, nothing unmarked.
+  assert.deepEqual(tradeLineSale({ ...line, order: { id: "o1" }, marked: 2 }), { at, item: "Serration", rank: 10, quantity: 2, platinum: 20, trade: "s|1", lowered: { listing: "o1", count: 2, at: at + 5_000 } });
+  // The listing held 1: it is closed, so the copy left names no listing; a refinement the line names is kept.
+  const relic = tradeLineSale({ ...line, name: "Axi A1 Relic", rank: null, subtype: "radiant", order: { id: "r1" }, marked: 1 });
+  assert.deepEqual([relic.lowered, relic.unmarked], [{ listing: "r1", count: 1, at: at + 5_000 }, { listing: null, count: 1, at: at + 5_000, subtype: "radiant" }]);
+});
+
+test("a Sold click soon after asks on the listing the trade tried, with the trade's copies and partner", () => {
+  assert.deepEqual(soldAfterUnmarked(o1, [stillListed], [trade], now), { count: 2, partner: "Buyer1", trades: 1, guess: false, busy: false });
+  // Another listing of the same item and rank did not sell: no question.
+  assert.equal(soldAfterUnmarked(o2, [stillListed], [trade], now), null);
+  // Another rank, another item, a sale logged by hand, or ten minutes on: no question.
+  assert.equal(soldAfterUnmarked({ ...o1, rank: 0 }, [noListing], [trade], now), null);
+  assert.equal(soldAfterUnmarked({ ...o1, name: "Arcane Energize" }, [noListing], [trade], now), null);
+  assert.equal(soldAfterUnmarked(o1, [{ ...stillListed, trade: undefined }], [trade], now), null);
+  assert.equal(soldAfterUnmarked(o1, [stillListed], [trade], at + 5_000 + 10 * 60_000), null);
+  // A sale the trade logged and marked sold: this question is not asked (soldAfterTrade's is).
+  const { unmarked: _, ...marked } = stillListed;
+  assert.equal(soldAfterUnmarked(o1, [{ ...marked, lowered: { listing: "o1", count: 2, at: at + 5_000 } }], [trade], now), null);
+  // An older record, without the field: as before, no question.
+  assert.equal(soldAfterUnmarked(o1, [marked], [trade], now), null);
+  // No sure listing, and the line names no refinement: any listing of it, and the question says which it lowers.
+  assert.deepEqual(soldAfterUnmarked(o2, [noListing], [trade], now), { count: 2, partner: "Buyer1", trades: 1, guess: true, busy: false });
+  // A name the log and the market spell differently ("… Blueprint") is the same item.
+  const bp: Sale = { ...noListing, item: "Nekros Prime Blueprint", rank: null };
+  assert.ok(soldAfterUnmarked({ id: "b1", name: "Nekros Prime Blueprint", rank: null, subtype: null }, [bp], [trade], now));
+});
+
+test("a refusal on one refinement's listing does not ask, or lower, on the other refinement's", () => {
+  const relicTrade: TradeLogEntry = { ...trade, offered: [{ name: "Axi A1 Relic [Radiant]", rank: null, count: 1 }] };
+  const radiant: SoldListing = { id: "rad", name: "Axi A1 Relic", rank: null, subtype: "radiant" };
+  const intact: SoldListing = { id: "int", name: "Axi A1 Relic", rank: null, subtype: "intact" };
+  const plain: SoldListing = { ...intact, id: "plain", subtype: null };
+  // Refused on the Intact listing: only that listing asks.
+  const refused: Sale = { at, item: "Axi A1 Relic", rank: null, quantity: 1, platinum: 9, trade: "s|1", unmarked: { listing: "int", count: 1, at } };
+  assert.ok(soldAfterUnmarked(intact, [refused], [relicTrade], now));
+  assert.equal(soldAfterUnmarked(radiant, [refused], [relicTrade], now), null);
+  assert.deepEqual(markedForTrade([refused], radiant, 1, now), [refused], "'that sale' on Radiant records nothing");
+  // No sure listing, the line named Radiant: the Radiant listing asks, the Intact ones (with or without a subtype) don't.
+  const named: Sale = { ...refused, unmarked: { listing: null, count: 1, at, subtype: "radiant" } };
+  assert.deepEqual(soldAfterUnmarked(radiant, [named], [relicTrade], now)?.guess, false);
+  assert.equal(soldAfterUnmarked(intact, [named], [relicTrade], now), null);
+  assert.equal(soldAfterUnmarked(plain, [named], [relicTrade], now), null);
+  // Named intact: a listing with no subtype is intact.
+  assert.ok(soldAfterUnmarked(plain, [{ ...named, unmarked: { ...named.unmarked!, subtype: "intact" } }], [relicTrade], now));
+});
+
+test("two listings answered one after the other: one 'that sale' at a time for a trade's copies", () => {
+  const out = new Set<string>();
+  // No sure listing: both listings of it ask.
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  assert.equal(claimTradeSale(o2, [noListing], now, out, 2), null, "the second answer sends nothing while the first is out");
+  assert.equal(soldAfterUnmarked(o2, [noListing], [trade], now, out)?.busy, true);
+  // The first is back and recorded: the copies are marked, nothing is left for the second.
+  out.delete("s|1");
+  const after = markedForTrade([noListing], o1, 2, now);
+  assert.deepEqual(claimTradeSale(o2, after, now, out, 2), { keys: [], send: 0 });
+  assert.equal(out.size, 0, "nothing claimed when nothing is waiting");
+  assert.equal(soldAfterUnmarked(o2, after, [trade], now), null);
+  // Refused: the record unchanged and the claim given back, the next click may claim again.
+  assert.deepEqual(claimTradeSale(o2, [noListing], now, out, 2), { keys: ["s|1"], send: 2 });
+  // Nothing waiting: nothing to send.
+  assert.deepEqual(claimTradeSale(o1, [], now, new Set(), 2), { keys: [], send: 0 });
+  // Nothing to send claims nothing, so no claim is left behind.
+  const none = new Set<string>();
+  assert.deepEqual(claimTradeSale(o1, [noListing], now, none, 0), { keys: [], send: 0 });
+  assert.equal(none.size, 0);
+});
+
+{
+  // The review's sequence, on the functions the Orders page calls: a trade of 3 with no sure
+  // listing; listings A (2 copies) and B (5) of the item. mkt.sold closes at most what is listed.
+  const three: Sale = { ...stillListed, quantity: 3, unmarked: { listing: null, count: 3, at: at + 5_000 } };
+  const A: SoldListing = { ...o1, id: "A" };
+  const B: SoldListing = { ...o1, id: "B" };
+  const listed: Record<string, number> = {};
+  const sold = (id: string, n: number) => {
+    const k = Math.min(n, listed[id]);
+    listed[id] -= k;
+    return k;
+  };
+  /** What a "that sale" answer (or its Try again) does: the claim, the call, the record, the claim given back. */
+  const answer = (l: SoldListing, sales: Sale[], out: Set<string>, asked: number, refused = false): { sales: Sale[]; closed: number } => {
+    const claim = claimTradeSale(l, sales, now, out, asked);
+    if (!claim || !claim.send) return { sales, closed: 0 };
+    const closed = refused ? 0 : sold(l.id, claim.send);
+    for (const k of claim.keys) out.delete(k);
+    return { sales: closed ? markedForTrade(sales, l, closed, now) : sales, closed };
+  };
+  /** The copies the question offers on a listing: the trade's not marked, at most what is listed (soldAnswers' "that"). */
+  const shown = (l: SoldListing, sales: Sale[], out: Set<string>) => soldAnswers(1, Math.min(soldAfterUnmarked(l, sales, [trade], now, out)!.count, listed[l.id])).that;
+
+  test("two listings for one trade: B's question opened while A's call is out, A back, then B answered: 3 closed in all, never 5", () => {
+    listed.A = 2;
+    listed.B = 5;
+    const out = new Set<string>();
+    // A answered: claimed, its call out.
+    const claimA = claimTradeSale(A, [three], now, out, shown(A, [three], out))!;
+    assert.equal(claimA.send, 2);
+    // B's question opens meanwhile: it shows 3, its Yes off.
+    const askedB = shown(B, [three], out);
+    assert.deepEqual([askedB, soldAfterUnmarked(B, [three], [trade], now, out)!.busy], [3, true]);
+    // A's call back: 2 closed and recorded.
+    const closedA = sold("A", claimA.send);
+    let sales = markedForTrade([three], A, closedA, now);
+    for (const k of claimA.keys) out.delete(k);
+    // B answered with the 3 it showed: only the 1 still not marked is sent.
+    const b = answer(B, sales, out, askedB);
+    sales = b.sales;
+    assert.equal(b.closed, 1);
+    assert.equal(closedA + b.closed, 3);
+    assert.deepEqual([listed.A, listed.B], [0, 4]);
+    assert.equal(soldAfterUnmarked(B, sales, [trade], now), null, "nothing left to ask about");
+    assert.equal(revenue(sales, [{ ...trade, offered: [{ name: "Serration", rank: 10, count: 3 }], platIn: 60 }]), 60);
+  });
+
+  test("the same with Try again: a refused answer sent again after another listing marked the copies sends only what is left", () => {
+    listed.A = 2;
+    listed.B = 5;
+    const out = new Set<string>();
+    // B answered with 3 and refused: nothing closed, the claim given back.
+    const askedB = shown(B, [three], out);
+    assert.equal(answer(B, [three], out, askedB, true).closed, 0);
+    // A answered meanwhile: 2 closed.
+    const a = answer(A, [three], out, shown(A, [three], out));
+    assert.equal(a.closed, 2);
+    // B's Try again, with the 3 it was given: 1 sent.
+    const again = answer(B, a.sales, out, askedB);
+    assert.equal(a.closed + again.closed, 3);
+    // And a Try again once all is marked: nothing is sent.
+    const last = claimTradeSale(B, again.sales, now, out, askedB)!;
+    assert.deepEqual(last, { keys: [], send: 0 });
+    assert.equal(tradeSaleLine(last.send, askedB), "None marked: that trade was marked already or is past the ten minutes; check this listing's count.");
+    assert.equal(answer(B, again.sales, out, askedB).closed, 0);
+    assert.deepEqual([listed.A, listed.B], [0, 4]);
+  });
+}
+
+{
+  // The row's line once "that sale" is back, on the functions the Orders page calls. When fewer go
+  // than the question showed, the line names both reasons and the listing's count: the record can
+  // still call copies unmarked that another listing's answer closed, so it never says which.
+  const min = 60_000;
+  const logged = at + 5_000;
+  const opened = logged + 9 * min;
+  const rest = "1 marked: the rest of that trade was marked already or is past the ten minutes; check this listing's count.";
+  const none = "None marked: that trade was marked already or is past the ten minutes; check this listing's count.";
+  /** Trade X: 2 copies, no sure listing. Trade Y: 1 copy, logged five minutes later. */
+  const x: Sale = noListing;
+  const y = (listing: string | null): Sale => ({ ...noListing, at: at + 5 * min, quantity: 1, trade: "s|2", unmarked: { listing, count: 1, at: logged + 5 * min } });
+  const t2: TradeLogEntry = { ...trade, key: "s|2", at: at + 5 * min, partner: "Buyer2", offered: [{ name: "Serration", rank: 10, count: 1 }], platIn: 20 };
+  /** What the row says after an answer at `t` with `asked` copies: the claim, then its line. */
+  const line = (l: SoldListing, sales: Sale[], t: number, out: Set<string>, asked: number) => {
+    const claim = claimTradeSale(l, sales, t, out, asked)!;
+    return { claim, line: tradeSaleLine(claim.send, asked) };
+  };
+
+  test("a trade ages out while the question is open: 1 sent, and the line names both reasons", () => {
+    assert.equal(soldAfterUnmarked(o1, [y(null), x], [trade, t2], opened)?.count, 3);
+    // Yes at 10:01: X's 2 are past the ten minutes, Y's 1 is sent.
+    const r = line(o1, [y(null), x], logged + 10 * min + 1_000, new Set(), 3);
+    assert.deepEqual(r.claim, { keys: ["s|2"], send: 1 });
+    assert.equal(r.line, rest);
+    // All sent: the usual line.
+    assert.equal(line(o1, [y(null), x], opened, new Set(), 3).line, "Sold 3");
+  });
+
+  test("refused, then Try again after the ten minutes: nothing is sent, and a fresh line", () => {
+    const out = new Set<string>();
+    // Yes at 9:55: 2 claimed; refused, the record unchanged and the claim given back.
+    const first = line(o1, [x], logged + 9 * min + 55_000, out, 2);
+    assert.deepEqual([first.claim.send, first.line], [2, "Sold 2"]);
+    for (const k of first.claim.keys) out.delete(k);
+    // Try again at 10:01: nothing sent, nothing claimed, not the first try's words.
+    const again = line(o1, [x], logged + 10 * min + 1_000, out, 2);
+    assert.deepEqual(again.claim, { keys: [], send: 0 });
+    assert.equal(out.size, 0);
+    assert.equal(again.line, none);
+  });
+
+  test("a call back after its trade's ten minutes: X answered on B, B's call back after X's ten minutes, then A's answer", () => {
+    // Y is still listed on A; X has no sure listing. A's question shows 3, B's shows X's 2.
+    const A: SoldListing = { ...o1, id: "A" };
+    const B: SoldListing = { ...o1, id: "B" };
+    let sales = [y("A"), x];
+    assert.equal(soldAfterUnmarked(A, sales, [trade, t2], opened)?.count, 3);
+    assert.equal(soldAfterUnmarked(B, sales, [trade, t2], opened)?.count, 2);
+    const out = new Set<string>();
+    // B's Yes at 9:58 claims X; A's Yes is off while it is out.
+    const b = line(B, sales, logged + 9 * min + 58_000, out, 2);
+    assert.deepEqual([b.claim.keys, b.claim.send, b.line], [["s|1"], 2, "Sold 2"]);
+    assert.equal(soldAfterUnmarked(A, sales, [trade, t2], logged + 9 * min + 59_000, out)?.busy, true);
+    // B's call back at 10:00:02, X past its ten minutes: the record keeps X as not marked (markedForTrade, unchanged here).
+    sales = markedForTrade(sales, B, 2, logged + 10 * min + 2_000);
+    assert.deepEqual(sales[1].unmarked, x.unmarked);
+    for (const k of b.claim.keys) out.delete(k);
+    // A's Yes at 10:00:10: Y's 1 is sent. The line names no single reason and does not send the player to Sold.
+    const a = line(A, sales, logged + 10 * min + 10_000, out, 3);
+    assert.deepEqual(a.claim, { keys: ["s|2"], send: 1 });
+    assert.equal(a.line, rest);
+    assert.ok(!/Sold on/.test(a.line));
+  });
+
+  test("copies marked by another listing while a second trade waits: 1 sent, the same line", () => {
+    // Y is still listed on o1; X has no sure listing. o1's question shows 3.
+    let sales = [y("o1"), x];
+    assert.equal(soldAfterUnmarked(o1, sales, [trade, t2], opened)?.count, 3);
+    // o2's answer marks X's 2 (Y is o1's alone).
+    sales = markedForTrade(sales, o2, 2, opened + 10_000);
+    assert.deepEqual(sales.map((s) => s.unmarked?.count), [1, undefined]);
+    // o1's Yes, within the ten minutes: Y's 1 is sent.
+    const r = line(o1, sales, opened + 20_000, new Set(), 3);
+    assert.deepEqual(r.claim, { keys: ["s|2"], send: 1 });
+    assert.equal(r.line, rest);
+  });
+}
+
+test("the answers: 'that sale' sends the trade's copies, 'another sale' the click's; the focus starts on the one that sends least", () => {
+  assert.deepEqual(soldAnswers(1, 2), { that: 2, another: 1, focus: "another" });
+  assert.deepEqual(soldAnswers(2, 2), { that: 2, another: 2, focus: "that" }, "the same copies: that sale logs nothing more");
+  assert.deepEqual(soldAnswers(3, 2), { that: 2, another: 3, focus: "that" });
+});
+
+test("'that sale': the trade's sale records what was lowered and logs nothing; a further click asks the last change's question", () => {
+  const others: Sale = { at, item: "Serration", rank: 10, quantity: 1, platinum: 20 };
+  const after = markedForTrade([stillListed, others], o1, 2, now);
+  assert.equal(after.length, 2, "no sale added");
+  assert.deepEqual(after[0], { at, item: "Serration", rank: 10, quantity: 2, platinum: 20, trade: "s|1", lowered: { listing: "o1", count: 2, at: now } });
+  assert.equal(after[1], others, "another sale is untouched");
+  assert.equal(soldAfterUnmarked(o1, after, [trade], now), null, "no longer asked as unmarked");
+  assert.deepEqual(soldAfterTrade("o1", after, [trade], now + 1_000), { count: 2, partner: "Buyer1" }, "asked as marked");
+  // Marking on, 'that sale': Stats counts the trade once, as with marking off.
+  const alone = markedForTrade([stillListed], o1, 2, now);
+  assert.equal(revenue(alone, [trade]), 40);
+  assert.equal(revenue(alone, [trade]), revenue([clicked(2)], [trade]));
+  // 'Another sale' goes the usual way: a sale of its own, as the player says.
+  assert.equal(revenue([clicked(1), stillListed], [trade]), 60);
+});
+
+test("'that sale' marked fewer copies than the trade could not (the listing had fewer): the rest stay unmarked", () => {
+  const after = markedForTrade([stillListed], o1, 1, now);
+  assert.deepEqual([after[0].lowered, after[0].unmarked], [{ listing: "o1", count: 1, at: now }, { listing: "o1", count: 1, at: at + 5_000 }]);
+  assert.deepEqual(soldAfterUnmarked(o1, after, [trade], now)?.count, 1);
+  // A second 'that sale' on the same listing adds to what the first lowered there.
+  const again = markedForTrade(after, o1, 1, now + 1_000);
+  assert.deepEqual([again[0].lowered, again[0].unmarked], [{ listing: "o1", count: 2, at: now + 1_000 }, undefined]);
+  // A `lowered` on another listing (closed by the marking) is replaced, not added to.
+  const closed: Sale = { ...noListing, lowered: { listing: "gone", count: 3, at } };
+  assert.deepEqual(markedForTrade([closed], o1, 2, now)[0].lowered, { listing: "o1", count: 2, at: now });
+});
+
+test("two trades of the item in ten minutes, neither marked: counted together, the newest first, each recording its own copies", () => {
+  const later = at + 3 * 60_000;
+  const t2: TradeLogEntry = { ...trade, key: "s|2", at: at + 60_000, partner: "Buyer2", offered: [{ name: "Serration", rank: 10, count: 1 }], platIn: 20 };
+  const second: Sale = { ...noListing, at: t2.at, quantity: 1, trade: "s|2", unmarked: { listing: null, count: 1, at: t2.at + 5_000 } };
+  const sales = [second, noListing];
+  assert.deepEqual(soldAfterUnmarked(o1, sales, [trade, t2], later), { count: 3, partner: "Buyer2", trades: 2, guess: true, busy: false });
+  const after = markedForTrade(sales, o1, 3, later);
+  assert.deepEqual(after.map((s) => [s.trade, s.lowered?.count, s.unmarked]), [["s|2", 1, undefined], ["s|1", 2, undefined]]);
+  assert.equal(revenue(after, [trade, t2]), 60);
+  // Only 1 went through: the newest trade's copy; the older is left as it was, with no `lowered` of 0.
+  const part = markedForTrade(sales, o1, 1, later);
+  assert.deepEqual(part.map((s) => [s.lowered?.count, s.unmarked?.count]), [[1, undefined], [undefined, 2]]);
+  assert.equal(part[1], noListing);
+  // Both trades are claimed by one answer.
+  assert.deepEqual(claimTradeSale(o1, sales, later, new Set(), 3), { keys: ["s|2", "s|1"], send: 3 });
+});
+
+test("saved sales: the new field loads; an older record loads as before; a damaged value drops the field and keeps the sale", () => {
+  assert.deepEqual(salesOf([stillListed]), [stillListed]);
+  const none = { ...stillListed, unmarked: { listing: null, count: 1, at, subtype: "radiant" } };
+  assert.deepEqual(salesOf([none]), [none]);
+  const { unmarked: _, ...old } = stillListed;
+  assert.deepEqual(salesOf([old]), [old]);
+  for (const bad of [{ listing: 5, count: 1, at }, { listing: "o1", count: 0, at }, { listing: "o1", count: 1.5, at }, { listing: "o1", count: 1, at: "x" }, { listing: null, count: 1, at, subtype: 3 }, "o1", null, [1]]) assert.deepEqual(salesOf([{ ...stillListed, unmarked: bad }]), [old], JSON.stringify(bad));
+});
+
+test("Sales page: a sale typed in ten minutes after a trade logged that item and rank would count twice with marking on, and is named first", () => {
+  const serration = { name: "Serration", rank: 10 };
+  const typed = clicked(2, at + 4 * 60_000);
+  // The proof: Stats counts it twice with marking on, once with marking off.
+  assert.equal(revenue([typed, stillListed], [trade]), 80);
+  assert.equal(revenue([typed], [trade]), 40);
+  // So the page names the trade before it adds the sale.
+  assert.deepEqual(tradeSaleNear([stillListed], [trade], serration, typed.at), { count: 2, partner: "Buyer1", trades: 1 });
+  // A trade that marked its listing sold is the same: the trade's sale names the trade.
+  const { unmarked: _, ...marked } = stillListed;
+  assert.deepEqual(tradeSaleNear([marked, { ...marked, trade: "s|2", at: at + 60_000 }], [trade], serration, typed.at), { count: 4, partner: null, trades: 2 });
+  // Not for another rank, a sale logged by hand, a trade ten minutes or more before, or one after.
+  assert.equal(tradeSaleNear([stillListed], [trade], { name: "Serration", rank: 0 }, typed.at), null);
+  assert.equal(tradeSaleNear([{ ...marked, trade: undefined }], [trade], serration, typed.at), null);
+  assert.equal(tradeSaleNear([stillListed], [trade], serration, at + 10 * 60_000), null);
+  assert.equal(tradeSaleNear([stillListed], [trade], serration, at - 60_000), null);
+});
+
+test("Sales page: the second press is a separate press of Add with the same fields; a double press is one", () => {
+  const asked = { key: "Serration|10|2|20", at: now };
+  assert.equal(secondPress(asked, asked.key, now + SECOND_PRESS_MS), true);
+  assert.equal(secondPress(asked, asked.key, now + 200), false, "a double-click");
+  assert.equal(secondPress(asked, "Serration|10|3|20", now + 5_000), false, "the fields changed: asked again");
+  assert.equal(secondPress(null, asked.key, now), false);
+});
+
+test("the Guide's Sales entry and docs/features.md say what happens to a sale logged by hand after its trade", () => {
+  const guide = readFileSync(new URL("../src/lib/tabs/Guide.svelte", import.meta.url), "utf8");
+  const features = readFileSync(new URL("../docs/features.md", import.meta.url), "utf8");
+  const sales = guide.split("\n").find((l) => l.includes('["sales", "Sales", "a sale in game'))!;
+  const orders = guide.split("\n").find((l) => l.includes("Sold marks one sold (Sold several"))!;
+  assert.match(sales, /once the trade has been read is not matched to it/);
+  assert.match(sales, /Sold on Orders asks first whether it's that sale, on that listing/);
+  assert.match(sales, /added only on a second, separate press of Add/);
+  assert.match(orders, /when the trade names no refinement, the question says which listing it would lower/);
+  assert.match(features, /once its trade has been read isn't matched to it/);
+  assert.match(features, /\*Yes, that sale\* marks those copies sold with the same call and logs nothing more/);
+  // A space after every full stop in the new sentences: no "twice.With".
+  const added = features.slice(features.indexOf("A sale logged by hand once its trade"), features.indexOf("Turn it off in Settings → Trades.", features.indexOf("A sale logged by hand once its trade")) + 1);
+  assert.ok(added.length > 100);
+  for (const [name, text] of [["Guide, Sales", sales], ["Guide, Orders", orders], ["docs/features.md, Sales", added]] as const) assert.doesNotMatch(text, /[a-z)]\.[A-Z]/, name);
+});

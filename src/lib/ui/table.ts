@@ -39,6 +39,13 @@ export function fixedScale(columns: { width?: string; minor?: boolean }[]): numb
   return rest > 0 ? Math.max(0.3, (rest - minor) / rest) : 1;
 }
 
+/**
+ * Sold a day, to a tenth: something that sells under a tenth a day reads "<0.1", never 0; none
+ * lately (null) stays blank. Text then, so a column showing it sorts by the number itself.
+ */
+export const soldPerDay = (t: number | null | undefined): number | string | null =>
+  t == null ? null : t > 0 && t < 0.05 ? "<0.1" : Math.round(t * 10) / 10;
+
 export const plat = (n: number | null | undefined) => (n == null ? null : `${Math.round(n * 10) / 10}p`);
 export const num = (n: number | null | undefined, digits = 0) =>
   n == null ? null : numberFormat(digits).format(n);
@@ -56,6 +63,12 @@ export function eraTint(relic: string): string | null {
   return era && ["lith", "meso", "neo", "axi", "requiem", "omnia"].includes(era) ? `var(--era-${era})` : null;
 }
 
+/**
+ * Text in the order `localeCompare` gives it, except that a run of digits counts as a number, as
+ * the game counts relics: Axi A1, A2, A10. Made once: a collator per comparison is slow on a long list.
+ */
+const textOrder = new Intl.Collator(undefined, { numeric: true });
+
 /** Rows in a column's order; blanks always last. Shared by tables and card grids. */
 export function sortRows<T>(rows: T[], columns: Column<T>[], sort: { key: string; desc: boolean }): T[] {
   const col = columns.find((c) => c.key === sort.key) ?? columns[0];
@@ -68,6 +81,6 @@ export function sortRows<T>(rows: T[], columns: Column<T>[], sort: { key: string
     if (va == null) return 1;
     if (vb == null) return -1;
     if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
-    return String(va).localeCompare(String(vb)) * dir;
+    return textOrder.compare(String(va), String(vb)) * dir;
   });
 }

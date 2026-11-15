@@ -1,8 +1,10 @@
 <script lang="ts">
+  import NeedTags from "../ui/NeedTags.svelte";
+  import { rewardMarks } from "../core/rewardNeed";
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { eraTint } from "../ui/table";
   import type { Model } from "../core/model";
-  import type { MissionState } from "../core/types";
+  import type { Fissure, MissionState } from "../core/types";
   import { squadPool, squadRelics, yourRelicIndex, type SquadRelic } from "../core/views";
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -34,13 +36,15 @@
     windowMode = null,
     tennoscopeRunning = true,
     onsettings = null,
+    fissures = null,
     masteryRank = null,
-  }: { model: Model; masteryRank?: number | null; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null } = $props();
+  }: { model: Model; masteryRank?: number | null; state: MissionState | null; error: string | null; cards?: ScreenCards | null; weights: PickWeights; windowMode?: string | null; tennoscopeRunning?: boolean; onsettings?: (() => void) | null; fissures?: Fissure[] | null } = $props();
 
   // Relics loaded, and the log heard from lately: a squad from hours ago is the last fissure, not this one.
   let liveNow = $state(Date.now());
   $effect(() => whileShownEvery("mission", 60_000, () => (liveNow = Date.now()), () => liveNow));
-  const live = $derived(inFissure(ms, liveNow));
+  // Without the log's clock, it ends with the fissure's own expiry (core/mission.ts).
+  const live = $derived(inFissure(ms, liveNow, fissures));
   const paths = $derived(ms ? (ms.relics.length ? ms.relics : ms.last_relics) : []);
   const relics = $derived.by(whileShown("mission", () => squadRelics(model, paths)));
   const pool = $derived(squadPool(relics));
@@ -195,8 +199,8 @@
     </div>
     <div class="rc-marks">
       {#if yours.has(c.name)}<span class="tag" title="The game's log names this as your own relic's reward">your relic</span>{/if}
-      {#if c.needed}<span class="tag warn" title="A part for {c.neededFor}, which you haven't built or mastered, and you don't have enough of it">need · {c.neededFor}</span>{/if}
-      {#if c.set === 1}<span class="tag good" title="The last part you're missing for a {c.setName} set">completes set</span>{:else if c.set}<span class="tag good" title="Leaves your {c.setName} set one part short">set · one short</span>{/if}
+      <!-- Need and sets in the words Home's alerts and invasions use too (core/rewardNeed.ts), from the same rules as the score. -->
+      <NeedTags marks={rewardMarks(model, { name: c.name }, [])} held={false} />
     </div>
     <div class="rc-foot">
       <span class="rar" title={rar ? `A ${rar.toLowerCase()} reward` : "Rarity unknown"}>{rar ?? "–"}</span>

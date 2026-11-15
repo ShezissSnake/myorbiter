@@ -20,9 +20,11 @@ import { salesOf, tradesOf } from "./core/saleLog";
 import { gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf } from "./core/savedGame";
 import type { GearCopy } from "./core/notNeeded";
 import { NEWEST } from "./whatsNew";
-import { DEFAULT_HIDE_MINUTES, type HiddenForWhisper } from "./core/lastCopy";
+import { DEFAULT_HIDE_MINUTES, hideMinutesOf, type HiddenForWhisper } from "./core/lastCopy";
 import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
+import type { SaveTrouble } from "./core/gettingIn";
+import { everyOf, lastCheckOf } from "./core/schedule";
 import { choiceFromHome, fissureChoiceOf, type FissureChoice, type SyndicateMission } from "./core/board";
 import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
@@ -49,8 +51,10 @@ export interface MarketSettings {
   auto: boolean;
   /** Check prices on the timer without sending them: Orders shows what each listing would change to. */
   autoCheck: boolean;
-  /** Minutes between automatic passes. */
+  /** Minutes between automatic passes: one of `EVERY_CHOICES` (core/schedule.ts). */
   every: number;
+  /** When the last timed check ran (or a Reprice pressed), kept so a long interval holds across restarts (core/schedule.ts). */
+  lastCheck?: number | null;
   /** Never below this share of the item's daily market price. */
   minShare: number;
   /** Per listing (see listingKey): your own floor, and whether it is left alone. */
@@ -309,6 +313,14 @@ export interface Sale {
    * (milliseconds). A Sold click on that listing soon after asks first (soldAfterTrade).
    */
   lowered?: { listing: string; count: number; at: number };
+  /**
+   * Copies of this trade's sale the marking logged but could not mark sold: the listing it tried
+   * (null: none was a sure match, or the marking closed it), how many, when (milliseconds), and
+   * the refinement the trade's line names (a relic's, when the log gives it). A Sold click on that
+   * listing soon after (or, with none, on a listing of that item, rank and refinement) asks
+   * whether it is this sale (soldAfterUnmarked).
+   */
+  unmarked?: { listing: string | null; count: number; at: number; subtype?: string };
 }
 
 export interface GameState {
@@ -894,7 +906,7 @@ const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof 
  * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
  * value that isn't a number in range is the usual one, never a missing floor.
  */
-function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minByCategory" | "minRelicPrice" | "minShare" | "every" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
+function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings, "auto" | "minPrice" | "minByCategory" | "minRelicPrice" | "minShare" | "every" | "lastCheck" | "floors" | "paused" | "changes" | "autoTrades" | "autoRep" | "presence"> {
   const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
   const record = (v: unknown) => (v && typeof v === "object" && !Array.isArray(v) ? Object.entries(v as Record<string, unknown>) : []);
   return {
@@ -904,7 +916,10 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     minByCategory: minByCategoryOf(r),
     minRelicPrice: undefined,
     minShare: numIn(r.minShare, 0, 1, base.minShare),
-    every: numIn(r.every, 1, 24 * 60, base.every),
+    // Only an interval Orders offers: another number goes to the nearest one not shorter (240 to every
+    // 6 hours; past a week, once a week); no number, or one under a minute, is the usual one.
+    every: everyOf(r.every, base.every),
+    lastCheck: lastCheckOf(r.lastCheck),
     floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
     paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
@@ -1008,7 +1023,7 @@ export async function loadSettings(): Promise<Settings> {
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
-    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: typeof raw?.market?.lastCopy?.minutes === "number" && raw.market.lastCopy.minutes >= 1 ? Math.round(raw.market.lastCopy.minutes) : DEFAULT_HIDE_MINUTES, hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
+    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
     advice: adviceOf(raw?.advice, base.advice),
     // `forma` came later: settings saved before it get the default (3p).
     pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
@@ -1143,7 +1158,7 @@ export async function flushSettings() {
   // Your saved settings couldn't be read: saving now would replace them (sales, floors) with these.
   if (loadFailed) {
     saveFailed = true;
-    saveListener?.(`MyOrbiter couldn't read your saved settings (${loadFailed}), so it won't save over them. Restart MyOrbiter`);
+    saveListener?.({ unreadable: true, cause: loadFailed });
     return;
   }
   try {
@@ -1157,7 +1172,7 @@ export async function flushSettings() {
   } catch (e) {
     console.error("saving settings failed", e);
     saveFailed = true;
-    saveListener?.(String(e).replace(/^Error:\s*/, ""));
+    saveListener?.({ unreadable: false, cause: String(e).replace(/^Error:\s*/, "") });
     // Tried again shortly (a file briefly locked, a full disk freed up), unless a newer save came in.
     if (!pendingSave) {
       pendingSave = get;
@@ -1170,13 +1185,15 @@ export async function flushSettings() {
 let saveFailed = false;
 /** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
 let loadFailed: string | null = null;
-let saveListener: ((error: string | null) => void) | null = null;
-/** Told when saving settings fails (the error), and when a save goes through again (null). */
-export function onSaveTrouble(f: (error: string | null) => void) {
+let saveListener: ((trouble: SaveTrouble | null) => void) | null = null;
+/** Told when saving settings fails (why, and whether it's because they couldn't be read), and when a save goes through again (null). */
+export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
   saveListener = f;
 }
 /** Whether the saved settings couldn't be read at start (then nothing is saved, so nothing is asked). */
 export const settingsUnreadable = () => loadFailed != null;
+/** Why the saved settings couldn't be read at start, or null when they could. */
+export const settingsUnreadableWhy = () => loadFailed;
 
 /**
  * Opens a link MyOrbiter has already checked (`openable` in core/links.ts) in your browser: the
@@ -1216,7 +1233,8 @@ export interface TennoscopeStatus {
   restart?: { tries: number; gave_up: boolean; retry_in_ms: number | null };
 }
 
-export type HealthState = "ready" | "idle" | "degraded" | "failed";
+/** "unknown": a component the running TennoScope doesn't report (core/tsReport.ts). */
+export type HealthState = "ready" | "idle" | "degraded" | "failed" | "unknown";
 export interface Health {
   state: HealthState;
   message: string;

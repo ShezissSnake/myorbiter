@@ -14,6 +14,7 @@
   import GameIcon, { eraIcon, kindIcon } from "./GameIcon.svelte";
   import Icon from "./Icon.svelte";
   import { kindSlot } from "../core/kinds";
+  import { lookupHits } from "../core/lookup";
   import { MASTERY_CATEGORIES, masteryCategory } from "../core/views";
   import { trap } from "./trap";
   import { opens, shade } from "../motion";
@@ -92,23 +93,8 @@
     return out;
   });
 
+  const hitsFor = (text: string): Hit[] => lookupHits(all, text);
   const hits = $derived(hitsFor(typedQuery));
-  function hitsFor(text: string): Hit[] {
-    const q = text.trim().toLowerCase();
-    if (!q) return [];
-    const rank = (n: string) => {
-      const l = n.toLowerCase();
-      if (l.startsWith(q)) return 0;
-      if (l.split(/\s+/).some((w) => w.startsWith(q))) return 1;
-      return l.includes(q) ? 2 : 3;
-    };
-    return all
-      .map((h) => ({ h, r: rank(h.name) }))
-      .filter((x) => x.r < 3)
-      .sort((a, b) => a.r - b.r || a.h.name.length - b.h.name.length || a.h.name.localeCompare(b.h.name))
-      .slice(0, 12)
-      .map((x) => x.h);
-  }
   $effect(() => {
     hits;
     at = 0;

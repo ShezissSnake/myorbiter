@@ -6,7 +6,7 @@
 // Höllvania (1999) don't: their missions rotate in game, but each level tier always pays from the
 // same table, which the official drop tables carry (relicdata.rs keeps them).
 import type { Fissure } from "./types";
-import { TIERS, matchedFissures, type FissureRule } from "./timers";
+import { TIERS, matchedFissures, missionName, type FissureRule } from "./timers";
 
 // ---------------------------------------------------------------- fissures
 
@@ -47,14 +47,14 @@ export const FISSURE_MODES: readonly FissureMode[] = ["normal", "steel", "storm"
 /** Each kind's name, as Home's board names it. */
 export const MODE_LABEL: Record<FissureMode, string> = { normal: "Normal", steel: "Steel Path", storm: "Void Storms" };
 
-/** The mission types a fissure runs on, for the lists to choose from (the fissure alert form on Home, the Watching column). */
-export const MISSIONS = ["Capture", "Defense", "Disruption", "Excavation", "Extermination", "Hijack", "Interception", "Mobile Defense", "Rescue", "Sabotage", "Spy", "Survival", "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy", "Skirmish", "Volatile", "Orphix"];
+/** The mission types a fissure runs on, for the lists to choose from (the fissure alert form on Home, the Watching column), by the world state's names. */
+export const MISSIONS = ["Capture", "Defense", "Disruption", "Excavation", "Exterminate", "Hijack", "Interception", "Mobile Defense", "Rescue", "Sabotage", "Spy", "Survival", "Void Cascade", "Void Flood", "Void Armageddon", "Alchemy", "Skirmish", "Volatile", "Orphix"];
 
 /**
  * The mission types to offer, sorted: MISSIONS, every type open now (the worldstate may name one
  * the list lacks), and `chosen` (one picked before that isn't open now stays there to untick).
  */
-export const missionTypes = (fs: Fissure[] | null, chosen: string[] = []) => [...new Set([...MISSIONS, ...(fs ?? []).map((f) => f.missionType), ...chosen])].sort();
+export const missionTypes = (fs: Fissure[] | null, chosen: string[] = []) => [...new Set([...MISSIONS, ...(fs ?? []).map((f) => f.missionType), ...chosen].map(missionName))].sort();
 
 /**
  * What the Watching column's Fissures card lists (settings.side.fissures), kept apart from Home's
@@ -118,7 +118,7 @@ export function chosenFissures(fs: Fissure[] | null, choice: FissureChoice, rule
     const soonest = matchedFissures(rules, fs, now).map((w) => w.fissure).sort((a, b) => Date.parse(a.expiry) - Date.parse(b.expiry));
     return { mine: true, eras: [], soonest, count: soonest.length, narrowed: false };
   }
-  const picked = (fs ?? []).filter((f) => choice.kinds.includes(modeOf(f)) && (!choice.eras.length || choice.eras.includes(f.tier)) && (!choice.missions.length || choice.missions.includes(f.missionType)));
+  const picked = (fs ?? []).filter((f) => choice.kinds.includes(modeOf(f)) && (!choice.eras.length || choice.eras.includes(f.tier)) && (!choice.missions.length || choice.missions.some((m) => missionName(m) === missionName(f.missionType))));
   const eras = fissuresByEra(picked, "all", now);
   return { mine: false, eras, soonest: [], count: eras.reduce((n, e) => n + e.list.length, 0), narrowed: choice.eras.length > 0 || choice.missions.length > 0 };
 }

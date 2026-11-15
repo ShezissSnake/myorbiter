@@ -7,11 +7,12 @@
   import { eraTint } from "./table";
   import type { Settings } from "../backend";
   import { bountyBoards, chosenFissures, fissureCounts, FISSURE_MODES, missionTypes, MODE_LABEL, type BountyTable, type FissureMode } from "../core/board";
-  import { cycleTimers, matchedFissures, TIERS } from "../core/timers";
+  import { cycleTimers, matchedFissures, missionName, TIERS } from "../core/timers";
   import PickMany from "./PickMany.svelte";
   import { foundryBuilds } from "../core/foundry";
   import { invasionNeeds, invasionRares } from "../core/invasions";
   import { alertNeeds, describeHelp } from "../core/worldNeeds";
+  import { fissuresOutOfDate, watchingAlertsNote } from "../core/worldAge";
   import { until } from "../core/traders";
   import { scoreCards } from "../core/pick";
   import { mkt } from "../marketStore.svelte";
@@ -24,7 +25,9 @@
   import P from "./P.svelte";
   import HelpMark from "./HelpMark.svelte";
 
-  let { model, live, settings = $bindable(), console = false, bountyTables = null, go, shortListings = [], liveError = null }: { model: Model | null; live: Live; settings: Settings; console?: boolean; bountyTables?: BountyTable[] | null; go: (t: string) => void; shortListings?: { id: string; itemId: string }[]; liveError?: string | null } = $props();
+  let { model, live, settings = $bindable(), console = false, bountyTables = null, go, shortListings = [], liveError = null, liveAt = null, liveRead = true }: { model: Model | null; live: Live; settings: Settings; console?: boolean; bountyTables?: BountyTable[] | null; go: (t: string) => void; shortListings?: { id: string; itemId: string }[]; liveError?: string | null; liveAt?: number | null; liveRead?: boolean } = $props();
+  /** The last world-state read, for what's said when a list is empty or old (core/worldAge.ts). */
+  const worldRead = $derived({ at: liveAt, error: liveError, read: liveRead });
 
   let now = $state(Date.now());
   $effect(() => {
@@ -82,6 +85,10 @@
   const invasions = $derived(model && !console ? invasionNeeds(model, live.invasions) : []);
   const rareInvasions = $derived(invasionRares(live.invasions));
   const cycles = $derived(cycleTimers(live, now));
+  /** Alerts or invasions that couldn't be read are said as that, never as nothing needing you. */
+  const alertsNote = $derived(watchingAlertsNote(live, worldRead, !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !rareInvasions.length && !shortListings.length));
+  /** The fissure list is old (every fissure in it closed, or the read is stale), not empty. */
+  const fissuresOld = $derived(fissuresOutOfDate(live.fissures, worldRead, now));
   const builds = $derived(model && !console ? foundryBuilds(model, settings.game.foundryReady, now).slice(0, 6) : []);
   const need = (name: string) => !!model && !console && (scoreCards(model, [name])[0]?.needed ?? false);
   const boards = $derived(bountyBoards(live.syndicates ?? null, bountyTables, need));
@@ -125,7 +132,7 @@
     {#if on(k) && k === "alerts"}
       <section>
         <div class="hmark"><h3 class="register"><Icon name="bell" size={11} /> Alerts</h3><HelpMark part="watching.alerts" /></div>
-        {#if !watched.length && !world.mastery.length && !world.rare.length && !invasions.length && !rareInvasions.length && !shortListings.length}<p class="dim small">Nothing that needs you right now.</p>{/if}
+        {#if alertsNote}<p class="dim small">{alertsNote}</p>{/if}
         <ul class="cards">
           {#if shortListings.length}<li class="card era-wash" style:--tint="var(--gold)"><GameIcon name="market" size={20} /><span class="tx wrap"><button class="link" onclick={() => go("market")} title="Visible listings on warframe.market for more copies than you hold now">Listed more than you hold: {shortListings.length} listing{shortListings.length === 1 ? "" : "s"}</button><span class="dim small">Sold, or fix them on Orders</span></span></li>{/if}
           {#each watched as w (w.fissure.id)}{@render fissureCard(w.fissure)}{/each}
@@ -159,7 +166,7 @@
             </fieldset>
             <fieldset disabled={mine} title={mine ? "Not used while Only my alerts is on" : undefined}>
               <legend class="register">Mission</legend>
-              <PickMany bind:value={settings.side.fissures.missions} label="This column's fissures, mission" any="Any mission" noun="missions" options={missionTypes(live.fissures, fz.missions).map((m) => ({ v: m, label: m }))} />
+              <PickMany bind:value={() => [...new Set(fz.missions.map(missionName))], (v) => (settings.side.fissures.missions = v)} label="This column's fissures, mission" any="Any mission" noun="missions" options={missionTypes(live.fissures, fz.missions).map((m) => ({ v: m, label: m }))} />
             </fieldset>
             {#if mine}<p class="dim small">Only my alerts is on: kind, era and mission don't apply.</p>{/if}
           </div>
@@ -173,7 +180,7 @@
             <ul class="cards">{#each e.list as f (f.id)}{@render fissureCard(f)}{/each}</ul>
           {/each}
         {/if}
-        {#if !listed.count}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : live.fissures.length && counts.normal + counts.steel + counts.storm === 0 ? "Out of date: the worldstate can't be read right now." : mine ? "None of the fissures open right now match your alerts." : counts.normal + counts.steel + counts.storm === 0 ? "None open right now." : "No open fissure matches what's chosen here."}</p>{/if}
+        {#if !listed.count}<p class="dim small">{live.fissures == null ? (liveError ? "The worldstate can't be read right now." : "Reading the worldstate…") : fissuresOld ? (liveError ? "Out of date: the worldstate can't be read right now." : "Out of date: waiting for the next read of the worldstate.") : mine ? "None of the fissures open right now match your alerts." : counts.normal + counts.steel + counts.storm === 0 ? "None open right now." : "No open fissure matches what's chosen here."}</p>{/if}
       </section>
     {:else if on(k) && k === "clocks" && cycles.length}
       <section>

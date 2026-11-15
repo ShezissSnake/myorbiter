@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { firstStart, gameLine, inventoryLine, LIMITS, logLine, type ReportSigns, type Signs } from "../src/lib/core/firstStart";
+import { firstStart, gameLine, inventoryLine, LIMITS, logLine, tryAgain, type ReportSigns, type Signs } from "../src/lib/core/firstStart";
 
 const T0 = Date.UTC(2026, 10, 12, 18, 0);
 const S = 1000;
@@ -178,12 +178,46 @@ test("every step has a way on without TennoScope ever answering", () => {
 test("Finish later and Esc are on every step, and leave the automatic actions off", () => {
   const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
   assert.match(app, /data-field="setup\.later"/, "the Finish later button");
-  assert.match(app, /function finishLater\(\)/);
-  const body = app.slice(app.indexOf("function finishLater()"), app.indexOf("function finishLater()") + 1200);
+  assert.match(app, /function finishLater\(how/);
+  const body = app.slice(app.indexOf("function finishLater("), app.indexOf("function finishLater(") + 1200);
   assert.match(body, /withoutInventory\(\)/);
-  for (const k of ["auto", "autoTrades", "autoRep"]) assert.match(body, new RegExp(`settings\\.market\\.${k} = false`), k);
+  // The automatic actions: switched off by leaveSetup, first start or not (gettingIn.test.ts).
+  assert.match(body, /Object\.assign\(settings\.market, next\)/);
   // While it's open the sidebar waits: inert (out of the Tab order, not clickable) and dimmed.
   assert.match(app, /<aside class="rail" aria-label="MyOrbiter" inert=\{setupOpen\}/);
   // Esc leaves it.
   assert.match(app, /setupOpen && e\.key === "Escape"/);
+});
+
+test("Try again starts every step's wait over, the sign-in and the inventory steps included", () => {
+  const ten = T0 + 10 * 60_000;
+  const again = (s: Signs): Signs => ({ ...s, ...tryAgain(s, ten, true), now: ten });
+  // At the sign-in screen, past the limit: Try again counts it from now, with a fresh countdown.
+  const login = signs({ status: full({ game_running: true, reader: ["degraded", "inventory authorization was not found"] }), gameSince: T0, now: ten });
+  assert.equal(firstStart(login).stuck, true);
+  const l = firstStart(again(login));
+  assert.equal(l.step, "game");
+  assert.equal(l.stuck, false, `still stuck right after Try again: ${l.reason}`);
+  assert.deepEqual(l.limit, { since: ten, ms: LIMITS.signIn });
+  // Signed in, never read: the same.
+  const unread = signs({ status: full({ game_running: true, reader: ["ready", "Warframe process connected"] }), gameSince: T0, signedInSince: T0, log: { found: true, signedIn: true }, now: ten });
+  assert.equal(firstStart(unread).stuck, true);
+  const u = firstStart(again(unread));
+  assert.equal(u.step, "inventory");
+  assert.equal(u.stuck, false, `still stuck right after Try again: ${u.reason}`);
+  assert.deepEqual(u.limit, { since: ten, ms: LIMITS.read });
+  // Read by TennoScope, not loaded by MyOrbiter: the same.
+  const unloaded: Signs = { ...unread, status: full({ game_running: true, mastery_rank: 22, reader: ["ready", "Inventory synchronized from warframe-memory"] }), pickup: { error: "No inventory read yet", entries: 0, observedAt: null } };
+  assert.equal(firstStart(unloaded).stuck, true);
+  const d = firstStart(again(unloaded));
+  assert.equal(d.stage, "Signed in, read by TennoScope: loading it");
+  assert.equal(d.stuck, false);
+  // A sign not seen yet stays not seen: its wait begins when it turns up.
+  assert.deepEqual(tryAgain({ since: T0, runningSince: null, gameSince: null, signedInSince: null }, ten, false), { since: ten, runningSince: null, gameSince: null, signedInSince: null });
+});
+
+test("the setup page's Try again starts the waits over through tryAgain", () => {
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  const act = app.slice(app.indexOf("function setupAct("), app.indexOf("function setupAct(") + 600);
+  assert.match(act, /tryAgain\(/);
 });

@@ -98,15 +98,20 @@ export interface AlertNeed {
   mission: string;
   faction: string;
   reward: string;
+  /** The reward itself, without the count: its path (when the world state gives one) and name. */
+  item: { uniqueName?: string; name: string };
   expiry: string;
   /** For mastery: what it's toward. Null for a rare reward. */
   help: MasteryHelp | null;
 }
 
-const rewardsOf = (a: WorldAlert): { uniqueName?: string; name: string; count: number }[] => [
-  ...(a.mission.reward?.countedItems ?? []).map((r) => ({ uniqueName: r.uniqueName, name: r.type, count: r.count ?? 1 })),
-  ...(a.mission.reward?.items ?? []).filter((x): x is string => typeof x === "string").map((name) => ({ name, count: 1 })),
-];
+/** An alert's rewards, each once: `items` may name a counted reward again (as events.ts finds), and that copy is left out. */
+const rewardsOf = (a: WorldAlert): { uniqueName?: string; name: string; count: number }[] => {
+  const counted = (a.mission.reward?.countedItems ?? []).filter((r) => typeof r?.type === "string").map((r) => ({ uniqueName: r.uniqueName, name: r.type, count: r.count ?? 1 }));
+  const named = new Set(counted.map((r) => r.name));
+  const items = [...new Set((a.mission.reward?.items ?? []).filter((x): x is string => typeof x === "string" && !named.has(x)))];
+  return [...counted, ...items.map((name) => ({ name, count: 1 }))];
+};
 
 /**
  * Running alerts with a reward you'd want. `mastery`: toward something you haven't mastered (needs
@@ -118,7 +123,7 @@ export function alertNeeds(m: Model | null, alerts: WorldAlert[] | null | undefi
   for (const a of alerts ?? []) {
     if (!a?.mission || Date.parse(a.expiry) <= now) continue;
     for (const r of rewardsOf(a)) {
-      const base = { key: `${a.id}|${r.uniqueName ?? r.name}`, node: a.mission.node, mission: a.mission.type, faction: a.mission.faction ?? "", reward: r.count > 1 ? `${r.count} × ${r.name}` : r.name, expiry: a.expiry };
+      const base = { key: `${a.id}|${r.uniqueName ?? r.name}`, node: a.mission.node, mission: a.mission.type, faction: a.mission.faction ?? "", reward: r.count > 1 ? `${r.count} × ${r.name}` : r.name, item: { uniqueName: r.uniqueName, name: r.name }, expiry: a.expiry };
       const help = m ? masteryHelp(m, r) : null;
       if (help) mastery.push({ ...base, help });
       else if (RARE_REWARD.test(r.name)) rare.push({ ...base, help: null });
