@@ -48,12 +48,13 @@ const WATCHING: Walkthrough = {
         "Fissures your fissure alerts match, and listings for more copies than you hold.",
         "Alerts and invasions paying something you need for gear you haven't mastered.",
         "Or something rare: Forma, an Orokin Catalyst or Reactor, an Exilus Adapter, Nitain.",
-        "Each shows where; alerts the time left, invasions the side to fight for.",
+        "Each shows where; alerts the time left, invasions the side. Unread ones are said so.",
       ],
       shot: {
         open: "relics",
         size: WIDE,
-        // Live: with nothing to show it says "Nothing that needs you right now."
+        // Live: with nothing to show it says "Nothing that needs you right now"; alerts or
+        // invasions that couldn't be read are said as that.
         part: `${card("watching.alerts")} > .hmark, ${card("watching.alerts")} > p, ${card("watching.alerts")} > ul.cards > li:nth-child(-n+3)`,
         marks: [],
       },
