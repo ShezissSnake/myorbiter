@@ -2853,7 +2853,7 @@
       ok: mkt.linked,
     });
     const p = settings.game.platinum;
-    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString(), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
+    const plat = onConsole ? null : { label: "Plat", value: p == null ? "–" : p.toLocaleString("en"), title: p == null ? "Platinum: not read yet" : "Platinum, as of the last inventory read", ok: p != null };
     const next: Status = { items, plat, repricing };
     if (statusKept && JSON.stringify(statusKept) === JSON.stringify(next)) return statusKept;
     return (statusKept = next);

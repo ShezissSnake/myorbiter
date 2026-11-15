@@ -8,7 +8,7 @@
   import { showMeTarget, sinceSeen, type NewsItem } from "./whatsNew";
   import { updates as updateState } from "./updates.svelte";
   import { pageById, type PageId } from "./pages";
-  import { startTour } from "./tour.svelte";
+  import { startTour, tourKept } from "./tour.svelte";
   import { trap } from "./ui/trap";
   import NewsItems from "./ui/NewsItems.svelte";
   import NewsIcon from "./ui/NewsIcon.svelte";
@@ -25,7 +25,8 @@
   /** The update's first change leads, if it's one with a title (older entries are plain sentences). */
   const head = $derived(latest && typeof latest.items[0] !== "string" ? (latest.items[0] as NewsItem) : null);
   const rest = $derived(latest ? (head ? latest.items.slice(1) : latest.items) : []);
-  const stops = $derived(since.stops);
+  /** The stops the tour will make (none in Settings, none on a page this player lacks). */
+  const stops = $derived(tourKept(since.stops));
   const pageOf = (to: string) => showMeTarget(to, (page) => pageById[page as PageId]?.label ?? null);
 
   const date = (d: string) => new Date(`${d}T12:00:00Z`);

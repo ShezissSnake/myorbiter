@@ -31,5 +31,19 @@ test("csv: every source named, line breaks quoted, ranks and counts in a trade's
     { key: "b", at: Date.UTC(2026, 9, 2), partner: "ExamplePlayer", offered: [{ name: "Serration", rank: 10, count: 2 }, { name: "Mesa Prime Set", rank: null, count: 1 }], received: [{ name: "Vitality", rank: 0, count: 1 }], platOut: 5, platIn: 0 },
   ]);
   assert.equal(t.trim().split("\n")[1], "2026-10-02T00:00:00Z,ExamplePlayer,2× Serration R10; Mesa Prime Set,Vitality R0,0,5");
-  assert.equal(salesCsv([]), "date,item,rank,quantity,platinum_each,platinum_total,median_then,source\n");
+  assert.equal(salesCsv([]), "\uFEFFdate,item,rank,quantity,platinum_each,platinum_total,median_then,source\n");
+});
+
+test("csv: Excel on Windows reads the exports as UTF-8 (a byte-order mark first, once)", () => {
+  const t = tradesCsv([{ key: "k", at: Date.UTC(2026, 10, 1), partner: "ExamplePlayer", offered: [{ name: "Serration", rank: 10, count: 2 }], received: [], platIn: 40, platOut: 0 }]);
+  assert.ok(t.includes("2× Serration"), "the multiplication sign is in the file");
+  // Without it, Excel reads the file in the system code page: "2Ã— Serration".
+  assert.equal(t.charCodeAt(0), 0xfeff);
+  assert.equal(t.slice(1, 5), "date");
+  const s = salesCsv([{ at: Date.UTC(2026, 10, 1), item: "Équipe Prime", rank: null, quantity: 1, platinum: 9 }]);
+  assert.equal(s.charCodeAt(0), 0xfeff);
+  assert.equal(s.split("\uFEFF").length, 2, "one mark, at the start");
+  assert.ok(s.includes("Équipe Prime"));
+  // UTF-8 bytes EF BB BF, as Excel looks for them.
+  assert.deepEqual([...Buffer.from(salesCsv([]), "utf8").subarray(0, 3)], [0xef, 0xbb, 0xbf]);
 });
