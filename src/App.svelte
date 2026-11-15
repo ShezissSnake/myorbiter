@@ -131,7 +131,7 @@
   import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
@@ -167,6 +167,7 @@
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
+  import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -1726,19 +1727,8 @@
     if (!r) return;
     untrack(() => {
       const g = settings.game;
-      if (r.foundry_ready && JSON.stringify(r.foundry_ready) !== JSON.stringify(g.foundryReady)) g.foundryReady = r.foundry_ready;
-      if (r.mastery_rank != null && r.mastery_rank !== g.masteryRank) g.masteryRank = r.mastery_rank;
-      if (r.platinum != null && r.platinum !== g.platinum) g.platinum = r.platinum;
-      if (r.credits != null && r.credits !== g.credits) g.credits = r.credits;
-      if (r.endo != null && r.endo !== g.endo) g.endo = r.endo;
-      if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
-      if (r.imprints && JSON.stringify(r.imprints) !== JSON.stringify(g.imprints)) g.imprints = r.imprints;
-      if (r.gear && JSON.stringify(r.gear) !== JSON.stringify(g.gear)) g.gear = r.gear;
-      if (r.consumed_suits && JSON.stringify(r.consumed_suits) !== JSON.stringify(g.consumedSuits)) g.consumedSuits = r.consumed_suits;
-      if (r.rivens) {
-        const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
-        if (hist) g.rivenHistory = hist;
-      }
+      // Each fact in the shape the pages read it in, or left out (core/tsReport.ts).
+      takeAccountFacts(g, r);
       // The wallet can arrive after the inventory it goes with: bring the latest chart point up to date.
       const last = g.valueHistory.at(-1);
       const at = model?.observedAt ? +model.observedAt : null;

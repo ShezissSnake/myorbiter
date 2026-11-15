@@ -40,7 +40,8 @@ export function missingWords(e: string, folder: string, readBefore: boolean): st
   // Which file, when it's one file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
   const path = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
   const file = path?.split(/[\\/]/).slice(-2).join("/");
-  if (readBefore && dataMissing(e)) return `MyOrbiter can't find TennoScope's data in ${folder}${file ? ` (${file} is missing)` : ""}, where it read your inventory before. If TennoScope keeps it somewhere else now, set that folder in Settings, Where things are.`;
+  // An inventory was read on this install, not necessarily from the folder set now (Settings can change it).
+  if (readBefore && dataMissing(e)) return `MyOrbiter has read your inventory before, and now can't find TennoScope's data in ${folder}${file ? ` (${file} is missing)` : ""}. If TennoScope keeps it somewhere else, set that folder in Settings, Where things are.`;
   if (file) return `TennoScope's data in ${folder} is missing ${file}, so MyOrbiter can't load it yet.`;
   if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${folder} yet.`;
   return null;
