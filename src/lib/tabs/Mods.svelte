@@ -21,7 +21,7 @@
   import Seg from "../ui/Seg.svelte";
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import ListButton from "../ui/ListButton.svelte";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
   import { pickShowcase } from "../core/showcase";
@@ -128,7 +128,7 @@
     { key: "price", label: "Price", value: (r) => r.price, align: "right", cell: priceCell },
     { key: "value", label: "Spares sell for", value: (r) => (tradeWorthy(r) ? worth(r) : null), align: "right", cell: valueCell, title: "Your spare copies at the daily median, counting no more copies than warframe.market sells in a month. Worth selling adds these up for the mods that sell daily" },
     { key: "priceMax", minor: true, label: "Maxed", value: (r) => r.priceMax, align: "right", cell: maxCell, title: "Price of a max-rank copy" },
-    { key: "trades", label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells. Common mods at 2–5p rarely move." },
+    { key: "trades", label: "Sold/day", value: (r) => soldPerDay(r.tradesPerDay), sortValue: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How quickly it sells: how many sold a day on warframe.market lately, <0.1 less than once in ten days, blank hasn't sold lately. Common mods at 2–5p rarely move." },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -157,7 +157,7 @@
     </div>
     {#snippet foot()}
       <span class="rar rar-{r.rarity}">{r.rarity}</span>
-      {#if !r.tradable}<span class="tag flush">untradable</span>{:else if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
+      {#if !r.tradable}<span class="tag flush">untradable</span>{:else if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{soldPerDay(r.tradesPerDay)} sold/day</span>{/if}
       <span class="grow"></span>
       {@render listCell(r, true)}
     {/snippet}
