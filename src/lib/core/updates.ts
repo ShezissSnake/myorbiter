@@ -138,16 +138,17 @@ export interface UpdateSettings {
   /** The build last installed through the updater, and the channel it came from. */
   from: { version: string; channel: Channel } | null;
   /**
-   * Whether `channel` stands: chosen in Settings, or kept from settings saved before. False only on
-   * a new install until it knows its own build: then `settleChannel` puts it on the channel that
-   * build was published to, once.
+   * Whether `channel` stands: chosen in Settings, kept from settings saved before, or settled by a
+   * new install's first check. False only on a new install (no settings saved yet) until then:
+   * `channel` is only what Settings shows meanwhile, and the first check that hears back from the
+   * channels settles it (`newInstallStep`), once.
    */
   picked: boolean;
 }
 
 export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null, picked: true });
 
-/** A new install's (no settings saved yet): its channel follows its build (`settleChannel`). */
+/** A new install's (no settings saved yet): its channel is settled by its first check (`newInstallStep`). */
 export const newInstallUpdates = (): UpdateSettings => ({ ...defaultUpdates(), picked: false });
 
 /**
@@ -161,14 +162,65 @@ export function publishedTo(version: string): Channel {
 }
 
 /**
- * A new install's channel, once its version is known: the one its build was published to. Settings
- * saved before (any channel, or none) are left as they are. True when it changed something.
+ * A new install's channel without asking any channel (`settlesByAsking` false): a local build,
+ * published nowhere, on Stable; a CI build that doesn't check for updates on Experimental, where it
+ * was published first. Settings saved before (any channel, or none) are left as they are. True when
+ * it changed something.
  */
 export function settleChannel(u: UpdateSettings, version: string): boolean {
   if (u.picked) return false;
   u.channel = publishedTo(version);
   u.picked = true;
   return true;
+}
+
+/**
+ * Whether a new install settles its channel by asking the channels (`newInstallStep`): a CI build
+ * that checks for updates. A local build and a copy that doesn't check ask nothing for it.
+ */
+export const settlesByAsking = (version: string, checks: boolean) => checks && buildNumber(version) != null;
+
+/**
+ * What a channel answered a new install: its build's version, "empty" (no build, or none for this
+ * system), or null for no answer (offline, a failed check, a time-out).
+ */
+export type ChannelAnswer = { version: string } | "empty" | null;
+
+/** Whether a channel's answer makes it one to settle on: a build that is the running one or newer. */
+const counts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;
+
+/**
+ * A new install's channel, from what Stable and Beta answered (`beta` undefined: not asked yet) and
+ * the running version: the most stable channel whose build is the running one or newer, so no step
+ * back is offered by itself and the version line never names a channel whose build is older.
+ * Stable if its build counts; else Beta if its build counts; else Experimental, which is never
+ * asked for this (every build lands there first). "ask beta": Stable doesn't count and Beta wasn't
+ * asked yet. "not yet": a channel that had to be asked didn't answer, so nothing settles and the
+ * next check asks again.
+ */
+export function newInstallStep(running: string, stable: ChannelAnswer, beta?: ChannelAnswer): Channel | "ask beta" | "not yet" {
+  if (stable == null) return "not yet";
+  if (counts(stable, running)) return "stable";
+  if (beta === undefined) return "ask beta";
+  if (beta == null) return "not yet";
+  return counts(beta, running) ? "beta" : "experimental";
+}
+
+/** Why a new install settled on `channel`, for the log line that says so. */
+export function newInstallWhy(running: string, channel: Channel, stable: ChannelAnswer, beta?: ChannelAnswer): string {
+  const said = (c: Channel, a: ChannelAnswer | undefined) =>
+    a == null || a === "empty" ? `${CHANNEL_LABEL[c]} has no build` : compareVersions(a.version, running) < 0 ? `${CHANNEL_LABEL[c]}'s build ${a.version} is older` : `${CHANNEL_LABEL[c]} has ${a.version}`;
+  if (channel === "stable") return `the most stable channel with this build or a newer one (${said("stable", stable)})`;
+  if (channel === "beta") return `the most stable channel with this build or a newer one (${said("stable", stable)}, ${said("beta", beta)})`;
+  return `neither Stable nor Beta has this build or a newer one (${said("stable", stable)}, ${said("beta", beta)})`;
+}
+
+/**
+ * What Settings, Updates says while a new install hasn't settled its channel: which channel is
+ * shown, and that MyOrbiter is still finding out. `failed`: its last try got no answer.
+ */
+export function unsettledWords(shown: Channel, failed: boolean): string {
+  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "It couldn't reach the channels yet and asks again at its next check." : "It asks them at its first check."} A channel you pick yourself stays.`;
 }
 
 const VERSION = /^\d+\.\d+\.\d+$/;
@@ -228,9 +280,13 @@ export function cameFrom(version: string, u: UpdateSettings): Channel | "local" 
   return u.channel;
 }
 
-/** "0.2.52 · Experimental", "0.1.0 · local build". */
+/**
+ * "0.2.52 · Experimental", "0.1.0 · local build"; "0.2.52 · channel not chosen yet" on a new install
+ * that hasn't settled its channel (the one Settings shows meanwhile was never chosen).
+ */
 export function versionLine(version: string, u: UpdateSettings): string {
   const c = cameFrom(version, u);
+  if (c !== "local" && !u.picked && !(u.from && u.from.version === version)) return `${version} · channel not chosen yet`;
   return `${version} · ${c === "local" ? "local build" : CHANNEL_LABEL[c]}`;
 }
 

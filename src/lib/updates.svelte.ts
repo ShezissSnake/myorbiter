@@ -3,12 +3,16 @@
 // START_WAIT at the latest), then whenever the last one is CHECK_EVERY old, on a channel switch,
 // and from Check now (docs/privacy.md, Updates). Nothing installs without a click.
 //
+// A new install (no settings saved yet) of a CI build that checks has no channel until its first
+// check hears back: that check asks Stable, then Beta if need be, and settles on the most stable
+// channel whose build is this one or newer (`settle`, core/updates.ts `newInstallStep`).
+//
 // Every check ends in one state, shown under Check now with its time (`checkLine`): a build on
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
 import { flushSettings, logLine, updater, type UpdateCheck, type UpdateInfo } from "./backend";
-import { CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, noticeShows, SCHEDULE_TICK, settleChannel, START_WAIT, versionLine, type Channel, type CheckOutcome, type UpdateSettings } from "./core/updates";
+import { buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
 import { afterPaint } from "./ui/soon";
@@ -70,10 +74,13 @@ export class Updates {
     void updater.info().then(
       (i) => {
         this.info = i;
-        // A new install starts on the channel its build was published to; saved settings keep theirs.
+        // A new install of a local build, or of a copy that doesn't check for updates, settles its
+        // channel here without asking anything; one that checks settles at its first check that
+        // hears back from the channels (`settle`). Saved settings keep theirs.
         const u = this.get?.();
-        if (u && settleChannel(u, i.version)) logLine("info", "updates", `new install: on ${CHANNEL_LABEL[u.channel]}, the channel this build was published to`);
-        if (!installChecks(i.install)) return;
+        const checks = installChecks(i.install);
+        if (u && !settlesByAsking(i.version, checks) && settleChannel(u, i.version)) logLine("info", "updates", `new install: on ${CHANNEL_LABEL[u.channel]}, ${buildNumber(i.version) == null ? "a local build" : "the channel this build was published to (this copy doesn't check for updates)"}`);
+        if (!checks) return;
         // Not before the first frame, and not while the page is busy, so the start stays as quick;
         // but not held back for long either.
         this.cancelStart = afterPaint(() => (this.cancelStart = soonIdle(() => void this.quiet(), START_WAIT)));
@@ -164,19 +171,34 @@ export class Updates {
     for (;;) {
       const u = this.get?.();
       if (!u || !this.info || !installChecks(this.info.install)) throw new JobError("Not here", "this copy of MyOrbiter doesn't check for updates");
-      const channel = u.channel;
+      let channel = u.channel;
+      // What each channel answered this time round: a channel the new install's settling asked
+      // isn't asked again for the check or for the nearest channel with a build.
+      const known: Partial<Record<Channel, UpdateCheck>> = {};
+      const asking = { channel };
+      const settling = !u.picked && settlesByAsking(this.info.version, true);
+      let settled = false;
       let r: UpdateCheck;
       try {
-        r = await limited(updater.check(channel), CHECK_LIMIT);
+        if (settling) {
+          const s = await this.settle(u, this.info.version, known, asking);
+          // The player picked a channel meanwhile: the answers are dropped, and that channel is asked.
+          if (s == null) continue;
+          channel = s;
+          settled = true;
+        }
+        asking.channel = channel;
+        r = known[channel] ?? (await limited(updater.check(channel), CHECK_LIMIT));
       } catch (e) {
-        // A switch while it ran: this failure was the old channel's. Ask the new one.
-        if (this.get?.().channel !== channel) continue;
+        // A switch while it ran, or a pick while a new install was settling: this failure was for
+        // what was shown before. Ask the channel chosen now.
+        if (this.get?.().channel !== channel || (settling && !settled && this.get?.().picked)) continue;
         const reason = plain(e);
         const at = Date.now();
         u.lastCheck = at;
         this.error = reason;
         this.outcome = { kind: "failed", channel, reason, at };
-        if (e instanceof Late) logLine("warn", "updates", `${channel} check: ${reason}`);
+        if (e instanceof Late) logLine("warn", "updates", `${asking.channel} check: ${reason}`);
         throw new JobError("Couldn't check", reason);
       }
       if (this.get?.().channel !== channel) continue;
@@ -192,7 +214,7 @@ export class Updates {
       if (r.state === "empty") {
         // Not a failure: said plainly, with the nearest channel that has a build, to switch to by
         // a click. Nothing switches by itself.
-        const nearest = await this.nearest(channel);
+        const nearest = await this.nearest(channel, known);
         if (this.get?.().channel !== channel) continue;
         this.outcome = { kind: "empty", channel, system: r.system, nearest, at };
         return `${CHANNEL_LABEL[channel]} is empty`;
@@ -207,13 +229,14 @@ export class Updates {
   /**
    * The nearest channel to `empty` that has a build (`NEAREST`), and its version; null if none
    * answers with one. Asked only when the chosen channel turned out empty, at most once a check,
-   * from the same addresses a switch to that channel asks.
+   * from the same addresses a switch to that channel asks. A channel already in `known` (a new
+   * install's settling asked it this check) isn't asked again.
    */
-  private async nearest(empty: Channel): Promise<{ channel: Channel; version: string } | null> {
+  private async nearest(empty: Channel, known: Partial<Record<Channel, UpdateCheck>> = {}): Promise<{ channel: Channel; version: string } | null> {
     for (const c of NEAREST[empty]) {
       let r: UpdateCheck;
       try {
-        r = await limited(updater.check(c), CHECK_LIMIT);
+        r = known[c] ?? (await limited(updater.check(c), CHECK_LIMIT));
       } catch {
         return null;
       }
@@ -221,6 +244,48 @@ export class Updates {
       if (r.state !== "empty") return null;
     }
     return null;
+  }
+
+  /**
+   * A new install's channel, settled by asking Stable, and Beta only when Stable's build doesn't
+   * count (`newInstallStep`): the channel settled on, saved as picked and said in the log once.
+   * Null when the player picked a channel meanwhile: what was heard is dropped. Throws when a
+   * channel that had to be asked didn't answer: nothing settles, nothing is marked picked, and the
+   * next check (when due, or at the next start) asks again. What each channel answered goes into
+   * `known`, so the check that follows doesn't ask it twice; `asking` names the channel on its way.
+   */
+  private async settle(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }): Promise<Channel | null> {
+    const ask = async (c: Channel): Promise<ChannelAnswer> => {
+      asking.channel = c;
+      const r = await limited(updater.check(c), CHECK_LIMIT);
+      known[c] = r;
+      return r.state === "current" || r.state === "newer" || r.state === "older" ? { version: r.version } : r.state === "empty" ? "empty" : null;
+    };
+    const stable = await ask("stable");
+    if (this.get?.().picked) return null;
+    let beta: ChannelAnswer | undefined;
+    let step = newInstallStep(version, stable);
+    if (step === "ask beta") {
+      beta = await ask("beta");
+      if (this.get?.().picked) return null;
+      step = newInstallStep(version, stable, beta);
+    }
+    if (step === "not yet" || step === "ask beta") throw new Error("Couldn't find out which channel has this build");
+    u.channel = step;
+    u.picked = true;
+    logLine("info", "updates", `new install: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta)}`);
+    return step;
+  }
+
+  /**
+   * While a new install hasn't settled its channel: what Settings, Updates says about the channel
+   * it shows (`unsettledWords`). Null once settled, and on an install that settles without asking.
+   */
+  get unsettled(): string | null {
+    const u = this.get?.();
+    const i = this.info;
+    if (!u || u.picked || !i || !settlesByAsking(i.version, installChecks(i.install))) return null;
+    return unsettledWords(u.channel, this.outcome?.kind === "failed");
   }
 
   /** The empty channel's line in Settings, Updates, and the switch it offers; null otherwise. */
@@ -240,8 +305,10 @@ export class Updates {
   setChannel(c: Channel) {
     const u = this.get?.();
     if (!u) return;
-    // The player's own choice: a new install's channel never settles over it, even when it is
-    // the channel already shown.
+    // The player's own choice, from the channel buttons or an empty channel's Switch to: it
+    // settles a new install for good, even on the channel already shown, and an answer the
+    // settling was waiting for is dropped (`settle`). Saved with the settings, so a later start
+    // never asks again.
     u.picked = true;
     if (u.channel === c) return;
     u.channel = c;

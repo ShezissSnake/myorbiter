@@ -306,8 +306,13 @@ channel's manifest, from its package registry on gitlab.com, with the updater's 
 (`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
-the same way, so Settings can name a channel that has one; it switches nothing. A new install starts
-on the channel its build was published to (Experimental, where every build lands first); an install
+the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
+settings saved yet) has no channel until its first check hears back: that check reads Stable's
+`latest.json`, and Beta's too if Stable has no build or an older one than yours, the same way, and
+starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
+Experimental, which it then reads as every check does). If one it had to read doesn't answer, nothing is
+chosen and the next check asks again; a channel you pick meanwhile stays. A local build starts on Stable and a copy
+that doesn't check on Experimental, without reading anything for it. An install
 that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
