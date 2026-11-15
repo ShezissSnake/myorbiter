@@ -123,7 +123,7 @@ const PARTS: Walkthrough = {
   title: "Prime parts",
   guide: guideOf("parts"),
   does: [
-    { text: "Shows each prime part's best use: keep, sell or ducats", icon: "ducats" },
+    { text: "Shows each part's best use: keep, set, sell or ducats", icon: "ducats" },
     { text: "Shows what a part sells for and the ducats Baro pays", icon: "platinum" },
     { text: "Shows your ducats, and when Baro comes or leaves", icon: "baro" },
     { text: "Lists the parts with the most ducats per platinum", icon: "ducats" },
@@ -232,7 +232,7 @@ const SETS: Walkthrough = {
     { text: "Lists complete sets you can sell, with their price", icon: "prime-plate" },
     { text: "Lists sets one or two parts short, with the cost" },
     { text: "Shows sets your loose parts are worth more as" },
-    { text: "Holds back sets for gear you haven't built yet" },
+    { text: "Holds back sets of gear you haven't built or mastered" },
   ],
   pages: [
     {
@@ -321,9 +321,9 @@ const MODS: Walkthrough = {
   guide: guideOf("mods"),
   does: [
     { text: "Lists mod copies you can spare, keeping your best", icon: "endo" },
-    { text: "Shows what spares sell for and the days to sell them", icon: "platinum" },
+    { text: "Shows spares' worth and the days of trades to sell them", icon: "platinum" },
     { text: "Shows the Endo to max your best copy", icon: "endo" },
-    { text: "Hides mods that can't be sold or don't sell daily" },
+    { text: "Starts by hiding mods that can't sell or don't sell daily" },
   ],
   pages: [
     {

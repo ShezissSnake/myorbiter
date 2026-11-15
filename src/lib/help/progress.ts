@@ -32,7 +32,7 @@ const MASTERY: Walkthrough = {
     { text: "Shows what you've mastered of each category", icon: "mastered" },
     { text: "Lists what's left to master, easiest first" },
     { text: "Shows how hard each is to get, and how" },
-    { text: "Shows what buying the rest with platinum costs", icon: "platinum" },
+    { text: "Lists what platinum can buy, cheapest first", icon: "platinum" },
   ],
   pages: [
     {
@@ -199,7 +199,7 @@ const BUILDS: Walkthrough = {
   guide: guideOf("builds"),
   does: [
     { text: "Lists mod and arcane builds for anything that takes them", icon: "forma" },
-    { text: "Sorts builds into three tiers, by how far along you are" },
+    { text: "Sorts builds into three tiers, by what they take" },
     { text: "Shows what you're missing for each build" },
     { text: "Reads a pasted build or a Nox's Frame build code" },
   ],

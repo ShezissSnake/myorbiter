@@ -18,7 +18,7 @@ const STATS_WT: Walkthrough = {
     { text: "Shows your inventory's value at each read" },
     { text: "Charts platinum, credits and Endo over time", icon: "credits" },
     { text: "Shows what your relic runs come to per hour", icon: "relic-axi-intact" },
-    { text: "Lists every trade you've made, from the game's log", icon: "player" },
+    { text: "Lists every trade read from the game's log", icon: "player" },
   ],
   pages: [
     {

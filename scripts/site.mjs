@@ -580,6 +580,12 @@ if (args.includes("--check")) {
   const reach = /["'`]\/\/|\bcreateElement\(\s*["'`](?!(?:button|span|a)["'`])|\blocation\.(?:assign|replace|reload)\b|\.click\(\)|\bObject\.assign\b|\b(?:https?:|fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|indexedDB|cookie|caches|serviceWorker|importScripts|import|eval|Function|innerHTML|outerHTML|insertAdjacentHTML|write|postMessage|setAttributeNS|createContextualFragment)\b|\bwindow\.open\b|\blocation\s*(?:\.href)?\s*=[^=]|\bsrc(?:doc)?\s*=\s*["'`]|\bon[a-z]+\s*=/g;
   for (const m of js.matchAll(reach)) bad.push(`${SCRIPT}: "${m[0]}" (it may only work on its own page)`);
   const css = readFileSync(join(OUT, "site.css"), "utf8");
+  // The stylesheet's generated rules (generatedCss) are in the built file: every section's glyph has
+  // its stencil, and every evened picture the landing page draws has its transform.
+  const landing = readFileSync(join(OUT, "index.html"), "utf8");
+  for (const g of Object.values(SECTION_GLYPH)) if (!css.includes(`.sg.gl-${g} { -webkit-mask-image: url(game/${g}.png)`)) bad.push(`site.css: no stencil for the glyph ${g} (generatedCss)`);
+  for (const m of new Set(landing.match(/\bev-[\w-]+/g) ?? [])) if (!css.includes(`.gi.${m} { transform:`)) bad.push(`site.css: no rule for ${m} (generatedCss)`);
+  if (!/\bev-/.test(landing)) bad.push("index.html: no evened picture on the landing page: has the chips' drawing changed?");
   for (const file of NARROW_PAGES) bad.push(...narrowOverflow(css, readFileSync(join(OUT, file), "utf8"), file));
   if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
   console.log(`site/_site: ${files.length} files, every link checked, the landing and Guide pages fit ${NARROW.join(", ")} px.`);

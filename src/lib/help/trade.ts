@@ -291,7 +291,7 @@ const BROWSE: Walkthrough = {
     { text: "Lists everything warframe.market trades, yours or not", icon: "browse-lens" },
     { text: "Shows what each item sold for lately, and how often", icon: "platinum" },
     { text: "Sorts by price, sales a day, ducats or what you hold" },
-    { text: "Opens a buy order for anything it lists" },
+    { text: "Opens the buy order form for anything it lists" },
   ],
   pages: [
     {
