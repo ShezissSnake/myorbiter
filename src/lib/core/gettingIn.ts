@@ -37,9 +37,11 @@ export function stillWithout(withoutInventory: boolean, read: { inventory: boole
 
 /** What went wrong reading TennoScope's data, in words, when its data is missing (null otherwise). */
 export function missingWords(e: string, folder: string, readBefore: boolean): string | null {
-  if (readBefore && dataMissing(e)) return `MyOrbiter can't find TennoScope's data in ${folder}, where it read your inventory before. If TennoScope keeps it somewhere else now, set that folder in Settings, Where things are.`;
-  const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
-  if (missing) return `TennoScope's data in ${folder} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
+  // Which file, when it's one file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
+  const path = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
+  const file = path?.split(/[\\/]/).slice(-2).join("/");
+  if (readBefore && dataMissing(e)) return `MyOrbiter can't find TennoScope's data in ${folder}${file ? ` (${file} is missing)` : ""}, where it read your inventory before. If TennoScope keeps it somewhere else now, set that folder in Settings, Where things are.`;
+  if (file) return `TennoScope's data in ${folder} is missing ${file}, so MyOrbiter can't load it yet.`;
   if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${folder} yet.`;
   return null;
 }
@@ -80,7 +82,8 @@ const NAMES: Record<keyof AutoSwitches, string> = { auto: "Apply automatically",
  * "Not now: overlay only" switches them off on a first start only. Nothing is ever switched on.
  */
 export function leaveSetup(how: "later" | "overlay", m: AutoSwitches, firstStart: boolean): { next: AutoSwitches; off: string[] } {
-  if (how === "overlay" && !firstStart) return { next: { ...m }, off: [] };
+  // Only the three switches, whatever else `m` holds: the caller writes `next` back over them.
+  if (how === "overlay" && !firstStart) return { next: { auto: m.auto, autoTrades: m.autoTrades, autoRep: m.autoRep }, off: [] };
   const off = (Object.keys(NAMES) as (keyof AutoSwitches)[]).filter((k) => m[k]).map((k) => NAMES[k]);
   return { next: { auto: false, autoTrades: false, autoRep: false }, off };
 }

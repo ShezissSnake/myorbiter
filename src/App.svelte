@@ -2542,7 +2542,6 @@
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
     if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
-    // Which file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
     // Once an inventory has been read, missing data is said as not found, never as "not yet".
     const missing = missingWords(e, settings.dataDir || defaultDir || "its folder", readBefore);
     if (missing) return missing;

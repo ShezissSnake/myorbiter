@@ -28,6 +28,12 @@ test("\"Not now: overlay only\" is as it was: the automatic actions off on a fir
   assert.deepEqual(leaveSetup("overlay", off, false).next, off);
 });
 
+test("leaving the setup page touches the three switches only", () => {
+  // App.svelte passes the whole market settings and writes `next` back: nothing else may be in it.
+  const market = { ...on, floors: { x: 5 }, approved: { x: 9 }, sales: [], minPrice: 10 };
+  for (const how of ["later", "overlay"] as const) for (const first of [true, false]) assert.deepEqual(Object.keys(leaveSetup(how, market, first).next).sort(), ["auto", "autoRep", "autoTrades"], `${how}, first start: ${first}`);
+});
+
 test("Finish later, Esc and the overlay step go through leaveSetup, and the log says what was switched off", () => {
   const body = app.slice(app.indexOf("function finishLater("), app.indexOf("function finishLater(") + 1200);
   assert.match(body, /leaveSetup\(how, settings\.market, !settings\.fullModeAsked \|\| firstStartRun\)/);
@@ -105,6 +111,8 @@ test("missing data after a first read: said as not found, with the folder and th
     assert.match(w, /Settings/);
     assert.doesNotMatch(w, /\byet\b/, `not "yet": ${w}`);
   }
+  // One file missing: named.
+  assert.match(missingWords(FILE_GONE, folder, true) ?? "", /\(io\.github\.deftera186\.tennoscope\/tennoscope\.sqlite3 is missing\)/);
   // Before the first read, as before.
   assert.equal(missingWords(FILE_GONE, folder, false), `TennoScope's data in ${folder} is missing io.github.deftera186.tennoscope/tennoscope.sqlite3, so MyOrbiter can't load it yet.`);
   assert.equal(missingWords("database disk image is malformed", folder, true), null);
