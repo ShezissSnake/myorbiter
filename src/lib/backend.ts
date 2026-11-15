@@ -1302,12 +1302,17 @@ export interface Health {
   last_success: string | null;
 }
 export type Presence = "online" | "ingame" | "invisible";
+/**
+ * TennoScope's report as the page gets it, checked (core/tsReport.ts): `at`, `game_running`,
+ * `setup`, `health` and `last_error` are always there; every other field may be absent, when
+ * TennoScope didn't write it or wrote it in another shape.
+ */
 export interface TennoscopeReport {
   at: number;
-  pid: number;
+  pid?: number;
   game_running: boolean;
   health: Record<"game_reader" | "log_monitor" | "capture" | "catalog" | "market" | "collection_prices" | "database" | "market_account", Health>;
-  market: {
+  market?: {
     link: "unlinked" | "linked" | "needs_relink";
     backing: "keyring" | "database" | null;
     presence: { status: Presence | null; wanted: Presence | null; auto: boolean };
