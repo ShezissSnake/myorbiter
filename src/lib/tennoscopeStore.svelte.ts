@@ -4,6 +4,7 @@
 
 import { tennoscope, type TennoscopeAccess, type TennoscopeAsk, type TennoscopeStatus } from "./backend";
 import { failureWords, gaveUpWords } from "./core/upkeep";
+import { statusOf } from "./core/tsReport";
 
 class TennoscopeStore {
   status = $state.raw<TennoscopeStatus | null>(null);
@@ -11,9 +12,11 @@ class TennoscopeStore {
   /**
    * Takes in a status check: read every 15 s and mostly the same, so the status stays the object it
    * was unless something in it changed (the strips under every page head and the buttons read it).
+   * Every status comes in here, its report checked first (core/tsReport.ts).
    */
   private put(next: TennoscopeStatus | null) {
-    if (JSON.stringify(next) !== JSON.stringify(this.status)) this.status = next;
+    const checked = statusOf(next);
+    if (JSON.stringify(checked) !== JSON.stringify(this.status)) this.status = checked;
   }
   /** A request just sent, until the next report shows its effect. */
   pending = $state<TennoscopeAsk | null>(null);
@@ -165,12 +168,12 @@ class TennoscopeStore {
   /** Settings → TennoScope → Program → Choose: the native file dialog. Throws why a pick was refused. */
   async chooseProgram() {
     const status = await tennoscope.chooseProgram();
-    if (status) this.status = status;
+    if (status) this.put(status);
   }
 
   /** Settings → TennoScope → Program → Find it: MyOrbiter finds TennoScope again. */
   async forgetProgram() {
-    this.status = await tennoscope.forgetProgram();
+    this.put(await tennoscope.forgetProgram());
   }
 
   async show() {

@@ -62,13 +62,13 @@
     type ScreenCards,
     type Settings,
     emptyBundle,
-    nothingYet,
     PLATFORM_LABEL,
     type Platform,
     NO_INVENTORY_YET,
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
   } from "./lib/backend";
@@ -164,7 +164,8 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
-  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, type Action, type Signs } from "./lib/core/firstStart";
+  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
+  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -338,6 +339,15 @@
   let liveRead = $state(false);
   /** The last read of TennoScope's data failed: with nothing loaded yet, a notice instead of the pages; else a note above them. */
   let error = $state<string | null>(null);
+  /** An inventory has been read here before: the value history keeps a point for every read (Stats). */
+  const readBefore = $derived(settings.game.valueHistory.length > 0);
+  /**
+   * The read failed because nothing has been read yet: the setup page's case. Once an inventory
+   * has been read, TennoScope's data missing is not that: it's said as not found (core/gettingIn.ts).
+   */
+  const notYet = $derived(!!error && notReadYet(error, readBefore));
+  /** That missing data, said in the sidebar's Inventory line too. */
+  const dataNotFound = $derived(!!error && readBefore && !notYet && dataMissing(error));
   /**
    * Running without an inventory: TennoScope hasn't read one yet and you chose to carry on, or
    * this is a Mac, where TennoScope doesn't run. The pages work from an empty collection, and the
@@ -377,7 +387,7 @@
   /** Linux's limit on reading another program's memory, when it stops TennoScope reading the game. */
   let ptraceScope = $state<number | null>(null);
   $effect(() => {
-    if (!model && error && nothingYet(error) && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
+    if (!model && notYet && ptraceScope == null) tennoscope.ptraceScope().then((v) => (ptraceScope = v && v > 0 ? v : 0)).catch(() => {});
   });
   /** When the data on screen was read. */
   let loadedAt = $state<number | null>(null);
@@ -471,7 +481,7 @@
   // (core/firstStart.ts): each wait has a time limit and ends in a plain state with a way on, and
   // Finish later (or Esc) leaves it at any step. While it's open the sidebar waits (inert).
   /** The setup page is up: nothing read yet, and TennoScope is meant to read it. */
-  const setupShown = $derived(!model && !!error && nothingYet(error) && !noTennoScope);
+  const setupShown = $derived(!model && notYet && !noTennoScope);
   /** The first start is open: its question, or the setup page. The rest of the window waits. */
   const setupOpen = $derived(!!firstRun || setupShown);
   /** A clock for the waits' limits, every second while the setup page is up. */
@@ -500,7 +510,7 @@
     setupWasUp = up;
   });
   /** The last pick-up of TennoScope's data: its error, and what it took in. */
-  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null });
+  const pickup = $derived({ error: model || !error ? null : error.replace(/^Error: /, ""), entries: bundle?.inventory.length ?? 0, observedAt: bundle?.observed_at ?? null, missing: !model && dataNotFound });
   const setupSigns = $derived.by((): Signs => ({
     now: setupNow,
     status: ts.status ? { supported: ts.status.supported !== false, running: ts.status.running, binary: ts.status.binary, report: ts.report } : null,
@@ -535,10 +545,9 @@
     lastSetupLine = line;
     logLine(setup.stuck ? "warn" : "info", "setup", line);
   });
-  /** A way on from a step: each starts that step's wait over. */
+  /** A way on from a step: each starts that step's wait over (the game's and the read's too). */
   function setupAct(a: Action) {
-    setupSince = Date.now();
-    tsRunningSince = ts.running ? setupSince : null;
+    ({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince } = tryAgain({ since: setupSince, runningSince: tsRunningSince, gameSince, signedInSince }, Date.now(), ts.running));
     if (a === "retry") {
       if (setup.step === "start") void ts.check(true, true);
       else if (setup.step === "access") void ts.ask("--access=full");
@@ -547,21 +556,20 @@
     } else if (a === "full") void ts.ask("--access=full");
     else if (a === "overlay") {
       void ts.ask("--access=overlay");
-      finishLater();
+      finishLater("overlay");
     } else if (a === "settings") showSettings = true;
   }
   /**
-   * Finish later (or Esc): out of the first start with safe defaults, at any step. MyOrbiter
-   * carries on without an inventory until TennoScope reads one, and on a first start (nothing
-   * chosen yet) every automatic action on warframe.market stays off.
+   * Finish later (or Esc): out of the setup page with safe defaults, at any step. MyOrbiter
+   * carries on without an inventory until TennoScope reads one, and every automatic action on
+   * warframe.market is switched off, first start or not, until the player turns it on again
+   * (core/gettingIn.ts). "Not now: overlay only" leaves the same way, but switches them off on a
+   * first start only.
    */
-  function finishLater() {
-    logLine("info", "setup", `first start: finished later at "${setup.stage}"`);
-    if (!settings.fullModeAsked || firstStartRun) {
-      settings.market.auto = false;
-      settings.market.autoTrades = false;
-      settings.market.autoRep = false;
-    }
+  function finishLater(how: "later" | "overlay" = "later") {
+    const { next, off } = leaveSetup(how, settings.market, !settings.fullModeAsked || firstStartRun);
+    Object.assign(settings.market, next);
+    logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
   }
   /** This start began with the first start's question: a new install's first run. */
@@ -724,8 +732,9 @@
   const retryLater = (n: number, again: () => void) => {
     if (n < 5) setTimeout(again, 1000 * 2 ** n);
   };
-  // Saving settings failed (a full disk, a locked file): said above the page until it works again.
-  let saveError = $state<string | null>(null);
+  // Saving settings failed (a full disk, a locked file), or the saved ones couldn't be read: said above
+  // every page, the setup page and the "Can't read" pages included, until it works again.
+  let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
   $effect(() => {
     void pickRetry;
@@ -2511,12 +2520,15 @@
         bundleKey = key;
       }
       noInventory = empty;
+      // "Continue without inventory" counts until an inventory is read.
+      settings.withoutInventory = stillWithout(settings.withoutInventory, { inventory: !empty });
       loadedAt = Date.now();
       error = null;
     } catch (e) {
       // Nothing to read yet, and you'd rather carry on (or TennoScope can't run here): an empty
-      // collection until it can. The stamp poll reloads once TennoScope writes its data.
-      if (nothingYet(String(e)) && (settings.withoutInventory || noTennoScope) && (!bundle || noInventory)) {
+      // collection until it can. The stamp poll reloads once TennoScope writes its data. Never for
+      // data that's gone missing once an inventory has been read: that's said (core/gettingIn.ts).
+      if (carryOnEmpty({ error: String(e), withoutInventory: settings.withoutInventory, noTennoScope, readBefore, held: !!bundle && !noInventory })) {
         bundle = emptyBundle();
         bundleKey = null;
         noInventory = true;
@@ -2534,10 +2546,9 @@
   /** What went wrong reading TennoScope's data, in words (the error itself is under Details). */
   function loadProblem(e: string) {
     if (/HOME is not set/.test(e)) return "MyOrbiter can't tell where TennoScope keeps its data: set the folder in Settings.";
-    // Which file: "there's no data" while TennoScope runs and reads reads as "TennoScope isn't there".
-    const missing = /not found at (\S+?):? TennoScope/i.exec(e)?.[1];
-    if (missing) return `TennoScope's data in ${settings.dataDir || defaultDir || "its folder"} is missing ${missing.split(/[\\/]/).slice(-2).join("/")}, so MyOrbiter can't load it yet.`;
-    if (/not found at|No dev bundle/i.test(e)) return `There's no TennoScope data in ${settings.dataDir || defaultDir || "its folder"} yet.`;
+    // Once an inventory has been read, missing data is said as not found, never as "not yet".
+    const missing = missingWords(e, settings.dataDir || defaultDir || "its folder", readBefore);
+    if (missing) return missing;
     if (/parse|database|could not read/i.test(e)) return "TennoScope's data is there but couldn't be read. TennoScope may have been writing it just then.";
     return "MyOrbiter couldn't read TennoScope's data.";
   }
@@ -2652,6 +2663,9 @@
       const wiki = loadWikiData().catch((e) => logLine("warn", "app", `couldn't read the wiki data files: ${e}`));
       settings = await loadSettings();
       settingsLoaded = true;
+      // Saved settings that couldn't be read are never saved over: said from the start, over every page.
+      const unreadable = settingsUnreadableWhy();
+      if (unreadable != null) saveError = { unreadable: true, cause: unreadable };
       // The sidebar's sections take their saved state as it is, without folding; from the next frame on, a change folds.
       requestAnimationFrame(() => (railSettled = true));
       await wiki;
@@ -3057,7 +3071,14 @@
          that (a sync, a warframe.market change, the background re-read when TennoScope writes)
          shows its progress in the button that started it, not up here. -->
     {#if loading && !bundle}<div class="progress" role="progressbar" aria-label="Reading TennoScope's data"></div>{/if}
-    {#if !model && error && nothingYet(error)}
+    <!-- Above every page, the setup page and the "Can't read" pages too: what's changed there (the
+         first start's answers, Finish later, Settings) is lost just the same. -->
+    {#if saveError}
+      <div class="stale" role="alert" title={saveError.cause}>
+        <span>{saveTroubleWords(saveError)}</span>
+      </div>
+    {/if}
+    {#if !model && error && notYet}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Getting set up{#if !noTennoScope}<HelpMark part="setup.steps" />{/if}</h2>
@@ -3092,7 +3113,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={finishLater}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -3111,7 +3132,11 @@
       <div class="page"><div class="page-inner"><div class="notice">
         <h2 class="mark">Can't read TennoScope's data</h2>
         <p class="prose">{loadProblem(error)}</p>
+        {#if dataNotFound}
+          <p class="prose">TennoScope may have been reinstalled, its folder moved or deleted, or the drive it's on may not be there. When TennoScope writes its data again, MyOrbiter picks it up by itself; until then the TennoScope panel says what TennoScope is doing.</p>
+        {:else}
         <p class="prose">TennoScope needs to have read your inventory at least once. MyOrbiter starts it in the background; start Warframe and it reads your account when the game is up, and MyOrbiter picks the data up by itself as soon as TennoScope writes it. If it doesn't, the TennoScope panel says why. If its data lives somewhere else, set the folder in Settings.</p>
+        {/if}
         <details class="why"><summary>Details</summary><code>{error}</code></details>
         <div class="row">
           <button class="stamp" onclick={() => (showTennoscope = true)}>TennoScope panel</button>
@@ -3126,11 +3151,6 @@
         <div class="stale" role="status">
           <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
-        </div>
-      {/if}
-      {#if saveError}
-        <div class="stale" role="alert" title={saveError}>
-          <span>Couldn't save your settings ({saveError}): what you change now may not be kept. MyOrbiter keeps trying.</span>
         </div>
       {/if}
       {#if error}
