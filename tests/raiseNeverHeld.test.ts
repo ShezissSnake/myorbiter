@@ -73,6 +73,9 @@ test("a raise to a floor warframe.market refused is not sent again every pass: i
   const s = settings({ "it||": 5 }, { minPrice: 10 });
   await timedPass(s);
   assert.equal(tries, 1, logText());
+  // The pass's closing note doesn't promise the next pass.
+  assert.match(logText(), /1 change refused by warframe\.market \(above\); not tried again by itself within the hour/);
+  assert.doesNotMatch(logText(), /next pass/);
   h.now += 10 * 60_000;
   await timedPass(s);
   assert.equal(tries, 1, logText());

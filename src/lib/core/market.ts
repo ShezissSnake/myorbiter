@@ -292,15 +292,19 @@ export const listingKey = (o: Keyed) => `${o.itemId}|${o.rank ?? ""}|${o.subtype
 /** The same listing with its stars left out: the key a filled sculpture's settings were saved under before it had its own. */
 const starless = <T extends Keyed>(o: T): T => (hasStars(o) ? { ...o, amberStars: null, cyanStars: null } : o);
 
+/** The key Orders' Floor field saves a listing's floor under: its own, with its variant named (an unnamed one is the item's first). */
+const typedKey = (o: Keyed, defaultSubtype: string | null) => listingKey({ ...o, subtype: o.subtype ?? defaultSubtype });
+
 /**
- * The keys a listing's own floor may be saved under, the first that has one counting: its own
- * key; the key with its variant unnamed or named as the item's first (warframe.market can leave an
- * intact relic's unnamed, and Orders keyed a floor by the listing as the site gave it then);
- * the same with no variant at all, as Sell spares has always read it; and for a filled sculpture,
- * the same keys without its stars (saved before a filled one was a listing of its own).
+ * The keys a listing's own floor may be saved under, the first that has one counting: its own key
+ * with its variant named (warframe.market can leave an intact relic's unnamed: that is the item's
+ * first); its key as the site gave it; the same with no variant at all (a floor saved for a
+ * listing that named none, or by Sell spares, which every variant of the item falls back on); and
+ * for a filled sculpture, the same keys without its stars (saved before a filled one was a
+ * listing of its own).
  */
 function floorKeys(o: Keyed, defaultSubtype: string | null): string[] {
-  const keys = (x: Keyed) => [listingKey(x), listingKey({ ...x, subtype: x.subtype ?? defaultSubtype }), listingKey({ ...x, subtype: null })];
+  const keys = (x: Keyed) => [typedKey(x, defaultSubtype), listingKey(x), listingKey({ ...x, subtype: null })];
   return [...new Set([...keys(o), ...(hasStars(o) ? keys(starless(o)) : [])])];
 }
 
@@ -310,20 +314,14 @@ export function ownFloor(floors: Readonly<Record<string, number>>, o: Keyed, def
   return null;
 }
 
-/** The keys `withOwnFloor` writes and clears for this listing: its own, and when it is the item's first variant, the others it is saved under. */
-function ownKeys(o: Keyed, defaultSubtype: string | null): string[] {
-  const variant = o.subtype ?? defaultSubtype;
-  return [listingKey(o), ...(variant === defaultSubtype ? [null, defaultSubtype].map((subtype) => listingKey({ ...o, subtype })) : [])];
-}
-
 /**
  * The floor typed for this very listing, as Orders' Floor field shows it: one it only falls back on
- * (the empty sculpture's for a filled one, a relic's saved for no refinement) isn't, since clearing
- * the field can't take that one away; the plan still counts it (ownFloor).
+ * (the empty sculpture's for a filled one, a relic's saved with no refinement, which the item's
+ * other refinements fall back on too) isn't, since clearing the field doesn't take that one away;
+ * the plan still counts it (ownFloor).
  */
 export function typedFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null): number | null {
-  for (const k of ownKeys(o, defaultSubtype)) if (floors[k] != null) return floors[k];
-  return null;
+  return floors[typedKey(o, defaultSubtype)] ?? null;
 }
 
 /**
@@ -338,16 +336,16 @@ export function floorTyped(typed: string, max: number): number | null | "over" {
 }
 
 /**
- * The floors with this listing's own floor set to `floor` (null clears it). It goes under the
- * listing's own key; a floor saved for the same listing under its other key (the variant unnamed,
- * or named as the item's first) goes, so the one typed is the one that counts. Floors of other
- * listings stay, the empty sculpture's a filled one fell back on included.
+ * The floors with this listing's own floor set to `floor` (null clears it), under its own key with
+ * its variant named. Every other floor stays: the one saved with no variant, which the item's other
+ * variants fall back on (a relic's other refinements), and the empty sculpture's a filled one fell
+ * back on. The one typed counts first for this listing (ownFloor).
  */
 export function withOwnFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null, floor: number | null): Record<string, number> {
   const out = { ...floors };
-  // The other keys of this very listing: only when it is the item's first variant (or the item has none).
-  for (const k of ownKeys(o, defaultSubtype)) delete out[k];
-  if (floor != null) out[listingKey(o)] = floor;
+  const key = typedKey(o, defaultSubtype);
+  delete out[key];
+  if (floor != null) out[key] = floor;
   return out;
 }
 

@@ -12,7 +12,8 @@ import type { Model } from "../src/lib/core/model";
 import type { Draft } from "../src/lib/marketStore.svelte";
 
 type Owned = Record<string, { key: string; platinum: number }>;
-const owned = (s: MarketSettings) => (s as MarketSettings & { approvedFor?: Owned }).approvedFor ?? {};
+/** Each listing's approval as key and price (whose it is, and whether it came from a per-key price, aside). */
+const owned = (s: MarketSettings) => Object.fromEntries(Object.entries((s as MarketSettings & { approvedFor?: Owned }).approvedFor ?? {}).map(([id, e]) => [id, { key: e.key, platinum: e.platinum }])) as Owned;
 
 test("an old 20p approval of a listing since made again on the website at 100p: a timed pass toward a 60p market stops at 70p", async () => {
   // The 20p was approved for listing "old"; the listing up now is "a", made again at 100p.
@@ -35,12 +36,14 @@ test("first start after the update: an approval saved without its listing goes t
   assert.deepEqual(h.sent, [["a", 60]], "the saved 20p still holds for the listing up now");
 });
 
-test("first start after the update: an approval whose listing is not up ends, the others are kept", async () => {
+test("first start after the update: an approval whose listing is not up stays as it was (whose it is can't be told), the others go to their listings", async () => {
   h.mine = [order(50, "a"), order(30, "b")];
   const s = settings({ "it||": 40, "gone||": 30, "r||intact": 9 });
   mkt.items = [h.it];
   await mkt.refresh(s);
-  assert.deepEqual(s.approved, { "it||": 40 });
+  // Its listing may be another account's or platform's: nothing is dropped, and an older build
+  // reads every one as before.
+  assert.deepEqual(s.approved, { "it||": 40, "gone||": 30, "r||intact": 9 });
   assert.deepEqual(owned(s), { a: { key: "it||", platinum: 40 }, b: { key: "it||", platinum: 40 } }, "two listings of one thing both had it");
 });
 
@@ -71,9 +74,7 @@ test("a listing sold out or deleted ends its approval; the next one, made on the
   mkt.items = [h.it];
   h.mine = [];
   await mkt.refresh(s);
-  // Sold out: the approval ends (kept by order id, for a read that only missed it); the key's price
-  // stays for an older build after a step back, as it read it before.
-  assert.deepEqual({ approved: s.approved, owned: owned(s), ended: (s as unknown as { approvedEnded: unknown }).approvedEnded }, { approved: { "it||": 40 }, owned: {}, ended: { a: { key: "it||", platinum: 40, at: h.now } } }, "sold out: the approval ends");
+  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: {}, owned: {} }, "sold out: the approval ends");
   h.mine = [order(90, "b")];
   await mkt.refresh(s);
   assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: { "it||": 90 }, owned: { b: { key: "it||", platinum: 90 } } });
@@ -153,7 +154,7 @@ test("Reprice by hand and a typed price approve that listing only", async () => 
 });
 
 test("a listing made with the listing form is approved at its own price by the read after it", async () => {
-  const s = settings({ "it||": 100 });
+  const s = settings({});
   mkt.items = [h.it];
   mkt.rules = s;
   mkt.model = { observedAt: null, inventoryByBase: new Map(), partByName: new Map() } as unknown as Model; // a console: no inventory read

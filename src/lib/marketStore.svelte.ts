@@ -31,7 +31,7 @@ import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
-import { AUTO_FLOOR_SHARE, approvedForOf, cutTooFar, endedOf, sameEntries, settleApprovals, unattendedMove, type ApprovedFor, type UpListing, type WithApprovals, type WithApprovedFor } from "./core/approved";
+import { AUTO_FLOOR_SHARE, approvedForOf, cutTooFar, sameEntries, settleApprovals, unattendedMove, whoseRead, type Approval, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
 
@@ -365,6 +365,8 @@ class MarketStore {
    */
   async refresh(s: MarketSettings | null = this.rules) {
     const edits = this.localEdits;
+    // Whose listings these are: the account signed in and the platform, as the read starts.
+    const whose = this.whose;
     const all = await market.myOrders();
     // A sale was marked on the spot while this read was on its way: the read may predate it, and
     // would bring the sold listing back. The next read has it.
@@ -377,29 +379,33 @@ class MarketStore {
     if (!sameJson(this.buys, buy)) this.buys = buy;
     this.otherOrders = all.length - this.orders.length;
     this.ordersAt = Date.now();
-    // Only a read that succeeded and was kept says a listing is gone (core/approved.ts).
-    if (s) this.settleApprovals(s, sell);
+    // Only a read that succeeded and was kept says a listing is gone (core/approved.ts), and only of
+    // the account and platform it was read for: with either not known, or changed while the read
+    // was on its way, the read settles nothing (no approval ends, moves or is recorded).
+    if (s && whose && whose === this.whose) this.settleApprovals(s, sell, whose);
   }
 
-  /**
-   * Each listing's own approved price after a read of them that succeeded (core/approved.ts ›
-   * settleApprovals). The approvals of listings this read hasn't got are kept in your settings by
-   * order id (`approvedEnded`), across restarts: a listing seen again after a read under another
-   * account or platform gets back what it had.
-   */
-  private settleApprovals(s: MarketSettings, sell: readonly MyOrder[]) {
+  /** The account signed in and the platform read (core/approved.ts › whoseRead); null while the account isn't known. */
+  get whose(): string | null {
+    const me = this.me;
+    return me?.id ? whoseRead(me.id, this.platform) : null;
+  }
+
+  /** Approvals of listings gone earlier in this run, by order id: one seen again gets back what it had. */
+  readonly endedApprovals = new Map<string, Approval>();
+  /** Each listing's own approved price after a read of `whose` listings that succeeded (core/approved.ts › settleApprovals). */
+  private settleApprovals(s: MarketSettings, sell: readonly MyOrder[], whose: string) {
     // Without the item list no key can be told: nothing ends or moves until it is in.
     if (!this.items.length) return;
     const up: UpListing[] = sell.map((o) => {
       const known = !!this.item(o.itemId);
       return { id: o.id, itemId: o.itemId, platinum: o.platinum, key: known ? this.approvalKey(o) : null, starless: known && hasStars(o) ? this.approvalKey({ ...o, amberStars: null, cyanStars: null }) : null };
     });
-    const w = s as MarketSettings & WithApprovals;
-    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, endedOf(w.approvedEnded), Date.now());
+    const w = s as MarketSettings & WithApprovedFor;
+    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, this.endedApprovals, whose);
     // Assigned only when something changed: each assignment is a save.
     if (!sameEntries(next.approved, s.approved)) s.approved = next.approved;
     if (!sameEntries(next.owned, w.approvedFor as Record<string, unknown> | undefined)) w.approvedFor = next.owned;
-    if (!sameEntries(next.ended, w.approvedEnded as Record<string, unknown> | undefined)) w.approvedEnded = next.ended;
   }
   /** The price you last set or approved for this listing, if MyOrbiter has one. */
   approvedPrice(o: MyOrder, s: MarketSettings): number | undefined {
@@ -559,9 +565,16 @@ class MarketStore {
     if (!s || !Number.isInteger(platinum) || platinum < 1) return;
     const key = this.approvalKey(o);
     if (s.approved?.[key] !== platinum) s.approved = { ...(s.approved ?? {}), [key]: platinum };
+    this.record(o, { key, platinum }, s);
+  }
+  /** This listing's approval as `a`, for its order id only (the per-key price as it is), marked with whose listing it is. */
+  private record(o: Pick<MyOrder, "id">, a: Approval, s: MarketSettings) {
+    if (!o.id) return;
     const w = s as MarketSettings & WithApprovedFor;
     const owned = approvedForOf(w.approvedFor);
-    if (o.id && (owned[o.id]?.platinum !== platinum || owned[o.id]?.key !== key)) w.approvedFor = { ...owned, [o.id]: { key, platinum } } satisfies ApprovedFor;
+    const whose = this.whose;
+    const entry: Approval = { key: a.key, platinum: a.platinum, ...(whose ? { by: whose } : {}), ...(a.legacy ? { legacy: true as const } : {}) };
+    if (JSON.stringify(owned[o.id]) !== JSON.stringify(entry)) w.approvedFor = { ...owned, [o.id]: entry } satisfies ApprovedFor;
   }
   /** A price change you made (a typed price, the listing form, a Sell spares plan): the cooldown counts it. */
   noteChange(o: Pick<MyOrder, "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">, s: MarketSettings | null = this.rules) {
@@ -651,6 +664,8 @@ class MarketStore {
     let unseen = 0;
     let cooling = 0;
     let failed = 0;
+    /** Of `failed`: changes warframe.market refused (each counted for the cooldown as it was sent). */
+    let rejected = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning MyOrbiter away):
     // the pass stops there rather than holding your listings' buttons for every one left.
@@ -733,7 +748,9 @@ class MarketStore {
             // listing with none, new, starts from what it's listed at now; core/approved.ts).
             const key = this.approvalKey(o);
             const approved = this.approvedPrice(o, s) ?? o.platinum;
-            if (approvedForOf((s as MarketSettings & WithApprovedFor).approvedFor)[o.id] == null) this.approve(o, approved, s);
+            // Recorded for this listing alone when it has none yet (a read that settled nothing): the
+            // per-key price stays as it is, and one taken from it stays a per-key one.
+            if (approvedForOf((s as MarketSettings & WithApprovedFor).approvedFor)[o.id] == null) this.record(o, { key, platinum: approved, ...(s.approved?.[key] === approved ? { legacy: true as const } : {}) }, s);
             const move = unattendedMove(p.target, o.platinum, approved);
             const mark = `${Math.round(AUTO_FLOOR_SHARE * 100)}% of the ${approved}p you last set`;
             if (!move.go) {
@@ -798,6 +815,7 @@ class MarketStore {
           } catch (e) {
             if (isAuthError(e)) throw e;
             failed++;
+            rejected++;
             if (toFloor) this.floorRefused.set(o.id, Date.now());
             this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
             // Refused again and again (an outage): stop sending changes this pass.
@@ -816,7 +834,13 @@ class MarketStore {
       if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed ${every(DRIFT.cooldownMs) === "an hour" ? "within the hour" : `less than ${every(DRIFT.cooldownMs).replace(/^every /, "")} ago`}, or ${DRIFT.perDay} times today`, "info", true);
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
-      else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
+      else {
+        const unread = failed - rejected;
+        if (unread) this.note(`${unread} listing${unread === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
+        // A change refused was counted as sent, and a raise up to a floor refused is held back an
+        // hour too: neither is tried again by itself within the hour.
+        if (rejected) this.note(`${rejected} change${rejected === 1 ? "" : "s"} refused by warframe.market (above); not tried again by itself within the hour`, "warn");
+      }
       if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen && !cooling) this.note("Prices checked: everything already matches", "info");
       summary.changed = changed;
       summary.failed = failed;

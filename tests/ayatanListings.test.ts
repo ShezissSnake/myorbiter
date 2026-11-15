@@ -10,6 +10,7 @@ import { listingKey, type MarketItem, type MyOrder } from "../src/lib/core/marke
 import { bulkPlan, type SellTarget } from "../src/lib/core/bulk";
 import { buildModel, type Model } from "../src/lib/core/model";
 import { market, defaultAdvice, defaultMarketSettings } from "../src/lib/backend";
+import { approvedOf } from "../src/lib/core/approved";
 import type { Draft } from "../src/lib/marketStore.svelte";
 
 const ayatan: MarketItem = { id: "ay", slug: "anasa_ayatan_sculpture", gameRef: "/Ayatan/Anasa", name: "Anasa Ayatan Sculpture", maxRank: null, subtypes: null, tags: ["ayatan_sculpture"] };
@@ -114,6 +115,27 @@ test("an approval saved under the old key goes to the filled listing too at the 
   const s = settings({ "ay||": 80 });
   await timedPass(s);
   assert.deepEqual(h.sent, [["full", 56]], `held at 70% of 80p: ${logText()}`);
+});
+
+test("a filled sculpture that takes the old key's approval leaves that price where an older build reads it while it is up", async () => {
+  h.it = ayatan;
+  h.mine = [{ ...filled }];
+  const s = settings({ "ay||": 80 });
+  mkt.items = [ayatan];
+  // The first read after the update, then a few more.
+  await mkt.refresh(s);
+  await mkt.refresh(s);
+  assert.equal((s as { approvedFor?: Record<string, { platinum: number }> }).approvedFor?.full?.platinum, 80);
+  // The per-item record as an older build reads it (its own reader, by the empty sculpture's key).
+  const saved = JSON.parse(JSON.stringify(s));
+  assert.equal(approvedOf(saved.approved)["ay||"], 80);
+  // And after a pass lowered the filled listing.
+  h.book = [{ ...seller(20), amberStars: 2, cyanStars: 2 }, { ...seller(20), amberStars: 2, cyanStars: 2 }];
+  await timedPass(s);
+  assert.deepEqual(h.sent, [["full", 56]], logText());
+  h.mine = [{ ...filled, platinum: 56 }];
+  await mkt.refresh(s);
+  assert.equal(approvedOf(JSON.parse(JSON.stringify(s)).approved)["ay||"], 80);
 });
 
 test("an empty sculpture's approval never moves the filled one's 70% line", async () => {

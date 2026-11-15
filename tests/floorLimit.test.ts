@@ -41,6 +41,13 @@ test("Orders' Floor field uses that rule with the loader's limit, and says the l
   assert.match(src, /max=\{MAX_SAVED_PRICE\}/);
 });
 
+test("the Floor field's refusal ends: after a few seconds, or when the field is used again", () => {
+  const src = readFileSync(new URL("../src/lib/tabs/Orders.svelte", import.meta.url), "utf8");
+  assert.match(src, /setTimeout\(\(\) => floorRefusalGone\(o\.id\), FLOOR_REFUSAL_MS\)/);
+  assert.match(src, /onfocus=\{\(\) => floorRefusalGone\(o\.id\)\}/);
+  assert.match(src, /const FLOOR_REFUSAL_MS = \d{4};/);
+});
+
 test("a floor saved above the limit is cut to it at the start, never dropped; the rest load as before", async () => {
   const m = await loadMarket({ floors: { "a||": 150_000, "b||": 100_000, "c||": 50, "ay|||2|2": 1e9, "d||": 0, "e||": "9", "f||": 2.5, "g||": -3 } });
   assert.deepEqual(m.floors, { "a||": 100_000, "b||": 100_000, "c||": 50, "ay|||2|2": 100_000 });

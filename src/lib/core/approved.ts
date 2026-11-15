@@ -6,18 +6,17 @@
 // only ever stops a price going down; a raise is never held back by it.
 //
 // An approved price belongs to one listing, told from the next by warframe.market's own order id
-// (`approvedFor`). When that listing is gone from a read of your listings that succeeded (sold
-// out, deleted, or made again under a new id), its approval ends, and a new listing's own price
-// is its approved price, whoever made it. A failed read ends nothing, and a hidden listing is
-// still there. An order id is never given to another listing, so one seen again was never gone (a
-// read under another account or platform doesn't have it): it gets back what it had. That's why
-// an ended approval is kept by order id in your settings (`approvedEnded`, the latest ENDED_KEPT),
-// across restarts: a listing coming back never takes a price a pass lowered it to as its approval.
+// (`approvedFor`), and to the account and platform whose listing it is. When that listing is gone
+// from a read of its own account's listings that succeeded (sold out, deleted, or made again under
+// a new id), its approval ends, and a new listing's own price is its approved price, whoever made
+// it. A failed read ends nothing, a hidden listing is still there, a listing seen again in the same
+// run gets back what it had, and a read under another account or platform ends and moves nothing
+// of this one's: not its approvals, not the per-key prices they hold.
 //
 // `approved` stays as older builds saved and read it, one price per listing key; this build keeps
-// it as each key's price for a step back. A price there that no listing's own entry agrees with
+// it as each key's price for a step back. A price there that no approval of this build agrees with
 // was saved before listings were told apart (or by an older build after a step back): it goes to
-// every listing up for that key, and an approval whose key has none up ends.
+// every listing up for that key, and stays for an older build whether one is up or not.
 
 /** The share of your last approved price an unattended pass may lower a listing to. */
 export const AUTO_FLOOR_SHARE = 0.7;
@@ -75,35 +74,30 @@ export function approvedOf(raw: unknown): Record<string, number> {
   return Object.fromEntries(Object.entries(raw).filter(([k, v]) => typeof k === "string" && Number.isInteger(v) && (v as number) >= 1)) as Record<string, number>;
 }
 
-/** Per listing (warframe.market's order id): its key and its approved price. */
-export type ApprovedFor = Record<string, { key: string; platinum: number }>;
+/** Per listing (warframe.market's order id): its key, its approved price, whose listing it is, and whether the price came from a per-key approval saved before listings were told apart. */
+export type ApprovedFor = Record<string, Approval>;
+export interface Approval {
+  key: string;
+  platinum: number;
+  /** The account and platform whose listing it is (`whoseRead`); missing on one recorded while neither was known. */
+  by?: string;
+  /** Its price came from a per-key approval saved before listings were told apart (or by an older build): that key stays one. */
+  legacy?: true;
+}
 /** Settings that carry `approvedFor` (saved beside `approved`; older builds keep it as they find it). */
 export type WithApprovedFor = { approved: Record<string, number>; approvedFor?: unknown };
 
-/** Approvals of listings no read has had since, by order id, with when they ended: one that comes back gets its own back. */
-export type EndedApprovals = Record<string, { key: string; platinum: number; at: number }>;
-/** How many ended approvals are kept: the latest, the oldest dropped first. */
-export const ENDED_KEPT = 500;
-/** Settings that also carry `approvedEnded` (older builds keep it as they find it). */
-export type WithApprovals = WithApprovedFor & { approvedEnded?: unknown };
-
-/** Saved ended approvals, kept only where each has a key, a whole positive price and a time (a damaged settings file). */
-export function endedOf(raw: unknown): EndedApprovals {
-  const out: EndedApprovals = {};
-  for (const [id, e] of Object.entries(approvedForOf(raw))) {
-    const at = (raw as Record<string, { at?: unknown }>)[id].at;
-    if (typeof at === "number" && Number.isFinite(at)) out[id] = { ...e, at };
-  }
-  return out;
-}
+/** Whose listings a read is: the signed-in account and the platform it was read on. */
+export const whoseRead = (accountId: string, platform: string) => `${accountId}|${platform}`;
 
 /** Saved approvals per listing, kept only where each has a key and a whole positive price (a damaged settings file). */
 export function approvedForOf(raw: unknown): ApprovedFor {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: ApprovedFor = {};
   for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
-    const e = v as { key?: unknown; platinum?: unknown } | null;
-    if (id && e && typeof e === "object" && typeof e.key === "string" && Number.isInteger(e.platinum) && (e.platinum as number) >= 1) out[id] = { key: e.key, platinum: e.platinum as number };
+    const e = v as { key?: unknown; platinum?: unknown; by?: unknown; legacy?: unknown } | null;
+    if (!id || !e || typeof e !== "object" || typeof e.key !== "string" || !Number.isInteger(e.platinum) || (e.platinum as number) < 1) continue;
+    out[id] = { key: e.key, platinum: e.platinum as number, ...(typeof e.by === "string" ? { by: e.by } : {}), ...(e.legacy === true ? { legacy: true as const } : {}) };
   }
   return out;
 }
@@ -123,23 +117,31 @@ export interface UpListing {
 const itemOfKey = (key: string) => key.slice(0, key.indexOf("|"));
 
 /**
- * The approvals after a read of your listings that succeeded (`up`: every sell listing it found,
- * hidden ones included). Each listing keeps its own approval; one saved without its listing goes
- * to every listing up for its key (and to a filled sculpture of that item, at the first read that
- * has it); a listing with none takes back what it had when `ended` has it (it was seen before:
- * an order id is never another listing's), else its own price (new, whoever made it). A listing
- * gone ends its approval, kept in `ended` at `now`. Nothing of an item whose key can't be told
- * ends or moves.
+ * The approvals after a read of `whose` listings that succeeded (`up`: every sell listing it
+ * found, hidden ones included).
+ *
+ * - Another account's or platform's approvals are left as they are, and so is every per-key price
+ *   one of them agrees with: a read never ends or moves what isn't its own.
+ * - Each listing keeps its own approval. A per-key price no approval of this build agrees with was
+ *   saved before listings were told apart (or by an older build after a step back): every listing
+ *   up for that key takes it (a filled sculpture takes its item's old key's), marked `legacy`, and
+ *   the key keeps it for an older build, listing or not.
+ * - A listing with none takes back what it had when `ended` has it (gone from an earlier read of
+ *   this run), else its own price: new, whoever made it.
+ * - A listing of `whose` gone from the read ends its approval (into `ended`); its key's price goes
+ *   too when it was that approval's and nothing else holds it, so the next listing starts from its
+ *   own price. One recorded while the account wasn't known ends only when read again and gone.
+ * - Nothing of an item whose key can't be told ends or moves.
  */
-export function settleApprovals(approved: Readonly<Record<string, number>>, owned: Readonly<ApprovedFor>, up: readonly UpListing[], ended: Readonly<EndedApprovals>, now: number): { approved: Record<string, number>; owned: ApprovedFor; ended: EndedApprovals } {
+export function settleApprovals(approved: Readonly<Record<string, number>>, owned: Readonly<ApprovedFor>, up: readonly UpListing[], ended: Map<string, Approval>, whose: string): { approved: Record<string, number>; owned: ApprovedFor } {
   const unknown = new Set(up.filter((l) => l.key == null).map((l) => l.itemId));
-  // A key's saved price that a listing's own entry agrees with is this build's; any other was
-  // saved before listings were told apart, or by an older build after a step back. An ended one
-  // counts: it may only be out of this read (another account's, another platform's).
-  const agreed = new Set([...Object.values(owned), ...Object.values(ended)].filter((e) => approved[e.key] === e.platinum).map((e) => e.key));
+  const theirs = (e: Approval) => e.by != null && e.by !== whose;
+  // A key's saved price that an approval of this build agrees with (any account's) is this
+  // build's; any other is a per-key one from before.
+  const agreed = new Set(Object.values(owned).filter((e) => !e.legacy && approved[e.key] === e.platinum).map((e) => e.key));
   const unowned = (key: string | null | undefined): key is string => key != null && approved[key] != null && !agreed.has(key);
   const next: ApprovedFor = {};
-  const left: EndedApprovals = { ...ended };
+  for (const [id, e] of Object.entries(owned)) if (theirs(e)) next[id] = e;
   const seen = new Set<string>();
   for (const l of up) {
     seen.add(l.id);
@@ -148,34 +150,43 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
       if (had) next[l.id] = had;
       continue;
     }
-    const back = left[l.id];
-    const platinum = unowned(l.key)
-      ? approved[l.key]
+    const back = ended.get(l.id);
+    const own: Approval | null = unowned(l.key)
+      ? { key: l.key, platinum: approved[l.key], legacy: true }
       : had
-        ? had.platinum
+        ? had
         : back && back.key === l.key
-          ? back.platinum
+          ? back
           : unowned(l.starless)
-            ? approved[l.starless]
-            : l.platinum;
-    next[l.id] = { key: l.key, platinum };
-    delete left[l.id];
+            ? { key: l.key, platinum: approved[l.starless], legacy: true }
+            : null;
+    next[l.id] = { key: l.key, platinum: own?.platinum ?? l.platinum, by: whose, ...(own?.legacy ? { legacy: true as const } : {}) };
+    ended.delete(l.id);
   }
+  const endedNow: Approval[] = [];
   for (const [id, e] of Object.entries(owned)) {
-    if (seen.has(id)) continue;
-    if (unknown.has(itemOfKey(e.key))) next[id] = e;
-    else left[id] = { ...e, at: now };
+    if (seen.has(id) || theirs(e)) continue;
+    // An item whose key can't be told, or an approval recorded while the account wasn't known: kept.
+    if (unknown.has(itemOfKey(e.key)) || e.by == null) next[id] = e;
+    else {
+      ended.set(id, e);
+      endedNow.push(e);
+    }
   }
-  const kept = Object.fromEntries(Object.entries(left).sort(([, a], [, b]) => b.at - a.at).slice(0, ENDED_KEPT));
-  // Each key's price as older builds read it: the one it had when a listing still has it, else
-  // the first listing's; with none up, the one it had while an ended approval agrees with it (so a
-  // step back after another account's read still has it). Keys of items that can't be told are
-  // kept as they are.
-  const keyed: Record<string, number> = {};
-  for (const [k, v] of Object.entries(approved)) if (unknown.has(itemOfKey(k))) keyed[k] = v;
-  for (const e of Object.values(next)) if (keyed[e.key] == null || e.platinum === approved[e.key]) keyed[e.key] = e.platinum;
-  for (const e of Object.values(kept)) if (keyed[e.key] == null && approved[e.key] === e.platinum) keyed[e.key] = e.platinum;
-  return { approved: keyed, owned: next, ended: kept };
+  // Each key's price as older builds read it. Kept as it is when it is a per-key one from before,
+  // or another account's (or one recorded unknown) agrees with it; else the one it had when a
+  // listing of this read still has it, or the first one's; else, when the approval it was ended
+  // here and nothing else holds it, it goes.
+  const keyed: Record<string, number> = { ...approved };
+  const heldElsewhere = (k: string) => Object.values(next).some((e) => e.by !== whose && !e.legacy && e.key === k && approved[k] === e.platinum);
+  const mine = new Map<string, Approval[]>();
+  for (const e of Object.values(next)) if (e.by === whose) mine.set(e.key, [...(mine.get(e.key) ?? []), e]);
+  for (const [k, list] of mine) {
+    if (unowned(k) || heldElsewhere(k)) continue;
+    keyed[k] = list.some((e) => e.platinum === approved[k]) ? approved[k] : list[0].platinum;
+  }
+  for (const e of endedNow) if (!e.legacy && !mine.has(e.key) && approved[e.key] === e.platinum && !heldElsewhere(e.key)) delete keyed[e.key];
+  return { approved: keyed, owned: next };
 }
 
 /** Two flat records with the same entries, in any order. */

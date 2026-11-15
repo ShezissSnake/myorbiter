@@ -54,6 +54,7 @@ beforeEach(() => {
   mkt.advice = null;
   mkt.rules = null;
   mkt.error = null;
+  mkt.endedApprovals.clear();
   (mkt as unknown as { floorRefused: Map<string, number>; floorTold: Set<string> }).floorRefused.clear();
   (mkt as unknown as { floorRefused: Map<string, number>; floorTold: Set<string> }).floorTold.clear();
   mkt.model = null;
@@ -74,8 +75,21 @@ afterEach(() => {
   Object.assign(market, real);
 });
 
-/** Settings for a timed pass: Apply automatically on, no share floor, a 1p minimum. */
-export const settings = (approved: Record<string, number>, extra: Partial<MarketSettings> & Record<string, unknown> = {}): MarketSettings => ({ ...defaultMarketSettings(), auto: true, autoCheck: true, minShare: 0, minPrice: 1, approved, ...extra });
+/** The signed-in account and platform of a read in these tests (core/approved.ts › whoseRead). */
+export const ME = "me|pc";
+/**
+ * Settings for a timed pass: Apply automatically on, no share floor, a 1p minimum. Approvals given
+ * per listing are this account's (ME) unless they say whose.
+ */
+export const settings = (approved: Record<string, number>, extra: Partial<MarketSettings> & Record<string, unknown> = {}): MarketSettings => {
+  const s = { ...defaultMarketSettings(), auto: true, autoCheck: true, minShare: 0, minPrice: 1, approved, ...extra } as MarketSettings & { approvedFor?: Record<string, { by?: string }> };
+  if (s.approvedFor) s.approvedFor = Object.fromEntries(Object.entries(s.approvedFor).map(([id, e]) => [id, { by: ME, ...e }]));
+  return s;
+};
+/** Signed in to the account `id` (the test's own is "me"), as the next read sees it. */
+export const asAccount = (id: string) => {
+  mkt.account = { linked: true, backing: "keyring", profile: { ...me, id }, error: null } as never;
+};
 /** One pass on the timer, with Apply automatically, from fresh order books. */
 export async function timedPass(s: MarketSettings, m: Model = noPrices) {
   mkt.books = {};

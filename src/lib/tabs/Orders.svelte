@@ -8,7 +8,7 @@
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
   import { MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
   import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
@@ -236,19 +236,31 @@
 
   /** The item's first variant: a listing that names none is that one (core/market.ts › typedFloor). */
   const firstVariant = (o: MyOrder) => mkt.item(o.itemId)?.subtypes?.[0] ?? null;
-  /** The floor typed for this listing (saved under another key of it included); one it falls back on shows in the placeholder, as the plan counts it. */
+  /** The floor typed for this listing (core/market.ts › typedFloor); one it falls back on shows in the placeholder, as the plan counts it. */
   const floorOf = (o: MyOrder) => typedFloor(settings.floors, o, firstVariant(o));
   /** Listings whose Floor field refused the last value typed (over the limit), by order id. */
   let floorRefused = $state<Record<string, boolean>>({});
+  /** How long the Floor field's refusal stays up (it sits over the next row): it also goes when the field is used again. */
+  const FLOOR_REFUSAL_MS = 8000;
+  const floorRefusalTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  function floorRefusalGone(id: string) {
+    clearTimeout(floorRefusalTimers.get(id));
+    floorRefusalTimers.delete(id);
+    if (floorRefused[id]) floorRefused = Object.fromEntries(Object.entries(floorRefused).filter(([k]) => k !== id));
+  }
+  onDestroy(() => {
+    for (const t of floorRefusalTimers.values()) clearTimeout(t);
+  });
   function setFloor(o: MyOrder, input: HTMLInputElement) {
     const floor = floorTyped(input.value, MAX_SAVED_PRICE);
+    floorRefusalGone(o.id);
     if (floor === "over") {
       // Refused here rather than saved and cut at the next start: the floor stays as it was.
       floorRefused = { ...floorRefused, [o.id]: true };
+      floorRefusalTimers.set(o.id, setTimeout(() => floorRefusalGone(o.id), FLOOR_REFUSAL_MS));
       input.value = String(floorOf(o) ?? "");
       return;
     }
-    if (floorRefused[o.id]) floorRefused = Object.fromEntries(Object.entries(floorRefused).filter(([id]) => id !== o.id));
     settings.floors = withOwnFloor(settings.floors, o, firstVariant(o), floor);
   }
   function togglePause(o: MyOrder) {
@@ -962,7 +974,7 @@
           <section class="pg" aria-labelledby="auto-apply-h">
             <h3 class="register" id="auto-apply-h">Changing prices</h3>
             <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
-            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS}, at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing; a listing under its own floor (in its row) or Never under is lifted to it at once.</p>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS}, at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing; a listing under its own floor (in its row), a relic's crack value, a Prime part's or set's ducats, or Never under is lifted to at least that at once, waiting for neither limit.</p>
             <p class="dim small why">It never lowers a price under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved for that listing, nor under the floors below; that mark never holds back a raise, and more than halving waits for Reprice. {GREY_AREA}.</p>
             <div class="grp">
               <span class="register">Floor</span>
@@ -1072,7 +1084,7 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
+            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
             <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">

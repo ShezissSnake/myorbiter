@@ -1,12 +1,11 @@
 // What this change saves comes back at the next start, through the same save and load the app
 // uses (persist.svelte.ts › lightSettings and joinSettings, backend.ts › saveSettings and
 // loadSettings, the browser path): each listing's approval with its order id, a filled
-// sculpture's own floor and pause, the approvals of listings a read lacked, and the per-key
-// approvals an older build reads.
+// sculpture's own floor and pause, and the per-key approvals an older build reads.
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings, flushSettings, joinSettings, lightSettings, loadSettings, saveSettings, type Settings } from "../src/lib/backend";
-import { approvedForOf, approvedOf, endedOf } from "../src/lib/core/approved";
+import { approvedForOf, approvedOf } from "../src/lib/core/approved";
 
 const stored = new Map<string, string>();
 (globalThis as { localStorage?: unknown }).localStorage = {
@@ -22,7 +21,6 @@ function withApprovals(): Settings {
   const s = defaultSettings();
   s.market.approved = { "it||": 70, [STAR]: 60 };
   (s.market as unknown as { approvedFor: unknown }).approvedFor = { a: { key: "it||", platinum: 70 }, full: { key: STAR, platinum: 60 } };
-  (s.market as unknown as { approvedEnded: unknown }).approvedEnded = { gone: { key: "x||", platinum: 90, at: 1_700_000_000_000 } };
   s.market.floors = { "ay||": 20, [STAR]: 45 };
   s.market.paused = { [STAR]: true };
   return s;
@@ -35,7 +33,6 @@ test("each listing's approval, and a filled sculpture's own floor and pause, com
   await flushSettings();
   const loaded = await loadSettings();
   assert.deepEqual(approvedForOf((loaded.market as unknown as { approvedFor?: unknown }).approvedFor), { a: { key: "it||", platinum: 70 }, full: { key: STAR, platinum: 60 } });
-  assert.deepEqual(endedOf((loaded.market as unknown as { approvedEnded?: unknown }).approvedEnded), { gone: { key: "x||", platinum: 90, at: 1_700_000_000_000 } }, "an ended approval, kept for its listing coming back");
   assert.deepEqual(loaded.market.approved, { "it||": 70, [STAR]: 60 });
   assert.deepEqual(loaded.market.floors, { "ay||": 20, [STAR]: 45 });
   assert.deepEqual(loaded.market.paused, { [STAR]: true });

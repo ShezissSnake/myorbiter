@@ -36,10 +36,16 @@ test("a listing's floor is read under either key of it, and a change to it is th
   assert.equal(ownFloor({ "r||intact": 40 }, order(60, "a", { itemId: "r", subtype: null }), "intact"), 40, "and the other way round");
   assert.equal(ownFloor({ "r||": 50, "r||intact": 45 }, intact, "intact"), 45, "the listing's own key first");
   assert.equal(ownFloor({}, intact, "intact"), null);
-  // Typed on the intact listing: saved under its own key; the old key of the same listing goes.
-  assert.deepEqual(withOwnFloor({ "r||": 50, "x||": 7 }, intact, "intact", 55), { "r||intact": 55, "x||": 7 });
-  // Cleared: no floor of its own is left under either key.
-  assert.deepEqual(withOwnFloor({ "r||": 50, "x||": 7 }, intact, "intact", null), { "x||": 7 });
+  // Typed on the intact listing: saved under its own key, and counting first for it; the one saved
+  // with no variant stays, for the other refinements.
+  assert.deepEqual(withOwnFloor({ "r||": 50, "x||": 7 }, intact, "intact", 55), { "r||": 50, "r||intact": 55, "x||": 7 });
+  assert.equal(ownFloor(withOwnFloor({ "r||": 50 }, intact, "intact", 55), intact, "intact"), 55);
+  // Typed on it while it named no variant: saved as intact, and read so once it does.
+  const unnamed = order(60, "a", { itemId: "r", subtype: null });
+  assert.deepEqual(withOwnFloor({ "r||": 50 }, unnamed, "intact", 55), { "r||": 50, "r||intact": 55 });
+  assert.equal(ownFloor(withOwnFloor({ "r||": 50 }, unnamed, "intact", 55), unnamed, "intact"), 55);
+  // Cleared: its own floor goes; the one saved with no variant stays.
+  assert.deepEqual(withOwnFloor({ "r||": 50, "r||intact": 55, "x||": 7 }, intact, "intact", null), { "r||": 50, "x||": 7 });
   // A radiant listing's floor is its own: clearing it leaves the intact one's.
   assert.deepEqual(withOwnFloor({ "r||": 50, "r||radiant": 9 }, order(60, "b", { itemId: "r", subtype: "radiant" }), "intact", null), { "r||": 50 });
 });
@@ -49,7 +55,8 @@ test("the field shows only a floor clearing it takes away; one the listing falls
   const radiant = order(60, "b", { itemId: "r", subtype: "radiant" });
   assert.equal(typedFloor({ "r||": 50 }, radiant, "intact"), null, "saved with no variant: not the radiant listing's own");
   assert.equal(ownFloor({ "r||": 50 }, radiant, "intact"), 50, "yet the plan holds it");
-  assert.equal(typedFloor({ "r||": 50 }, order(60, "a", { itemId: "r", subtype: "intact" }), "intact"), 50, "the intact listing's, under its older key");
+  assert.equal(typedFloor({ "r||": 50 }, order(60, "a", { itemId: "r", subtype: "intact" }), "intact"), null, "the intact listing's too: every refinement falls back on it");
+  assert.equal(typedFloor({ "r||intact": 45 }, order(60, "a", { itemId: "r", subtype: null }), "intact"), 45, "an unnamed listing is the intact one");
   const filled = order(60, "f", { itemId: "ay", subtype: null, amberStars: 2, cyanStars: 2 });
   assert.equal(typedFloor({ "ay||": 20 }, filled, null), null, "the empty sculpture's: not the filled one's");
   assert.equal(ownFloor({ "ay||": 20 }, filled, null), 20);
@@ -58,6 +65,25 @@ test("the field shows only a floor clearing it takes away; one the listing falls
   assert.equal(typedFloor(typed, filled, null), 45);
   assert.equal(typedFloor(withOwnFloor(typed, filled, null, null), filled, null), null);
   assert.deepEqual(withOwnFloor(typed, filled, null, null), { "ay||": 20 });
+});
+
+test("typing or clearing the intact listing's Floor leaves the floor saved with no refinement, which the radiant one falls back on", async () => {
+  const { ownFloor, withOwnFloor } = core;
+  const intact = order(60, "a", { itemId: "r", subtype: "intact" });
+  const radiant = order(60, "b", { itemId: "r", subtype: "radiant" });
+  let floors: Record<string, number> = { "r||": 50 };
+  floors = withOwnFloor(floors, intact, "intact", 55);
+  assert.equal(ownFloor(floors, radiant, "intact"), 50, "typed on the intact row");
+  floors = withOwnFloor(floors, intact, "intact", null);
+  assert.equal(ownFloor(floors, radiant, "intact"), 50, "cleared on the intact row");
+  floors = withOwnFloor(floors, order(60, "a", { itemId: "r", subtype: null }), "intact", null);
+  assert.equal(ownFloor(floors, radiant, "intact"), 50, "cleared on the row while it named no refinement");
+  // And a pass holds the radiant listing there.
+  h.it = relic;
+  h.mine = [radiant];
+  h.book = [seller(20, "radiant"), seller(20, "radiant")];
+  await timedPass(settings({ "r||radiant": 60 }, { floors }), empty);
+  assert.deepEqual(h.sent, [["b", 50]], logText());
 });
 
 /** A relic whose daily price is 20p and which sellers ask 25p for; a crack of it is worth 31p to the player. */
@@ -95,4 +121,13 @@ test("the listing form has no floor rule of its own: it asks the store", () => {
   const src = readFileSync("src/lib/ui/ListDialog.svelte", "utf8");
   assert.match(src, /mkt\.formFloor\(/);
   assert.doesNotMatch(src, /Math\.max\(1, minimum/);
+});
+
+test("the listing form, Orders and Settings say a lift goes to at least the floor, and name every floor that lifts", () => {
+  const form = readFileSync("src/lib/ui/ListDialog.svelte", "utf8");
+  assert.match(form, /raises it to at least \$\{floor\}p by itself/);
+  const orders = readFileSync("src/lib/tabs/Orders.svelte", "utf8");
+  assert.match(orders, /its own floor \(in its row\), a relic's crack value, a Prime part's or set's ducats, or Never under is lifted to at least that at once, waiting for neither limit/);
+  const sheet = readFileSync("src/lib/SettingsSheet.svelte", "utf8");
+  assert.match(sheet, /under its own floor, a relic's crack value, a Prime part's or set's ducats, or your minimum: it is lifted to at least that at once/);
 });
