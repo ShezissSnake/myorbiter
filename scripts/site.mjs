@@ -41,13 +41,15 @@ const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replac
 
 // ---- The app's own words, drawn on the server.
 const vite = await createServer({ root: ROOT, server: { middlewareMode: true, hmr: false }, appType: "custom", logLevel: "error" });
-let guideHtml, news, warning, PAGES, pageById, PRIVACY_PAGE;
+let guideHtml, news, warning, PAGES, pageById, PRIVACY_PAGE, SECTION_GLYPH, doesOf, evenTransform;
 try {
   const { render } = await vite.ssrLoadModule("svelte/server");
   const Guide = (await vite.ssrLoadModule("/src/lib/tabs/Guide.svelte")).default;
   ({ NEWS: news } = await vite.ssrLoadModule("/src/lib/whatsNew.ts"));
   ({ FULL_MODE_WARNING: warning } = await vite.ssrLoadModule("/src/lib/FullMode.svelte"));
-  ({ PAGES, pageById } = await vite.ssrLoadModule("/src/lib/pages.ts"));
+  ({ PAGES, pageById, SECTION_GLYPH } = await vite.ssrLoadModule("/src/lib/pages.ts"));
+  ({ doesOf } = await vite.ssrLoadModule("/src/lib/help/index.ts"));
+  ({ evenTransform } = await vite.ssrLoadModule("/src/lib/ui/evened.ts"));
   ({ PRIVACY_PAGE } = await vite.ssrLoadModule("/src/lib/core/links.ts"));
   // go: null draws page names in the text as plain words (no links into an app that isn't there).
   guideHtml = render(Guide, { props: { go: null, plannerMode: "sets", console: false, platform: "PC", hidden: [], expanded: true } }).body;
@@ -122,7 +124,7 @@ const GUIDE = [
 
 // ---- Drawings, inline so they take the text's colour.
 /** The app's own drawn icons (src/lib/ui/Icon.svelte), read from its source so the site draws the
- *  same family: PATHS on a 16 px grid, PATHS24 (the sections' glyphs, the kinds, the chevrons) on 24. */
+ *  same family: PATHS on a 16 px grid, PATHS24 (the kinds, the chevrons) on 24. */
 const iconSource = readFileSync(join(ROOT, "src/lib/ui/Icon.svelte"), "utf8");
 function iconTable(name) {
   const m = iconSource.match(new RegExp(`const ${name}: Record<string, string> = \\{([\\s\\S]*?)\\n\\s*\\};`));
@@ -143,11 +145,41 @@ function icon(name, { size = 16, stroke = 1.3, cls = "ic" } = {}) {
  *  icon, each at the sidebar's size. */
 const pageIcon = (p) => {
   if ("line" in p.icon) return icon(p.icon.line, { size: 16, stroke: 1.5 });
-  const f = `${p.icon.game}.png`;
-  if (!existsSync(join(ROOT, "public/game", f))) throw new Error(`public/game/${f} (${p.label}'s icon) isn't there`);
-  icons.add(f);
-  return `<img class="gi" src="{{base}}game/${f}" width="18" height="18" alt="">`;
+  return gameImg(p.icon.game, 18, `${p.label}'s icon`);
 };
+/** The game's picture `name` (public/game, copied beside the pages), drawn as the sidebar draws it:
+ *  evened out by eye (src/lib/ui/evened.ts), which the stylesheet gets as a class (`ev-<name>`,
+ *  evenCss below) because the content security policy allows no style attribute. */
+const evened = new Set();
+function gameImg(name, size, what) {
+  const f = `${name}.png`;
+  if (!existsSync(join(ROOT, "public/game", f))) throw new Error(`public/game/${f} (${what}) isn't there`);
+  icons.add(f);
+  const even = evenTransform(name);
+  if (even) evened.add(name);
+  return `<img class="gi${even ? ` ev-${name}` : ""}" src="{{base}}game/${f}" width="${size}" height="${size}" alt="">`;
+}
+/** A section's glyph, the game's own drawn flat in the section's colour (src/lib/ui/Crest.svelte): a
+ *  stencil of the picture, filled with `--sec`. Its file and its centring are rules in the
+ *  stylesheet (glyphCss below). */
+function sectionGlyph(name) {
+  const g = SECTION_GLYPH[name];
+  if (!g) throw new Error(`src/lib/pages.ts has no glyph for ${name}`);
+  if (!existsSync(join(ROOT, "public/game", `${g}.png`))) throw new Error(`public/game/${g}.png (${name}'s glyph) isn't there`);
+  icons.add(`${g}.png`);
+  glyphs.add(g);
+  return `<span class="sg gl-${g}"></span>`;
+}
+const glyphs = new Set();
+/** The stylesheet's rules that need the app's data: the evened pictures' transforms and the
+ *  glyphs' stencils, appended to the copy of site.css (a stylesheet with no style attribute is what
+ *  the policy allows, and the app's own table stays the one source). */
+function generatedCss() {
+  const out = ["", "/* From scripts/site.mjs, out of src/lib/ui/evened.ts and src/lib/pages.ts: the sidebar's evened pictures and the sections' glyphs. */"];
+  for (const n of [...evened].sort()) out.push(`.gi.ev-${n} { transform: ${evenTransform(n)}; }`);
+  for (const g of [...glyphs].sort()) out.push(`.sg.gl-${g} { -webkit-mask-image: url(game/${g}.png); mask-image: url(game/${g}.png);${evenTransform(g) ? ` transform: ${evenTransform(g)};` : ""} }`);
+  return out.join("\n") + "\n";
+}
 
 /** The platform glyphs: drawn for MyOrbiter in the wordmark's line style (design/icon/platform),
  *  no third-party logos. */
@@ -372,25 +404,37 @@ function shotLink(id, cls, { lazy = true } = {}) {
   const label = pageById[id].label;
   return `<a class="${cls}" href="{{base}}shots/large/${s.file}.webp" data-shot="${s.file}" data-name="${esc(label)}" data-caption="${esc(s.caption)}"><img src="{{base}}shots/${s.file}.webp" width="1280" height="800"${lazy ? ' loading="lazy"' : ""} alt="${esc(s.alt)}"></a>`;
 }
+/** What a page does, in a few lines, each with the app's own picture where it has one and else a
+ *  diamond in the section's colour (the lines are src/lib/help/, `does`; tests/landing.test.ts holds
+ *  them to their limits). Every page's list is drawn here; site.js only shows the chosen one. */
+function does(p, on) {
+  const lines = doesOf(p.id);
+  if (!lines.length) throw new Error(`src/lib/help/ has no lines for ${p.label} (does): the landing page needs them`);
+  const items = lines.map((l) => `<li>${l.icon ? gameImg(l.icon, 16, `${p.label}'s line`).replace(/class="gi/, 'class="mk gi') : '<i class="mk dia"></i>'}<span>${esc(l.text)}</span></li>`).join("");
+  return `<div class="does${on ? " on" : ""}" data-page="${p.id}"><p class="register dname">${esc(p.label)}</p><ul>${items}</ul></div>`;
+}
 function tour() {
   // The tabs, hidden until the script makes them tabs; without it, every section reads in turn.
-  const tabs = SECTIONS.map(([name, key], i) => `<button type="button" role="tab" id="tab-${key}" aria-controls="sec-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" class="tab s-${key}">${icon(`sec-${key}`, { size: 18, stroke: 1.8 })}<span>${name}</span></button>`).join("");
+  const tabs = SECTIONS.map(([name, key], i) => `<button type="button" role="tab" id="tab-${key}" aria-controls="sec-${key}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}" class="tab s-${key}">${sectionGlyph(name)}<span>${name}</span></button>`).join("");
   const panels = SECTIONS.map(([name, key, line, kinds]) => {
     const pages = PAGES.filter((p) => p.group === name);
     if (!pages.length) throw new Error(`src/lib/pages.ts has no pages in ${name}: has it changed?`);
     const shown = pages.filter((p) => SHOTS[p.id]);
     if (!shown.length) throw new Error(`site: no screenshot of a page in ${name}`);
-    // A page with a screenshot is a control that shows it; the others are tags, a fact.
+    // A page with a screenshot is a control that shows it and its lines; one without is a control
+    // for its lines only (the picture stays), and a tag until the script makes it one.
     const chips = pages.map((p) => SHOTS[p.id]
-      ? `<li><a class="chip" href="{{base}}shots/large/${SHOTS[p.id].file}.webp" data-pick="${SHOTS[p.id].file}" data-small="{{base}}shots/${SHOTS[p.id].file}.webp" data-name="${esc(p.label)}" data-caption="${esc(SHOTS[p.id].caption)}" data-alt="${esc(SHOTS[p.id].alt)}"${p === shown[0] ? ' aria-current="true"' : ""}>${pageIcon(p)}<span>${esc(p.label)}</span></a></li>`
-      : `<li><span class="chip tag" title="No screenshot of this page here">${pageIcon(p)}<span>${esc(p.label)}</span></span></li>`).join("");
+      ? `<li><a class="chip" href="{{base}}shots/large/${SHOTS[p.id].file}.webp" data-pick="${SHOTS[p.id].file}" data-does="${p.id}" data-small="{{base}}shots/${SHOTS[p.id].file}.webp" data-name="${esc(p.label)}" data-caption="${esc(SHOTS[p.id].caption)}" data-alt="${esc(SHOTS[p.id].alt)}"${p === shown[0] ? ' aria-current="true"' : ""}>${pageIcon(p)}<span>${esc(p.label)}</span></a></li>`
+      : `<li><span class="chip tag" data-does="${p.id}" title="No screenshot of this page here">${pageIcon(p)}<span>${esc(p.label)}</span></span></li>`).join("");
     const kindRow = kinds ? `<ul class="kinds" aria-label="Every kind, counted">${KINDS.map(([k, label]) => `<li class="kind">${icon(`kind-${k}`, { size: 16, stroke: 1.4 })}<span>${label}</span></li>`).join("")}</ul>` : "";
     // Every page with a screenshot is in the panel's well's list: the chips swap which one shows.
     const first = shown[0];
+    const lists = pages.map((p) => does(p, p === first)).join("");
     return `<section class="panel s-${key}" id="sec-${key}" aria-labelledby="h-${key}">
-<div class="ptx"><div class="phead"><span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i>${icon(`sec-${key}`, { size: 30, stroke: 1.5 })}</span><div><p class="register kicker">Section</p><h3 class="mark" id="h-${key}">${name}</h3></div></div>
+<div class="ptx"><div class="phead"><span class="crest" aria-hidden="true"><i class="outer"></i><i class="inner"></i><span class="glyph">${sectionGlyph(name)}</span></span><div><p class="register kicker">Section</p><h3 class="mark" id="h-${key}">${name}</h3></div></div>
 <p class="line">${esc(line)}</p>
-<ul class="chips" aria-label="Pages in ${name}">${chips}</ul>${kindRow}</div>
+<ul class="chips" aria-label="Pages in ${name}">${chips}</ul>
+<div class="dos" aria-label="What the page does">${lists}</div>${kindRow}</div>
 <figure class="frame">${shotLink(first.id, "shot well")}<figcaption><b>${esc(first.label)}</b> <span>${esc(SHOTS[first.id].caption)}</span></figcaption></figure>
 </section>`;
   }).join("\n");
@@ -436,7 +480,7 @@ for (const g of GUIDE) write(g.file, page({ ...g, section: "guide/", kicker: "Gu
 write("whats-new.html", page({ file: "whats-new.html", title: "What's new", kicker: "Updates", blurb: "Every update, newest first, as the app's Guide lists them.", body: whatsNew }));
 write("downloads.html", page({ file: "downloads.html", title: "Other versions", kicker: "Downloads", blurb: "The newest builds, up to ten, with the files each one carries and its release notes.", body: builds }));
 
-cpSync(join(SRC, "site.css"), join(OUT, "site.css"));
+writeFileSync(join(OUT, "site.css"), readFileSync(join(SRC, "site.css"), "utf8") + generatedCss());
 cpSync(join(SRC, SCRIPT), join(OUT, SCRIPT));
 // The stylesheet's drawn tiles and marks, as files (the policy allows no data: pictures).
 cpSync(join(SRC, "art"), join(OUT, "art"), { recursive: true });
@@ -536,6 +580,12 @@ if (args.includes("--check")) {
   const reach = /["'`]\/\/|\bcreateElement\(\s*["'`](?!(?:button|span|a)["'`])|\blocation\.(?:assign|replace|reload)\b|\.click\(\)|\bObject\.assign\b|\b(?:https?:|fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|localStorage|sessionStorage|indexedDB|cookie|caches|serviceWorker|importScripts|import|eval|Function|innerHTML|outerHTML|insertAdjacentHTML|write|postMessage|setAttributeNS|createContextualFragment)\b|\bwindow\.open\b|\blocation\s*(?:\.href)?\s*=[^=]|\bsrc(?:doc)?\s*=\s*["'`]|\bon[a-z]+\s*=/g;
   for (const m of js.matchAll(reach)) bad.push(`${SCRIPT}: "${m[0]}" (it may only work on its own page)`);
   const css = readFileSync(join(OUT, "site.css"), "utf8");
+  // The stylesheet's generated rules (generatedCss) are in the built file: every section's glyph has
+  // its stencil, and every evened picture the landing page draws has its transform.
+  const landing = readFileSync(join(OUT, "index.html"), "utf8");
+  for (const g of Object.values(SECTION_GLYPH)) if (!css.includes(`.sg.gl-${g} { -webkit-mask-image: url(game/${g}.png)`)) bad.push(`site.css: no stencil for the glyph ${g} (generatedCss)`);
+  for (const m of new Set(landing.match(/\bev-[\w-]+/g) ?? [])) if (!css.includes(`.gi.${m} { transform:`)) bad.push(`site.css: no rule for ${m} (generatedCss)`);
+  if (!/\bev-/.test(landing)) bad.push("index.html: no evened picture on the landing page: has the chips' drawing changed?");
   for (const file of NARROW_PAGES) bad.push(...narrowOverflow(css, readFileSync(join(OUT, file), "utf8"), file));
   if (bad.length) { console.error(bad.join("\n")); process.exit(1); }
   console.log(`site/_site: ${files.length} files, every link checked, the landing and Guide pages fit ${NARROW.join(", ")} px.`);
