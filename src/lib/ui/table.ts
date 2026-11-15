@@ -56,6 +56,12 @@ export function eraTint(relic: string): string | null {
   return era && ["lith", "meso", "neo", "axi", "requiem", "omnia"].includes(era) ? `var(--era-${era})` : null;
 }
 
+/**
+ * Text in the order `localeCompare` gives it, except that a run of digits counts as a number, as
+ * the game counts relics: Axi A1, A2, A10. Made once: a collator per comparison is slow on a long list.
+ */
+const textOrder = new Intl.Collator(undefined, { numeric: true });
+
 /** Rows in a column's order; blanks always last. Shared by tables and card grids. */
 export function sortRows<T>(rows: T[], columns: Column<T>[], sort: { key: string; desc: boolean }): T[] {
   const col = columns.find((c) => c.key === sort.key) ?? columns[0];
@@ -68,6 +74,6 @@ export function sortRows<T>(rows: T[], columns: Column<T>[], sort: { key: string
     if (va == null) return 1;
     if (vb == null) return -1;
     if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
-    return String(va).localeCompare(String(vb)) * dir;
+    return textOrder.compare(String(va), String(vb)) * dir;
   });
 }
