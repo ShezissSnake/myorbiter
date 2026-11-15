@@ -67,16 +67,26 @@ export function nextCheckShown(last: number | null, wait: number, clock: number)
 }
 
 /**
- * The "Next check" tooltip. After passes warframe.market didn't answer: an hour or less waits
- * longer (`wait`, doubling to an hour); over an hour the next check comes within the hour, sooner
- * than the interval (the store dates a missed pass back), so no figure is given.
+ * The "Next check" tooltip, true of the label it sits on: `next` is the label's time
+ * (`nextCheckShown`), `wait` the store's `passDelay`, `clock` the page's clock. After passes
+ * warframe.market didn't answer, the words follow the wait in force, not the interval alone (the
+ * interval may have changed since):
+ * - the label is due now (a dated-back pass, then a shorter interval): it tries again now;
+ * - the wait is longer than the interval (an hour or less doubles it, up to an hour): it waits
+ *   longer, with that wait; a label ahead of the clock is the last check plus `wait`, so the
+ *   figure is the one behind it;
+ * - over an hour, a label within the hour (the store dates a missed pass back): it tries again
+ *   within the hour, with no figure;
+ * - anything else (a missed pass at an hour or less, then once a day): the interval's sentence.
  */
-export function nextCheckWhy(every: number, failures: number, wait: number): string {
-  if (!failures) return `The timer checks ${everyWords(every)}`;
-  const passes = failures === 1 ? "pass" : `${failures} passes`;
-  return every > 60
-    ? `warframe.market didn't answer the last ${passes}, so it tries again within the hour`
-    : `warframe.market didn't answer the last ${passes}, so the timer waits longer (${Math.round(wait / 60_000)} min) before the next`;
+export function nextCheckWhy(every: number, failures: number, wait: number, next: number | null, clock: number): string {
+  const plain = `The timer checks ${everyWords(every)}`;
+  if (!failures || next == null) return plain;
+  const missed = `warframe.market didn't answer the last ${failures === 1 ? "pass" : `${failures} passes`}`;
+  if (next <= clock) return `${missed}, so it tries again now`;
+  if (wait > every * 60_000) return `${missed}, so the timer waits longer (${Math.round(wait / 60_000)} min) before the next`;
+  if (every > 60 && next - clock <= 60 * 60_000) return `${missed}, so it tries again within the hour`;
+  return plain;
 }
 
 /** Whether the timed check is due at `now` (see `nextCheckAt`). */

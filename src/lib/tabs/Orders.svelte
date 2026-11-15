@@ -938,7 +938,7 @@
           {/if}
         </div>
       </Fold>
-      {#if nextPass}<span class="register next" title={nextCheckWhy(settings.every, mkt.passFailures, passWait)}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${whenWords(+nextPass, minute)}`}</span>{/if}
+      {#if nextPass}<span class="register next" title={nextCheckWhy(settings.every, mkt.passFailures, passWait, +nextPass, minute)}>{mkt.pass && !mkt.passManual ? "Checking now" : `Next check ${whenWords(+nextPass, minute)}`}</span>{/if}
       {#if hiddenOrders.length || showJob.state !== "idle"}<ProgressButton class="showall" variant="link" job={showJob} label={hiddenOrders.length === 1 ? "Make 1 hidden listing visible" : `Make ${hiddenOrders.length} hidden listings visible`} working="Showing {showJob.done}/{showJob.total ?? '…'}" sizer={[`Showing ${hiddenOrders.length}/${hiddenOrders.length}`]} title="Make every hidden listing visible to buyers again" disabled={!!mkt.op} onclick={showAll} />{/if}
       <HelpMark part="orders.reprice" />
     </div>

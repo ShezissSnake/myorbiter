@@ -102,17 +102,45 @@ test("Next check: a week away names the date too, not only a weekday that reads 
 });
 
 test("the Next check tooltip: an hour or less waits longer; over an hour it tries again within the hour", () => {
-  assert.equal(nextCheckWhy(5, 0, 5 * MIN), "The timer checks every 5 min");
-  assert.equal(nextCheckWhy(1440, 0, 1440 * MIN), "The timer checks once a day");
-  // An hour or less: main's words, with the wait that is used.
-  assert.equal(nextCheckWhy(5, 1, 10 * MIN), "warframe.market didn't answer the last pass, so the timer waits longer (10 min) before the next");
-  assert.equal(nextCheckWhy(60, 2, 60 * MIN), "warframe.market didn't answer the last 2 passes, so the timer waits longer (60 min) before the next");
-  // Over an hour: no figure and no "longer", since the next pass comes sooner than the interval.
+  const clock = Date.UTC(2026, 10, 14, 12, 0);
+  // The label's time for a last pass `ago` before the clock, as Orders draws it.
+  const label = (ago: number, wait: number) => nextCheckShown(clock - ago, wait, clock);
+  assert.equal(nextCheckWhy(5, 0, 5 * MIN, label(MIN, 5 * MIN), clock), "The timer checks every 5 min");
+  assert.equal(nextCheckWhy(1440, 0, DAY, label(MIN, DAY), clock), "The timer checks once a day");
+  // An hour or less: main's words, with the wait that is used (the label is the last pass plus it).
+  assert.equal(nextCheckWhy(5, 1, 10 * MIN, label(MIN, 10 * MIN), clock), "warframe.market didn't answer the last pass, so the timer waits longer (10 min) before the next");
+  assert.equal(nextCheckWhy(30, 2, HOUR, label(MIN, HOUR), clock), "warframe.market didn't answer the last 2 passes, so the timer waits longer (60 min) before the next");
+  // Every hour: the wait is capped at the hour, no longer than the interval, so the plain sentence.
+  assert.equal(nextCheckWhy(60, 2, HOUR, label(MIN, HOUR), clock), "The timer checks every hour");
+  // Over an hour: the missed pass is dated back, so the label is within the hour; no figure, no "longer".
   for (const every of [120, 360, 720, 1440, 10080]) {
-    const words = nextCheckWhy(every, 1, every * MIN);
+    const words = nextCheckWhy(every, 1, every * MIN, label((every - 60) * MIN + MIN, every * MIN), clock);
     assert.equal(words, "warframe.market didn't answer the last pass, so it tries again within the hour");
     assert.doesNotMatch(words, /longer|\d+ min/);
   }
+  // No label: the plain sentence.
+  assert.equal(nextCheckWhy(1440, 1, DAY, null, clock), "The timer checks once a day");
+});
+
+test("the Next check tooltip follows the wait in force when the interval changed after a missed pass", () => {
+  const clock = Date.UTC(2026, 10, 14, 12, 0);
+  // No answer every 5 min (the pass is not dated back), then once a day: the wait is the whole
+  // day (capped at the interval) and the label a day after the pass, so not "within the hour".
+  const day = nextCheckShown(clock - 2 * MIN, DAY, clock);
+  assert.equal(day, clock - 2 * MIN + DAY);
+  const raised = nextCheckWhy(1440, 1, DAY, day, clock);
+  assert.equal(raised, "The timer checks once a day");
+  assert.doesNotMatch(raised, /within the hour|longer/);
+  // The reverse: no answer once a week (dated back six days and 23 hours), then every 5 min: the
+  // label is due now, so no "waits longer".
+  const now = nextCheckShown(clock - (10080 - 60) * MIN - 2 * MIN, 10 * MIN, clock);
+  assert.equal(now, clock);
+  const lowered = nextCheckWhy(5, 1, 10 * MIN, now, clock);
+  assert.equal(lowered, "warframe.market didn't answer the last pass, so it tries again now");
+  assert.doesNotMatch(lowered, /longer|within the hour/);
+  // Over an hour, a pass that went through but stopped part way (label within the hour): the
+  // interval's sentence; the tooltip names the retry only after a pass with no answer.
+  assert.equal(nextCheckWhy(10080, 0, 10080 * MIN, clock + 40 * MIN, clock), "The timer checks once a week");
 });
 
 test("Next check shows right after a pass, though the page's clock is up to a minute old", () => {

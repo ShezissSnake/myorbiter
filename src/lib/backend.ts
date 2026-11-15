@@ -907,7 +907,8 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     minByCategory: minByCategoryOf(r),
     minRelicPrice: undefined,
     minShare: numIn(r.minShare, 0, 1, base.minShare),
-    // Only an interval Orders offers; anything else (unknown, too short) is the usual one.
+    // Only an interval Orders offers: another number goes to the nearest one not shorter (240 to every
+    // 6 hours; past a week, once a week); no number, or one under a minute, is the usual one.
     every: everyOf(r.every, base.every),
     lastCheck: lastCheckOf(r.lastCheck),
     floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
