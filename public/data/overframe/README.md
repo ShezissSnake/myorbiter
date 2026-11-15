@@ -8,19 +8,19 @@ that opens the build on overframe.gg, so its author gets the visit.
 
 ## Permission
 
-Overframe's team, by email on 3 Nov 2026: orbiter may take Overframe's lists of
+Overframe's team, by email on 3 Nov 2026: MyOrbiter may take Overframe's lists of
 popular builds and show all of that information, not the build pages themselves. They suggested
-collecting the lists in a browser and keeping the result in orbiter's own data, since relying on
+collecting the lists in a browser and keeping the result in MyOrbiter's own data, since relying on
 access through Cloudflare could break. So:
 
-- orbiter never contacts Overframe. The app reads this file from its own assets.
+- MyOrbiter never contacts Overframe. The app reads this file from its own assets.
 - The file is dated (`collected`) and the page shows that date.
 - Only the list pages were read, never a `/build/<id>/` page.
 
 ## What's in it
 
 - `collected`: when the lists were read (ISO time).
-- `builds`: one per line. `uniqueName` is orbiter's catalog path for the item, matched by name;
+- `builds`: one per line. `uniqueName` is MyOrbiter's catalog path for the item, matched by name;
   builds whose item matched nothing (companion claws, items newer than the catalog) keep `item`
   only, and the page finds them by name.
 - Six list pages: `warframes`, `primary-weapons`, `secondary-weapons`, `melee-weapons`,
