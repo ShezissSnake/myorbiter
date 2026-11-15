@@ -12,6 +12,8 @@
 // the window), then exits 1 if there was any. A step that matches nothing stops that picture's
 // check there, so it is the one miss listed for that picture.
 //
+// Item pictures come from the picture cache and nothing leaves the machine (scripts/picture-cache.mjs).
+//
 // Pictures are taken at twice the window's pixels and kept at most MAX_W pixels wide, at the
 // highest WebP quality that keeps them under MAX_BYTES.
 
@@ -21,6 +23,7 @@ import { join } from "node:path";
 import { pictures } from "../src/lib/help/index.ts";
 import { pageById } from "../src/lib/pages.ts";
 import { stopWorldState } from "./no-world-state.mjs";
+import { guard } from "./picture-cache.mjs";
 
 const MAX_W = 1200;
 const MAX_BYTES = 60 * 1024;
@@ -101,7 +104,8 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
 async function openApp(browser, url, w, h, shot = {}) {
   const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
-  await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+  // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
+  await guard(p);
   await stopWorldState(p);
   p.on("pageerror", (e) => console.error(`help: ${e.message}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the

@@ -10,29 +10,31 @@
 // npm script does), since the help list is TypeScript. With --check it takes no pictures and only
 // lists the help's selectors that match nothing.
 //
-// It installs Playwright's Chromium if it isn't there yet (`playwright install chromium`, into
-// Playwright's own cache folder: `npm install` never downloads a browser), starts the demo dev
-// server on its own port, checks that the server answering is that one, opens each page in
-// Chromium, saves WebP files over the ones in the repository, and stops the server. Needs
-// ImageMagick (`magick`) for the WebP files. The demo's order books, price histories and world
-// state are files in demo/ (demo/README.md), with their times moved up to the moment they're
-// served, so Home and Current fissure show the same world on every run, online or not. No request
-// goes to a world-state service: every one is stopped and counted, and a run that saw any fails.
-// Nothing but GET requests would reach warframe.market.
+// It uses Playwright's Chromium if it's installed (`npx playwright install chromium` puts it in
+// Playwright's own cache folder: `npm install` never downloads a browser) and stops with that hint
+// if not. It starts the demo dev server on its own port, checks that the server answering is that
+// one, opens each page in Chromium, saves WebP files over the ones in the repository, and stops
+// the server. Needs ImageMagick (`magick`) for the WebP files. The demo's order books, price
+// histories and world state are files in demo/ (demo/README.md), with their times moved up to the
+// moment they're served, so Home and Current fissure show the same world on every run, online or
+// not. No request goes to a world-state service: every one is stopped and counted, and a run that
+// saw any fails. It contacts no host: item pictures (and Rivens' weekly file) come from the
+// picture cache, every other request off this machine (warframe.market's included) is refused and
+// counted, and a picture the cache lacks fails the run (scripts/picture-cache.mjs, whose --fill
+// step fills it).
 
 import { spawn, execFileSync } from "node:child_process";
-import { createRequire } from "node:module";
 import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requestsLine, stopWorldState, worldStateAsked } from "./no-world-state.mjs";
+import { LAUNCH_ARGS, cacheEnd, cacheStartLine, guard } from "./picture-cache.mjs";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 const portArg = process.argv.indexOf("--port");
 const port = portArg > 0 ? process.argv[portArg + 1] : "1431";
 if (!/^[0-9]{2,5}$/.test(port ?? "")) throw new Error(`not a port: ${port}`);
-const playwright = dirname(createRequire(import.meta.url).resolve("playwright"));
 const { chromium } = await import("playwright");
 const url = `http://localhost:${port}/`;
 
@@ -117,8 +119,6 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 try {
-  // The one step that downloads a browser; quick when it's there already.
-  execFileSync(process.execPath, [join(playwright, "cli.js"), "install", "chromium"], { stdio: "inherit" });
   if (await answers()) throw new Error(`something already answers at ${url}: stop it or pick another --port`);
   server = spawn(process.execPath, [join(root, "node_modules/vite/bin/vite.js"), "--port", port, "--strictPort"], {
     cwd: root,
@@ -139,7 +139,12 @@ try {
   if (ended || !(await isDemo())) throw new Error(`the server at ${url} isn't the demo one`);
 
   work = mkdtempSync(join(tmpdir(), "myorbiter-shots-"));
-  browser = await chromium.launch();
+  try {
+    browser = await chromium.launch({ args: LAUNCH_ARGS });
+  } catch (e) {
+    throw new Error(`Playwright's Chromium didn't start (${String(e).split("\n")[0]}). Install it with: npx playwright install chromium`);
+  }
+  console.log(cacheStartLine());
   if (only === "help") {
     const { takeHelp } = await import("./help-shots.mjs");
     await takeHelp(browser, url, root, work, helpId, process.argv.includes("--check"));
@@ -148,7 +153,8 @@ try {
     if (only && kind !== only) continue;
     if (large) mkdirSync(join(root, out, "large"), { recursive: true });
     const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
-    await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+    // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
+    await guard(p);
     await stopWorldState(p);
     p.on("pageerror", (e) => console.error(`${kind}: ${e.message}`));
     // What's New, and on a first start the Full mode question, would open over the first page.
@@ -197,7 +203,9 @@ try {
     await p.close();
   }
   console.log(requestsLine());
-  if (worldStateAsked.count) process.exitCode = 1;
+  const cache = cacheEnd();
+  for (const l of cache.lines) console.log(l);
+  if (cache.failed || worldStateAsked.count) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 1;

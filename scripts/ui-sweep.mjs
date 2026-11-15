@@ -28,9 +28,12 @@
 // Linux and WebView2 on Windows; text widths differ a little between engines, which is why the
 // layouts this checks are meant to hold with room to spare. With --out, one contact sheet per
 // window size (every view, flagged elements outlined in red) is saved there as PNG; needs
-// ImageMagick (`magick`). Every request to warframe.market is stopped: the sweep sends none. The
-// world state is the demo's own (demo/dev-worldstate.json): a request to a world-state service is
-// stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
+// ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
+// to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
+// The sweep contacts no host: item pictures (and Rivens' weekly file) come from the picture cache,
+// so their shapes are measured on the real pictures; every other request off this machine
+// (warframe.market's included) is refused and counted; a picture the cache lacks is listed by
+// address and fails the sweep (scripts/picture-cache.mjs, whose --fill step fills the cache).
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -38,6 +41,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requestsLine, stopWorldState, worldStateAsked } from "./no-world-state.mjs";
+import { LAUNCH_ARGS, cacheEnd, cacheStartLine, guard } from "./picture-cache.mjs";
 import { deflateSync } from "node:zlib";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -456,7 +460,8 @@ const pause = (p, ms) => p.waitForTimeout(ms);
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
 async function open(size, { firstRun = false, noInventory = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h }, reducedMotion });
-  await p.route(/warframe\.market/, (r) => r.abort());
+  // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
+  await guard(p);
   await stopWorldState(p);
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
@@ -961,11 +966,12 @@ try {
   }
   if (ended || !(await isDemo())) throw new Error(`the server at ${url} isn't the demo one`);
   try {
-    browser = await chromium.launch();
+    browser = await chromium.launch({ args: LAUNCH_ARGS });
   } catch (e) {
     throw new Error(`Playwright's Chromium didn't start (${String(e).split("\n")[0]}). Install it with: npx playwright install chromium`);
   }
   if (out) work = mkdtempSync(join(tmpdir(), "myorbiter-sweep-"));
+  console.log(cacheStartLine());
   for (const size of SIZES) {
     console.log(`${size.w}×${size.h}`);
     await walk(size, check, { widePictures: !coverageOnly });
@@ -1030,7 +1036,9 @@ try {
   for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
   console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
   console.log(requestsLine());
-  if (worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  const cache = cacheEnd();
+  for (const l of cache.lines) console.log(l);
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(e instanceof Error ? e.message : e);
   process.exitCode = 2;

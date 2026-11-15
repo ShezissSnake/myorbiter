@@ -75,7 +75,9 @@ api.warframestat.us answers, with invented values (see "The world state" above).
 keep its times as of `meta.json`'s `now`.
 
 Still read from the network in the demo: item pictures (raw.githubusercontent.com). Without the
-network they are left blank and everything else is the same.
+network they are left blank and everything else is the same. The screenshots, the help pictures,
+their check and the sweep read them from a cache on disk instead, and contact no host
+(`docs/development.md`).
 
 ## @wfcd/items's licence
 
