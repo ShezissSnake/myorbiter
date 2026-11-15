@@ -16,6 +16,7 @@ import {
   type MyOrder,
   type Plan,
 } from "./core/market";
+import { savesCheck } from "./core/schedule";
 import type { Model } from "./core/model";
 import { dealFromOrder, findDeals, type Deal, type FeedOrder, type Watch } from "./core/deals";
 import { recentPrice, type PricePoint } from "./core/priceTrend";
@@ -138,6 +139,14 @@ class MarketStore {
   statusError = $state<string | null>(null);
   log = $state<LogLine[]>([]);
   lastPass = $state<number | null>(null);
+  /** The platform changed during this run: the check saved from an earlier run was another platform's. */
+  private switched = $state(false);
+  /** When the last check was: this run's, or the one saved from an earlier run (core/schedule.ts),
+   *  which only intervals over an hour keep. None after a platform switch, so the new platform is
+   *  checked at once. */
+  lastCheckOf(s: { lastCheck?: number | null; every?: number }): number | null {
+    return this.lastPass ?? (this.switched || !savesCheck(s.every) ? null : (s.lastCheck ?? null));
+  }
   /** Repricing passes in a row that got no answer from warframe.market: the timer waits longer after each. */
   passFailures = $state(0);
   /** When your listings were last read from warframe.market (null: not since signing in). */
@@ -166,14 +175,21 @@ class MarketStore {
    * Switches market: every order book, price history and cheap-buy result read so far was the
    * other platform's, so they go.
    */
-  async usePlatform(p: Platform) {
+  /** `s`: the saved market settings, once they're in; their saved check time goes with a switch (the
+   *  old platform's). Before them (the defaults) there's no `s`, and nothing counts as a switch. */
+  async usePlatform(p: Platform, s?: { lastCheck?: number | null }) {
     // One switch at a time, in the order asked: PC → Xbox → PC quickly ends on PC.
-    const run = this.switching.then(() => this.switchPlatform(p));
+    const run = this.switching.then(() => this.switchPlatform(p, s));
     this.switching = run.catch(() => {});
     return run;
   }
   private switching: Promise<void> = Promise.resolve();
-  private async switchPlatform(p: Platform) {
+  /** The saved settings' platform is in: the one MyOrbiter starts on, not a switch. Only a change
+   *  after it is one. */
+  private chosen = false;
+  private async switchPlatform(p: Platform, s?: { lastCheck?: number | null }) {
+    const isSwitch = !!s && this.chosen;
+    if (s) this.chosen = true;
     if (p === this.platform) return;
     await market.setPlatform(p);
     this.platform = p;
@@ -182,6 +198,10 @@ class MarketStore {
     this.deals = [];
     this.dealsAt = null;
     this.lastPass = null;
+    if (isSwitch) {
+      this.switched = true;
+      s.lastCheck = null;
+    }
     // The live feed subscribed to the old platform's new listings: started again if it's on.
     if (this.feedOn) {
       await market.feed(false);
@@ -552,6 +572,9 @@ class MarketStore {
     this.passManual = !timed;
     this.passProgress = null;
     const summary: PassSummary = { changed: 0, failed: 0, off: 0, stopped: false, error: null };
+    const failuresBefore = this.passFailures;
+    // Ended by a refused sign-in: nothing was checked, so it's dated as a missed pass is.
+    let refused = false;
     // A check on a timer reads every book at least once a round: never reuse one from before the last round.
     const checkTtl = Math.min(BOOK_TTL, Math.max(60_000, (s.every || 5) * 60_000 - 30_000));
     this.error = null;
@@ -746,6 +769,7 @@ class MarketStore {
       this.error = clean(e);
       summary.error = clean(e);
       if (isAuthError(e) && this.account) {
+        refused = true;
         this.note(clean(e), "warn");
         // Signed out on warframe.market's side: stop acting until you sign in again.
         this.account = { ...this.account, profile: null, error: clean(e) };
@@ -757,7 +781,17 @@ class MarketStore {
     } finally {
       // A pass on the timer counts whether it applied or only checked, so "Check automatically"
       // runs every N minutes too, not on every tick.
-      if (apply || timed) this.lastPass = Date.now();
+      if (apply || timed) {
+        // A pass warframe.market didn't answer, that stopped early, or that a refused sign-in
+        // ended, is tried again within the hour on a longer interval, not a whole day or week later.
+        const missed = refused || summary.stopped || this.passFailures > failuresBefore;
+        const at = Date.now();
+        this.lastPass = missed ? at - Math.max(0, s.every * 60_000 - 60 * 60_000) : at;
+        // Kept in the settings, so the next start knows when this one was, only for intervals over
+        // an hour (core/schedule.ts): a save then comes at most once an hour. An hour or less is
+        // kept in memory, as before, and a start checks at once.
+        if (savesCheck(s.every)) s.lastCheck = this.lastPass;
+      }
       this.pass = null;
       this.passProgress = null;
       this.passManual = false;

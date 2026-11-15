@@ -6,28 +6,34 @@
     "bytes": 28896
   },
   "arcanes-2.webp": {
-    "hash": "f9c5cd608c661fb4",
+    "hash": "b2702727140e66f3",
     "w": 1007,
     "h": 158,
-    "bytes": 9384
+    "bytes": 9448
   },
   "arcanes-3.webp": {
-    "hash": "ee55d730745417c4",
+    "hash": "2acdcaab225400cf",
     "w": 989,
     "h": 327,
-    "bytes": 29814
+    "bytes": 29422
   },
   "arcanes-4.webp": {
     "hash": "8bd8c8f651610412",
     "w": 989,
     "h": 380,
-    "bytes": 35710
+    "bytes": 34850
   },
   "arcanes-5.webp": {
     "hash": "e82879aafc75af6e",
     "w": 989,
-    "h": 550,
-    "bytes": 61316
+    "h": 599,
+    "bytes": 57172
+  },
+  "arcanes-open-1.webp": {
+    "hash": "f5da6b16cfd3f70a",
+    "w": 967,
+    "h": 340,
+    "bytes": 43734
   },
   "browse-1.webp": {
     "hash": "c99fe30185dbf9fd",
@@ -102,10 +108,10 @@
     "bytes": 56880
   },
   "first-run-2.webp": {
-    "hash": "28db40a3db5d919f",
+    "hash": "11b34c82a0e147be",
     "w": 575,
     "h": 275,
-    "bytes": 19000
+    "bytes": 19004
   },
   "first-run-3.webp": {
     "hash": "6ff5047ea1f2d93a",
@@ -150,22 +156,22 @@
     "bytes": 13792
   },
   "home-3.webp": {
-    "hash": "f146c30403d031f0",
+    "hash": "44e73efda72a0c69",
     "w": 1007,
-    "h": 347,
-    "bytes": 31610
+    "h": 392,
+    "bytes": 36514
   },
   "home-4.webp": {
     "hash": "829bdc62896ec0b6",
     "w": 584,
-    "h": 328,
-    "bytes": 19476
+    "h": 327,
+    "bytes": 19450
   },
   "home-5.webp": {
     "hash": "269a0a8b8090bec7",
     "w": 422,
-    "h": 328,
-    "bytes": 19238
+    "h": 327,
+    "bytes": 18812
   },
   "home-collection-1.webp": {
     "hash": "e8497a562a78bcca",
@@ -258,31 +264,31 @@
     "bytes": 18404
   },
   "item-sheet-1.webp": {
-    "hash": "4508a7df24cd0b5b",
+    "hash": "f4ab84348de5ac60",
     "w": 943,
     "h": 363,
-    "bytes": 25104
+    "bytes": 25076
   },
   "item-sheet-2.webp": {
-    "hash": "6c64cb4d494d6869",
+    "hash": "d4a2bdfeaa55341a",
     "w": 926,
     "h": 152,
-    "bytes": 8644
+    "bytes": 8716
   },
   "item-sheet-3.webp": {
-    "hash": "2f0650fe73c43632",
+    "hash": "d305353b466bd8ef",
     "w": 927,
-    "h": 147,
-    "bytes": 11866
+    "h": 125,
+    "bytes": 10040
   },
   "item-sheet-4.webp": {
-    "hash": "42b476fe555448d2",
+    "hash": "e9ae6b3b01562f0f",
     "w": 927,
     "h": 612,
-    "bytes": 43528
+    "bytes": 41950
   },
   "item-sheet-5.webp": {
-    "hash": "460f1cc63d8a4a4a",
+    "hash": "0f2420b3362f9337",
     "w": 909,
     "h": 144,
     "bytes": 5724
@@ -413,6 +419,18 @@
     "h": 76,
     "bytes": 3390
   },
+  "orders-automatic-1.webp": {
+    "hash": "63120ee854ba2e1c",
+    "w": 787,
+    "h": 386,
+    "bytes": 46844
+  },
+  "orders-automatic-2.webp": {
+    "hash": "7ce2d28dff7c5fe1",
+    "w": 769,
+    "h": 244,
+    "bytes": 26406
+  },
   "parts-1.webp": {
     "hash": "c9365feb7026c3d7",
     "w": 1006,
@@ -465,19 +483,19 @@
     "hash": "e853c4512ff36f7d",
     "w": 256,
     "h": 105,
-    "bytes": 6590
+    "bytes": 7296
   },
   "rail-2.webp": {
-    "hash": "4aface5590873e11",
-    "w": 292,
-    "h": 124,
-    "bytes": 6068
+    "hash": "d7d91a495208101d",
+    "w": 247,
+    "h": 123,
+    "bytes": 7958
   },
   "rail-3.webp": {
-    "hash": "4a57cb81c596aa45",
-    "w": 284,
-    "h": 202,
-    "bytes": 8784
+    "hash": "7a2f1bfebb33501a",
+    "w": 351,
+    "h": 800,
+    "bytes": 54176
   },
   "relics-1.webp": {
     "hash": "508b5309a7bda7b5",
@@ -626,20 +644,26 @@
   "settings-trades-1.webp": {
     "hash": "b72f282aa7501dbe",
     "w": 575,
-    "h": 327,
-    "bytes": 41142
+    "h": 326,
+    "bytes": 39874
   },
   "settings-trades-2.webp": {
     "hash": "693ec2edc21438a9",
     "w": 575,
-    "h": 390,
-    "bytes": 55692
+    "h": 409,
+    "bytes": 57094
   },
   "settings-trades-3.webp": {
-    "hash": "1d0f86704146583c",
+    "hash": "6d6f3a9c1dfc0448",
     "w": 557,
-    "h": 377,
-    "bytes": 58756
+    "h": 153,
+    "bytes": 20196
+  },
+  "settings-trades-4.webp": {
+    "hash": "e52a82866a3eb64a",
+    "w": 557,
+    "h": 338,
+    "bytes": 58098
   },
   "spares-1.webp": {
     "hash": "285fee3d0408d891",
@@ -696,16 +720,16 @@
     "bytes": 25166
   },
   "tennoscope-1.webp": {
-    "hash": "4062929cf6353aa8",
+    "hash": "b877f551ca180e6d",
     "w": 591,
     "h": 543,
-    "bytes": 46632
+    "bytes": 46594
   },
   "tennoscope-2.webp": {
-    "hash": "0ce7acf3cd11ca57",
+    "hash": "32250eea99ffface",
     "w": 575,
     "h": 553,
-    "bytes": 35226
+    "bytes": 35350
   },
   "watching-1.webp": {
     "hash": "8af9508a30958a5e",
@@ -738,16 +762,16 @@
     "bytes": 14826
   },
   "whats-new-1.webp": {
-    "hash": "560297366818c3d2",
+    "hash": "b804b6e3e2bd85af",
     "w": 989,
-    "h": 266,
-    "bytes": 21188
+    "h": 267,
+    "bytes": 21094
   },
   "whats-new-2.webp": {
-    "hash": "59d6e8ebeddf5a27",
+    "hash": "0a9c2b96b81ab502",
     "w": 989,
-    "h": 266,
-    "bytes": 32884
+    "h": 267,
+    "bytes": 33768
   },
   "wishlist-1.webp": {
     "hash": "725b62f623f1ed4a",

@@ -31,6 +31,7 @@ function full(now = Date.now()): Settings {
       auto: true,
       autoCheck: true,
       every: 15,
+      lastCheck: now - HOUR,
       minShare: 0.6,
       floors: { "alpha|0|": 12 },
       paused: { "alpha|0|": true },
