@@ -186,15 +186,25 @@ export const settlesByAsking = (version: string, checks: boolean) => checks && b
  */
 export type ChannelAnswer = { version: string } | "empty" | null;
 
-/** Whether a channel's answer makes it one to settle on: a build that is the running one or newer. */
-const counts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;
+/**
+ * Whether a channel's answer makes it one to settle on: a build that is the running one or newer.
+ * Only the first address (on GitHub) can give such an answer: the second, GitLab's frozen copy
+ * (`endpoints` in updates.rs; docs/maintaining.md, "GitLab, frozen"), holds at most the bridge
+ * build, below 0.2.120 and so older than any build that runs this code. An answer that doesn't
+ * count proves nothing about the first address: a channel's file that failed there (a 503, a 429)
+ * reads as empty (the plugin can't tell it from a 404) or as GitLab's older build.
+ */
+export const buildCounts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;
+const counts = buildCounts;
 
 /**
  * A new install's channel, from what Stable and Beta answered (`beta` undefined: not asked yet) and
  * the running version: the most stable channel whose build is the running one or newer, so no step
  * back is offered by itself and the version line never names a channel whose build is older.
- * Stable if its build counts; else Beta if its build counts; else Experimental, which is never
- * asked for this (every build lands there first). "ask beta": Stable doesn't count and Beta wasn't
+ * Stable if its build counts; else Beta if its build counts; else "experimental": Experimental is
+ * asked next, as the check it gets anyway, and the install settles there only if its build counts
+ * too (`buildCounts`). An Experimental that answers empty or older (as every channel does when
+ * their files fail at the first address) settles nothing. "ask beta": Stable doesn't count and Beta wasn't
  * asked yet. "not yet": a channel that had to be asked didn't answer, so nothing settles and the
  * next check asks again.
  */
@@ -207,12 +217,12 @@ export function newInstallStep(running: string, stable: ChannelAnswer, beta?: Ch
 }
 
 /** Why a new install settled on `channel`, for the log line that says so. */
-export function newInstallWhy(running: string, channel: Channel, stable: ChannelAnswer, beta?: ChannelAnswer): string {
+export function newInstallWhy(running: string, channel: Channel, stable: ChannelAnswer, beta?: ChannelAnswer, experimental?: ChannelAnswer): string {
   const said = (c: Channel, a: ChannelAnswer | undefined) =>
     a == null || a === "empty" ? `${CHANNEL_LABEL[c]} has no build` : compareVersions(a.version, running) < 0 ? `${CHANNEL_LABEL[c]}'s build ${a.version} is older` : `${CHANNEL_LABEL[c]} has ${a.version}`;
   if (channel === "stable") return `the most stable channel with this build or a newer one (${said("stable", stable)})`;
   if (channel === "beta") return `the most stable channel with this build or a newer one (${said("stable", stable)}, ${said("beta", beta)})`;
-  return `neither Stable nor Beta has this build or a newer one (${said("stable", stable)}, ${said("beta", beta)})`;
+  return `neither Stable nor Beta has this build or a newer one (${said("stable", stable)}, ${said("beta", beta)}${experimental === undefined ? "" : `, ${said("experimental", experimental)}`})`;
 }
 
 /**

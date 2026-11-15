@@ -400,13 +400,84 @@ test("a new install, neither Stable nor Beta has a build (today's channels): Exp
   assert.equal(u.status(Date.now()), "Up to date (checked just now).");
 });
 
-test("a new install with every channel empty: Experimental, and the channels already asked aren't asked again", async (t) => {
-  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, EMPTY, EMPTY]);
+// A check that failed never settles a new install. The plugin skips an answer that isn't a
+// success at each address, so a channel whose file fails at the first address (a 503, a 429) reads
+// as empty when the second (GitLab's frozen copy) has no manifest for it, or as GitLab's older
+// bridge build when it has one. Only a build that is this one or newer proves the first address
+// answered (`buildCounts`).
+
+test("every channel failing at the first address, the second with no manifest: unsettled, three requests, asked again when due", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, CURRENT]);
   await begin();
   await startCheck(t);
   assert.deepEqual(calls, ["stable", "beta", "experimental"], "three requests, not five");
+  assert.equal(settings.picked, false, "not settled on Experimental for good");
+  assert.equal(settings.channel, "stable", "the channel shown, unchanged");
+  assert.equal(settings.lastCheck, Date.now());
+  assert.match(u.status(Date.now()), /^No channel answered with this build or a newer one \(at \d\d:\d\d, just now\)\.$/);
+  assert.match(u.unsettled ?? "", /asks again at its next check/);
+  assert.equal(u.empty, null, "no channel is said empty: none is chosen");
+  assert.equal(u.line, "0.2.104 · channel not chosen yet");
+  for (let at = 0; at <= CHECK_EVERY; at += SCHEDULE_TICK) {
+    t.mock.timers.tick(SCHEDULE_TICK);
+    await micro();
+  }
+  assert.deepEqual(calls.slice(3), ["stable", "beta", "experimental"], "asked again once due, and settled once Experimental answers with the build");
   assert.equal(settings.channel, "experimental");
-  assert.deepEqual(u.empty, { words: "Experimental has no build yet", to: null });
+  assert.equal(settings.picked, true);
+});
+
+test("every channel failing at the first address, the second serving older builds: unsettled, nothing offered", async (t) => {
+  const BRIDGE = OLDER("0.2.100");
+  const { u, settings, calls, begin } = await newInstall(t, [BRIDGE, BRIDGE, BRIDGE]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta", "experimental"]);
+  assert.equal(settings.picked, false);
+  assert.equal(settings.channel, "stable");
+  assert.equal(u.offer, null, "no older build offered on a channel nobody chose");
+  assert.equal(u.notice, null);
+  assert.match(u.status(Date.now()), /^No channel answered with this build or a newer one/);
+});
+
+test("today's channels (Stable and Beta empty, Experimental with the build): still Experimental in that round", async (t) => {
+  for (const exp of [CURRENT, NEWER]) {
+    await t.test(exp.state, async (t2) => {
+      const { u, settings, calls, begin } = await newInstall(t2, [EMPTY, EMPTY, exp]);
+      await begin();
+      await startCheck(t2);
+      assert.deepEqual(calls, ["stable", "beta", "experimental"], "three requests, as before");
+      assert.equal(settings.channel, "experimental");
+      assert.equal(settings.picked, true);
+      assert.equal(u.checked, "experimental", "Experimental's answer is the check's: the last request is its");
+      assert.equal(u.offer?.version ?? null, exp.state === "newer" ? "0.2.106" : null);
+    });
+  }
+});
+
+test("a running build newer than Experimental's, with Beta holding it: still Beta, Experimental not asked", async (t) => {
+  const { settings, calls, begin } = await newInstall(t, [EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta"]);
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.picked, true);
+});
+
+test("Stable's file failing alone at the first address reads as an empty or older Stable: not told apart here", async (t) => {
+  // Not closable without Rust: updates.rs maps every address answering without a manifest to
+  // `Empty` (the plugin can't tell a 503 from a 404), and GitLab's frozen Stable is an older build.
+  // Both read exactly as a Stable with no build yet, so the install settles on Beta here, as it
+  // must when Stable really has none.
+  for (const stable of [EMPTY, OLDER("0.2.100")]) {
+    await t.test(stable.state, async (t2) => {
+      const { settings, calls, begin } = await newInstall(t2, [stable, CURRENT]);
+      await begin();
+      await startCheck(t2);
+      assert.deepEqual(calls, ["stable", "beta"]);
+      assert.equal(settings.channel, "beta");
+    });
+  }
 });
 
 test("a new install whose build is newer than Stable's, than Beta's, or than both", async (t) => {

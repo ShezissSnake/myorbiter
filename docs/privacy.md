@@ -310,8 +310,9 @@ the same way, so Settings can name a channel that has one; it switches nothing. 
 settings saved yet) has no channel until its first check hears back: that check reads Stable's
 `latest.json`, and Beta's too if Stable has no build or an older one than yours, the same way, and
 starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
-Experimental, which it then reads as every check does). If one it had to read doesn't answer, nothing is
-chosen and the next check asks again; a channel you pick meanwhile stays. A local build starts on Stable and a copy
+Experimental, which it then reads as every check does). If one it had to read doesn't answer, or
+Experimental too has no build yours or newer (as when github.com fails for every channel and
+gitlab.com's frozen copy answers), nothing is chosen and the next check asks again; a channel you pick meanwhile stays. A local build starts on Stable and a copy
 that doesn't check on Experimental, without reading anything for it. An install
 that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where

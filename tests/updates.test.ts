@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, NEAREST, newInstallStep, newInstallUpdates, newInstallWhy, publishedTo, settleChannel, settlesByAsking, unsettledWords, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
+import { buildCounts, buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, NEAREST, newInstallStep, newInstallUpdates, newInstallWhy, publishedTo, settleChannel, settlesByAsking, unsettledWords, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
 import { openable } from "../src/lib/core/links";
 import { defaultSettings } from "../src/lib/backend";
 import { NEWS, showMeTarget } from "../src/lib/whatsNew";
@@ -198,6 +198,20 @@ test("a new install's channel: the most stable one whose build is this one or ne
   assert.equal(newInstallWhy(run, "stable", v("0.2.134")), "the most stable channel with this build or a newer one (Stable has 0.2.134)");
   assert.equal(newInstallWhy(run, "beta", "empty", v("0.2.134")), "the most stable channel with this build or a newer one (Stable has no build, Beta has 0.2.134)");
   assert.equal(newInstallWhy(run, "experimental", v("0.2.120"), "empty"), "neither Stable nor Beta has this build or a newer one (Stable's build 0.2.120 is older, Beta has no build)");
+  assert.equal(newInstallWhy(run, "experimental", "empty", "empty", v("0.2.134")), "neither Stable nor Beta has this build or a newer one (Stable has no build, Beta has no build, Experimental has 0.2.134)");
+});
+
+test("only a build that is the running one or newer counts: an empty or older answer, or none, proves nothing", () => {
+  const run = "0.2.134";
+  assert.equal(buildCounts({ version: "0.2.134" }, run), true);
+  assert.equal(buildCounts({ version: "0.2.140" }, run), true);
+  // What every channel reads as when its file fails at the first address: the second (GitLab's
+  // frozen copy) has no manifest, or holds the bridge build, below 0.2.120.
+  assert.equal(buildCounts("empty", run), false);
+  assert.equal(buildCounts({ version: "0.2.112" }, run), false);
+  assert.equal(buildCounts({ version: "0.2.133" }, run), false);
+  assert.equal(buildCounts(null, run), false);
+  assert.equal(buildCounts(undefined, run), false);
 });
 
 test("an unsettled new install says so: the version line names no channel, and Settings says what is shown", () => {

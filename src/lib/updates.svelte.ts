@@ -4,15 +4,17 @@
 // and from Check now (docs/privacy.md, Updates). Nothing installs without a click.
 //
 // A new install (no settings saved yet) of a CI build that checks has no channel until its first
-// check hears back: that check asks Stable, then Beta if need be, and settles on the most stable
-// channel whose build is this one or newer (`settle`, core/updates.ts `newInstallStep`).
+// check hears back: that check asks Stable, then Beta and Experimental if need be, and settles on
+// the most stable channel whose build is this one or newer (`settle`, core/updates.ts
+// `newInstallStep`). A check that failed never settles it: see `buildCounts` for what an answer
+// shows and what it can't.
 //
 // Every check ends in one state, shown under Check now with its time (`checkLine`): a build on
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
 import { flushSettings, logLine, updater, type UpdateCheck, type UpdateInfo } from "./backend";
-import { buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
+import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
 import { afterPaint } from "./ui/soon";
@@ -247,8 +249,9 @@ export class Updates {
   }
 
   /**
-   * A new install's channel, settled by asking Stable, and Beta only when Stable's build doesn't
-   * count (`newInstallStep`): the channel settled on, saved as picked and said in the log once.
+   * A new install's channel, settled by asking Stable, Beta only when Stable's build doesn't count,
+   * and Experimental only when neither does (`newInstallStep`; Experimental must count too): the
+   * channel settled on, saved as picked and said in the log once.
    * Null when the player picked a channel meanwhile: what was heard is dropped. Throws when a
    * channel that had to be asked didn't answer: nothing settles, nothing is marked picked, and the
    * next check (when due, or at the next start) asks again. What each channel answered goes into
@@ -271,9 +274,19 @@ export class Updates {
       step = newInstallStep(version, stable, beta);
     }
     if (step === "not yet" || step === "ask beta") throw new Error("Couldn't find out which channel has this build");
+    // Neither Stable nor Beta counts: Experimental is asked (the check it would get anyway) and
+    // must answer with this build or a newer one, which only the first address can serve
+    // (`buildCounts`). If it doesn't, the first address may be failing for every channel: nothing
+    // settles, and the next check asks again.
+    let experimental: ChannelAnswer | undefined;
+    if (step === "experimental") {
+      experimental = await ask("experimental");
+      if (this.get?.().picked) return null;
+      if (!buildCounts(experimental, version)) throw new Error("No channel answered with this build or a newer one");
+    }
     u.channel = step;
     u.picked = true;
-    logLine("info", "updates", `new install: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta)}`);
+    logLine("info", "updates", `new install: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta, experimental)}`);
     return step;
   }
 
