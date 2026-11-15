@@ -32,8 +32,9 @@
 // to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
 // The sweep contacts no host: item pictures (and Rivens' weekly file) come from the picture cache,
 // so their shapes are measured on the real pictures; every other request off this machine
-// (warframe.market's included) is refused and counted; a picture the cache lacks is listed by
-// address and fails the sweep (scripts/picture-cache.mjs, whose --fill step fills the cache).
+// (warframe.market's included), from the page or a window it opens, is refused and counted, and
+// fails the sweep; a picture the cache lacks is listed by address and fails the sweep
+// (scripts/picture-cache.mjs, whose --fill step fills the cache).
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -41,7 +42,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requestsLine, stopWorldState, worldStateAsked } from "./no-world-state.mjs";
-import { LAUNCH_ARGS, cacheEnd, cacheStartLine, guard } from "./picture-cache.mjs";
+import { LAUNCH_ARGS, cacheEnd, cacheStartLine, guard, hidePaths, relay } from "./picture-cache.mjs";
 import { deflateSync } from "node:zlib";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -466,9 +467,11 @@ async function open(size, { firstRun = false, noInventory = false, widePictures 
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
-  // item picture wide.
+  // item picture wide. Only the demo server's file: `r.fetch()` asks again from here, past the
+  // guard and the browser's launch rule.
   if (widePictures) {
-    await p.route(/\/dev-reward-screen\.json/, async (r) => {
+    const demo = new URL(url).origin;
+    await p.route((u) => u.origin === demo && u.pathname === "/dev-reward-screen.json", async (r) => {
       try {
         const res = await r.fetch();
         await r.fulfill({ response: res, json: { ...(await res.json()), cards: FORMA_SCREEN.cards } });
@@ -955,8 +958,10 @@ try {
   server = spawn(process.execPath, [join(root, "node_modules/vite/bin/vite.js"), "--port", port, "--strictPort"], {
     cwd: root,
     env: { ...process.env, MYORBITER_DEMO: "1" },
-    stdio: ["ignore", "ignore", "inherit"],
+    stdio: ["ignore", "ignore", "pipe"],
   });
+  // What the server says goes on with paths hidden.
+  relay(server.stderr, process.stderr);
   let ended = false;
   server.on("exit", () => (ended = true));
   for (let i = 0; !(await answers()); i++) {
@@ -994,8 +999,8 @@ try {
       if (!mine.length) continue;
       const sheet = join(out, `sweep-${size.w}x${size.h}.png`);
       const tiles = mine.flatMap((s) => ["-label", s.view, s.png]);
-      execFileSync("magick", ["montage", "-background", "#222", "-fill", "#ddd", "-pointsize", "18", ...tiles, "-tile", "4x", "-geometry", `${Math.round(size.w / 3)}x${Math.round(size.h / 3)}+6+6`, sheet]);
-      console.log(sheet);
+      execFileSync("magick", ["montage", "-background", "#222", "-fill", "#ddd", "-pointsize", "18", ...tiles, "-tile", "4x", "-geometry", `${Math.round(size.w / 3)}x${Math.round(size.h / 3)}+6+6`, sheet], { stdio: ["ignore", "ignore", "pipe"] });
+      console.log(hidePaths(sheet));
     }
   }
   const bugs = findings.filter((f) => !f.deliberate);
@@ -1040,7 +1045,7 @@ try {
   for (const l of cache.lines) console.log(l);
   if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
-  console.error(e instanceof Error ? e.message : e);
+  console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
 } finally {
   await browser?.close();

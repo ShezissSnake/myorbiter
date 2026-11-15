@@ -390,7 +390,7 @@ async function mark(p, shot, where) {
 /** The PNG as WebP, at most MAX_W wide, at the best quality under MAX_BYTES. Returns its bytes. */
 function toWebp(png, file) {
   for (const q of [82, 74, 66, 58, 50, 42]) {
-    execFileSync("magick", [png, "-resize", `${MAX_W}x>`, "-strip", "-quality", String(q), "-define", "webp:method=6", file]);
+    execFileSync("magick", [png, "-resize", `${MAX_W}x>`, "-strip", "-quality", String(q), "-define", "webp:method=6", file], { stdio: ["ignore", "ignore", "pipe"] });
     const bytes = statSync(file).size;
     if (bytes <= MAX_BYTES) return bytes;
   }

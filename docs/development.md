@@ -45,17 +45,21 @@ them stops and counts any world-state request, and fails if there was one.
 
 Those checks contact no host. The item pictures the demo's pages show (WFCD's, from
 raw.githubusercontent.com) and Rivens' weekly file (www-static.warframe.com) come from a cache
-outside the repository, `myorbiter-check-pictures` in `$XDG_CACHE_HOME` (by default `~/.cache`);
-every other request off this machine is refused, and each run ends with
-`requests outside this machine, 0`. A picture the cache lacks is not fetched: the run lists it by
-address and fails, and keeps its address for the fill step, the one part that fetches (by GET, from
-those two hosts only, a few at a time), run by hand:
+outside the repository, `myorbiter-check-pictures` in `$XDG_CACHE_HOME` (by default `~/.cache`).
+Every other request off this machine, from a page or from a window it opens, is refused, counted
+and fails the run, so a run that passes ends with `requests outside this machine, 0`. A picture the
+cache lacks is not fetched: the run lists it by address and fails, and keeps its address for the
+fill step, the one part that fetches (by GET, from those two hosts only, a few at a time, each with
+a time and size limit), run by hand:
 
 ```fish
 node scripts/picture-cache.mjs --fill
 ```
 
-On a new machine: run a check once (it lists what it lacks), fill, and run it again.
+Each check shows pictures of its own, so on a new machine each one can need a fill: run the check
+(it lists what it lacks), fill, and run it again. Nothing in the cache expires. To renew it (WFCD
+changed a picture, or a new week's riven file is wanted), delete the folder, run each check once,
+fill, and run them again.
 
 ## Tests
 

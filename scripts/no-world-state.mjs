@@ -1,7 +1,9 @@
 // The demo has a world state of its own (demo/dev-worldstate.json): the pictures, the help-picture
 // check and the sweep ask no world-state service. Each window they open stops any request to one
 // and counts it, so a run says how many there were and fails on any. Every host the windows asked
-// is counted too, so a run shows what it reached.
+// is counted too, so a run shows what its pages asked for. None of it leaves the machine: the
+// picture cache's line (scripts/picture-cache.mjs) says how much was answered from the cache and
+// how much refused.
 
 /** api.warframestat.us, and the game's own world-state file. */
 const WORLD_STATE = /warframestat\.us|worldState\.php/i;
