@@ -43,3 +43,15 @@ test("What's New counts and offers its tour by the stops kept", () => {
   assert.match(src, /const stops = \$derived\(tourKept\(since\.stops\)\);/, "the button's count is the tour's");
   assert.match(src, /\{#if stops\.length > 1 && go\}/, "offered only with more than one stop to make");
 });
+
+test("the Guide counts and offers each day's tour by the stops kept", () => {
+  const src = readFileSync("src/lib/tabs/Guide.svelte", "utf8");
+  const day = src.slice(src.indexOf("{#each updates as u (u.ids[0])}"), src.indexOf("{/each}", src.indexOf("{#each updates as u (u.ids[0])}")));
+  assert.match(day, /\{@const stops = tourKept\(u\.stops\)\}/, "worked out as it's drawn, so a change of pages counts again");
+  const button = day.split("\n").find((l) => l.includes('class="stamp"'));
+  assert.ok(button, "the day's tour button");
+  assert.match(button, /^\s*\{#if stops\.length > 1\}/, "offered only with more than one stop to make");
+  assert.match(button, /onclick=\{\(\) => startTour\(stops\)\}/);
+  assert.match(button, /<span class="dim">\{stops\.length\} stops<\/span>/, "the count is the tour's");
+  assert.doesNotMatch(button, /u\.stops/, "nothing counted before the filter");
+});

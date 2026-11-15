@@ -12,7 +12,7 @@
   import { NEWS, batches, tourStops } from "../whatsNew";
   import { DRIFT_CLAUSE, GREY_AREA } from "../core/drift";
   import { AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
-  import { startTour } from "../tour.svelte";
+  import { startTour, tourKept } from "../tour.svelte";
   import NewsItems from "../ui/NewsItems.svelte";
   import Rich from "../ui/Rich.svelte";
   import { BUILD } from "../build";
@@ -328,9 +328,11 @@
       <span class="dim small">Every update, newest first. Each day's changes count as one update.</span>
     </div>
     {#each updates as u (u.ids[0])}
+      <!-- The stops the tour will make: none in Settings, none on a page this player lacks. -->
+      {@const stops = tourKept(u.stops)}
       <div class="day">
         <h4 class="register">{longDay(u.date)} <span class="n">· {u.items.length} {u.items.length === 1 ? "change" : "changes"}</span></h4>
-        {#if u.stops.length > 1}<button class="stamp" title="Step through the {u.stops.length} changes of {shortDay(u.date)} that have a place to show, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(u.stops)}>Tour {shortDay(u.date)} <span class="dim">{u.stops.length} stops</span></button>{/if}
+        {#if stops.length > 1}<button class="stamp" title="Step through the {stops.length} changes of {shortDay(u.date)} that have a place to show, each on its page, with a bar at the bottom of the window: arrow keys or Enter for the next, Esc to stop" onclick={() => startTour(stops)}>Tour {shortDay(u.date)} <span class="dim">{stops.length} stops</span></button>{/if}
       </div>
       <NewsItems items={u.items} {go} />
     {/each}
