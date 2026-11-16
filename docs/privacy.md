@@ -338,8 +338,9 @@ github.com's page does with what you type or paste there before you press Submit
 it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
-and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids and
-players' names hidden. Paths are cleaned by their shape: the folder names in the paths of the
+and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids,
+players' names and, once MyOrbiter has seen it, your user name on this computer (below) hidden.
+Paths are cleaned by their shape: the folder names in the paths of the
 shapes MyOrbiter recognises are hidden, wherever they point (`/mnt/[drive]/[folder]/Warframe/EE.log`).
 Those shapes are `/a/b`, `\a\b`, `~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\a` (any variable),
 `D:\a` and `D:/a`, `\\?\D:\a`, a network share (`\\computer\share`, `\\?\UNC\computer\share`,
@@ -396,7 +397,9 @@ before a slash and glued by a mark to the player's name, which is kept as a vari
 word, though it may be part of the name
 (`https://warframe.market/profile/Name,$Word/x` becomes
 `https://warframe.market/profile/[player],$Word/[folder]`); and
-`//computer/share` straight after `://`, which reads as an address.
+`//computer/share` straight after `://`, which reads as an address. Where the name such a gap
+leaves is your user name, MyOrbiter has seen it and it is no everyday word (below), it is hidden all
+the same.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
 `file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a
@@ -405,6 +408,33 @@ after `GET` and the like). A path of an unusual shape can pass, which is why the
 you in full before anything is sent: read it first. The prices of listings and sales are kept,
 except those that go with a hidden name or are read as part of a path, as above: they are public on warframe.market and help
 find a repricing fault.
+
+Your user name on this computer is hidden as a known name, as `[user]` (the path rule's own mark),
+wherever it stands as a word, in what you wrote too: in any case, outside paths, in paths of the
+gaps above and in encoded ones (`%2F…`), and with spaces in it (whole, with any spaces or `%20`
+between its words, and each of its words on its own). MyOrbiter knows it as your home folder's name,
+which is your user name on a usual setup, and learns it without asking your system anything: from
+the paths it already holds as the report opens, the game log's file and TennoScope's folder, as
+saved in Settings or as found (the folder after `/home`, `/var/home`, `/Users`, `C:\Users`,
+`C:\Documents and Settings`, Wine's `Z:\home`, a Wine prefix's `drive_c\users` but not Proton's
+`steamuser`, or `/run/media`, a `~name`, or the folder that holds `.local/share`, `.steam`,
+`.var/app`, `AppData\Roaming` or `Library/Application Support`), and from a home folder written in
+the report itself (after `/home/`, `/Users/`, `C:\Users\` and the other home folders above, or as
+`~name/`, but not by the folders a home holds; in a line, a name with spaces counts whole only with
+a slash after it, otherwise its first word does; a warframe.market chat's words are not read). The
+name is kept only while the report is made: never saved, logged or sent. It is never cut out of a longer word (`Name_2` and `Nameholm` stay as
+written), but a hyphen or a dot joins two words (`Name-PC` becomes `[user]-PC`). A name that is
+also a word a report needs is hidden only where the path rule hides a user name (`/home/deck/…`
+becomes `/home/[user]/…`), so the report keeps its words (`Steam Deck`): a name of fewer than 3
+characters, one with no letter (a number), the names systems and devices give an account (`deck`,
+the Steam Deck's, `admin`, `guest` and the like), the folder names the path rule keeps (`user`,
+`home`, `steam`, `games` and the like), the marks the report writes and the words of its own lines
+(`linux`, `connected` and the like); a name of several words is such a name when each of its words
+is. Any other name is hidden wherever it stands as a word, also where it is an ordinary word too.
+When MyOrbiter hasn't seen your home folder (the game log and TennoScope's folder are not under it,
+as when TennoScope's folder is set elsewhere, or MyOrbiter runs in a browser, and the report writes
+none), your user name is hidden only where the path rule hides a user name. MyOrbiter's own log
+already writes your home folder as `~`.
 
 ## Links
 

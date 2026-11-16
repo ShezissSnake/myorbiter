@@ -14,6 +14,8 @@
 //   drive, a mount, a network share): see "paths" below for the shapes and what stays;
 // - the player's in-game name and any other name MyOrbiter knows (trade partners, people who
 //   whispered), wherever they appear;
+// - this computer's user name, when MyOrbiter knows it (the name of the home folder in a path it
+//   holds or in the report's lines: "user names" at the end), wherever it stands as a word;
 // - names in whisper, trade and profile lines, by their shape, for names MyOrbiter doesn't know.
 //
 // It errs on the side of hiding: a report with "[player]" where an item name was is still useful;
@@ -24,6 +26,12 @@ export interface RedactOptions {
   self?: readonly (string | null | undefined)[];
   /** Other players' names MyOrbiter knows (trade partners, whispers): shown as "[player]". */
   others?: readonly (string | null | undefined)[];
+  /** The name of this computer's home folder (the account's user name), as the paths MyOrbiter
+   *  holds name it (`homeNames`) or a home folder in the report's own lines does
+   *  (`homeNamesIn`): shown as "[user]", the path rule's mark, wherever it stands as a word, unless
+   *  it is an ordinary word (`ordinaryName`). Held for the making of one report: never saved,
+   *  logged or sent. */
+  user?: readonly (string | null | undefined)[];
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -95,6 +103,9 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
 function knownAndRules(text: string, opts: RedactOptions): string {
   let s = text;
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
+  // This computer's user name goes before them (so a name that is also an in-game name reads as
+  // the path rule's "[user]").
+  for (const re of userPatterns(opts.user)) s = s.replace(re, "[user]");
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
     [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, as] as const);
   for (const [name, as] of [...named(opts.self, "[you]"), ...named(opts.others, "[player]")]) {
@@ -451,4 +462,137 @@ function cleanPaths(s: string): string {
     at = end;
   }
   return out + s.slice(at);
+}
+
+// ---------------------------------------------------------------- user names
+//
+// This computer's user name, as MyOrbiter knows it without asking the system anything new: the name
+// of the home folder in the paths the page already holds (`homeNames`: the game log's file and
+// TennoScope's folder, as saved in Settings or as found) and in a home folder written in the
+// report's own lines (`homeNamesIn`). It is the folder's name, which is the account's user name on
+// a usual setup. Known, it is hidden as "[user]" wherever it stands as a word, in any case, also
+// outside paths and in the paths the path rule above leaves as written; never out of a longer word
+// ("alice" stays in "malice" and "alice_2"; "alice-pc" is two words). A name with spaces is hidden
+// whole, and each of its words on its own too. Unknown (no such path held, none in the lines), only the path rule hides it.
+//
+// A name that is also a word a report needs is not hidden as a word, so a report keeps its words
+// ("deck", the Steam Deck's account, in "Steam Deck"): `ordinaryName`. It stays hidden where the path
+// rule hides a user name (`/home/deck/…` becomes `/home/[user]/…`).
+
+/** Words a user name can be that a report needs as words: the names systems and devices give an
+ *  account (deck, admin, guest, pi…), the marks redaction writes, and the words of the details' own
+ *  lines (the system, the architecture, the channel, TennoScope's state). The folder names the
+ *  path rule keeps (`KEEP_FOLDERS`: home, user, steam, games…) count too. */
+const ORDINARY_WORDS = new Set([
+  "deck", "admin", "administrator", "guest", "owner", "pc", "player", "players", "gamer", "gaming", "pi", "test", "dev", "live", "main", "desktop", "laptop", "computer", "system", "account", "name",
+  "ubuntu", "fedora", "debian", "arch", "steamos", "bazzite", "nobara", "mint",
+  "you", "me", "redacted", "folder", "drive", "host", "id", "ip", "email", "webhook", "chat", "hidden",
+  "linux", "windows", "macos", "mac", "android", "x86_64", "aarch64", "arm64", "arm", "unknown",
+  "stable", "beta", "experimental", "build", "connected", "running", "reporting", "not", "used", "here", "on", "off",
+]);
+
+/** Whether a user name is an ordinary word, and so hidden only where the path rule hides one:
+ *  fewer than 3 characters, no letter in it (a number), or one of `ORDINARY_WORDS` or `KEEP_FOLDERS`.
+ *  A name of several words is ordinary when every word of it is. */
+export function ordinaryName(name: string): boolean {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  return !words.length || words.every((w) => w.length < 3 || !/\p{L}/u.test(w) || ORDINARY_WORDS.has(w.toLowerCase()) || KEEP_FOLDERS.has(w.toLowerCase()));
+}
+
+/** A user name as a whole word, in any case: not inside a longer word (letters and digits of any
+ *  script, and `_`, on either side; a hyphen or a dot joins two words, so `Name-PC` and `Name.local`
+ *  hide it) and not beside `@` (an e-mail address, hidden whole later). An encoded slash, colon or
+ *  space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words may be apart by any spaces or
+ *  `%20`. */
+const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_@](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_@])`, "giu");
+
+/** The patterns that hide the user names in `list`, longest first: each name that isn't ordinary,
+ *  whole, and each word of a name of several words that isn't ordinary on its own. */
+function userPatterns(list: readonly (string | null | undefined)[] | undefined): RegExp[] {
+  const seen = new Map<string, string[]>();
+  for (const n of list ?? []) {
+    if (typeof n !== "string") continue;
+    const words = n.trim().split(/\s+/).filter(Boolean);
+    for (const w of words.length > 1 ? [words, ...words.map((x) => [x])] : [words]) {
+      const key = w.join(" ").toLowerCase();
+      if (w.length && !ordinaryName(key) && !seen.has(key)) seen.set(key, w);
+    }
+  }
+  return [...seen.entries()].sort((a, b) => b[0].length - a[0].length).map(([, w]) => userPattern(w));
+}
+
+/** A home folder's name that is no one's: Proton's, Windows' shared ones, a placeholder, a variable. */
+const notAUser = (name: string) => /^(?:steamuser|public|default|all users|default user)$/i.test(name) || /^[[~$%]/.test(name) || name === "." || name === "..";
+
+/** The folders a home holds, which give the home away in any path: `.local/share`, `.steam`,
+ *  `.var/app`, `AppData\Roaming` (or `Local`, `LocalLow`), `Library/Application Support`. */
+const underHome = (rest: string[]) => {
+  const [a, b] = rest.map((x) => x.toLowerCase());
+  return (a === ".local" && b === "share") || a === ".steam" || (a === ".var" && b === "app") || (a === "appdata" && (b === "roaming" || b === "local" || b === "locallow")) || (a === "library" && b === "application support");
+};
+
+/** The name of the home folder in each path the page holds (the game log's file, TennoScope's
+ *  folder; each a whole path, saved in Settings or as found), by its shape: the folder after
+ *  `/home`, `/var/home`, `/Users`, `C:\Users`, `C:\Documents and Settings`, Wine's `Z:\home`, a
+ *  Wine prefix's `drive_c\users` (not Proton's `steamuser`) and `/run/media`, a `~name`, and the
+ *  folder that holds `.local/share`, `.steam`, `.var/app`, `AppData\Roaming` or `Library/Application
+ *  Support` (a home of another shape). A whole path's folder names may have spaces in them. */
+export function homeNames(paths: readonly (string | null | undefined)[]): string[] {
+  const out: string[] = [];
+  const add = (n: string | undefined) => {
+    const t = (n ?? "").trim();
+    if (t && !notAUser(t) && !out.includes(t)) out.push(t);
+  };
+  for (const p of paths) {
+    if (typeof p !== "string" || !p.trim()) continue;
+    const parts = p.trim().replace(/^file:\/\/\/?/i, "/").split(/[\\/]+/);
+    const named = /^~(.+)$/.exec(parts[0]);
+    if (named) add(named[1]);
+    for (let i = 0; i < parts.length - 1; i++) {
+      const low = parts[i].toLowerCase();
+      const before = parts.slice(0, i).filter(Boolean).map((x) => x.toLowerCase());
+      const top = before.length === 0 || (before.length === 1 && (before[0] === "var" || /^[a-z]:$/.test(before[0])));
+      if (top && (low === "home" || low === "users" || low === "documents and settings")) add(parts[i + 1]);
+      else if (low === "users" && before[before.length - 1] === "drive_c") add(parts[i + 1]);
+      else if (low === "media" && before.length === 1 && before[0] === "run" && i + 2 < parts.length) add(parts[i + 1]);
+      if (i > 0 && parts[i] && !/^[A-Za-z]:$/.test(parts[i]) && underHome(parts.slice(i + 1, i + 3))) add(parts[i]);
+    }
+  }
+  return out;
+}
+
+/** Where a home folder's name starts in a line: after `/home/`, `/var/home/`, `/Users/`,
+ *  `C:\Users\`, `C:\Documents and Settings\`, Wine's `Z:\home\`, `drive_c\users\` or `/run/media/`. */
+const LINE_HOMES = [
+  /(?<![\w.~-])\/(?:var\/)?home\/+/g,
+  /(?<![\w.~-])\/Users\/+/g,
+  /(?<![A-Za-z0-9])[A-Za-z]:[\\/]+(?:Users|Documents and Settings|home)[\\/]+/gi,
+  /\bdrive_c[\\/]+users[\\/]+/gi,
+  /(?<![\w.~-])\/run\/media\/+/g,
+];
+
+/** The home folders written in a report's own lines (`LINE_HOMES`, and a `~name/`): their names. A
+ *  name with spaces in it counts whole only when a slash follows it (`C:\Users\Alice Smith\x`);
+ *  otherwise its first word does, as the words after it may be the sentence's. A warframe.market
+ *  chat's words, a stranger's, are not read. */
+export function homeNamesIn(lines: readonly string[]): string[] {
+  const out: string[] = [];
+  const add = (n: string) => {
+    const t = n.trim().replace(/[.,;!)]+$/, "");
+    if (t && !notAUser(t) && !out.includes(t)) out.push(t);
+  };
+  for (const raw of lines) {
+    const line = raw.replace(/(\bsiteChat:[^\n]*?\()[^\n]*\)/g, "$1)");
+    for (const re of LINE_HOMES) {
+      for (const m of line.matchAll(re)) {
+        const at = m.index + m[0].length;
+        const run = /^[^\\/\n"':<>|*?]+/.exec(line.slice(at))?.[0] ?? "";
+        const slash = /[\\/]/.test(line[at + run.length] ?? "");
+        if (slash && run === run.trim() && run.split(/\s+/).length <= 4) add(run);
+        else add(run.split(/\s/)[0]);
+      }
+    }
+    for (const m of line.matchAll(/(?<=^|[\s"'(=[,;<>:`{|])~([A-Za-z][A-Za-z0-9._-]*)[\\/](?=[^\s\\/])/g)) add(m[1]);
+  }
+  return out;
 }

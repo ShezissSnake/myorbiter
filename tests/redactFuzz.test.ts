@@ -4,7 +4,7 @@
 // and links only go to the allowed sites. Seeds as in tests/support/prop.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { redact } from "../src/lib/core/redact";
+import { ordinaryName, redact } from "../src/lib/core/redact";
 import { cleanBlock, cleanLine, HIDDEN_CHARS, stripHidden } from "../src/lib/core/untrusted";
 import { buildReport, issueText, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
 import { LINK_SITES, openable } from "../src/lib/core/links";
@@ -101,6 +101,39 @@ test("bug reports: nothing private survives the report or the text to paste, and
     assert.deepEqual(found, [], `PROPERTY_SEED=${seed}: hidden characters in ${JSON.stringify(md.slice(0, 600))}`);
     HIDDEN_CHARS.lastIndex = 0;
     assert.ok(!/<!--/.test(report.what + report.steps), `PROPERTY_SEED=${seed}: an HTML comment`);
+  }, 1500);
+});
+
+test("bug reports: this computer's user name, held or seen in a home folder, survives as no word, in any shape or case", () => {
+  forAll("user", (r, seed) => {
+    const words = r.bool(0.4) ? [randomName(r), randomName(r)] : [randomName(r)];
+    const user = words.join(" ");
+    if (words.some((w) => ordinaryName(w))) return;
+    const one = !user.includes(" ");
+    const sep = () => r.pick(["\\", "/"]);
+    const shapes = [
+      casing(r, user),
+      `${casing(r, user)}'s game froze`,
+      `/home/${user}/.local/share/x`,
+      `C:${sep()}Users${sep()}${user}${sep()}AppData`,
+      `drive_c/users/${user}`,
+      `D:\\Games\\Dev ${user}`,
+      `'D:\\Games\\${user}'`,
+      `"/mnt/${user} see EE.log`,
+      one ? `~${user}/Games` : `~${user}/x`,
+      `${user}-PC`,
+      `file:///C:/Users/${words.join("%20")}/x`,
+    ];
+    const pick = shapes.filter(() => r.bool(0.5));
+    // Known from a held path, or only from a home folder one of the lines writes.
+    const held = r.bool(0.5);
+    const log = [plant(r, pick), held ? "ok" : `found at /home/${user}/.local/share/Steam/x`];
+    const report = buildReport({ what: plant(r, pick.slice().reverse()), steps: casing(r, words[0]), expected: "ok" }, { version: "0.2.18", commit: "abc1234", buildDate: "", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log }, held ? { user: [user] } : {});
+    const all = [report.title, report.what, report.steps, reportMarkdown(report)].join("\n");
+    for (const w of [user, ...words]) {
+      const word = new RegExp(`(?<![\\p{L}\\p{N}_@])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_@])`, "iu");
+      assert.ok(!word.test(all), `PROPERTY_SEED=${seed}: ${JSON.stringify(w)} survived in ${JSON.stringify(all.slice(0, 600))}`);
+    }
   }, 1500);
 });
 

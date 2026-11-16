@@ -155,7 +155,7 @@
 
     <section class="tech" class:off={!d.include}>
       <div class="techrow">
-        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden, and folder names hidden by a path's shape in the paths it recognises (read it first: a word of a name can pass). Untick to leave them out of the report (the form still opens with the version and your system).">
+        <label class="check" title="Adds MyOrbiter's version, your system, this page, TennoScope's state, Full mode and the log's last {LOG_LINES} lines, with sign-ins, addresses, ids and players' names hidden, your home folder's name (your user name) wherever it stands once MyOrbiter has seen that folder, and folder names hidden by a path's shape in the paths it recognises (read it first: a word of a name can pass). Untick to leave them out of the report (the form still opens with the version and your system).">
           <input type="checkbox" bind:checked={d.include} />
           <span class="box" aria-hidden="true"><Icon name="check" size={10} /></span>
           Include technical details
@@ -174,7 +174,7 @@
           </div>
         </div>
       {/if}
-      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids and every player's name are hidden, here and in what you wrote, and folder names by a path's shape, in the paths MyOrbiter recognises. Listing and sale prices stay, unless they follow a hidden folder name or are read as part of a path. Read it before sending: a word of a name can pass, and so can a path of an unusual shape, or one with %2F or %5C for its slashes.{/if}</p>
+      <p class="hint">{#if !d.include}Only what you wrote goes in the report.{:else if failed}MyOrbiter's log couldn't be read; the rest is included.{:else}Sign-ins, e-mail and IP addresses, account ids and every player's name are hidden, here and in what you wrote, and folder names by a path's shape, in the paths MyOrbiter recognises. So is your user name on this computer, as your home folder's name, wherever it stands, once MyOrbiter has seen that folder (in the game log's or TennoScope's location, or in the report itself); if it hasn't, or the name is an everyday word like deck or user, only in paths. Listing and sale prices stay, unless they follow a hidden folder name or are read as part of a path. Read it before sending: a word of a name can pass, and so can a path of an unusual shape, or one with %2F or %5C for its slashes.{/if}</p>
     </section>
 
     {#if handed === "pasted" && copiedText === paste}
