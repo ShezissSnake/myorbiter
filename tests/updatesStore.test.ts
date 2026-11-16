@@ -320,7 +320,10 @@ test("a channel that gets its first build later offers it at the next check", as
 // then Beta if need be, and settles on the most stable channel whose build is this one (0.2.104)
 // or newer (core/updates.ts `newInstallStep`). Before, a first start made one request (the channel
 // its build was published to, Experimental); now one when Stable has a build, two when only Beta
-// has one, three when neither has (then Experimental, asked as every check asks it).
+// has one, three when neither has (then Experimental, asked as every check asks it). Each of them
+// asks GitHub alone (`firstOnly`): its 404 is "empty", and a check it couldn't answer throws, so
+// the stubs here are GitHub's own answers (tests/updatesTable.test.ts has the addresses cell by
+// cell).
 const EMPTY: UpdateCheck = { state: "empty", system: false };
 const OLDER = (version: string): UpdateCheck => ({ state: "older", version, notes: null, date: null });
 const OFFLINE = () => new Error("Couldn't reach GitHub or GitLab");
@@ -400,13 +403,11 @@ test("a new install, neither Stable nor Beta has a build (today's channels): Exp
   assert.equal(u.status(Date.now()), "Up to date (checked just now).");
 });
 
-// A check that failed never settles a new install. The plugin skips an answer that isn't a
-// success at each address, so a channel whose file fails at the first address (a 503, a 429) reads
-// as empty when the second (GitLab's frozen copy) has no manifest for it, or as GitLab's older
-// bridge build when it has one. Only a build that is this one or newer proves the first address
-// answered (`buildCounts`).
+// A check that failed never settles a new install: it throws. And Experimental settles it only
+// with this build or a newer one (`buildCounts`), so a GitHub that answers 404 for every channel
+// (the repository moved or gone), or holds only older builds, settles nothing either.
 
-test("every channel failing at the first address, the second with no manifest: unsettled, three requests, asked again when due", async (t) => {
+test("GitHub's 404 for every channel: unsettled, three requests, asked again when due", async (t) => {
   const { u, settings, calls, begin } = await newInstall(t, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, CURRENT]);
   await begin();
   await startCheck(t);
@@ -427,7 +428,7 @@ test("every channel failing at the first address, the second with no manifest: u
   assert.equal(settings.picked, true);
 });
 
-test("every channel failing at the first address, the second serving older builds: unsettled, nothing offered", async (t) => {
+test("only older builds on every channel: unsettled, nothing offered", async (t) => {
   const BRIDGE = OLDER("0.2.100");
   const { u, settings, calls, begin } = await newInstall(t, [BRIDGE, BRIDGE, BRIDGE]);
   await begin();
@@ -464,18 +465,22 @@ test("a running build newer than Experimental's, with Beta holding it: still Bet
   assert.equal(settings.picked, true);
 });
 
-test("Stable's file failing alone at the first address reads as an empty or older Stable: not told apart here", async (t) => {
-  // Not closable without Rust: updates.rs maps every address answering without a manifest to
-  // `Empty` (the plugin can't tell a 503 from a 404), and GitLab's frozen Stable is an older build.
-  // Both read exactly as a Stable with no build yet, so the install settles on Beta here, as it
-  // must when Stable really has none.
-  for (const stable of [EMPTY, OLDER("0.2.100")]) {
-    await t.test(stable.state, async (t2) => {
-      const { settings, calls, begin } = await newInstall(t2, [stable, CURRENT]);
+test("Stable's or Beta's file failing on GitHub is a failed check: nothing settles, no less stable channel", async (t) => {
+  // updates.rs answers a new install's check from GitHub alone: anything but a file or its 404
+  // fails the check (no longer an empty or older channel), so a failed Stable or Beta never lets
+  // a less stable channel be settled on.
+  for (const [name, answers, asked] of [
+    ["Stable", [new Error("Couldn't read the Stable channel's manifest on GitHub"), CURRENT, NEWER], ["stable"]],
+    ["Beta", [EMPTY, new Error("GitHub didn't answer within 10 s"), NEWER], ["stable", "beta"]],
+  ] as [string, Answer[], Channel[]][]) {
+    await t.test(name, async (t2) => {
+      const { u, settings, calls, begin } = await newInstall(t2, answers);
       await begin();
       await startCheck(t2);
-      assert.deepEqual(calls, ["stable", "beta"]);
-      assert.equal(settings.channel, "beta");
+      assert.deepEqual(calls, asked);
+      assert.equal(settings.picked, false);
+      assert.equal(settings.channel, "stable");
+      assert.equal(u.offer, null);
     });
   }
 });

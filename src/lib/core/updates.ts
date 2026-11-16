@@ -181,18 +181,21 @@ export function settleChannel(u: UpdateSettings, version: string): boolean {
 export const settlesByAsking = (version: string, checks: boolean) => checks && buildNumber(version) != null;
 
 /**
- * What a channel answered a new install: its build's version, "empty" (no build, or none for this
- * system), or null for no answer (offline, a failed check, a time-out).
+ * What a channel answered a new install: its build's version, "empty" (GitHub's own "no build": a
+ * 404 for the channel's file, or its manifest with no build for this system), or null for the
+ * app's "off". A check that failed never gets here: it throws (the store's `settle`).
  */
 export type ChannelAnswer = { version: string } | "empty" | null;
 
 /**
  * Whether a channel's answer makes it one to settle on: a build that is the running one or newer.
- * Only the first address (on GitHub) can give such an answer: the second, GitLab's frozen copy
- * (`endpoints` in updates.rs; docs/maintaining.md, "GitLab, frozen"), holds at most the bridge
- * build, below 0.2.120 and so older than any build that runs this code. An answer that doesn't
- * count proves nothing about the first address: a channel's file that failed there (a 503, a 429)
- * reads as empty (the plugin can't tell it from a 404) or as GitLab's older build.
+ * A new install's checks ask the first address alone (updates.rs, `updates_check` with
+ * `firstOnly`), so every answer here is GitHub's own: a build there, or its 404 ("empty"). GitHub
+ * not reached, a time-out or any other status (a 403, a 429, a 503) is a failed check, which
+ * throws and settles nothing; GitLab's frozen copy is never read for it, nor waited on. What stays
+ * open: the read GitHub answered with a file, then failed for the plugin (a failure too), and a
+ * GitHub that answers 404 for every channel (the repository moved or gone): Experimental doesn't
+ * count then, and nothing settles.
  */
 export const buildCounts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;
 const counts = buildCounts;
@@ -203,8 +206,7 @@ const counts = buildCounts;
  * back is offered by itself and the version line never names a channel whose build is older.
  * Stable if its build counts; else Beta if its build counts; else "experimental": Experimental is
  * asked next, as the check it gets anyway, and the install settles there only if its build counts
- * too (`buildCounts`). An Experimental that answers empty or older (as every channel does when
- * their files fail at the first address) settles nothing. "ask beta": Stable doesn't count and Beta wasn't
+ * too (`buildCounts`). An Experimental that answers empty or older settles nothing. "ask beta": Stable doesn't count and Beta wasn't
  * asked yet. "not yet": a channel that had to be asked didn't answer, so nothing settles and the
  * next check asks again.
  */
@@ -232,7 +234,7 @@ export function newInstallWhy(running: string, channel: Channel, stable: Channel
  * true of both.
  */
 export function unsettledWords(shown: Channel, failed: boolean): string {
-  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check." : "It asks them at its first check."} A channel you pick yourself stays.`;
+  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check." : "It asks them at its first check."} Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once, and that channel stays.`;
 }
 
 const VERSION = /^\d+\.\d+\.\d+$/;

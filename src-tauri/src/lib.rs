@@ -2147,6 +2147,13 @@ mod tests {
                     at("\"user-agent\"", 1);
                     at("warframe.market", 0);
                 }
+                // A new install's read of the first update address goes through `request` and names
+                // itself as the updater plugin does (`first_read`), once.
+                "updates.rs" => {
+                    at("http_agent()", 0);
+                    at("into_client_request", 0);
+                    at("\"user-agent\"", 1);
+                }
                 _ => {
                     at("http_agent()", 0);
                     at("into_client_request", 0);

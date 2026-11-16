@@ -90,6 +90,69 @@ fn check_urls(channel: Channel) -> Vec<String> {
     endpoints(channel)
 }
 
+/// The addresses one check asks: all of `check_urls`, or with `first_only` the first alone (a new
+/// install settling its channel, `updates_check`): the same address, never another.
+fn ask_urls(channel: Channel, first_only: bool) -> Vec<String> {
+    let mut urls = check_urls(channel);
+    if first_only {
+        urls.truncate(1);
+    }
+    urls
+}
+
+/// The User-Agent of the read `first_read` makes: the updater plugin's own, as its check sends it
+/// (`tauri-plugin-updater/<version>`, the version Cargo.lock holds; a test keeps the two equal), so
+/// that read carries no MyOrbiter version either (docs/privacy.md, Updates).
+const UPDATER_AGENT: &str = "tauri-plugin-updater/2.14.1";
+
+/// What the first address itself says of a channel's manifest, from one read that follows no
+/// redirect. GitHub answers a file of a release (`releases/download/<tag>/<file>`) with a redirect
+/// to its file storage, and a release or file that isn't there with a 404: the site build reads
+/// the same address the same way (scripts/site.mjs, `get`; scripts/site-downloads.mjs,
+/// `channelManifest`).
+#[derive(Debug, PartialEq, Eq)]
+enum FirstSays {
+    /// A file is there (a redirect, or a plain answer): the plugin reads it next.
+    File,
+    /// GitHub's own "no such file": a 404 from the first address.
+    NoFile,
+    /// Anything else: no connection, a time-out (`late`), another status (a 403, a 429, a 503).
+    Failed { late: bool, why: String },
+}
+
+/// The first address's answer, as `FirstSays`. ureq hands back a status of 400 or more, and a
+/// redirect the app's agent doesn't follow (lib.rs, `redirect_policy`), as `Error::Status`.
+fn first_says(answer: Result<ureq::Response, ureq::Error>) -> FirstSays {
+    match answer {
+        Ok(_) => FirstSays::File,
+        Err(ureq::Error::Status(404, _)) => FirstSays::NoFile,
+        Err(ureq::Error::Status(code, _)) if (300..400).contains(&code) => FirstSays::File,
+        Err(ureq::Error::Status(code, _)) => FirstSays::Failed { late: false, why: format!("answered {code}") },
+        Err(ureq::Error::Transport(t)) => {
+            let late = std::error::Error::source(&t)
+                .and_then(|s| s.downcast_ref::<std::io::Error>())
+                .is_some_and(|e| matches!(e.kind(), std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock));
+            FirstSays::Failed { late, why: t.to_string() }
+        }
+    }
+}
+
+/// The read of the first address `first_says` takes: through the app's one HTTP client (its
+/// proxy rule, no redirect followed), with the updater's User-Agent, within `limit`.
+fn first_read(url: &str, limit: Duration) -> ureq::Request {
+    crate::request("GET", url).set("User-Agent", UPDATER_AGENT).timeout(limit)
+}
+
+/// Why a check of the first address alone failed, in plain words: GitHub only, since GitLab isn't
+/// asked. `late`: it ran out of time.
+fn first_failure(channel: Channel, late: bool) -> String {
+    if late {
+        format!("GitHub didn't answer within {} s", CHECK_TIMEOUT.as_secs())
+    } else {
+        format!("Couldn't read the {} channel's manifest on GitHub", channel.label())
+    }
+}
+
 /// Whether an update's download is MyOrbiter's own address for that build and system: `Ok`, or
 /// `Err` with the reason. It is, exactly, one of the two forms the release scripts write:
 ///
@@ -415,6 +478,16 @@ fn empty_channel(e: &tauri_plugin_updater::Error) -> Option<bool> {
     }
 }
 
+/// `empty_channel` for a check of the first address alone, after it said a file is there: the
+/// plugin's "no manifest" is then a failure (the file went, or the read of it was refused), never
+/// an empty channel. A manifest with no build for this system is still GitHub's own answer.
+fn empty_after_file(e: &tauri_plugin_updater::Error) -> Option<bool> {
+    match e {
+        tauri_plugin_updater::Error::ReleaseNotFound => None,
+        _ => empty_channel(e),
+    }
+}
+
 /// The update the last check found, kept so a click installs exactly what was shown.
 #[derive(Default)]
 pub struct Pending(Mutex<Option<(Channel, Update)>>);
@@ -447,6 +520,17 @@ fn check_failure(channel: Channel, e: &tauri_plugin_updater::Error) -> String {
     }
 }
 
+/// `check_failure` for a check of the first address alone: the words name GitHub only.
+fn first_only_failure(channel: Channel, e: &tauri_plugin_updater::Error) -> String {
+    use tauri_plugin_updater::Error as E;
+    match e {
+        E::Reqwest(r) if r.is_timeout() => first_failure(channel, true),
+        E::Reqwest(r) if !r.is_decode() => first_failure(channel, false),
+        E::Network(_) | E::ReleaseNotFound => first_failure(channel, false),
+        _ => check_failure(channel, e),
+    }
+}
+
 /// A failed install in a short sentence; the plugin's own wording goes to the log.
 fn calm(what: &str, e: &tauri_plugin_updater::Error) -> String {
     use tauri_plugin_updater::Error as E;
@@ -476,25 +560,57 @@ pub async fn updates_info(app: AppHandle) -> Result<Info, String> {
 /// Asks the channel's manifest for its build. Every version other than this one comes back (the
 /// comparator lets older ones through), so the page can offer a downgrade explicitly; whether one
 /// installs is decided again at the click (`updates_install`).
+///
+/// `first_only`, for a new install settling its channel (the page's `settle`), asks the first
+/// address alone and tells its three answers apart: first one read of it that follows no redirect
+/// (`first_says`); a 404 is GitHub's own "no build" (`Check::Empty`, and nothing else is read); a
+/// file there is then read by the plugin from that address alone, and any failure of that read is
+/// a failure; anything else is a failure. So GitLab's frozen copy never answers for a new install,
+/// and an unreachable gitlab.com never stops one. Without it (every other check) the check is as
+/// it always was: both addresses, through the plugin alone.
 #[tauri::command]
-pub async fn updates_check(app: AppHandle, pending: State<'_, Pending>, channel: Channel) -> Result<Check, String> {
-    check(&app, &pending, channel).await
+pub async fn updates_check(app: AppHandle, pending: State<'_, Pending>, channel: Channel, first_only: Option<bool>) -> Result<Check, String> {
+    check(&app, &pending, channel, first_only == Some(true)).await
 }
 
-async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<Check, String> {
+async fn check(app: &AppHandle, pending: &Pending, channel: Channel, first_only: bool) -> Result<Check, String> {
     let install = this_install(app);
     if !install.checks() {
         return Ok(Check::Off);
     }
-    let urls = check_urls(channel)
+    let urls = ask_urls(channel, first_only)
         .iter()
-        .map(|u| u.parse())
+        .map(|u| u.parse::<tauri::Url>())
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| {
             log::warn!(target: "myorbiter::updates", "{} check: invalid address: {e}", channel.name());
             "The update address is invalid".to_string()
         })?;
     let started = Instant::now();
+    // A new install's check: what the first address itself says, before the plugin reads anything.
+    let mut limit = CHECK_TIMEOUT;
+    if first_only {
+        let url = urls[0].to_string();
+        let says = tauri::async_runtime::spawn_blocking(move || first_says(first_read(&url, CHECK_TIMEOUT).call())).await.map_err(|e| e.to_string())?;
+        match says {
+            FirstSays::NoFile => {
+                log::info!(target: "myorbiter::updates", "{}: no build on this channel yet (GitHub's 404)", channel.name());
+                *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                return Ok(Check::Empty { system: false });
+            }
+            FirstSays::Failed { late, why } => {
+                log::warn!(target: "myorbiter::updates", "{} check (GitHub only) failed after {} ms: {why}", channel.name(), started.elapsed().as_millis());
+                return Err(first_failure(channel, late));
+            }
+            FirstSays::File => {}
+        }
+        // The plugin's read of the file shares the check's one limit, so the page's own limit
+        // (20 s) is never what ends it.
+        limit = CHECK_TIMEOUT.saturating_sub(started.elapsed());
+        if limit.is_zero() {
+            return Err(first_failure(channel, true));
+        }
+    }
     // A failure before any request (the address refused, the updater not built): logged here, as
     // the check's own failures are below.
     let refused = |e: tauri_plugin_updater::Error| {
@@ -513,7 +629,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         })
         .endpoints(urls)
         .map_err(refused)?
-        .timeout(CHECK_TIMEOUT)
+        .timeout(limit)
         .version_comparator(|current, release| release.version != current)
         .build()
         .map_err(refused)?;
@@ -541,7 +657,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
             *pending.0.lock().unwrap_or_else(|e| e.into_inner()) = None;
             Ok(Check::Current { version: current.to_string() })
         }
-        Err(e) if empty_channel(&e).is_some() => {
+        Err(e) if (if first_only { empty_after_file(&e) } else { empty_channel(&e) }).is_some() => {
             // A channel with nothing on it yet is said once a check, plainly, not as a warning.
             let system = empty_channel(&e) == Some(true);
             log::info!(target: "myorbiter::updates", "{}: no build {}yet", channel.name(), if system { "for this system " } else { "on this channel " });
@@ -551,8 +667,8 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel) -> Result<C
         Err(e) => {
             // Offline, gitlab.com down, or a manifest the plugin can't read: the page says why in
             // plain words; the log keeps the plugin's own.
-            log::warn!(target: "myorbiter::updates", "{} check failed after {} ms: {e}", channel.name(), started.elapsed().as_millis());
-            Err(check_failure(channel, &e))
+            log::warn!(target: "myorbiter::updates", "{} check{} failed after {} ms: {e}", channel.name(), if first_only { " (GitHub only)" } else { "" }, started.elapsed().as_millis());
+            Err(if first_only { first_only_failure(channel, &e) } else { check_failure(channel, &e) })
         }
     }
 }
@@ -721,7 +837,7 @@ mod e2e {
             let pending = app.state::<super::Pending>();
             let version = app.package_info().version.to_string();
             println!("e2e: running {version}, install {:?}", super::this_install(&app));
-            match super::check(&app, &pending, super::Channel::Experimental).await {
+            match super::check(&app, &pending, super::Channel::Experimental, false).await {
                 Ok(super::Check::Newer { version: next, .. }) => {
                     println!("e2e: {next} on offer, installing");
                     match super::install(&app, &pending, super::Channel::Experimental, &next, false, |_| {}).await {
@@ -1088,6 +1204,77 @@ mod tests {
         assert_eq!(empty_channel(&E::Network("dns".into())), None, "offline is a failure");
         assert_eq!(empty_channel(&E::InsecureTransportProtocol), None);
         assert_eq!(serde_json::to_value(Check::Empty { system: false }).unwrap(), serde_json::json!({ "state": "empty", "system": false }));
+    }
+
+    /// A new install's check asks the first address alone (so GitLab's answer, whatever it is,
+    /// never counts for it); every other check asks both, as before.
+    #[test]
+    fn a_new_install_asks_the_first_address_alone() {
+        for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
+            assert_eq!(ask_urls(c, false), check_urls(c), "{c:?}: every other check, as before");
+            assert_eq!(ask_urls(c, false).len(), 2);
+            assert_eq!(ask_urls(c, true), vec![check_urls(c)[0].clone()], "{c:?}: the first address, nothing else");
+            assert!(ask_urls(c, true)[0].starts_with("https://github.com/ShezissSnake/myorbiter/releases/download/"));
+        }
+    }
+
+    fn status(code: u16) -> Result<ureq::Response, ureq::Error> {
+        let resp = ureq::Response::new(code, "status", "").unwrap();
+        if code >= 300 { Err(ureq::Error::Status(code, resp)) } else { Ok(resp) }
+    }
+
+    /// The three answers of the first address: a file (GitHub's redirect to its file storage, or a
+    /// plain answer), GitHub's own "no such file" (404), and everything else.
+    #[test]
+    fn the_first_address_says_file_none_or_failed() {
+        assert_eq!(first_says(status(302)), FirstSays::File, "a release file: GitHub's redirect to its storage");
+        assert_eq!(first_says(status(301)), FirstSays::File);
+        assert_eq!(first_says(status(200)), FirstSays::File);
+        assert_eq!(first_says(status(404)), FirstSays::NoFile, "GitHub's own none");
+        for code in [400, 403, 410, 429, 500, 502, 503] {
+            assert_eq!(first_says(status(code)), FirstSays::Failed { late: false, why: format!("answered {code}") }, "{code} is a failure, not none");
+        }
+        let offline: ureq::Error = std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "refused").into();
+        assert!(matches!(first_says(Err(offline)), FirstSays::Failed { late: false, .. }), "no connection");
+        let late: ureq::Error = std::io::Error::new(std::io::ErrorKind::TimedOut, "timed out").into();
+        assert!(matches!(first_says(Err(late)), FirstSays::Failed { late: true, .. }), "a time-out");
+    }
+
+    /// Once the first address said a file is there, the plugin's "no manifest" is a failure, not
+    /// an empty channel; a manifest without this system's build is still GitHub's own answer.
+    #[test]
+    fn after_a_file_no_manifest_is_a_failure() {
+        use tauri_plugin_updater::Error as E;
+        assert_eq!(empty_after_file(&E::ReleaseNotFound), None);
+        assert_eq!(empty_after_file(&E::TargetNotFound("linux-x86_64".into())), Some(true));
+        assert_eq!(empty_after_file(&E::Network("dns".into())), None);
+        assert_eq!(first_only_failure(Channel::Stable, &E::ReleaseNotFound), "Couldn't read the Stable channel's manifest on GitHub");
+        assert_eq!(first_only_failure(Channel::Beta, &E::Network("dns".into())), "Couldn't read the Beta channel's manifest on GitHub");
+        assert_eq!(first_only_failure(Channel::Beta, &E::TargetNotFound("linux-x86_64".into())), "The Beta channel has no build for this system yet");
+        assert_eq!(first_failure(Channel::Stable, true), "GitHub didn't answer within 10 s");
+        for c in [Channel::Stable, Channel::Beta, Channel::Experimental] {
+            for late in [false, true] {
+                assert!(!first_failure(c, late).contains("GitLab"), "GitLab isn't asked");
+            }
+        }
+    }
+
+    /// The first address's read names itself as the plugin's check does, with the plugin's
+    /// version as Cargo.lock holds it, and only once; it is made through `request` (the app's
+    /// client: its proxy rule, no redirect followed), with the check's limit. Nothing is sent.
+    #[test]
+    fn the_first_read_names_the_updater() {
+        let lock = include_str!("../../Cargo.lock");
+        let at = lock.find("name = \"tauri-plugin-updater\"\nversion = \"").expect("the plugin in Cargo.lock");
+        let rest = &lock[at + "name = \"tauri-plugin-updater\"\nversion = \"".len()..];
+        let version = &rest[..rest.find('"').unwrap()];
+        assert_eq!(UPDATER_AGENT, format!("tauri-plugin-updater/{version}"));
+        assert_eq!(lock.matches("name = \"tauri-plugin-updater\"").count(), 1, "one version of the plugin");
+        let req = first_read("https://github.com/ShezissSnake/myorbiter/releases/download/stable/latest.json", CHECK_TIMEOUT);
+        assert_eq!(req.header("User-Agent"), Some(UPDATER_AGENT));
+        assert_eq!(req.all("User-Agent").len(), 1, "sent once");
+        assert_eq!(req.method(), "GET");
+        assert_eq!(req.url(), "https://github.com/ShezissSnake/myorbiter/releases/download/stable/latest.json");
     }
 
     #[test]

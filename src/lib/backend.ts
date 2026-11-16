@@ -1460,7 +1460,8 @@ export type UpdateCheck =
  */
 export const updater = {
   info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.info : { version: "0.1.0", install: { how: "dev" } })),
-  check: (channel: Channel): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", { channel }) : (demoEmptyChannel() ? EMPTY_DEMO.check(channel) : Promise.resolve({ state: "off" }))),
+  /** `firstOnly`: a new install settling its channel asks the first address alone (updates.rs, `updates_check`); every other check sends what it always did. */
+  check: (channel: Channel, firstOnly = false): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", firstOnly ? { channel, firstOnly } : { channel }) : (demoEmptyChannel() ? EMPTY_DEMO.check(channel) : Promise.resolve({ state: "off" }))),
   /** Downloads and installs `version` from `channel`; `older` only for an explicit switch to an older build. */
   async install(channel: Channel, version: string, older: boolean, onProgress: (done: number, total: number | null) => void): Promise<void> {
     if (!inTauri) throw new Error("updates aren't available in dev builds");

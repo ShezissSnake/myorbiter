@@ -225,6 +225,8 @@ test("an unsettled new install says so: the version line names no channel, and S
   // The same words whether no channel answered or every channel answered without this build or a newer one.
   assert.match(unsettledWords("stable", true), /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check\./);
   assert.doesNotMatch(unsettledWords("stable", true), /couldn't reach/, "not said when every channel answered");
+  // Both forms say what being unsettled costs, and the way out.
+  for (const failed of [false, true]) assert.match(unsettledWords("stable", failed), /Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once, and that channel stays\.$/);
   // Saved settings are never a new install: whatever they hold, they count as picked.
   for (const saved of [undefined, null, {}, { channel: "beta" }, { picked: "no" }, { picked: 0 }, { channel: "experimental", picked: true }]) assert.equal(sanitizeUpdates(saved).picked, true, JSON.stringify(saved));
   assert.equal(sanitizeUpdates({ picked: false }).picked, false, "only an unsettled new install saves false");

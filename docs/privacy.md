@@ -307,16 +307,21 @@ channel's manifest, from its package registry on gitlab.com, with the updater's 
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
 the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
-settings saved yet) has no channel until its first check hears back: that check reads Stable's
-`latest.json`, and Beta's too if Stable has no build or an older one than yours, the same way, and
-starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
-Experimental, which it then reads as every check does). If one it had to read doesn't answer, or
-Experimental too has no build yours or newer (as when github.com fails for every channel and
-gitlab.com's frozen copy answers), nothing is chosen and the next check asks again; a channel you pick meanwhile stays. One
-case it can't tell: Stable's or Beta's file failing on github.com reads as that channel having no
-build, so if a less stable channel then answers with yours, the install starts there. A local build starts on Stable and a copy
-that doesn't check on Experimental, without reading anything for it. An install
-that has saved settings keeps its channel, even when that file turns out damaged and is moved
+settings saved yet) has no channel, and is offered no update, until its first check hears back.
+That check reads github.com alone, never gitlab.com: Stable's `latest.json`, Beta's too if Stable
+has no build or an older one than yours, then Experimental's, and starts on the most stable channel
+whose build is yours or newer (Stable, else Beta, else Experimental). For each channel it first
+reads the file's address once, following no redirect, with the updater's User-Agent; a 404 there
+is that channel having no build, and when github.com answers with the file, the updater reads it
+there (two reads of github.com, and of the file storage github.com hands the file to). Anything
+else (no connection, a time-out, another status) is no answer: nothing is chosen, the next check
+asks again, and a less stable channel is never chosen in its place. The same when Experimental too
+has no build yours or newer, as when github.com answers 404 for every channel. A channel you pick
+meanwhile stays, and its updates are looked for at once. That first read goes the way MyOrbiter's
+own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
+use, it gets no answer, and such an install has a channel only once you pick one. A local build
+starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
+An install that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the

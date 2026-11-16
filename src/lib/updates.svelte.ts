@@ -6,8 +6,8 @@
 // A new install (no settings saved yet) of a CI build that checks has no channel until its first
 // check hears back: that check asks Stable, then Beta and Experimental if need be, and settles on
 // the most stable channel whose build is this one or newer (`settle`, core/updates.ts
-// `newInstallStep`). A check that failed never settles it: see `buildCounts` for what an answer
-// shows and what it can't.
+// `newInstallStep`), each asked of GitHub alone (`firstOnly`). A check that failed never settles it:
+// see `buildCounts` for what an answer shows and what stays open.
 //
 // Every check ends in one state, shown under Check now with its time (`checkLine`): a build on
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
@@ -260,7 +260,8 @@ export class Updates {
   private async settle(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }): Promise<Channel | null> {
     const ask = async (c: Channel): Promise<ChannelAnswer> => {
       asking.channel = c;
-      const r = await limited(updater.check(c), CHECK_LIMIT);
+      // GitHub alone: its 404 is "empty", anything else that isn't a build throws (updates.rs).
+      const r = await limited(updater.check(c, true), CHECK_LIMIT);
       known[c] = r;
       return r.state === "current" || r.state === "newer" || r.state === "older" ? { version: r.version } : r.state === "empty" ? "empty" : null;
     };
@@ -275,9 +276,8 @@ export class Updates {
     }
     if (step === "not yet" || step === "ask beta") throw new Error("Couldn't find out which channel has this build");
     // Neither Stable nor Beta counts: Experimental is asked (the check it would get anyway) and
-    // must answer with this build or a newer one, which only the first address can serve
-    // (`buildCounts`). If it doesn't, the first address may be failing for every channel: nothing
-    // settles, and the next check asks again.
+    // must answer with this build or a newer one (`buildCounts`). If GitHub has none there either,
+    // nothing settles, and the next check asks again.
     let experimental: ChannelAnswer | undefined;
     if (step === "experimental") {
       experimental = await ask("experimental");
@@ -322,8 +322,14 @@ export class Updates {
     // settles a new install for good, even on the channel already shown, and an answer the
     // settling was waiting for is dropped (`settle`). Saved with the settings, so a later start
     // never asks again.
+    const unsettled = !u.picked;
     u.picked = true;
-    if (u.channel === c) return;
+    if (u.channel === c) {
+      // A new install that picks the channel it shows: its updates are looked for at once, as the
+      // unsettled line says (a settling under way drops its answers and asks this channel).
+      if (unsettled && this.info && installChecks(this.info.install)) void this.checkNow();
+      return;
+    }
     u.channel = c;
     this.result = null;
     this.checked = null;
