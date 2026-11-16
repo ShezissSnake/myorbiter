@@ -451,8 +451,12 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 - `~/.local/share/dev.myorbiter.app/logs/` (`%LOCALAPPDATA%\dev.myorbiter.app\logs`): its log,
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
-  errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
+  errors. Readable only by you on Linux. Before a line is written, these are cut out: a JWT
+  (`eyJ…`); the word after "Bearer", "JWT" or "token", or after a Cookie or Authorization header;
+  the value of a `key=value` pair, or of a JSON pair with a key of up to 64 characters, whose key
+  contains token, password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook
+  address. A secret written another way (`password: x` in plain text, a key such as `api_key`,
+  another site's webhook address) isn't caught (nothing MyOrbiter writes there holds one), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
