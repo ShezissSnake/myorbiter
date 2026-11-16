@@ -98,6 +98,12 @@ test("user names: never cut out of a longer word; a hyphen or a dot joins two wo
   assert.equal(redact("Kestrinholm xKestrin Kestrin_2 Kestrin2", u), "Kestrinholm xKestrin Kestrin_2 Kestrin2");
   assert.equal(redact("Kestrin-PC and Kestrin.local", u), "[user]-PC and [user].local");
   assert.equal(redact("kestrin@example.org and a.kestrin@example.org", u), "[email] and [email]");
+  // Glued to a secret or an id, it never breaks one apart: what was hidden without the name stays so.
+  for (const t of ["password=kestrin-secret123", "token=kestrin.abc123", "kestrin-0123456789abcdef0123", "Authorization: Bearer kestrin-xyz"]) {
+    assert.equal(redact(t, u).replace("[user]", "kestrin"), redact(t).replace("[user]", "kestrin"), t);
+  }
+  assert.equal(redact("password=kestrin-secret123", u), "password=[redacted]");
+  assert.equal(redact("kestrin-0123456789abcdef0123", u), "[user]-[id]");
 });
 
 test("user names: an ordinary word is hidden only where the path rule hides a user name", () => {
@@ -110,8 +116,16 @@ test("user names: an ordinary word is hidden only where the path rule hides a us
   }
   // Not ordinary: a made-up name, or a name with one word that is not.
   for (const name of ["Orrenvale", "Orren Taskwell", "Deck Orren", "José"]) assert.ok(!ordinaryName(name), name);
-  // A name with an ordinary word in it hides that word only as part of the whole name.
+  // A name with an ordinary word in it hides that word only as part of the whole name, the small
+  // words of a sentence included.
   assert.equal(redact("Deck Orren left the Steam Deck", { user: ["Deck Orren"] }), "[user] left the Steam Deck");
+  assert.equal(redact("the game froze on a new listing; The Orrenvale", { user: ["The Orrenvale"] }), "the game froze on a new listing; [user]");
+  // Every word of it ordinary: an ordinary name.
+  assert.equal(redact("the gamer froze; The Gamer", { user: ["The Gamer"] }), "the gamer froze; The Gamer");
+  assert.equal(redact("the game froze on a new listing; New Orren", { user: ["New Orren"] }), "the game froze on a new listing; [user]");
+  // Learned from a line without a slash after it, a name's first word may be a small word: it hides nothing.
+  assert.deepEqual(homeNamesIn(["C:\\Users\\The Gamer said hi"]), ["The"]);
+  assert.ok(ordinaryName("The"));
 });
 
 test("user names: the same name as the in-game name reads as [user], and goes everywhere", () => {
@@ -167,7 +181,7 @@ test("user names: the privacy page, the dialog and the Guide say what is hidden,
   const from = doc.indexOf("\n## Reporting a bug\n");
   const para = doc.slice(from, doc.indexOf("\n## ", from + 1)).replace(/\s+/g, " ");
   assert.match(para, /Your user name on this computer is hidden as a known name, as `\[user\]` \(the path rule's own mark\), wherever it stands as a word/);
-  assert.match(para, /learns it without asking your system anything: from the paths it already holds as the report opens, the game log's file and TennoScope's folder, as saved in Settings or as found/);
+  assert.match(para, /learns it without asking your system anything new: from the paths it already holds as the report opens, the game log's file and TennoScope's folder, as saved in Settings or as found/);
   assert.match(para, /The name is kept only while the report is made: never saved, logged or sent\./);
   assert.match(para, /When MyOrbiter hasn't seen your home folder .* your user name is hidden only where the path rule hides a user name\./);
   assert.match(para, /Where the name such a gap leaves is your user name, MyOrbiter has seen it and it is no everyday word \(below\), it is hidden all the same\./);
@@ -176,8 +190,8 @@ test("user names: the privacy page, the dialog and the Guide say what is hidden,
   assert.equal(redact("Orrenvale_2 Orrenvaleholm Orrenvale-PC", { user: ["Orrenvale"] }), "Orrenvale_2 Orrenvaleholm [user]-PC");
   assert.equal(redact("Steam Deck /home/deck/x", { user: ["deck"] }), "Steam Deck /home/[user]/[folder]");
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
-  assert.match(ui, /So is your user name on this computer, as your home folder's name, wherever it stands, once MyOrbiter has seen that folder \(in the game log's or TennoScope's location, or in the report itself\); if it hasn't, or the name is an everyday word like deck or user, only in paths\./);
+  assert.match(ui, /So is your user name on this computer, as your home folder's name, wherever it stands as a word, once MyOrbiter has seen that folder \(in the game log's or TennoScope's location, or in the report itself\); if it hasn't, or the name is an everyday word like deck or user, only in paths\./);
   const guide = readFileSync("src/lib/tabs/Guide.svelte", "utf8");
-  assert.match(guide, /your user name on this computer \(your home folder's name\) wherever it stands once MyOrbiter has seen that folder, in the game log's or TennoScope's location or in the report \(only in paths if it hasn't, or if the name is an everyday word like deck\)/);
+  assert.match(guide, /your user name on this computer \(your home folder's name\) wherever it stands as a word once MyOrbiter has seen that folder, in the game log's or TennoScope's location or in the report \(only in paths if it hasn't, or if the name is an everyday word like deck\)/);
   assert.match(detailsText(details(["x"])), /players' names, this computer's user name where known and folder names in recognised paths hidden/);
 });

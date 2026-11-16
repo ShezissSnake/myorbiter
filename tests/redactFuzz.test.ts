@@ -137,6 +137,27 @@ test("bug reports: this computer's user name, held or seen in a home folder, sur
   }, 1500);
 });
 
+test("redact: knowing this computer's user name never lets out what was hidden without it, glued to a secret or not", () => {
+  forAll("user-secrets", (r, seed) => {
+    const self = randomName(r);
+    const other = randomName(r);
+    const user = randomName(r);
+    if ([self, other].some((n) => n.toLowerCase().includes(user.toLowerCase()) || user.toLowerCase().includes(n.toLowerCase()))) return;
+    for (const { text, must } of secrets(r, self, other)) {
+      const glue = r.pick(["-", ".", "_", "", " ", "=", ":", "/"]);
+      const t = r.pick([`${user}${glue}${text}`, `${text}${glue}${user}`, text.replace(/=|: /, (m) => `${m}${user}${glue}`)]);
+      const names = { self: [self], others: [other] };
+      const without = redact(t, names);
+      const known = redact(t, { ...names, user: r.pick([[user], [casing(r, user)], [`${user} ${randomName(r)}`]]) });
+      // Whatever the text kept hidden without the user name, it keeps hidden with it.
+      const hidden = must.filter((m) => m && !without.toLowerCase().includes(m.toLowerCase()));
+      assert.deepEqual(leaks(known, hidden), [], `PROPERTY_SEED=${seed}: ${JSON.stringify(t)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
+      // An id or a long hex run that went stays gone.
+      if (!/\b[0-9a-f]{16,}\b/i.test(without)) assert.ok(!/\b[0-9a-f]{16,}\b/i.test(known), `PROPERTY_SEED=${seed}: ${JSON.stringify(known)}`);
+    }
+  }, 1500);
+});
+
 test("redact: known names go in any case and next to any punctuation; names with regex characters don't break it", () => {
   forAll("names", (r, seed) => {
     const name = randomName(r) + r.pick(["", ".", "-x", "_"]);

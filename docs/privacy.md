@@ -412,8 +412,9 @@ find a repricing fault.
 Your user name on this computer is hidden as a known name, as `[user]` (the path rule's own mark),
 wherever it stands as a word, in what you wrote too: in any case, outside paths, in paths of the
 gaps above and in encoded ones (`%2F…`), and with spaces in it (whole, with any spaces or `%20`
-between its words, and each of its words on its own). MyOrbiter knows it as your home folder's name,
-which is your user name on a usual setup, and learns it without asking your system anything: from
+between its words, and each of its words on its own, but an everyday one, below). MyOrbiter knows
+it as your home folder's name, which is your user name on a usual setup, and learns it without
+asking your system anything new: from
 the paths it already holds as the report opens, the game log's file and TennoScope's folder, as
 saved in Settings or as found (the folder after `/home`, `/var/home`, `/Users`, `C:\Users`,
 `C:\Documents and Settings`, Wine's `Z:\home`, a Wine prefix's `drive_c\users` but not Proton's
@@ -428,8 +429,9 @@ also a word a report needs is hidden only where the path rule hides a user name 
 becomes `/home/[user]/…`), so the report keeps its words (`Steam Deck`): a name of fewer than 3
 characters, one with no letter (a number), the names systems and devices give an account (`deck`,
 the Steam Deck's, `admin`, `guest` and the like), the folder names the path rule keeps (`user`,
-`home`, `steam`, `games` and the like), the marks the report writes and the words of its own lines
-(`linux`, `connected` and the like); a name of several words is such a name when each of its words
+`home`, `steam`, `games` and the like), the marks the report writes, the words of its own lines
+(`linux`, `connected` and the like) and the small words of a sentence (`the`, `new`, `my` and the
+like); a name of several words is such a name when each of its words
 is. Any other name is hidden wherever it stands as a word, also where it is an ordinary word too.
 When MyOrbiter hasn't seen your home folder (the game log and TennoScope's folder are not under it,
 as when TennoScope's folder is set elsewhere, or MyOrbiter runs in a browser, and the report writes
