@@ -68,7 +68,7 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
         await reach(p, x.shot, where);
         for (const miss of await missing(p, x.shot)) misses.push(`${where}: ${miss}`);
       } catch (e) {
-        misses.push(e.message);
+        misses.push(hidePaths(e.message));
       }
       console.log(`checked ${where}`);
       continue;

@@ -29,7 +29,8 @@
 // layouts this checks are meant to hold with room to spare. With --out, one contact sheet per
 // window size (every view, flagged elements outlined in red) is saved there as PNG; needs
 // ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
-// to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
+// to a world-state service that the page's routes are shown is stopped and counted, and fails the
+// sweep (scripts/no-world-state.mjs).
 // The sweep is built to contact no host: item pictures (and Rivens' weekly file) come from the
 // picture cache, so their shapes are measured on the real pictures; a request or `WebSocket` off
 // this machine that the cache's guard is shown (warframe.market's included, from the page or a
@@ -472,8 +473,9 @@ async function open(size, { firstRun = false, noInventory = false, widePictures 
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
   // item picture wide. Only the demo server's file: `r.fetch()` asks again from here, past the
-  // guard and the browser's launch rule, and follows no redirect; a 3xx it gets is passed on to
-  // the browser, which follows it unseen by the guard (left to the launch rule).
+  // guard and the browser's launch rule, and follows no redirect. A 3xx whose body is JSON is
+  // passed on to the browser, which follows it unseen by the guard (left to the launch rule); for
+  // one with any other body `res.json()` throws, and the page's request waits until it closes.
   if (widePictures) {
     const demo = new URL(url).origin;
     await p.route((u) => u.origin === demo && u.pathname === "/dev-reward-screen.json", async (r) => {

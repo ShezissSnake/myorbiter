@@ -281,7 +281,8 @@ else answers on that port or the server isn't the demo one, opens each page in C
 writes the WebP files over the ones in the repository. It needs ImageMagick (`magick`) too. The
 demo's order books, price histories and world state (fissures, Baro, the clocks and the rest) are
 files in `demo/`, so Home and Current fissure show the same world on every run, online or not
-(`demo/README.md`); any request to a world-state service is stopped and counted, and fails the run.
+(`demo/README.md`); a request to a world-state service that the page's routes are shown is stopped
+and counted, and fails the run.
 It is built to contact no host: the item pictures come from the checks' picture cache, a request
 or `WebSocket` off this machine that the checks' guard is shown (warframe.market's included) is
 refused and fails the run, and a picture the cache lacks fails the run until

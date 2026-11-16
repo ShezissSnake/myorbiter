@@ -7,9 +7,9 @@
 //   (so from the page, its frames and the windows it opens). One to localhost, `data:` or `blob:`
 //   goes through; a GET for an item picture or the riven file is answered from this cache, on disk
 //   outside the repository; any other is refused and counted.
-// - The constructors that reach the network past a route (Worker, SharedWorker, WebTransport,
-//   RTCPeerConnection, and registering a service worker), taken from each page and frame before
-//   its own scripts run: using one is refused and counted.
+// - The constructors taken from each page and frame before its own scripts run, of those that
+//   reach the network past a route (Worker, SharedWorker, WebTransport, RTCPeerConnection, and
+//   registering a service worker): using one is refused and counted.
 // - The sweep's reward-screen route answers only the demo server's file, asking it again with
 //   `route.fetch({ maxRedirects: 0 })`. Node's own requests ask the demo server's port only and
 //   follow no redirect.
@@ -18,7 +18,8 @@
 // Not shown to the guard, and left to the browser's launch rule (LAUNCH_ARGS: it resolves no name
 // but localhost):
 // - a redirect from localhost that the browser follows (a route sees a request's first address
-//   only), the reward-screen route's answer included, as it passes a 3xx on;
+//   only). The sweep's reward-screen route passes on a 3xx whose body is JSON; for one with any
+//   other body its `catch` is reached, and the page's request waits until the page closes;
 // - speculation-rules prefetch and prerender (`<script type=speculationrules>`);
 // - a socket opened with `WebSocketStream` (Playwright's WebSocket routing replaces only the
 //   `WebSocket` constructor);
@@ -26,17 +27,19 @@
 //   `dns-prefetch`).
 // None of them is counted: a run with one passes. In probes the launch rule held the redirects,
 // the speculation rules and the `WebSocketStream` (with it off, they reached another host); a
-// preconnect made no connection with the rule on or off. Not probed: `dns-prefetch`, and an
-// address written as numbers, other than 127.0.0.1, against the launch rule. The demo's pages use
-// none of these today.
+// preconnect made no connection with the rule on or off. Not probed: `dns-prefetch`; an address
+// written as numbers, other than 127.0.0.1, against the launch rule; a proxy (none is passed at
+// launch, so one from the environment or the desktop could carry these past the rule); reports
+// the browser sends by itself (`Report-To`, `NEL`, a CSP `report-uri`); and a page icon on another
+// host. The demo's pages use none of these today.
 //
 // No printed line names the home folder, the repository's folder, this cache's, Playwright's
 // browsers' (when PLAYWRIGHT_BROWSERS_PATH is set) or the temporary folder (when it isn't /tmp):
 // each is shown as `~`, `<repository>`, the cache's variable, `$PLAYWRIGHT_BROWSERS_PATH` or
 // `$TMPDIR` (hidePaths). That holds for a stop before a run begins once this helper has loaded (a
-// bad argument, Playwright not installed). A script of the repository that can't be found stops
-// Node before this helper loads, and that error prints its full path. Another path an error names
-// is not hidden.
+// bad argument, Playwright not installed). A script of the repository that can't be found, or
+// can't be read as code, stops Node before this helper loads, and that error prints its full
+// path. Another path an error names is not hidden.
 //
 // A picture request the guard is shown and the cache can't answer is refused and its address kept
 // in the cache's wanted list. One step, run by hand, fetches what that list holds and the cache
@@ -73,7 +76,7 @@ export const SHAPES = {
 };
 /** The fill step, as a run's messages name it. */
 export const FILL = "node scripts/picture-cache.mjs --fill";
-/** Chromium resolves no host name but localhost: what the head comment leaves to it is held by this. */
+/** Chromium resolves no host name but localhost: what the head comment leaves to it is left to this. */
 export const LAUNCH_ARGS = ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost"];
 /** The fill step's limits for one address: the time to the end of its body, and the body's size. */
 const FETCH_MS = 30_000;
@@ -117,8 +120,9 @@ export function hidePaths(text) {
 
 // A script that stops before its run begins, once this one has loaded (a bad argument, a missing
 // file, Playwright not installed), would have Node print its error with the script's full path:
-// printed here with the paths hidden instead. A static import that can't be found (a script of the
-// repository missing) stops Node before this runs, and is printed as Node prints it.
+// printed here with the paths hidden instead. A static import that can't be found or can't be read
+// as code (a script of the repository missing, or with a syntax error) stops Node before this
+// runs, and is printed as Node prints it.
 const stopped = (e) => {
   console.error(hidePaths(e instanceof Error ? (e.stack ?? e.message) : e));
   process.exit(1);
@@ -295,7 +299,7 @@ export function cacheStartLine() {
   return `pictures from the cache (${shown}), ${all.length} addresses asked for so far, all of them there (a picture no check asked for before is listed at the end)`;
 }
 
-/** The lines a run ends with, and whether they fail it: pictures the cache lacked, and any request outside this machine. */
+/** The lines a run ends with, and whether they fail it: pictures the cache lacked, and any request outside this machine that was counted. */
 export function cacheEnd() {
   const lines = [...run.missed].sort().map((a) => `NOT IN THE CACHE ${a}`);
   if (run.missed.size) lines.push(`${run.missed.size} pictures not in the cache: run ${FILL}`);
