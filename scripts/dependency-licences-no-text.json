@@ -1,35 +1,29 @@
 {
-  "about": "The crates compiled into a download whose published source carries no licence text, and what the download carries for each, by name and version (scripts/dependency-licences.mjs). A crate not listed here that ships no text stops the build, and so does a new version of one listed. 'text' names a file another package of the same build ships, unchanged, by its SHA-256 (and by that package's name when it must be that one); null means the download carries no text for it and its list says so. 'used' is the side of a choice the text is for.",
+  "about": "The crates compiled into a download whose published source carries no licence text, and what the download carries for each, by name and version (scripts/dependency-licences.mjs). A crate not listed here that ships no text stops the build, and so does a new version of one listed. 'text' names a file another package of the same build ships, unchanged, by its SHA-256 (and by that package's name, 'from', when it must be that one's); null means the download carries no text for it and its list says so. 'used' is the side of a choice the text is for.",
   "crates": [
     {
       "name": "gl", "version": "0.14.0", "licence": "Apache-2.0", "used": "Apache-2.0",
       "text": { "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2" },
-      "why": "Apache-2.0's text has no line of its own to fill: the standard text, as many crates of the same build ship it."
+      "why": "Apache-2.0's text has no line of its own to fill: its standard text, as other crates of the same build ship it."
     },
     {
       "name": "profiling", "version": "1.0.18", "licence": "MIT OR Apache-2.0", "used": "Apache-2.0",
       "text": { "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2" },
-      "why": "Apache-2.0's text has no line of its own to fill: the standard text, as many crates of the same build ship it."
+      "why": "Apache-2.0's text has no line of its own to fill: its standard text, as other crates of the same build ship it."
     },
     {
       "name": "zune-inflate", "version": "0.2.54", "licence": "MIT OR Apache-2.0 OR Zlib", "used": "Apache-2.0",
       "text": { "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2" },
-      "why": "Apache-2.0's text has no line of its own to fill: the standard text, as many crates of the same build ship it."
+      "why": "Apache-2.0's text has no line of its own to fill: its standard text, as other crates of the same build ship it."
     },
     {
       "name": "clipboard-win", "version": "5.4.1", "licence": "BSL-1.0", "used": "BSL-1.0",
-      "text": { "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566", "from": "error-code" },
-      "why": "BSL-1.0's text has no line of its own to fill: the standard text, as error-code (by the same author) ships it in the same build."
+      "text": { "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566" },
+      "why": "BSL-1.0's text has no line of its own to fill: its standard text, as another crate of the same build ships it."
     },
     {
-      "name": "alloc-stdlib", "version": "0.3.0", "licence": "BSD-3-Clause", "used": "BSD-3-Clause",
-      "text": { "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae", "from": "alloc-no-stdlib" },
-      "why": "The LICENSE of the repository both crates are published from (https://github.com/dropbox/rust-alloc-no-stdlib), as alloc-no-stdlib ships it in the same build."
-    },
-    {
-      "name": "pulp-wasm-simd-flag", "version": "0.1.1", "licence": "MIT", "used": "MIT",
-      "text": { "sha256": "d64f878c89bd5f1e5ada7e4aad57690b122727cf5229b7b87ea1980c188da1d9", "from": "pulp" },
-      "why": "The LICENSE of the repository both crates are published from (https://github.com/sarah-quinones/pulp), as pulp ships it in the same build."
+      "name": "alloc-stdlib", "version": "0.3.0", "licence": "BSD-3-Clause", "text": null,
+      "upstream": "https://github.com/dropbox/rust-alloc-no-stdlib"
     },
     {
       "name": "cookie-factory", "version": "0.3.3", "licence": "MIT", "text": null,
@@ -50,6 +44,10 @@
     {
       "name": "libwayshot-xcap", "version": "0.3.3", "licence": "BSD-2-Clause", "text": null,
       "upstream": "https://github.com/nashaofu/wayshot"
+    },
+    {
+      "name": "pulp-wasm-simd-flag", "version": "0.1.1", "licence": "MIT", "text": null,
+      "upstream": "https://github.com/sarah-quinones/pulp/"
     },
     {
       "name": "webview2-com", "version": "0.39.1", "licence": "MIT", "text": null,

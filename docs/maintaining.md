@@ -194,7 +194,7 @@ neither its own nor a package's. It never passes by leaving a package out.
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
 
 - A licence that isn't on the allowed list: **adding a licence to the allowed list is the
-  maintainer's decision**, made after reading that licence, by a pull request that changes only
+  maintainer's decision**, made after reading that licence; the list is
   `scripts/dependency-licences-allowed.txt`. Otherwise the dependency that brought it is changed
   back or replaced.
 - A crate with no licence text of its own: the text comes, unchanged, from upstream's own file or,

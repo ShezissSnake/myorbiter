@@ -18,14 +18,14 @@ const why = (e: string | null) => {
   return r.allowed ? "" : r.why;
 };
 
-// ---------------------------------------------------------------- point 1: the allowed list
+// ---------------------------------------------------------------- the allowed list
 
-test("the allowed list is the first round's licences, and no other", () => {
+test("the allowed list is the licences the downloads carried when it was made, and no other", () => {
   assert.deepEqual([...allowed].sort(), [
     "0BSD", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "BSL-1.0", "CC0-1.0",
     "CDLA-Permissive-2.0", "ISC", "MIT", "MIT-0", "MPL-2.0", "OFL-1.1", "Unicode-3.0", "Unlicense", "Zlib",
   ]);
-  // In the first round's definition of the common licences, but in no package it found.
+  // A common licence, but one no package carried when the list was made.
   assert.equal(ok("Unicode-DFS-2016"), false);
 });
 
@@ -104,7 +104,7 @@ test("the allowed list's own lines are read strictly", () => {
   assert.throws(() => readAllowed("Apache-2.0 with LLVM-exception\n"), /is neither a licence id/);
 });
 
-// ---------------------------------------------------------------- point 3: the gate
+// ---------------------------------------------------------------- the gate
 
 const MIT_TEXT = { file: "LICENSE-MIT", sha256: "a".repeat(64), licence: true };
 const crate = (name: string, version: string, licence: string | null, more: Partial<Package> = {}): Package => ({
@@ -163,7 +163,7 @@ test("a package that fails several ways is named once for each", () => {
   assert.ok(r.failures.every((f) => f.startsWith("made-up-all 0.0.1 (Rust crate): ")));
 });
 
-// ---------------------------------------------------------------- point 5: the 13 crates
+// ---------------------------------------------------------------- the crates that ship no text
 
 const APACHE = { file: "LICENSE-APACHE", sha256: "c".repeat(64), licence: true };
 const entry = (e: Partial<NoTextEntry>): NoTextEntry => ({ name: "made-up", version: "1.0.0", licence: "Apache-2.0", text: null, ...e });
@@ -217,7 +217,7 @@ test("the no-text file names the 13 crates whose published source carries no tex
   }
 });
 
-// ---------------------------------------------------------------- point 2: what a build gives
+// ---------------------------------------------------------------- what a build gives
 
 test("cargo tree's lines: registry, path and git sources, repeats and an empty licence", () => {
   assert.deepEqual(parseCargoTree([
@@ -286,7 +286,7 @@ snapshots:
   ]);
 });
 
-// ---------------------------------------------------------------- point 4: the list in a download
+// ---------------------------------------------------------------- the list in a download
 
 const listed = (): { dir: string; packages: Package[] } => {
   const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
@@ -352,7 +352,7 @@ test("the command: --check on a whole list passes, an unknown program or target 
   rmSync(dir, { recursive: true });
 });
 
-// ---------------------------------------------------------------- point 7: where the builds run it
+// ---------------------------------------------------------------- where the builds run it
 
 test("every build runs it for each program before the download is packed", () => {
   const bundle = JSON.parse(readFileSync("src-tauri/tauri.bundle.json", "utf8"));
