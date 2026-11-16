@@ -81,6 +81,13 @@ export interface SlotDrain {
   polarity: Polarity | null;
   /** Drain (negative for the capacity an aura or stance adds). */
   drain: number;
+  /** An aura or stance shown but not counted (not owned yet): `drain` is what it would add. */
+  uncounted?: boolean;
+}
+
+/** What a capacity count leaves out: the aura or stance of a suggestion the player doesn't own yet. */
+export interface CountOptions {
+  uncounted?: readonly ("aura" | "stance")[];
 }
 
 export interface TierResult {
@@ -182,7 +189,7 @@ interface Plan {
   forma: FormaStep[];
 }
 
-function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilus: Piece | null; stance: Piece | null }, base: number) {
+function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilus: Piece | null; stance: Piece | null }, base: number, uncounted: readonly ("aura" | "stance")[] = []) {
   const slots = assign(plan.slotPols, pieces.mods);
   let drain = 0;
   const out: SlotDrain[] = [];
@@ -202,6 +209,10 @@ function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilu
     const p = pieces[k];
     if (!p) continue;
     const b = bonusIn(p.cost, p.pol, plan[k]);
+    if (uncounted.includes(k)) {
+      out.push({ slot: k, path: p.path, name: p.name, polarity: plan[k], drain: -b, uncounted: true });
+      continue;
+    }
     capacity += b;
     out.push({ slot: k, path: p.path, name: p.name, polarity: plan[k], drain: -b });
   }
@@ -220,10 +231,13 @@ export type CapacityResult = Omit<TierResult, "capacityTier" | "limits">;
 /**
  * What capacity alone needs on an item, and why: low (fits without a Catalyst/Reactor), medium
  * (needs one), high (Catalyst plus the fewest Forma, worked out greedily by capacity freed, and
- * adapters). `catalog`: the model's catalogByUnique. `kind` defaults to the build's.
+ * adapters). `catalog`: the model's catalogByUnique. `kind` defaults to the build's. A build is
+ * counted as written; `opts.uncounted` is only for MyOrbiter's own suggestion, whose aura or stance
+ * the player doesn't own yet: shown, its capacity left out and named in the reasons.
  */
-export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): CapacityResult {
+export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind, opts: CountOptions = {}): CapacityResult {
   const layout = slotLayout(kind);
+  const uncounted = opts.uncounted ?? [];
   const unknown: string[] = [];
   const piece = (m: BuildMod | null | undefined, at: Piece["at"]) => {
     if (!m) return null;
@@ -256,7 +270,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     const out: string[] = [];
     // "with the Steel Charge aura on its Madurai slot": what the aura or stance adds, doubled on its own polarity.
     const bonusPart = (k: "aura" | "stance") => {
-      const p = pieces[k];
+      const p = uncounted.includes(k) ? null : pieces[k];
       const pol = r.slots.find((x) => x.slot === k)?.polarity ?? null;
       return p ? `the ${p.name} ${k}${pol && p.pol && matches(p.pol, pol) ? ` on its ${POLARITY_LABEL[pol]} slot` : ""}` : "";
     };
@@ -281,6 +295,13 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
       }
       if (r.umbraForma) out.push(r.umbraForma === 1 ? "One of them is an Umbra Forma." : `${r.umbraForma} of them are Umbra Forma.`);
     }
+    // A suggestion's aura or stance the player doesn't own: what the capacity becomes once they do.
+    const left = r.slots.filter((x) => x.uncounted);
+    if (left.length) {
+      const more = left.reduce((n, x) => n - x.drain, 0);
+      const names = left.map((x) => `${x.name} (${x.slot === "aura" ? "aura" : "stance"})`).join(" and ");
+      out.push(`${names} not owned yet, so not counted: capacity ${r.capacity}, ${r.capacity + more} once you have ${left.length === 1 ? "it" : "them"}.`);
+    }
     if (fortyByForma) out.push(`Rank 40 needs five Forma (two ranks each): ${r.rank} counted.`);
     if (layout.stance && pieces.stance && item.stancePolarity == null) out.push("The stance slot's own polarity isn't in MyOrbiter's data: counted as none.");
     if (unknown.length) out.push(`${plural(unknown.length, "mod")} MyOrbiter doesn't know left out of the count.`);
@@ -290,7 +311,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
   const at = (catalyst: boolean, plan: Plan) => {
     const formaN = plan.forma.length;
     const rank = rankWith(item, kind, fortyByForma ? formaN : 0);
-    const e = evaluate(plan, pieces, rank * (catalyst ? 2 : 1));
+    const e = evaluate(plan, pieces, rank * (catalyst ? 2 : 1), uncounted);
     return { e, rank };
   };
   const result = (tier: Tier, catalyst: boolean, plan: Plan, withAdapters: boolean): CapacityResult => {
@@ -344,7 +365,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     }
     // The aura or stance slot to its mod's polarity.
     for (const k of ["aura", "stance"] as const) {
-      const p = pieces[k];
+      const p = uncounted.includes(k) ? null : pieces[k];
       const now = plan[k];
       if (!p?.pol || p.pol === "universal" || p.pol === "umbra" || (now && matches(p.pol, now))) continue;
       const gain = p.cost * 2 - bonusIn(p.cost, p.pol, now) + rankGain;
@@ -367,10 +388,10 @@ const a = (n: number, one: string, many = `${one}s`) => (n === 1 ? `a${/^[AEIOU]
 /**
  * The tier a build needs: the lowest one whose rules it meets (see the top of this file), from what
  * capacity needs and from each mod's and arcane's availability. `catalog`: the model's
- * catalogByUnique. `kind` defaults to the build's.
+ * catalogByUnique. `kind` defaults to the build's; `opts` as for capacityOf.
  */
-export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): TierResult {
-  const cap = capacityOf(build, item, catalog, kind);
+export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind, opts: CountOptions = {}): TierResult {
+  const cap = capacityOf(build, item, catalog, kind, opts);
   const limits: TierLimit[] = [];
   const add = (l: TierLimit) => limits.push(l);
   const doubler = doublerName(kind);

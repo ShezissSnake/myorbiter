@@ -91,6 +91,11 @@
       "level": "intermediate",
       "why": "an aura only Specters drop (Orphid, Knave…); the catalog files it under FairyQuest, Titania's quest The Silver Grove",
       "source": "https://warframe.com/droptables (via the catalog's drop data)"
+    },
+    "Dreamer's Bond": {
+      "level": "new",
+      "why": "an aura new players have access to; no drop table lists it",
+      "source": "MyOrbiter's rule: new players have access to Dreamer's Bond (the item data lists no drop for it and doesn't say where the game gives it)"
     }
   },
   "hardFrames": {

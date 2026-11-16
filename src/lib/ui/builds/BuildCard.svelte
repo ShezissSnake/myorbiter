@@ -130,7 +130,7 @@
 <article class="build" class:fav data-place={shown.place} aria-label="{title}{b.author ? ` by ${b.author}` : ''}">
   <header class="hd">
     <div class="who">
-      <span class="src" class:myorbiter={b.source === "orbiter"} title={b.source === "orbiter" ? "MyOrbiter's own starting point, from the mods you hold: not a player's build" : site ? `From ${site.site}` : b.source === "mine" ? "A build you made" : "A build you pasted"}>{sourceName(b.source)}</span>
+      <span class="src" class:myorbiter={b.source === "orbiter"} title={b.source === "orbiter" ? "MyOrbiter's own starting point, from the mods you hold (an aura or stance to get is marked not owned): not a player's build" : site ? `From ${site.site}` : b.source === "mine" ? "A build you made" : "A build you pasted"}>{sourceName(b.source)}</span>
       <h3 class="name-mark">{title}</h3>
       <span class="meta">
         {#if b.author}<span>by {b.author}</span>{/if}
