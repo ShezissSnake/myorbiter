@@ -196,7 +196,8 @@ export type ChannelAnswer = { version: string } | "empty" | null;
  * open: the read GitHub answered with a file, then failed for the plugin (a failure too); a
  * repository that moved, whose old addresses answer with a redirect for every channel, so a
  * channel with no build reads as a failed check, never empty, and a new install of a build made
- * before the move settles only by a pick; and a repository that is gone, answering 404 for every
+ * before the move that has to ask a channel with no build (as with Stable and Beta empty) settles
+ * only by a pick; and a repository that is gone, answering 404 for every
  * channel: Experimental doesn't count then, and nothing settles.
  */
 export const buildCounts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;

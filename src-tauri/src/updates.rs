@@ -113,8 +113,9 @@ const UPDATER_AGENT: &str = "tauri-plugin-updater/2.14.1";
 ///
 /// A repository that moved answers its old addresses with a redirect to the new ones, for a file
 /// and for a missing one alike: a build made before the move reads "a file" for every channel,
-/// the plugin follows, and for a channel with no build the check fails (never empty), so no new
-/// install of such a build settles by itself until the player picks a channel. A repository that
+/// the plugin follows, and for a channel with no build the check fails (never empty), so a new
+/// install of such a build that has to ask a channel with no build (as with Stable and Beta empty)
+/// doesn't settle by itself until the player picks a channel. A repository that
 /// is gone answers 404 for every channel: Experimental doesn't count either, and nothing settles.
 #[derive(Debug, PartialEq, Eq)]
 enum FirstSays {
@@ -148,7 +149,7 @@ fn first_says(answer: Result<ureq::Response, ureq::Error>) -> FirstSays {
 /// The read of the first address `first_says` takes: through the app's one HTTP client (its
 /// proxy rule, no redirect followed), within `limit`. MyOrbiter's own request, it goes under the
 /// updater's name (`UPDATER_AGENT`) so that an update check sends no MyOrbiter version: the one
-/// exception to `user_agent()` on MyOrbiter's requests.
+/// request MyOrbiter makes under another program's name.
 fn first_read(url: &str, limit: Duration) -> ureq::Request {
     crate::request("GET", url).set("User-Agent", UPDATER_AGENT).timeout(limit)
 }
@@ -1234,7 +1235,7 @@ mod tests {
     }
 
     /// The three answers of the first address: a file (GitHub's redirect to its file storage, or a
-    /// plain answer), GitHub's own "no such file" (404), and everything else.
+    /// 200), GitHub's own "no such file" (404), and everything else.
     #[test]
     fn the_first_address_says_file_none_or_failed() {
         assert_eq!(first_says(status(302)), FirstSays::File, "a release file: GitHub's redirect to its storage");

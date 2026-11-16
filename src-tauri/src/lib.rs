@@ -27,7 +27,9 @@ use std::time::{Duration, Instant, UNIX_EPOCH};
 use tauri::{Emitter, Manager};
 
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
-/// MyOrbiter's home: named in every User-Agent, so the sites it reads know where to find out more.
+/// MyOrbiter's home: named in `user_agent()`, so the sites it reads know where to find out more
+/// (Nox's Frame is told MyOrbiter's name its own way, noxsframe.rs; a new install's first read of
+/// a channel's file goes under the updater's name, updates.rs `first_read`).
 pub(crate) const REPO_URL: &str = "https://github.com/ShezissSnake/myorbiter";
 
 /// The version this build carries, set once at start from Tauri's package info. A release build
@@ -43,10 +45,11 @@ pub(crate) fn version() -> &'static str {
     VERSION.get().map_or(env!("CARGO_PKG_VERSION"), String::as_str)
 }
 
-/// Who's asking, and where to find out more: `MyOrbiter/<version> (+<REPO_URL>)`, on every
-/// request MyOrbiter makes (warframe.market's rules ask for exactly this), but one: a new
-/// install's first read of a channel's file goes under the updater's name, so that an update check
-/// sends no MyOrbiter version (updates.rs, `first_read`).
+/// Who's asking, and where to find out more: `MyOrbiter/<version> (+<REPO_URL>)`, on MyOrbiter's
+/// requests (warframe.market's rules ask for exactly this). Nox's Frame's carry MyOrbiter's name
+/// in a form of its own (noxsframe.rs); the one request under another program's name is a new
+/// install's first read of a channel's file, under the updater's, so that an update check sends
+/// no MyOrbiter version (updates.rs, `first_read`).
 pub(crate) fn user_agent() -> String {
     user_agent_for(version())
 }
