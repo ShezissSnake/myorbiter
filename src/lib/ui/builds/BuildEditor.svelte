@@ -9,7 +9,7 @@
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
-  import { matchName, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, slotNames, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
+  import { fitsSlot, matchName, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, slotNames, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
   import ModGrid from "./ModGrid.svelte";
@@ -72,6 +72,8 @@
   const names = slotNames(idx, item, kind, layout.arcanes > 0);
   const listId = (r: Role) => `be-${r}`;
 
+  // Each slot takes its own kind: an aura in the aura slot, a stance in the stance slot, an exilus
+  // mod in the exilus slot, regular mods in the rest (matchName says "wrong-slot" otherwise).
   function commit(s: Slot) {
     const text = s.text.trim();
     if (!text) {
@@ -79,7 +81,7 @@
       s.problem = null;
       return;
     }
-    const r = matchName(text, idx, item, kind, s.role === "arcane" ? "arcane" : "mod", held);
+    const r = matchName(text, idx, item, kind, s.role, held);
     if (r.ok) {
       s.path = r.path;
       s.text = r.name;
@@ -119,6 +121,7 @@
       delete b.author;
       delete b.votes;
       delete b.updatedAt;
+      delete b.madeFor;
     }
     const tg = parseTags([...tags, ...parseTags(tagText)].join(","));
     if (tg.length) b.tags = tg;
@@ -138,15 +141,21 @@
   $effect(() => {
     void tick().then(() => first?.focus());
   });
+  /** A mod already in a slot (a pasted or saved build) that isn't that slot's kind: matched again, to say so. */
+  function misplaced(s: Slot): boolean {
+    if (!s.path || s.role === "arcane") return false;
+    const c = model.catalogByUnique.get(s.path);
+    return !!c && !fitsSlot(s.role, c, idx);
+  }
   function save() {
-    for (const s of slots) if (s.text.trim() && !s.path) commit(s);
+    for (const s of slots) if (s.text.trim() && (!s.path || misplaced(s))) commit(s);
     if (slots.some((s) => s.problem)) return;
     onsave(draft);
   }
   const COLOUR_WORD: Record<ShardColour, string> = { crimson: "Crimson", azure: "Azure", amber: "Amber", violet: "Violet", topaz: "Topaz", emerald: "Emerald" };
 </script>
 
-{#each ["aura", "stance", "mod", "arcane"] as const as r (r)}<datalist id={listId(r)}>{#each names[r] as n (n)}<option value={n}></option>{/each}</datalist>{/each}
+{#each ["aura", "stance", "exilus", "mod", "arcane"] as const as r (r)}<datalist id={listId(r)}>{#each names[r] as n (n)}<option value={n}></option>{/each}</datalist>{/each}
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
 <div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
@@ -159,11 +168,11 @@
         {#each slots as s (s.key)}
           <div class="slotrow" class:bad={!!s.problem}>
             <span class="register lab">{s.label}</span>
-            <input class="nm" list={listId(s.role === "exilus" ? "mod" : s.role)} bind:value={s.text} placeholder={s.role === "arcane" ? "Arcane" : s.role === "aura" ? "Aura mod" : s.role === "stance" ? "Stance" : "Mod"} aria-label="{s.label}: {s.role === 'arcane' ? 'arcane' : 'mod'} name" title="Type a name; the list offers what fits {item.name}" onchange={() => commit(s)} onkeydown={(e) => e.key === "Enter" && (e.preventDefault(), commit(s))} />
+            <input class="nm" list={listId(s.role)} bind:value={s.text} placeholder={s.role === "arcane" ? "Arcane" : s.role === "aura" ? "Aura mod" : s.role === "stance" ? "Stance" : s.role === "exilus" ? "Exilus mod" : "Mod"} aria-label="{s.label}: {s.role === 'arcane' ? 'arcane' : 'mod'} name" title="Type a name; the list offers what fits {item.name}" onchange={() => commit(s)} onkeydown={(e) => e.key === "Enter" && (e.preventDefault(), commit(s))} />
             <input class="rk" type="number" min="0" max={maxOf(s) || 10} bind:value={s.rank} placeholder="max" aria-label="{s.label}: rank" title="Rank wanted: empty for max{maxOf(s) ? ` (${maxOf(s)})` : ''}" />
             {#if s.problem}
               <span class="prob small">
-                {s.problem.reason === "wrong-gear" ? `${s.problem.why ?? "For other gear"}, not ${item.name}.` : s.problem.reason === "no-flawed" ? "No Flawed version." : "Not found."}
+                {s.problem.reason === "wrong-gear" ? `${s.problem.why ?? "For other gear"}, not ${item.name}.` : s.problem.reason === "wrong-slot" ? `${(s.problem.why ?? "Not for this slot").replace(/^./, (c) => c.toUpperCase())}.` : s.problem.reason === "no-flawed" ? "No Flawed version." : "Not found."}
                 {#each s.problem.suggestions as g (g.path)}<button type="button" class="sug" title="Use {g.name}" onclick={() => choose(s, g.name, g.path)}>{g.name}</button>{/each}
               </span>
             {/if}
