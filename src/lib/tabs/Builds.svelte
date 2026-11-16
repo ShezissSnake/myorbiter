@@ -189,7 +189,7 @@
   const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
-  // MyOrbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
+  // MyOrbiter's suggestions: from the mods you hold (an aura or stance to get shown, uncounted), for each tier, in the variant picked on its card.
   const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
   const owns = $derived(ownedFrom(rows));
   /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */

@@ -157,7 +157,7 @@
 <div class="grid" style:--cols={cols}>
   {#if top.length}
     <div class="top">
-      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}{#if t.mod && t.have === "missing"}<span class="notheld">{" · not owned"}</span>{/if}</span>{@render slot(t, true)}</div>{/each}
+      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}{#if t.mod && t.uncounted}<span class="notheld">{" · not owned"}</span>{/if}</span>{@render slot(t, true)}</div>{/each}
     </div>
   {/if}
   {#if mods.length}
