@@ -143,6 +143,22 @@ test("a pasted line built to make the Helminth pattern backtrack reads in well u
     console.log(`${size} characters: ${ms.toFixed(1)} ms`);
     assert.ok(ms < 1000, `${size} characters: ${Math.round(ms)} ms`);
   }
+  // The same, cut by commas into stretches of the longest length the pattern reads.
+  const stretch = `${"a on ".repeat(40)}`.slice(0, 199) + "!";
+  const line = `helminth ${Array(100).fill(stretch).join(",")}`;
+  const t0 = performance.now();
+  parsePaste(line, item(P.rhino), CAT, { now: NOW });
+  const ms = performance.now() - t0;
+  console.log(`${line.length} characters in stretches of 200: ${ms.toFixed(1)} ms`);
+  assert.ok(ms < 1000, `${line.length} characters in stretches: ${Math.round(ms)} ms`);
+});
+
+test("a whole build on one long line keeps its Helminth", () => {
+  const line = "Rhino build for steel path, all mods maxed: Steel Charge, Primed Continuity, Intensify, Umbral Vitality, Umbral Fiber, Umbral Intensify, Streamline, Adaptation, Iron Shrapnel, Arcane Energize, Arcane Grace, Roar replacing Rhino Stomp, 5 Forma";
+  assert.ok(line.length > 200);
+  const r = parsePaste(line, item(P.rhino), CAT, { now: NOW });
+  assert.deepEqual(r.build.helminth, { ability: "Roar", replaces: "Rhino Stomp" });
+  assert.ok(!r.unmatched.some((u) => /roar|stomp/i.test(u.text)), JSON.stringify(r.unmatched));
 });
 
 test("a very long paste is read up to its first 20,000 characters, and says so", () => {

@@ -49,11 +49,29 @@ const SHARD = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|to
 const SHARD_LOOSE = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)\b(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\()\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
 const HELMINTH = /([A-Za-z][\w'’ ]*?)\s+(?:replac(?:es|ing|ed)|in place of|instead of|over|on|→|->)\s+([A-Za-z0-9][\w'’ ]*?)(?=\s*(?:[,;.)(]|$))/i;
 /**
- * The longest line HELMINTH reads. A real Helminth line runs to a few dozen characters ("Helminth:
- * Roar replacing Rhino Stomp"); on a long line built for it ("helminth a on a on … !") the pattern
+ * The longest stretch HELMINTH reads. A real Helminth phrase runs to a few dozen characters ("Roar
+ * replacing Rhino Stomp"); on a long stretch built for it ("helminth a on a on … !") the pattern
  * backtracks over every " on " from every start, and the page, the only thread, hangs.
  */
 const HELMINTH_MAX = 200;
+
+/**
+ * HELMINTH on `line`, one stretch between `,;.()` at a time. No match can take in one of those
+ * characters, so the first match is the one HELMINTH finds on the whole line; a stretch longer than
+ * HELMINTH_MAX is passed over.
+ */
+function helminthIn(line: string): RegExpExecArray | null {
+  const stretch = /[^,;.()]+/g;
+  for (let s = stretch.exec(line); s; s = stretch.exec(line)) {
+    if (s[0].length > HELMINTH_MAX) continue;
+    const h = HELMINTH.exec(s[0]);
+    if (h) {
+      h.index += s.index;
+      return h;
+    }
+  }
+  return null;
+}
 /** Words around names that aren't names. */
 const FILLER = new Set(["and", "or", "the", "a", "an", "for", "with", "on", "in", "to", "of", "my", "your", "x", "slot", "slots", "mod", "mods", "arcane", "arcanes", "build", "optional", "alt", "alternative", "alternatively", "core", "recommended", "swap", "replace", "instead", "use", "using", "if", "you", "have", "need", "flex", "then", "also", "plus", "is", "it", "this", "can", "be", "any", "other", "e", "g", "eg", "i", "e.g", "etc", "no", "not", "yes", "maybe"]);
 
@@ -183,7 +201,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
       continue;
     }
     if (label === "helminth" || label === "subsume" || label === "subsumed" || /helminth|subsum|replac|instead of|in place of/i.test(line)) {
-      const h = line.length <= HELMINTH_MAX ? HELMINTH.exec(line) : null;
+      const h = helminthIn(line);
       if (h) {
         const ability = h[1].replace(/^(?:helminth|subsume[ds]?|use|with)\s+/i, "").trim();
         const replaces = abilityName(item, h[2].trim());
