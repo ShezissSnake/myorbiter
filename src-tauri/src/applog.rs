@@ -284,10 +284,98 @@ fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
 /// "eyJ"), whatever follows "Bearer", "JWT" or "token", every pair in a Cookie header, the value
 /// of a `key=value` or JSON pair whose key names a secret (`secret_pair`, `json_pairs`), and a
 /// Discord webhook address (its id and token are all it takes to post as it).
+///
+/// The words are read twice, and a stretch either reading cuts out is cut: `word_cuts`, which also
+/// hides the word after a head glued to a JSON key (`{"auth":"Bearer x"}`) and a word after a head
+/// with an address in it, and `earlier_word_cuts`, the word rules as they stood before those, which
+/// keep a scheme's hiding on across an empty pair (`Bearer token= x`). Each reading alone misses a
+/// word the other hides; together nothing either hides is written.
 pub fn redact(s: &str) -> String {
     let json = json_pairs(s);
     let s = json.as_str();
+    let mut cuts = word_cuts(s, false);
+    cuts.extend(word_cuts(s, true));
+    cuts.extend(earlier_word_cuts(s));
+    render_cuts(s, cuts)
+}
+
+/// What stands in place of a stretch `redact` cuts out: nothing (the blanks after an empty value),
+/// the webhook mark, or `[redacted]`. A stretch two cuts share takes the strongest.
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Mark {
+    Gone,
+    Webhook,
+    Redacted,
+}
+
+/// A stretch of the text, by byte, cut out with its mark. An empty one still leaves its mark
+/// (`token=""` writes `token="[redacted]"`).
+type Cut = (usize, usize, Mark);
+
+/// `s` with every cut stretch replaced by its mark; stretches that overlap or touch are one.
+fn render_cuts(s: &str, mut cuts: Vec<Cut>) -> String {
+    cuts.sort();
     let mut out = String::with_capacity(s.len());
+    let mut at = 0;
+    let mut i = 0;
+    while i < cuts.len() {
+        let (a, mut b, mut mark) = cuts[i];
+        i += 1;
+        while i < cuts.len() && cuts[i].0 <= b {
+            b = b.max(cuts[i].1);
+            mark = mark.max(cuts[i].2);
+            i += 1;
+        }
+        let a = a.max(at);
+        b = b.max(a);
+        out.push_str(&s[at..a]);
+        out.push_str(match mark {
+            Mark::Gone => "",
+            Mark::Webhook => "[redacted webhook]",
+            Mark::Redacted => "[redacted]",
+        });
+        at = b;
+    }
+    out.push_str(&s[at..]);
+    out
+}
+
+/// A JWT, whole or cut short after its second part (a line cut at its length limit).
+fn is_jwt(w: &str) -> bool {
+    w.find("eyJ").is_some_and(|i| w[i..].contains('.'))
+}
+
+/// Where a Discord webhook address starts in `word`, when no secret pair or JWT stands before it
+/// in the word (those go by their own rule, which takes the address with it).
+fn address_at(word: &str) -> Option<usize> {
+    let at = webhook_at(word).filter(|_| word.to_ascii_lowercase().contains("discord"))?;
+    let start = word[..at].rfind("http").unwrap_or(0);
+    let before = &word[..start];
+    (secret_pair(before).is_none() && !is_jwt(before)).then_some(start)
+}
+
+/// The cut of a secret pair's value (the word at `start`, `len` bytes long, its value from
+/// `start + at`) and where reading goes on: a quoted value to its closing quote, reading on after
+/// it (or the line's end); after `?`, `&` or `;` to the word's end; in running text, where nothing
+/// marks where a value with a space ends, to the line's end.
+fn pair_cut(s: &str, start: usize, len: usize, at: usize, in_query: bool) -> (Option<Cut>, Option<usize>) {
+    let v = start + at;
+    let line_end = s[v..].find('\n').map_or(s.len(), |e| v + e);
+    match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
+        Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
+            Some(c) => (Some((v + 1, c, Mark::Redacted)), Some(c + 1)),
+            None => (Some((v + 1, line_end, Mark::Redacted)), Some(line_end)),
+        },
+        None if in_query => ((at < len).then_some((v, start + len, Mark::Redacted)), None),
+        None if s[v..line_end].trim().is_empty() => (Some((v, line_end, Mark::Gone)), Some(line_end)),
+        None => (Some((v, line_end, Mark::Redacted)), Some(line_end)),
+    }
+}
+
+/// The stretches the word rules cut out of `s` (after `json_pairs`). With `keep_on`, a scheme
+/// whose pair is empty keeps the hiding on for the word after it.
+fn word_cuts(s: &str, keep_on: bool) -> Vec<Cut> {
+    let mut cuts = Vec::new();
     let mut hide_next = false;
     // After "Cookie:" or "Set-Cookie:" the header's first word is hidden, and so is each
     // `name=value` word after one that ends in `;`.
@@ -295,12 +383,101 @@ pub fn redact(s: &str) -> String {
     let mut cookie_more = false;
     // The Cookie header was itself a hidden word (`Bearer Cookie: token=x y`).
     let mut cookie_hidden = false;
-    // Words between any whitespace (a tab or a line break hides nothing), the whitespace kept.
+    // Words between any whitespace (a tab or a line break hides nothing).
     let mut rest = s;
     while !rest.is_empty() {
-        let gap = rest.len() - rest.trim_start().len();
-        out.push_str(&rest[..gap]);
-        rest = &rest[gap..];
+        rest = rest.trim_start();
+        let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        let start = s.len() - rest.len();
+        let (word, after) = rest.split_at(end);
+        rest = after;
+        if word.is_empty() {
+            continue;
+        }
+        let whole = (start, start + word.len(), Mark::Redacted);
+        if std::mem::take(&mut cookie_more) && word.contains('=') {
+            cuts.push(whole);
+            cookie_more = word.ends_with(';');
+            continue;
+        }
+        let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
+        let lower = bare.to_ascii_lowercase();
+        let jwt = is_jwt(word);
+        // A word a head hides (after "Bearer", "Authorization:", a Cookie header) goes whole below,
+        // the address with it, so it isn't read for one here.
+        if let Some(at) = address_at(word).filter(|_| !hide_next) {
+            cuts.push((start + at, start + word.len(), Mark::Webhook));
+            continue;
+        }
+        // Punctuation on its own ("token : x") hides nothing and passes the hiding on.
+        if bare.is_empty() {
+            continue;
+        }
+        // "Authorization: Bearer x": the scheme stays readable, the token after it goes. A pair
+        // (`token=`) is no scheme: it is hidden below, as far as its own rule reaches.
+        let scheme = matches!(lower.as_str(), "bearer" | "jwt" | "token" | "basic");
+        if hide_next && scheme && secret_pair(word).is_none() {
+            continue;
+        }
+        if hide_next || jwt {
+            let in_cookie = std::mem::take(&mut cookie_header);
+            let header_hidden = std::mem::take(&mut cookie_hidden);
+            cookie_more = in_cookie && word.ends_with(';');
+            // A secret pair in the hidden word reaches as far as its own rule below: a quoted value
+            // to the end of the word its closing quote stands in, one in running text to the line's
+            // end. After a Cookie header that was written, its pairs go by the header's own rule.
+            let pair = secret_pair(word);
+            let mut to = start + word.len();
+            if let Some((at, in_query)) = pair.filter(|_| !in_cookie || header_hidden) {
+                let v = start + at;
+                let line_end = s[v..].find('\n').map_or(s.len(), |e| v + e);
+                to = match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
+                    Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
+                        Some(c) => to.max(s[c..].find(char::is_whitespace).map_or(s.len(), |e| c + e)),
+                        None => line_end,
+                    },
+                    None if in_query => to,
+                    None => line_end,
+                };
+            }
+            cuts.push((start, to, Mark::Redacted));
+            rest = &s[to..];
+            if keep_on && hide_next && scheme && s[start + word.len()..to].trim().is_empty() {
+                // A scheme whose pair is empty (`Bearer token= x`, `token=""`, `?jwt=`, `token=` at
+                // a line's end) keeps the hiding on for the word after it, as a scheme does.
+                cookie_header = in_cookie;
+                cookie_hidden = header_hidden;
+                continue;
+            }
+            // A hidden word that is a head itself still hides the word after it; a pair is none.
+            (hide_next, cookie_header) = if pair.is_some() { (false, false) } else { head_word(word) };
+            cookie_hidden = cookie_header;
+            continue;
+        }
+        if let Some((at, in_query)) = secret_pair(word) {
+            let (cut, resume) = pair_cut(s, start, word.len(), at, in_query);
+            cuts.extend(cut);
+            if let Some(r) = resume {
+                rest = &s[r..];
+            }
+            continue;
+        }
+        (hide_next, cookie_header) = head_word(word);
+        cookie_hidden = false;
+    }
+    cuts
+}
+
+/// The stretches the word rules cut out of `s` as they read before a head glued to a key was one
+/// (`redact` says why both are read).
+fn earlier_word_cuts(s: &str) -> Vec<Cut> {
+    let mut cuts = Vec::new();
+    let mut hide_next = false;
+    let mut cookie_header = false;
+    let mut cookie_more = false;
+    let mut rest = s;
+    while !rest.is_empty() {
+        rest = rest.trim_start();
         let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
         let start = s.len() - rest.len();
         let (word, after) = rest.split_at(end);
@@ -309,99 +486,44 @@ pub fn redact(s: &str) -> String {
             continue;
         }
         if std::mem::take(&mut cookie_more) && word.contains('=') {
-            out.push_str("[redacted]");
+            cuts.push((start, start + word.len(), Mark::Redacted));
             cookie_more = word.ends_with(';');
             continue;
         }
         let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
         let lower = bare.to_ascii_lowercase();
-        // A JWT, whole or cut short after its second part (a line cut at its length limit).
-        let is_jwt = |w: &str| w.find("eyJ").is_some_and(|i| w[i..].contains('.'));
         let jwt = is_jwt(word);
-        // A word a head hides (after "Bearer", "Authorization:", a Cookie header) goes whole below,
-        // the address with it, so it isn't read for one here.
-        if let Some(at) = webhook_at(word).filter(|_| !hide_next && word.to_ascii_lowercase().contains("discord")) {
-            let start = word[..at].rfind("http").unwrap_or(0);
-            // A secret pair or a JWT before the address in the same word goes by its own rule
-            // below, which takes the address with it.
-            let before = &word[..start];
-            if secret_pair(before).is_none() && !is_jwt(before) {
-                out.push_str(before);
-                out.push_str("[redacted webhook]");
-                continue;
-            }
+        if let Some(at) = address_at(word) {
+            cuts.push((start + at, start + word.len(), Mark::Webhook));
+            hide_next = false;
+            continue;
         }
-        // Punctuation on its own ("token : x") hides nothing and passes the hiding on.
         if bare.is_empty() {
-            out.push_str(word);
             continue;
         }
-        // "Authorization: Bearer x": the scheme stays readable, the token after it goes. A pair
-        // (`token=`) is no scheme: it is hidden below, as far as its own rule reaches.
         let scheme = matches!(lower.as_str(), "bearer" | "jwt" | "token" | "basic");
-        if hide_next && scheme && secret_pair(word).is_none() {
-            out.push_str(word);
+        if hide_next && scheme {
             continue;
         }
-        let line_end = |from: usize| s[from..].find('\n').map_or(s.len(), |e| from + e);
         if hide_next || jwt {
-            out.push_str("[redacted]");
-            let in_cookie = std::mem::take(&mut cookie_header);
-            let header_hidden = std::mem::take(&mut cookie_hidden);
-            cookie_more = in_cookie && word.ends_with(';');
-            // A secret pair in the hidden word reaches as far as its own rule below: a quoted value
-            // to the end of the word its closing quote stands in, one in running text to the line's
-            // end. After a Cookie header that was written, its pairs go by the header's own rule.
-            let pair = secret_pair(word);
-            if let Some((at, in_query)) = pair.filter(|_| !in_cookie || header_hidden) {
-                let v = start + at;
-                match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
-                    Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
-                        Some(c) => rest = &s[s[c..].find(char::is_whitespace).map_or(s.len(), |e| c + e).max(start + word.len())..],
-                        None => rest = &s[line_end(v)..],
-                    },
-                    None if in_query => {}
-                    None => rest = &s[line_end(v)..],
-                }
-            }
-            // A hidden word that is a head itself still hides the word after it; a pair is none.
-            (hide_next, cookie_header) = if pair.is_some() { (false, false) } else { head_word(word) };
-            cookie_hidden = cookie_header;
+            cuts.push((start, start + word.len(), Mark::Redacted));
+            hide_next = false;
+            cookie_more = std::mem::take(&mut cookie_header) && word.ends_with(';');
             continue;
         }
         if let Some((at, in_query)) = secret_pair(word) {
-            out.push_str(&word[..at]);
-            let v = start + at;
-            match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
-                // A quoted value, to its closing quote (or the line's end).
-                Some(q) => {
-                    out.push(q);
-                    out.push_str("[redacted]");
-                    match closing_on_line(s.as_bytes(), v + 1, q as u8) {
-                        Some(c) => {
-                            out.push(q);
-                            rest = &s[c + 1..];
-                        }
-                        None => rest = &s[line_end(v)..],
-                    }
-                }
-                // After `?`, `&` or `;` (a query, or pairs in one word) a value holds no space: to
-                // the word's end.
-                None if in_query => out.push_str(if at == word.len() { "" } else { "[redacted]" }),
-                // In running text nothing marks where a value with a space ends: to the line's end.
-                None if s[v..line_end(v)].trim().is_empty() => rest = &s[line_end(v)..],
-                None => {
-                    out.push_str("[redacted]");
-                    rest = &s[line_end(v)..];
-                }
+            let (cut, resume) = pair_cut(s, start, word.len(), at, in_query);
+            cuts.extend(cut);
+            if let Some(r) = resume {
+                rest = &s[r..];
             }
             continue;
         }
-        (hide_next, cookie_header) = head_word(word);
-        cookie_hidden = false;
-        out.push_str(word);
+        let last = lower.rsplit(':').next().unwrap_or("");
+        cookie_header = matches!(lower.as_str(), "cookie" | "set-cookie");
+        hide_next = scheme || cookie_header || matches!(last, "bearer" | "jwt" | "token") || matches!(lower.as_str(), "authorization" | "proxy-authorization");
     }
-    out
+    cuts
 }
 
 /// Whether `word` hides the word after it, and whether it starts a Cookie header. A head is a
@@ -841,6 +963,52 @@ mod tests {
         assert_eq!(cut_once("Bearer Cookie: token=abc def", "abc def"), "Bearer [redacted] [redacted]");
         // After a Cookie header that was written, its pairs go by the header's rule.
         assert_eq!(cut_once("Cookie: JWT=abc; other", "abc"), "Cookie: [redacted] other");
+        assert_eq!(cut_once("Cookie: token=abc def", "abc"), "Cookie: [redacted] def");
+        assert_eq!(cut_once("Cookie: a=1 b=2; c=3", "1"), "Cookie: [redacted] b=2; c=3");
+    }
+
+    #[test]
+    fn a_scheme_with_an_empty_pair_after_a_head_still_hides_the_next_word() {
+        // `token=`, `?jwt=` or `token=""` after a head keeps the hiding on, on the same line or the
+        // next, as a scheme does.
+        assert_eq!(cut_once("Cookie: token= abc123 y", "abc123"), "Cookie: [redacted] [redacted] y");
+        assert_eq!(cut_once("Set-Cookie: jwt= abc123 y", "abc123"), "Set-Cookie: [redacted] [redacted] y");
+        assert_eq!(cut_once("Bearer ?token= abc123 y", "abc123"), "Bearer [redacted] [redacted] y");
+        assert_eq!(cut_once("Bearer &token= abc123 y", "abc123"), "Bearer [redacted] [redacted] y");
+        assert_eq!(cut_once("Authorization: ;jwt= abc123 y", "abc123"), "Authorization: [redacted] [redacted] y");
+        assert_eq!(cut_once("Bearer token=\"\" abc123 y", "abc123"), "Bearer [redacted] [redacted] y");
+        assert_eq!(cut_once("Bearer token='' abc123 y", "abc123"), "Bearer [redacted] [redacted] y");
+        assert_eq!(cut_once("Bearer token=\nabc123", "abc123"), "Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("Bearer token= \nnext", "next"), "Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("Authorization: token=\nabc123", "abc123"), "Authorization: [redacted]\n[redacted]");
+        assert_eq!(cut_once("Authorization: Bearer token=\nabc123", "abc123"), "Authorization: Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("JWT token=\nabc123", "abc123"), "JWT [redacted]\n[redacted]");
+        assert_eq!(cut_once("Cookie: token=\nabc123", "abc123"), "Cookie: [redacted]\n[redacted]");
+        assert_eq!(cut_once("Bearer token=\"\nabc123", "abc123"), "Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("Bearer ?token=\nabc123", "abc123"), "Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("Bearer token=\"\" \nabc123", "abc123"), "Bearer [redacted] \n[redacted]");
+        assert_eq!(cut_once("Bearer token=  \n  abc123", "abc123"), "Bearer [redacted]\n  [redacted]");
+        assert_eq!(cut_once("Cookie: token= abc", "abc"), "Cookie: [redacted] [redacted]");
+        assert_eq!(cut_once("Authorization: token=\nabc", "abc"), "Authorization: [redacted]\n[redacted]");
+        assert_eq!(cut_once("Bearer token=\"\" abc", "abc"), "Bearer [redacted] [redacted]");
+        assert_eq!(cut_once("Bearer ?token= abc", "abc"), "Bearer [redacted] [redacted]");
+        assert_eq!(cut_once("Cookie: token= abc; sid=def456", "abc def456"), "Cookie: [redacted] [redacted] [redacted]");
+        // After a glued head too.
+        assert_eq!(cut_once("{\"auth\":\"Bearer token=\nabc123", "abc123"), "{\"auth\":\"Bearer [redacted]\n[redacted]");
+    }
+
+    #[test]
+    fn a_head_or_a_cookie_pair_in_what_a_hidden_word_reaches_over_still_hides() {
+        // A pair cut to the line's end takes a head with it; the word after that head still goes.
+        assert_eq!(cut_once("Bearer token=abc Authorization:\nsecret", "secret"), "Bearer [redacted]\n[redacted]");
+        assert_eq!(cut_once("token=eyJa.b Authorization:\nsecret", "secret"), "[redacted]\n[redacted]");
+        // What follows a quoted value's closing quote in its word is read as a word of its own.
+        assert_eq!(cut_once("auth=Bearer token=\"abc\"Authorization: secret", "abc secret"), "auth=Bearer [redacted] [redacted]");
+        assert_eq!(cut_once("auth=Bearer token=\"abc\"password=x y z", "x y z"), "auth=Bearer [redacted]");
+        // A Cookie header's pairs after an address go on as they did.
+        let a = "https://discord.com/api/webhooks/1/zzz999";
+        assert_eq!(cut_once(&format!("Cookie: hook={a} a=eyJabc.def; sid=def456"), "zzz999 def456"), "Cookie: [redacted] [redacted] [redacted]");
+        assert_eq!(cut_once(&format!("Cookie: hook={a}; eyJabc.def; sid=def456"), "zzz999 def456"), "Cookie: [redacted] [redacted] [redacted]");
     }
 
     #[test]
@@ -1042,6 +1210,8 @@ mod fuzz {
                 format!("Bearer{}{secret},https://discord.com/api/webhooks/1/{}", gap(&mut r), r.word(6)),
                 format!("{{\"auth\":\"{}{}{secret}\"}}", r.pick(&["Bearer", "Basic", "JWT", "token"]), gap(&mut r)),
                 format!("auth{}{}{}{secret}", r.pick(&[":", "=", ":(", ":[", "=\""]), r.pick(&["Bearer", "basic"]), gap(&mut r)),
+                format!("{} {}{}{secret}", r.pick(&["Bearer", "Authorization:", "Cookie:", "{\"auth\":\"Bearer"]), r.pick(&["token=", "?jwt=", "token=\"\"", "token=''"]), r.pick(&[" ", "\n", " \n "])),
+                format!("Bearer token={} Authorization:\n{secret}", r.word(6)),
                 format!("Cookie:{}hook=https://discord.com/api/webhooks/1/{}; sid={secret}", gap(&mut r).replace('\n', " "), r.word(6)),
             ];
             let mut text = String::new();
