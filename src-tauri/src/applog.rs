@@ -361,15 +361,23 @@ fn address_at(word: &str) -> Option<usize> {
 /// marks where a value with a space ends, to the line's end.
 fn pair_cut(s: &str, start: usize, len: usize, at: usize, in_query: bool) -> (Option<Cut>, Option<usize>) {
     let v = start + at;
-    let line_end = s[v..].find('\n').map_or(s.len(), |e| v + e);
+    // Found only where the cut runs to it: a line of many pairs is read once, not once per pair.
+    let line_end = || s[v..].find('\n').map_or(s.len(), |e| v + e);
     match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
         Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
             Some(c) => (Some((v + 1, c, Mark::Redacted)), Some(c + 1)),
-            None => (Some((v + 1, line_end, Mark::Redacted)), Some(line_end)),
+            None => {
+                let e = line_end();
+                (Some((v + 1, e, Mark::Redacted)), Some(e))
+            }
         },
         None if in_query => ((at < len).then_some((v, start + len, Mark::Redacted)), None),
-        None if s[v..line_end].trim().is_empty() => (Some((v, line_end, Mark::Gone)), Some(line_end)),
-        None => (Some((v, line_end, Mark::Redacted)), Some(line_end)),
+        None => {
+            // Blanks up to the line's end (an empty value) leave no mark of their own.
+            let e = line_end();
+            let mark = if s[v..e].trim().is_empty() { Mark::Gone } else { Mark::Redacted };
+            (Some((v, e, mark)), Some(e))
+        }
     }
 }
 
@@ -431,14 +439,15 @@ fn word_cuts(s: &str, keep_on: bool) -> Vec<Cut> {
             let mut to = start + word.len();
             if let Some((at, in_query)) = pair.filter(|_| !in_cookie || header_hidden) {
                 let v = start + at;
-                let line_end = s[v..].find('\n').map_or(s.len(), |e| v + e);
+                // Found only where the hidden stretch runs to it, as in `pair_cut`.
+                let line_end = || s[v..].find('\n').map_or(s.len(), |e| v + e);
                 to = match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
                     Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
                         Some(c) => to.max(s[c..].find(char::is_whitespace).map_or(s.len(), |e| c + e)),
-                        None => line_end,
+                        None => line_end(),
                     },
                     None if in_query => to,
-                    None => line_end,
+                    None => line_end(),
                 };
             }
             cuts.push((start, to, Mark::Redacted));
@@ -1010,6 +1019,29 @@ mod tests {
         let a = "https://discord.com/api/webhooks/1/zzz999";
         assert_eq!(cut_once(&format!("Cookie: hook={a} a=eyJabc.def; sid=def456"), "zzz999 def456"), "Cookie: [redacted] [redacted] [redacted]");
         assert_eq!(cut_once(&format!("Cookie: hook={a}; eyJabc.def; sid=def456"), "zzz999 def456"), "Cookie: [redacted] [redacted] [redacted]");
+    }
+
+    #[test]
+    fn a_line_of_many_pairs_takes_time_in_step_with_its_length() {
+        // A line 32 times as long should take about 32 times as long. When each pair looked for the
+        // line's end, `token="" ` repeated to 320,000 characters took over 120 times as long as at
+        // 10,000 in a test build. Times are compared, not measured against a clock, with a wide
+        // margin and the fastest of five tries each, so a slow or busy machine still passes.
+        use std::time::{Duration, Instant};
+        let unit = "token=\"\" ";
+        let short = unit.repeat(10_000 / unit.len());
+        let long = unit.repeat(320_000 / unit.len());
+        let time = |line: &str| {
+            let t0 = Instant::now();
+            std::hint::black_box(redact(std::hint::black_box(line)));
+            t0.elapsed()
+        };
+        let (mut s, mut l) = (Duration::MAX, Duration::MAX);
+        for _ in 0..5 {
+            s = s.min(time(&short));
+            l = l.min(time(&long));
+        }
+        assert!(l < s * 96, "{s:?} at {} characters, {l:?} at {}", short.len(), long.len());
     }
 
     #[test]
