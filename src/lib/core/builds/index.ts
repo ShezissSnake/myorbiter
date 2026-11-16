@@ -22,8 +22,9 @@
  *   const r = missing(build, m);                        // lines: item, parts, mods, arcanes, shards,
  *                                                       // catalyst, adapters, forma, helminth
  *
- * The editor: matchName(text, nameIndex(m.catalogByUnique), item, kind, "mod" | "arcane") for a
- * typed name; slotLayout(kind) for the slots; drainIn/bonusIn for one slot's drain; the
+ * The editor: matchName(text, nameIndex(m.catalogByUnique), item, kind, slot) for a typed name,
+ * slot one of "aura" | "stance" | "exilus" | "mod" | "arcane" (a mod of another slot's kind comes
+ * back "wrong-slot"); slotLayout(kind) for the slots; drainIn/bonusIn for one slot's drain; the
  * TierResult's `slots` for each slot's drain and polarity under the tier's plan.
  *
  * Not readable yet (TennoScope patch pending): slot polarities on your copy, installed shards,
@@ -52,8 +53,8 @@
  */
 
 export * from "./types";
-export { gearKindOf, slotLayout, modFits, arcaneFits, arcaneNeedsAdapter, rankWith, usesReactor, doublerName, doublerShort, FORTY_BY_FORMA, NECRAMECH_RANK, type SlotLayout } from "./gear";
-export { normName, nameIndex, matchName, suggest, entryFor, entryPenalty, rankEntries, slotNames, type NameSlot, type NameIndex, type Matched, type Unmatched, type MatchResult, type MatchVia } from "./match";
+export { gearKindOf, takesNoBuild, modRole, type ModRole, slotLayout, modFits, arcaneFits, arcaneNeedsAdapter, rankWith, usesReactor, doublerName, doublerShort, FORTY_BY_FORMA, NECRAMECH_RANK, type SlotLayout } from "./gear";
+export { normName, nameIndex, matchName, suggest, entryFor, entryPenalty, rankEntries, slotNames, type NameSlot, type MatchWant, type NameIndex, type Matched, type Unmatched, type MatchResult, type MatchVia } from "./match";
 export { parsePaste, type PasteResult, type PasteOptions, type ReadName, type SlotRole } from "./parse";
 export { tierOf, capacityOf, tierAllows, tierOfAvailability, drainIn, bonusIn, matches, TIERS, TIER_LABEL, CAPACITY_LABEL, TIER_AVAILABILITY, type Tier, type TierResult, type TierLimit, type CapacityResult, type CountOptions, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
 export { availability, availabilityOf, availableAt, availabilityRank, laterOf, sourceLevel, dropsLevel, hardDonorOf, AVAILABILITIES, AVAILABILITY_LABEL, AVAILABILITY_SOURCES, type Availability, type AvailabilityInfo, type AvailabilityRule } from "./availability";

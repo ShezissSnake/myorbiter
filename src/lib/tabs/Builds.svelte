@@ -3,7 +3,9 @@
   // builds come in three tiers by what they take (no Catalyst; a Catalyst; a Catalyst, Forma and
   // adapters), favourites first, then yours, then a site's, then MyOrbiter's own suggestion. Each shows
   // the Arsenal's slot grid, why it's in its tier, and what you're missing of it, with the cheapest
-  // seller's whisper for a mod or arcane you lack. Modular gear also gets its part recipes.
+  // seller's whisper for a mod or arcane you lack. Modular gear also gets its part recipes; a kitgun
+  // chamber is built as a Secondary or a Primary, picked on its page. Saved builds for an item
+  // MyOrbiter no longer knows are listed on the landing, to read and delete.
   //
   // Sources: what you paste or make, MyOrbiter's suggestions, and any network source registered with
   // the builds core (source.ts: a site's, only with its permission on record): Nox's Frame, read on
@@ -32,6 +34,7 @@
     withinAge,
     NOX_HOST,
     type Build,
+    type GearKind,
     type MissingReport,
     type Tier,
     type TierResult,
@@ -39,7 +42,7 @@
   import { canSuggest, heldFrom, modIndex, ownedFrom, suggest, toBuild, variantsFor, type RivenContext, type Suggestion } from "../core/builds/suggest";
   import { parseRiven, rivenTables, unpackListed, weaponSlug, type Riven } from "../core/rivens";
   import { rivens } from "../rivenStore.svelte";
-  import { ageLine, arrange, buildableItems, isOverframe, buildKindOf, kindLabelOf, noxUrl, overframeUrl, recentItems, savedFrom, startingItems, tagsIn, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, withTags, type Shown } from "../core/buildsPage";
+  import { ageLine, arrange, buildableItems, buildKindFor, isOverframe, buildKindOf, kindChoices, kindLabelOf, KIND_LABEL, noxUrl, overframeUrl, PerBuild, recentItems, savedFrom, startingItems, tagsIn, tierWord, TIER_MEANS, TIER_NAME, TIER_TIP, TIERS, UNSURE_TIP, unknownItemBuilds, withTags, type Shown } from "../core/buildsPage";
   import { byFamily } from "../ui/builds/tags";
   import { recipeItem } from "../core/recipes";
   import { takeIntent } from "../intent.svelte";
@@ -114,13 +117,15 @@
     if (pick) return [];
     return [...settings.builds].filter((b) => !isOverframe(b)).sort((a, b) => buildDate(b) - buildDate(a)).slice(0, 8).flatMap((b) => {
       const it = model.catalogByUnique.get(b.item);
-      const k = it ? buildKindOf(it) : null;
+      const k = it ? buildKindFor(b, it) : null;
       if (!it || !k) return [];
       const t = tierOf(b, it, model.catalogByUnique, k);
       const r = missing(b, model, { tier: t });
-      return [{ b, it, label: kindLabelOf(it, k), tier: t.tier, have: r.lines.length - r.todo, of: r.lines.length, todo: r.todo }];
+      return [{ b, it, label: kindLabelOf(it, k), tier: t, have: r.lines.length - r.todo, of: r.lines.length, todo: r.todo }];
     });
   }));
+  /** Saved builds for an item MyOrbiter no longer knows (or that takes no build): kept, listed to read and delete. */
+  const orphans = $derived.by(whileShown("builds", () => (pick ? [] : unknownItemBuilds(settings.builds, model.catalogByUnique))));
   /** Browse by kind: how many things of each kind take a build, and how many of them are yours. */
   const byKind = $derived(SLOTS.map((slot) => {
     const of = items.filter((x) => kindSlot(x.kind) === slot);
@@ -142,11 +147,19 @@
   }
   function openBuild(b: Build) {
     choose(b.item);
+    // A kitgun chamber's build opens on the kind it was kept as (or its grip's).
+    const it = model.catalogByUnique.get(b.item);
+    const k = it ? buildKindFor(b, it) : null;
+    if (k === "primary" || k === "secondary") chamberKind = k;
     later(() => bring(b));
   }
 
   const item = $derived<CatalogItem | null>(pick ? (model.catalogByUnique.get(pick) ?? null) : null);
-  const kind = $derived(item ? buildKindOf(item) : null);
+  /** The kinds the item's page offers: a kitgun chamber's Secondary and Primary; anything else its one kind. */
+  const kinds = $derived(item ? kindChoices(item) : []);
+  /** A kitgun chamber's builds shown: as a Secondary (as before there was a choice) or as a Primary. */
+  let chamberKind = $state<GearKind>("secondary");
+  const kind = $derived<GearKind | null>(kinds.length > 1 ? (kinds.includes(chamberKind) ? chamberKind : kinds[0]) : (kinds[0] ?? null));
   const label = $derived(item && kind ? kindLabelOf(item, kind) : "");
 
   /** Your copy that's furthest along, and the tier it stands at now. */
@@ -162,6 +175,7 @@
     showOld = false;
     picked = [];
     variantOf = { low: null, medium: null, high: null };
+    chamberKind = "secondary";
     const c = bestCopy(model.gear, u);
     tier = !c ? "low" : (c.f & 1) && (c.p ?? 0) > 0 ? "high" : c.f & 1 ? "medium" : "low";
     browse = null;
@@ -186,7 +200,8 @@
   const now = $derived(model.observedAt ? Math.max(Date.now(), model.observedAt.getTime()) : Date.now());
   // Overframe's builds are links only (Overframe allows linking, not showing them): kept apart,
   // never in a tier, never drawn or checked against your inventory.
-  const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
+  // A kitgun chamber shows the builds of the kind picked (each kept with its own, or its grip's).
+  const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b) && (kinds.length < 2 || !item || buildKindFor(b, item) === kind)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
   // MyOrbiter's suggestions: from the mods you hold (an aura or stance to get shown, uncounted), for each tier, in the variant picked on its card.
@@ -295,23 +310,12 @@
   // Counted whether or not they're shown, so "Hide old ones" stays while they are.
   const hiddenOld = $derived(savedAll.length - filterByAge(savedAll, settings.buildsMaxAgeDays, now).length + siteAll.length - siteFresh.length + (noxShows ? noxHidden : 0));
 
-  // Tiers and reports, worked out once per build (a build is replaced, never changed, when edited).
-  const tiers = new WeakMap<Build, TierResult>();
-  const tierFor = (b: Build): TierResult => {
-    let t = tiers.get(b);
-    if (!t && item && kind) tiers.set(b, (t = tierOf(b, item, model.catalogByUnique, kind, { uncounted: uncountedOf.get(b) })));
-    return t!;
-  };
-  let reportsOf = $state.raw(new WeakMap<Build, MissingReport>());
-  $effect.pre(() => {
-    void model;
-    reportsOf = new WeakMap();
-  });
-  const reportFor = (b: Build): MissingReport => {
-    let r = reportsOf.get(b);
-    if (!r) reportsOf.set(b, (r = missing(b, model, { tier: tierFor(b) })));
-    return r;
-  };
+  // Tiers and reports, worked out once per build (a build is replaced, never changed, when edited)
+  // and again for a new catalog (a tier) or a new collection (a report, and the tier it reads).
+  const tiers = new PerBuild<TierResult>();
+  const tierFor = (b: Build): TierResult => tiers.get(b, model.catalogByUnique, () => tierOf(b, item!, model.catalogByUnique, kind!, { uncounted: uncountedOf.get(b) }));
+  const reports = new PerBuild<MissingReport>();
+  const reportFor = (b: Build): MissingReport => reports.get(b, model, () => missing(b, model, { tier: tierFor(b) }));
   const arranged = $derived(item && kind ? arrange(saved, site, suggested, tierFor) : { low: [], medium: [], high: [] });
   // Tags: the ones on this item's builds, every tier; picking some keeps the builds carrying them all.
   let picked = $state<string[]>([]);
@@ -423,6 +427,14 @@
               {:else}<span class="dim small">{model.gear ? "" : "Your copy's Catalyst and Forma show once the patched TennoScope reads your gear."}</span>{/if}
             {:else}<span class="dim">You don't have it yet.</span>{/if}
           </p>
+          {#if kinds.length > 1}
+            <div class="as" role="radiogroup" aria-label="Built as">
+              <span class="register">Built as</span>
+              {#each kinds as k (k)}
+                <button type="button" role="radio" class="ask" class:on={kind === k} aria-checked={kind === k} title={kind === k ? `Showing ${item.name}'s builds as a ${KIND_LABEL[k]}: a kitgun's grip makes its chamber one or the other` : `Show ${item.name}'s builds as a ${KIND_LABEL[k]} instead (a ${k === "primary" ? "primary" : "secondary"} grip)`} onclick={() => (chamberKind = k)}>{KIND_LABEL[k]}</button>
+              {/each}
+            </div>
+          {/if}
           <div class="out">
             <button type="button" class="link" title="Find {item.name}'s builds on Overframe, in your browser (MyOrbiter never reads Overframe)" aria-busy={links.isOpening(overframeUrl(item!.name))} onclick={() => openUrl(overframeUrl(item!.name))}><Opening url={overframeUrl(item!.name)}>Overframe <Icon name="external" size={11} /></Opening></button>
             <button type="button" class="link" title="Open {item.name}'s builds on Nox's Frame in your browser" aria-busy={links.isOpening(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))} onclick={() => openUrl(noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName)))}><Opening url={noxUrl(item!.name, kind!, !!recipeItem(item!.uniqueName))}>Nox's Frame <Icon name="external" size={11} /></Opening></button>
@@ -590,7 +602,7 @@
                   <tr>
                     <td><button type="button" class="link rb" title="Open {r.b.title ?? 'this build'} on {r.it.name}" onclick={() => openBuild(r.b)}>{r.b.title ?? (r.b.source === "mine" ? "Your build" : "Pasted build")}</button></td>
                     <td class="c-for"><span class="dim"><Kind kind={r.label} label={r.it.name} size={12} /></span></td>
-                    <td class="c-tier"><span class="tag">{TIER_NAME[r.tier]}</span></td>
+                    <td class="c-tier"><span class="tag" title={r.tier.unsure ? UNSURE_TIP : null}>{tierWord(r.tier)}</span></td>
                     <td><span class="inv"><Segments key="build:{r.b.id}:inv" value={r.have} max={Math.max(1, r.of)} fill label="{r.have} of {r.of} things this build takes, against your inventory" /><span class:dim={r.todo > 0}>{r.of && !r.todo ? "Complete" : `${r.todo} missing`}</span></span></td>
                     <td class="right dim c-when">{ageLine(r.b, Date.now()).replace(/^(added|updated) /, "")}</td>
                   </tr>
@@ -613,6 +625,24 @@
           </ul>
         </section>
       </div>
+      {#if orphans.length}
+        <section class="plate-box orphans" aria-label="Builds for items MyOrbiter doesn't know">
+          <div class="plate-head"><span class="register">For items MyOrbiter doesn't know</span></div>
+          <p class="dim small">Builds you saved for an item MyOrbiter no longer knows, as a game update can rename or remove one, or for something that takes no build. They are kept as they were: delete the ones you don't need.</p>
+          <ul>
+            {#each orphans as b (b.id)}
+              {@const known = model.catalogByUnique.get(b.item)}
+              <li animate:flip out:leave>
+                {#if undo.has(b.id)}<UndoSlot label="Deleted" what={b.title ?? "the build"} onundo={() => undo.undo(b.id)} />
+                {:else}
+                  <span class="ot"><b>{b.title ?? (b.source === "mine" ? "Your build" : b.source === "orbiter" ? "MyOrbiter's suggestion" : "Pasted build")}</b><span class="dim small"> · {known ? `for ${known.name}, which takes no build` : `for an item MyOrbiter no longer knows (${b.item.split("/").pop()})`} · {ageLine(b, now)}</span></span>
+                  <button type="button" class="ib quiet" title="Delete it from your builds (you get a few seconds to undo)" aria-label="Delete the build" onclick={() => undo.hold(b.id, () => (settings.builds = removeBuild(settings.builds, b.id)))}><Icon name="trash" size={12} /></button>
+                {/if}
+              </li>
+            {/each}
+          </ul>
+        </section>
+      {/if}
     </div>
   {/if}
 </div></div>
@@ -635,6 +665,15 @@
   .yours { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .9rem; font-size: .82rem; color: var(--platinum-deep); }
   .yours .tag { margin: 0; }
   .yours .on { color: var(--platinum); }
+  /* A kitgun chamber: built as a Secondary or a Primary. */
+  .as { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem; }
+  .as .register { font-size: 11px; margin-right: .3rem; }
+  .ask { padding: .18rem .6rem; font-family: var(--face-text); font-size: .78rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
+  .ask.on { color: var(--slab); background: var(--sec); border-color: var(--sec); }
+  .ask:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
+  .orphans ul { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
+  .orphans li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .45rem .7rem; background: var(--plate); border: 1px solid var(--rule); }
+  .orphans p { margin: .2rem 0 0; }
   .out { display: flex; gap: 1.1rem; }
   .out .link { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
 

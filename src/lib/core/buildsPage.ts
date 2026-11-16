@@ -6,7 +6,7 @@
 // The builds core (./builds) does the real work: tiers, what you're missing, parsing, matching.
 
 import type { CatalogItem } from "./types";
-import { buildDate, gearKindOf, slotLayout, type Build, type BuildSourceRef, type GearKind, type ShardColour, type Tier, type TierResult } from "./builds";
+import { buildDate, gearKindOf, slotLayout, usesReactor, type Build, type BuildSourceRef, type GearKind, type ShardColour, type Tier, type TierResult } from "./builds";
 import type { Element, Loadout, LoadoutPick, SlotKind } from "./builds/suggest";
 import type { IdealStat } from "./builds/riven";
 import { recipeItem, type RecipeFamily } from "./recipes";
@@ -69,6 +69,93 @@ export function buildKindOf(item: Pick<CatalogItem, "uniqueName" | "category" | 
   }
   const k = gearKindOf(item);
   return k === "kdrive" ? null : k;
+}
+
+const isChamber = (unique: string) => recipeItem(unique)?.family === "kitgun";
+
+/**
+ * The kinds of build an item's page offers: a kitgun chamber's Secondary, then Primary (a chamber
+ * takes either grip); anything else its one kind (buildKindOf), none when it takes no build.
+ * Elsewhere (Mastery, the rings) a chamber stays one item, as buildKindOf has it.
+ */
+export function kindChoices(item: Pick<CatalogItem, "uniqueName" | "category" | "type" | "productCategory">): GearKind[] {
+  if (isChamber(item.uniqueName)) return ["secondary", "primary"];
+  const k = buildKindOf(item);
+  return k ? [k] : [];
+}
+
+/**
+ * The kind a build is counted as on its item: a kitgun chamber's follows the grip it names in its
+ * parts, else the kind it was kept with (Primary or Secondary; one saved before there was a choice
+ * reads as Secondary). Other gear: its one kind.
+ */
+export function buildKindFor(b: Pick<Build, "kind" | "parts">, item: Pick<CatalogItem, "uniqueName" | "category" | "type" | "productCategory">): GearKind | null {
+  if (!isChamber(item.uniqueName)) return buildKindOf(item);
+  for (const p of b.parts ?? []) {
+    if (/ModularPrimaryHandle/.test(p)) return "primary";
+    if (/ModularSecondaryHandle/.test(p)) return "secondary";
+  }
+  return b.kind === "primary" ? "primary" : "secondary";
+}
+
+/**
+ * Saved builds for an item MyOrbiter doesn't know (gone from the catalog after a game update) or
+ * that takes no build any more (the Helminth): kept, and listed so they can be read and deleted.
+ */
+export function unknownItemBuilds(builds: readonly Build[], catalog: ReadonlyMap<string, CatalogItem>): Build[] {
+  return builds.filter((b) => {
+    if (isOverframe(b)) return false;
+    const c = catalog.get(b.item);
+    return !c || !buildKindOf(c);
+  });
+}
+
+/**
+ * Something worked out once per build and per `key` (the catalog a tier was counted against, the
+ * model a report was read from): a new key works it out again, so a data update or a new
+ * collection is never answered from before it. Builds are replaced, never changed, when edited.
+ */
+export class PerBuild<T> {
+  #by = new WeakMap<object, WeakMap<Build, T>>();
+  get(b: Build, key: object, make: () => T): T {
+    let m = this.#by.get(key);
+    if (!m) this.#by.set(key, (m = new WeakMap()));
+    if (m.has(b)) return m.get(b)!;
+    const v = make();
+    m.set(b, v);
+    return v;
+  }
+}
+
+/** A tier in words: "Can't tell" when a mod MyOrbiter doesn't know is all that puts it at Veteran. */
+export const tierWord = (t: Pick<TierResult, "tier" | "unsure">): string => (t.unsure ? "Can't tell" : TIER_NAME[t.tier]);
+/** The tooltip for "Can't tell". */
+export const UNSURE_TIP = "Can't tell: the build holds a mod or arcane MyOrbiter doesn't know (renamed or removed by a game update), so it can't say which tier it needs. It is listed under Veteran.";
+
+// What MyOrbiter's suggestion invests, as its card counts it: the note says this, never figures of its own.
+const INVEST = /(?:New player: basic mods only, no Orokin (?:Reactor|Catalyst), no Forma: \d+ capacity\.|(?:New player|Intermediate|Veteran)(?: \([^)]*\))?: with an? [^:]*: \d+ capacity\.)/;
+const RUNS_OUT = /: \d+ capacity runs out first\./g;
+
+/** The investment sentence of MyOrbiter's suggestion, from its card's count. */
+export function investLine(kind: GearKind, t: Pick<TierResult, "tier" | "catalyst" | "forma" | "umbraForma" | "exilusAdapter" | "arcaneAdapter" | "capacity">): string {
+  const doubler = usesReactor(kind) ? "Orokin Reactor" : "Orokin Catalyst";
+  if (t.tier === "low") return `New player: basic mods only, no ${doubler}, no Forma: ${t.capacity} capacity.`;
+  const takes = [t.catalyst ? `an ${doubler}` : "", t.forma ? `${t.forma} Forma${t.umbraForma ? ` (${t.umbraForma} Umbra)` : ""}` : "", t.exilusAdapter ? "an Exilus Adapter" : "", t.arcaneAdapter ? "an Arcane Adapter" : ""].filter(Boolean);
+  const list = takes.length > 1 ? `${takes.slice(0, -1).join(", ")} and ${takes[takes.length - 1]}` : (takes[0] ?? "");
+  return `${TIER_NAME[t.tier]}${t.tier === "medium" ? " (no Primed, Archon or Umbral mods, no shards)" : ""}: ${list ? `with ${list}: ` : ""}${t.capacity} capacity.`;
+}
+
+/**
+ * The note a card shows. MyOrbiter's suggestion (or a saved copy of it, however old) says what it
+ * invests in the card's own figures: its investment sentence is made from the card's count, and an
+ * older note's figures are replaced by it. Any other build's note is shown as written.
+ */
+export function noteShown(b: Pick<Build, "source" | "note" | "kind">, t: TierResult): string {
+  const note = b.note ?? "";
+  if (b.source !== "orbiter") return note;
+  const invest = investLine(b.kind, t);
+  const plain = note.replace(RUNS_OUT, ": the capacity runs out first.");
+  return INVEST.test(plain) ? plain.replace(INVEST, invest) : `${invest} ${plain}`.trim();
 }
 
 /** What to call an item's kind under its name: its gear kind, or what modular part it is. */

@@ -8,7 +8,7 @@
 // suggestions.
 
 import type { CatalogItem } from "../types";
-import { arcaneFits, modFits } from "./gear";
+import { arcaneFits, modFits, modRole } from "./gear";
 import type { GearKind } from "./types";
 
 /** A name compared without case, accents, apostrophes, punctuation or extra spaces; "&" is "and". */
@@ -31,6 +31,8 @@ export interface NameIndex {
   byName: Map<string, CatalogItem[]>;
   /** The longest name, in words. */
   maxWords: number;
+  /** Whether the catalog marks exilus mods (`isUtility`); without it, any mod goes in the exilus slot. */
+  utilityKnown: boolean;
 }
 
 const indexMemo = new WeakMap<object, NameIndex>();
@@ -41,10 +43,12 @@ export function nameIndex(catalog: ReadonlyMap<string, CatalogItem> | readonly C
   if (hit) return hit;
   const byName = new Map<string, CatalogItem[]>();
   let maxWords = 1;
+  let utilityKnown = false;
   const items = Array.isArray(catalog) ? (catalog as readonly CatalogItem[]) : [...(catalog as ReadonlyMap<string, CatalogItem>).values()];
   for (const c of items) {
     if (c.category !== "Mods" && c.category !== "Arcanes") continue;
     if (c.category === "Mods" && NOT_IN_BUILDS.test(c.type ?? "")) continue;
+    if (c.isUtility) utilityKnown = true;
     const k = normName(c.name);
     if (!k) continue;
     const list = byName.get(k);
@@ -52,7 +56,7 @@ export function nameIndex(catalog: ReadonlyMap<string, CatalogItem> | readonly C
     else byName.set(k, [c]);
     maxWords = Math.max(maxWords, k.split(" ").length);
   }
-  const idx = { byName, maxWords };
+  const idx = { byName, maxWords, utilityKnown };
   indexMemo.set(catalog, idx);
   return idx;
 }
@@ -85,9 +89,12 @@ export interface Matched {
 export interface Unmatched {
   ok: false;
   text: string;
-  /** unknown: no such name; wrong-gear: a real mod or arcane for other gear; no-flawed: no Flawed version. */
-  reason: "unknown" | "wrong-gear" | "no-flawed";
-  /** What it is, when it's a real name for other gear ("a rifle mod"). */
+  /**
+   * unknown: no such name; wrong-gear: a real mod or arcane for other gear; wrong-slot: a mod that
+   * fits but goes in another slot (an aura in a mod slot); no-flawed: no Flawed version.
+   */
+  reason: "unknown" | "wrong-gear" | "wrong-slot" | "no-flawed";
+  /** What it is, when it's a real name for other gear ("a rifle mod") or for another slot ("an aura, not a regular mod"). */
   why?: string;
   /** Close names that would fit, best first (at most three). */
   suggestions: { name: string; path: string }[];
@@ -147,11 +154,32 @@ function fitOf(c: CatalogItem, item: CatalogItem, kind: GearKind) {
 }
 
 /**
+ * What a name is looked up for: anything (pasted text, read by what each name is), mods or arcanes,
+ * or one of the editor's slots, which takes only its own kind of mod: an aura, a stance, a regular
+ * mod, or, in the exilus slot, a regular mod the catalog marks for it (any, where it marks none).
+ */
+export type MatchWant = "any" | "mod" | "arcane" | "aura" | "stance" | "exilus";
+
+const wantsKind = (want: MatchWant, c: CatalogItem) => want === "any" || (want === "arcane" ? c.category === "Arcanes" : c.category === "Mods");
+
+/** Whether a mod goes in the slot `want` names: null when it does, else what it is. */
+function slotMismatch(want: MatchWant, c: CatalogItem, idx: NameIndex): string | null {
+  if (want === "any" || want === "arcane") return null;
+  const role = modRole(c);
+  const what = role === "aura" ? "an aura" : role === "stance" ? "a stance" : "a regular mod";
+  if (want === "aura") return role === "aura" ? null : `${what}, not an aura`;
+  if (want === "stance") return role === "stance" ? null : `${what}, not a stance`;
+  if (role !== "mod") return `${what}: it goes in the ${role} slot`;
+  if (want === "exilus" && idx.utilityKnown && !c.isUtility) return "not an exilus mod";
+  return null;
+}
+
+/**
  * One name against the catalog, for an item. `want` limits it to mods or arcanes (the editor's
  * slot); by default either. `held` (copies you hold of a path) breaks ties between same-name
  * entries in favour of the one you have.
  */
-export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind: GearKind, want: "mod" | "arcane" | "any" = "any", held: (path: string) => number = () => 0): MatchResult {
+export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind: GearKind, want: MatchWant = "any", held: (path: string) => number = () => 0): MatchResult {
   let key = normName(text);
   let via: MatchVia = "exact";
   let flawed = false;
@@ -160,7 +188,7 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
     flawed = true;
     via = "flawed";
   }
-  const kinds = (c: CatalogItem) => want === "any" || (want === "mod" ? c.category === "Mods" : c.category === "Arcanes");
+  const kinds = (c: CatalogItem) => wantsKind(want, c);
   let found = (idx.byName.get(key) ?? []).filter(kinds);
   if (!found.length) {
     for (const [re, to] of PREFIX_ALIAS) {
@@ -176,7 +204,7 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
     }
   }
   // Arcanes are often written without the word ("Energize" for Arcane Energize).
-  if (!found.length && want !== "mod") {
+  if (!found.length && (want === "any" || want === "arcane")) {
     const f = (idx.byName.get(`arcane ${key}`) ?? []).filter((c) => c.category === "Arcanes");
     if (f.length) {
       key = `arcane ${key}`;
@@ -191,6 +219,13 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
     const why = fitOf(found[0], item, kind).why;
     return { ok: false, text, reason: "wrong-gear", why, suggestions: suggest(key, idx, item, kind, want) };
   }
+  // A mod that fits the item but not this slot (the editor's slots; pasted text reads every name).
+  const inSlot = fitting.filter((x) => !slotMismatch(want, x.c, idx));
+  if (!inSlot.length) {
+    const why = slotMismatch(want, fitting[0].c, idx)!;
+    return { ok: false, text, reason: "wrong-slot", why, suggestions: suggest(key, idx, item, kind, want) };
+  }
+  fitting.splice(0, fitting.length, ...inSlot);
   // The plain PvE one; between equals, the one you hold, then the shortest path (rankEntries).
   const order = rankEntries(fitting.map((x) => x.c), { flawed, held });
   fitting.sort((a, b) => order.indexOf(a.c) - order.indexOf(b.c));
@@ -213,14 +248,14 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
 }
 
 /** A slot the editor offers names for. */
-export type NameSlot = "aura" | "stance" | "mod" | "arcane";
+export type NameSlot = "aura" | "stance" | "mod" | "exilus" | "arcane";
 
 /**
  * What each of the editor's slots offers for an item: the names that fit it, each read as the entry
  * the name means (entryFor), sorted. `arcanes`: whether the item takes arcanes at all.
  */
 export function slotNames(idx: NameIndex, item: CatalogItem, kind: GearKind, arcanes: boolean): Record<NameSlot, string[]> {
-  const out: Record<NameSlot, Set<string>> = { aura: new Set(), stance: new Set(), mod: new Set(), arcane: new Set() };
+  const out: Record<NameSlot, Set<string>> = { aura: new Set(), stance: new Set(), mod: new Set(), exilus: new Set(), arcane: new Set() };
   for (const list of idx.byName.values()) {
     const c = entryFor(list)!;
     if (c.category === "Arcanes") {
@@ -228,9 +263,13 @@ export function slotNames(idx: NameIndex, item: CatalogItem, kind: GearKind, arc
       continue;
     }
     if (modFits(c, item, kind).fits === false) continue;
-    if ((c.compatName ?? "").toUpperCase() === "AURA") out.aura.add(c.name);
-    else if (c.type === "Stance Mod") out.stance.add(c.name);
-    else out.mod.add(c.name);
+    const role = modRole(c);
+    if (role === "aura") out.aura.add(c.name);
+    else if (role === "stance") out.stance.add(c.name);
+    else {
+      out.mod.add(c.name);
+      if (!slotMismatch("exilus", c, idx)) out.exilus.add(c.name);
+    }
   }
   return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, [...v].sort()])) as Record<NameSlot, string[]>;
 }
@@ -253,13 +292,13 @@ function distance(a: string, b: string, max: number): number {
 }
 
 /** Names close to `key` that fit the item: a typo away, or sharing its words. */
-export function suggest(key: string, idx: NameIndex, item: CatalogItem, kind: GearKind, want: "mod" | "arcane" | "any" = "any"): { name: string; path: string }[] {
+export function suggest(key: string, idx: NameIndex, item: CatalogItem, kind: GearKind, want: MatchWant = "any"): { name: string; path: string }[] {
   if (!key) return [];
   const max = key.length < 6 ? 1 : key.length < 12 ? 2 : 3;
   const words = new Set(key.split(" ").filter((w) => w.length > 2 && w !== "the" && w !== "and" && w !== "mod" && w !== "arcane"));
   const scored: { name: string; path: string; score: number }[] = [];
   for (const [k, list] of idx.byName) {
-    const fitting = list.filter((c) => (want === "any" || (want === "mod" ? c.category === "Mods" : c.category === "Arcanes")) && fitOf(c, item, kind).fits !== false && !/\/PvPMods\//.test(c.uniqueName));
+    const fitting = list.filter((c) => wantsKind(want, c) && !slotMismatch(want, c, idx) && fitOf(c, item, kind).fits !== false && !/\/PvPMods\//.test(c.uniqueName));
     if (!fitting.length) continue;
     const d = distance(key, k, max);
     const shared = k.split(" ").filter((w) => words.has(w)).length;
