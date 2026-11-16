@@ -807,9 +807,16 @@ fn ee_log_path() -> Option<PathBuf> {
 /// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so MyOrbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
-    let log = ee_log_from(path).ok()?.or_else(ee_log_path)?;
-    let text = fs::read_to_string(log.parent()?.join("EE.cfg")).ok()?;
-    window_mode(&text)
+    window_mode_beside(&ee_log_from(path).ok()?.or_else(ee_log_path)?)
+}
+
+/// The most of an EE.cfg read: the game's settings, a few KB.
+const EE_CFG_MAX: u64 = 1 << 20;
+
+/// The display mode from the EE.cfg beside the log at `log`.
+fn window_mode_beside(log: &Path) -> Option<String> {
+    let bytes = myorbiter_data::read_capped(&log.parent()?.join("EE.cfg"), EE_CFG_MAX).ok()?;
+    window_mode(&String::from_utf8(bytes).ok()?)
 }
 
 fn window_mode(cfg: &str) -> Option<String> {
@@ -2362,6 +2369,34 @@ mod tests {
         assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
         assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
         assert_eq!(window_mode("nothing here"), None);
+    }
+
+    /// An EE.cfg that is a named pipe beside a log in a Steam library someone else can write: no
+    /// mode, at once, rather than the command waiting on the pipe for good.
+    #[cfg(unix)]
+    #[test]
+    fn an_ee_cfg_that_is_not_a_plain_file_is_passed_over_at_once() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-eecfg-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("EE.log");
+        fs::write(dir.join("EE.cfg"), "Graphics.WindowMode=MODE_BORDERLESS\n").unwrap();
+        assert_eq!(window_mode_beside(&log).as_deref(), Some("MODE_BORDERLESS"));
+        fs::remove_file(dir.join("EE.cfg")).unwrap();
+        assert!(std::process::Command::new("mkfifo").arg(dir.join("EE.cfg")).status().unwrap().success());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(window_mode_beside(&log));
+        });
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)), Ok(None), "no mode, and at once");
+        // Larger than any real one (sparse): not read.
+        fs::remove_file(dir.join("EE.cfg")).unwrap();
+        let f = fs::File::create(dir.join("EE.cfg")).unwrap();
+        f.set_len(EE_CFG_MAX + 1).unwrap();
+        drop(f);
+        std::io::Write::write_all(&mut fs::OpenOptions::new().append(true).open(dir.join("EE.cfg")).unwrap(), b"\nGraphics.WindowMode=MODE_WINDOWED\n").unwrap();
+        assert_eq!(window_mode_beside(&dir.join("EE.log")), None);
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

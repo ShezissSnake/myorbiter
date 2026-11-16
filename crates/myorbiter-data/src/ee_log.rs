@@ -561,6 +561,10 @@ pub fn find_ee_log() -> Option<PathBuf> {
     find_ee_log_under(&PathBuf::from(std::env::var_os("HOME")?))
 }
 
+/// The most of a `libraryfolders.vdf` read: Steam's list of libraries, a few hundred bytes for each.
+#[cfg(not(any(windows, target_os = "macos")))]
+const VDF_MAX: u64 = 1 << 20;
+
 /// `find_ee_log` for the home folder `home`.
 #[cfg(not(any(windows, target_os = "macos")))]
 fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
@@ -573,7 +577,7 @@ fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
     let mut libraries: Vec<PathBuf> = Vec::new();
     for root in &steam_roots {
         libraries.push(root.clone());
-        if let Ok(vdf) = std::fs::read_to_string(root.join("steamapps/libraryfolders.vdf")) {
+        if let Ok(vdf) = crate::read_capped(&root.join("steamapps/libraryfolders.vdf"), VDF_MAX).map(|b| String::from_utf8_lossy(&b).into_owned()) {
             for line in vdf.lines() {
                 let mut parts = line.split('"').filter(|s| !s.trim().is_empty());
                 if parts.next() == Some("path") {
@@ -712,6 +716,26 @@ and will receive from Buyer1\u{E000} the following:\n\
         std::fs::File::options().write(true).open(steam.join(tail)).unwrap().set_modified(older).unwrap();
         std::fs::write(other.join(tail), "new").unwrap();
         assert_eq!(find_ee_log_under(&home), Some(other.join(tail)));
+        std::fs::remove_dir_all(&home).ok();
+    }
+
+    /// A named pipe where Steam keeps its list of libraries: passed over at once, and the log in
+    /// the default library still found.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn a_library_list_that_is_not_a_plain_file_is_passed_over() {
+        let home = std::env::temp_dir().join(format!("myorbiter-home-fifo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
+        let steam = home.join(".local/share/Steam");
+        std::fs::create_dir_all(steam.join(tail).parent().unwrap()).unwrap();
+        std::fs::write(steam.join(tail), "log").unwrap();
+        crate::test_support::fifo(&steam.join("steamapps/libraryfolders.vdf"));
+        let found = crate::test_support::within({
+            let home = home.clone();
+            move || find_ee_log_under(&home)
+        });
+        assert_eq!(found, Some(Some(steam.join(tail))), "returns at once, with the log it can see");
         std::fs::remove_dir_all(&home).ok();
     }
 
