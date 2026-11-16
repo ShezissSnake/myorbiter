@@ -1061,7 +1061,7 @@ pub struct ChatSummary {
     pub with: String,
     pub unread: u32,
     pub last_update: String,
-    /// The newest message's text, when the reply carries it.
+    /// The newest message's text as typed, when the reply carries it.
     pub last_message: Option<String>,
 }
 
@@ -1076,7 +1076,9 @@ fn parse_chats(v: &Value) -> Vec<ChatSummary> {
                 with,
                 unread: c["unread_count"].as_u64().unwrap_or(0) as u32,
                 last_update: c["last_update"].as_str().unwrap_or_default().to_owned(),
-                last_message: last.and_then(|m| m["raw_message"].as_str().or_else(|| m["message"].as_str())).map(str::to_owned),
+                // The text as typed (`raw_message`), never the site's HTML of it (`message`): that
+                // is markup, and the notification service may draw it as such.
+                last_message: last.and_then(|m| m["raw_message"].as_str()).map(str::to_owned),
             })
         })
         .collect()
@@ -1544,8 +1546,16 @@ mod tests {
 
     #[test]
     fn reads_chats() {
-        let v: Value = serde_json::from_str(r#"{"payload": {"chats": [{"id": "c1", "last_update": "2026-10-27T09:00:00+00:00", "chat_with": [{"ingame_name": "Buyer"}], "messages": [{"id": "m1", "message": "<p>hi</p>", "raw_message": "hi", "message_from": "u", "send_date": "2026-10-27T08:59:00+00:00", "chat_id": "c1"}, {"id": "m2", "message": "wtb blind rage", "message_from": "u", "send_date": "2026-10-27T09:00:00+00:00", "chat_id": "c1"}], "unread_count": 2, "chat_name": "Buyer"}]}}"#).unwrap();
+        let v: Value = serde_json::from_str(r#"{"payload": {"chats": [{"id": "c1", "last_update": "2026-10-27T09:00:00+00:00", "chat_with": [{"ingame_name": "Buyer"}], "messages": [{"id": "m1", "message": "<p>hi</p>", "raw_message": "hi", "message_from": "u", "send_date": "2026-10-27T08:59:00+00:00", "chat_id": "c1"}, {"id": "m2", "message": "<p>wtb blind rage</p>", "raw_message": "wtb blind rage", "message_from": "u", "send_date": "2026-10-27T09:00:00+00:00", "chat_id": "c1"}], "unread_count": 2, "chat_name": "Buyer"}]}}"#).unwrap();
         assert_eq!(parse_chats(&v), vec![ChatSummary { id: "c1".into(), with: "Buyer".into(), unread: 2, last_update: "2026-10-27T09:00:00+00:00".into(), last_message: Some("wtb blind rage".into()) }]);
+    }
+
+    #[test]
+    fn a_chat_message_is_never_the_sites_html() {
+        // The newest message with only the site's own HTML `message`: no text from it, so the
+        // notification says how many are unread instead of drawing someone else's markup.
+        let v: Value = serde_json::from_str(r#"{"payload": {"chats": [{"id": "c1", "last_update": "2026-10-27T09:00:00+00:00", "chat_name": "Buyer", "unread_count": 1, "messages": [{"message": "<p>hi</p>", "raw_message": "hi", "send_date": "2026-10-27T08:59:00+00:00"}, {"message": "<a href=\"https://example.invalid\">warframe.market/verify</a>", "send_date": "2026-10-27T09:00:00+00:00"}]}]}}"#).unwrap();
+        assert_eq!(parse_chats(&v)[0].last_message, None);
     }
 
     #[test]
