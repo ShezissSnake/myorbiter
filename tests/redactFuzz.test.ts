@@ -44,6 +44,14 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
     { text: hex(r, 24), must: [] }, // checked as "no 16+ hex run" below
     { text: `/home/${user}/.local/share/x`, must: [`/home/${user}`] },
     { text: `C:\\Users\\${user} Name\\AppData`, must: [`Users\\${user}`] },
+    // Paths outside a home folder: a drive's label, a folder of the player's own, a share's computer.
+    { text: `/mnt/${user}/SteamLibrary/steamapps/common/Warframe/EE.log`, must: [user] },
+    { text: `D:${r.pick(["\\", "/"])}${user} Games${r.pick(["\\", "/"])}Warframe${r.pick(["\\", "/"])}EE.log`, must: [user] },
+    { text: `"E:/${user} Stuff/x y/EE.log"`, must: [user] },
+    { text: `\\\\${user}-PC\\Games\\Warframe`, must: [user] },
+    { text: `~/Games/${user}/Warframe/EE.log`, must: [user] },
+    { text: `D:\\Games\\${user}'s Stuff\\${user} Smith: denied`, must: [user, "Smith"] },
+    { text: r.pick([`//${user}-PC/share/x`, `smb://${user}-PC/share`, `\\\\?\\UNC\\${user}-PC\\share\\x`, `~${user}/Games`, `$HOME/${user}/x`, `%2Fmnt%2F${user}%2Fx`]), must: [user] },
     { text: `/profile/${other}`, must: [other.toLowerCase()] },
   ];
 }

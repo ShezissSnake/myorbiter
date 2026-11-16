@@ -10,6 +10,8 @@
 // - account and user ids: long hex runs (warframe.market's and the game's ids are 24 hex digits),
 //   and long opaque runs of letters and digits;
 // - the user name in home-folder paths (/home/<name>, /Users/<name>, C:\Users\<name>…);
+// - the folder names in any other file path of a shape it recognises, wherever it points (another
+//   drive, a mount, a network share): see "paths" below for the shapes and what stays;
 // - the player's in-game name and any other name MyOrbiter knows (trade partners, people who
 //   whispered), wherever they appear;
 // - names in whisper, trade and profile lines, by their shape, for names MyOrbiter doesn't know.
@@ -89,8 +91,8 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
   [new RegExp(`(["']?\\b(?:partner|buyer|seller|player|ingame_?name|user(?:name)?)["']?\\s*[=:]\\s*["']?)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
 ];
 
-/** One line (or several) with nothing private left in it. */
-export function redact(text: string, opts: RedactOptions = {}): string {
+/** Known names, then RULES: the steps before the names by their shape. */
+function knownAndRules(text: string, opts: RedactOptions): string {
   let s = text;
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
@@ -99,7 +101,354 @@ export function redact(text: string, opts: RedactOptions = {}): string {
     s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
   for (const [re, to] of RULES) s = s.replace(re, to as never);
+  return s;
+}
+
+/** Known names, RULES and the rules for names and chats, each a plain replace and nothing else:
+ *  what the names step hides when no path is read. The tests compare `redact` with it. */
+export function hideNames(text: string, opts: RedactOptions = {}): string {
+  let s = knownAndRules(text, opts);
   for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
   return s;
 }
 
+/** A placeholder a rule for names wrote over the text from `at` to `end` (in the text the rules
+ *  started from). */
+type Hidden = { at: number; end: number; text: string };
+
+/** The rules for names and chats, run exactly as `hideNames` runs them, so that each rule reads
+ *  the same text, reaches as far and stops at the same placeholders. Beside the text, each of its
+ *  characters is marked with where it stood in `s`, or with the placeholder it belongs to (as
+ *  -1 - its number in the list), so that each placeholder knows the text it was written over. */
+function hideNamesMarked(s: string): { text: string; from: number[]; hidden: Hidden[] } {
+  let text = s;
+  let from = Array.from({ length: s.length }, (_, i) => i);
+  const hidden: Hidden[] = [];
+  const start = (i: number) => (from[i] >= 0 ? from[i] : hidden[-1 - from[i]].at);
+  const stop = (i: number) => (from[i] >= 0 ? from[i] + 1 : hidden[-1 - from[i]].end);
+  for (const [re, to] of NAME_LINES) {
+    let out = "";
+    const marks: number[] = [];
+    let last = 0;
+    text.replace(re, (...m) => {
+      const whole = m[0] as string;
+      const index = m[m.length - 2] as number;
+      const put = (to as (...x: unknown[]) => string)(...m);
+      // Every rule writes its lead back as it was, then the placeholder over the rest.
+      const lead = typeof m[1] === "string" ? (m[1] as string).length : 0;
+      const a = index + lead;
+      const b = index + whole.length;
+      out += text.slice(last, a);
+      for (let i = last; i < a; i++) marks.push(from[i]);
+      const n = hidden.push({ at: start(a), end: stop(b - 1), text: put.slice(lead) });
+      out += put.slice(lead);
+      for (let i = lead; i < put.length; i++) marks.push(-n);
+      last = b;
+      return put;
+    });
+    if (!last && !marks.length) continue;
+    text = out + text.slice(last);
+    from = marks.concat(from.slice(last));
+  }
+  return { text, from, hidden };
+}
+
+/** What a placeholder written over `s` from `at` to `end` may leave after it: where the text it
+ *  was written over runs into a path's root ("traded with smb://…", "buyer: Name.smb://…",
+ *  "/profile/Name,D:/…", "/profile/Name,//host", "to file:///…"), the roots from the first of
+ *  them, and the marks before it, are left for the path's own cleaning. Each root is one that
+ *  path cleaning reads there (PATH_START), several in a row with marks between them, and the
+ *  last holds the end or starts right after it with a mark before it; `file` before `:///…`
+ *  counts, since that root starts after the scheme. A root's own words are a scheme, a drive
+ *  letter or a variable's name; a `~name` root's name is a user's, so a tail with one is only
+ *  given when `tilde` is set, and `redact` checks that the path's cleaning hid that name. Every
+ *  word before the roots stays under the placeholder. Null when nothing is left. */
+function rootTail(s: string, roots: readonly (readonly [number, number])[], at: number, end: number, tilde: boolean): { keep: boolean; from: number; names: string[] } | null {
+  const names: string[] = [];
+  let from: number | null = null;
+  let e = end;
+  for (;;) {
+    let root = roots.find(([a, b]) => a >= at && ((e > a && e <= b) || (e === a && e > at && /[\s"'(=[,;<>:`{|]/.test(s[e - 1]))));
+    if (!root && e === end && s.startsWith(":///", e) && /(?<![A-Za-z0-9_])file$/.test(s.slice(at, e))) {
+      const after = roots.find(([a]) => a === e + 3);
+      if (after) root = [e - 4, e];
+    }
+    if (!root) break;
+    const named = /^~([^\\/]+)/.exec(s.slice(root[0], root[1]));
+    if (named) {
+      if (!tilde) return null;
+      names.push(named[1]);
+    }
+    from = root[0];
+    e = at + s.slice(at, from).replace(/[\s"'(=[,;<>:`{|.-]+$/, "").length;
+  }
+  if (from === null) return null;
+  return { keep: e > at, from: e, names };
+}
+
+/** One line (or several) with nothing private left in it. */
+export function redact(text: string, opts: RedactOptions = {}): string {
+  // Names by their shape before the paths: cleaning a path first could take a rule's anchor
+  // ("/profile/", "buyer:"), its closing bracket or its reach. The rules run as hideNames runs
+  // them; only then is a placeholder whose text ran into a path's root given back that root
+  // (rootTail), so no rule reads a text hideNames' rules don't, and every word a placeholder was
+  // written over stays under it but a root's own.
+  const s = knownAndRules(text, opts);
+  const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
+  const { text: named, from, hidden } = hideNamesMarked(s);
+  const write = (tilde: boolean) => {
+    let out = "";
+    const users: string[] = [];
+    for (let i = 0; i < named.length; ) {
+      if (from[i] >= 0) { out += named[i++]; continue; }
+      const k = from[i];
+      const h = hidden[-1 - k];
+      while (i < named.length && from[i] === k) i++;
+      const tail = rootTail(s, roots, h.at, h.end, tilde);
+      if (tail) users.push(...tail.names);
+      out += tail === null ? h.text : (tail.keep ? h.text : "") + s.slice(tail.from, h.end);
+    }
+    return { out: cleanPaths(out), users };
+  };
+  const first = write(true);
+  // A `~name` given back whose path wasn't cleaned (nothing after its slash, or read inside the
+  // path before it) would show the user name: then every such root stays under its placeholder.
+  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return write(false).out;
+  return first.out;
+}
+
+// ---------------------------------------------------------------- paths
+//
+// The folder names in a file path, wherever it points (another drive, a mount, a network share,
+// the log's "found at" line), in the shapes below. Each name is kept only when it names no one.
+//
+// The shapes recognised, with either slash, bare or in quotes, after a space, a quote, an opening
+// bracket, `=`, `,`, `;`, `:` (but `//host` not after `://`: that is an address), a backtick, `{`
+// or `|`:
+// - `/a/b` (two names or more), `\a\b`, `~/a`, `~name/a`, `$HOME/a`, `${HOME}/a`, `%USERPROFILE%\a`
+//   (any variable);
+// - `D:\a`, `D:/a`, `\\?\D:\a`;
+// - a share: `\\host\share`, `\\?\UNC\host\share`, `//host/share`, `smb://host/share`,
+//   `file://host/share`; `file:///…` addresses.
+// Encoded slashes count in two places only: `%2F` at the start of a rooted path (`%2Fa%2Fb`), and
+// `%2F` or `%5C` after a drive letter. An encoded share, `~`, variable root or whole address
+// (`%5C%5Chost`, `~%2Fa`, `file%3A%2F%2F…`) passes as written.
+// Not recognised, and left as written: a lone `/word` or `\word` (a chat command), `D:word` (a
+// drive's current folder), a relative `./a/b` or `a/b`, and a path broken over two lines; hiding
+// those would hide chat commands and addresses' paths, or need a parser. An address's path is not
+// a file's: after a host, after GET, PATCH and the like, or starting `/v1/`, `/v2/` or `/api/` (the
+// sites' APIs MyOrbiter calls; no system has those folders at its root), and the game's own item
+// paths (`/Lotus/…`), are left alone.
+//
+// - Kept: the root (`/`, `D:`, `~`, a variable, `\\`); the folder names every system, Steam,
+//   Proton, Wine, the game, its launcher, TennoScope and MyOrbiter use (`KEEP_FOLDERS`); numbers
+//   (Steam's app ids), except the one after `userdata` (a Steam account's); `.` and `..`; and the
+//   last name when it has a file's extension (`EE.log`): the file's name (not a bare one taken
+//   over spaces, below).
+// - Replaced: the name under `home`, `Users` or `drive_c\users` becomes `[user]` (Proton's
+//   `steamuser` stays), and so does `~name`'s; in a recognised path, a user name with spaces goes
+//   with its words as a last name does below; a drive's label under `/mnt`, `/Volumes`,
+//   `/media/<user>` or `/run/media/<user>` becomes `[drive]`; a share's computer `[host]`; the
+//   number after `userdata` `[id]`; any other name `[folder]`.
+//
+// Where a bare path ends: a name with spaces in it ("My Games") is taken whole when a slash follows
+// it. A last name that is hidden takes the words after it with it, up to a sure end (`: `, `, `,
+// `; `, `. `, ` (`, a double quote, the end of the line) or the next mark (`:`, `<`, `>`, `|`,
+// `*`, `?`, `{`, `}`, a backtick, an arrow, or a space before another path or an address), where
+// reading goes on; at a slash the path goes on. The words up to there go with the name
+// ("D:\a\Alice Smith to E:\x" becomes "D:\[folder]\[folder] E:\[folder]"), a word too many may go
+// with it (an amount too: "/home/alice has 30p" becomes "/home/[user]"), and what it took is never
+// kept as a file's name. A `[user]` or `[player]` an early rule left runs on the same way. A later
+// slash on the line takes the words before it as folder names, a file's name and a price among
+// them ("D:\Games\EE.log, retrying 1/3" becomes "D:\Games\[folder]/3"), and a price written like
+// `~name/x` is read as one ("~50p/each"). `'` is part of a name ("Alice's Games"). A path in
+// quotes runs to the closing quote.
+// Left as written (known gaps): a name's words after a sure end inside it ("…\Alice B. Smith"
+// keeps ". Smith"; not under `C:\Users\` with a backslash, whose rule takes the name to the next
+// separator); a last name whose first word is kept (a kept folder, a number, a file's name) and
+// with no slash after it ("D:\Games\Dev Alice"), as it can't be told from a kept name followed by
+// other words ("found at D:\Games\Warframe and more"); the words after the first of a user name
+// under a bare `drive_c\users` that is not inside a longer path (a relative path:
+// "drive_c/users/[user] Smith", and with an apostrophe "drive_c/users/[user]'Smith"); in
+// single quotes, a name with an apostrophe ("'D:\a\Alice O'Smith'"), where the apostrophe reads as
+// the closing quote; a path after a quote that never closes, whose last name runs to the end of the
+// line and is kept when it ends in a file's name ("\"/mnt/Alice see EE.log"); `~` with a name with
+// spaces ("~Alice Smith/x"); a path glued to `,`, `;`, `=` or a bracket after a last name with
+// spaces, which the run takes up to its drive letter, so its folder names stay
+// ("/home/Alice Smith,D:\x\y" becomes "/home/[user]:\x\y").
+
+/** Folder names that name no one, compared without case. */
+const KEEP_FOLDERS = new Set([
+  // Systems
+  "home", "users", "user", "root", "mnt", "media", "run", "var", "usr", "opt", "srv", "tmp", "temp", "etc", "bin", "sbin", "lib", "lib32", "lib64", "share", "local", "data", "games", "game", "app", "apps", "applications", "library", "private", "volumes", "nix", "store", "snap", "flatpak", "proc", "sys", "dev", "boot",
+  ".local", ".config", ".cache", ".var", ".steam", ".wine", "public", "shared", "default", "x86_64", "i386", "x64", "x86",
+  "windows", "system32", "syswow64", "program files", "program files (x86)", "programdata", "appdata", "roaming", "locallow", "documents", "my documents", "documents and settings", "desktop", "downloads", "saved games", "my games",
+  "application support", "caches", "logs", "log", "preferences", "containers",
+  // Steam, Proton, Wine and other launchers
+  "steam", "steamapps", "steamlibrary", "remote", "config", "steam library", "common", "compatdata", "pfx", "drive_c", "dosdevices", "steamuser", "userdata", "shadercache", "workshop", "downloading", "ubuntu12_32", "ubuntu12_64", "steamrt", "steam linux runtime", "proton experimental", "com.valvesoftware.steam",
+  "lutris", "heroic", "prefix", "prefixes", "wine", "bottles", "epic games", "epicgameslauncher", "legendary", "gog games",
+  // The game, its launcher, TennoScope, MyOrbiter
+  "warframe", "digital extremes", "tools", "launcher", "downloaded", "cache.windows", "tennoscope", "myorbiter", "orbiter", "dev.myorbiter.app", "resources", "assets",
+]);
+/** A file's extension: the last name of a path ending in one is the file's name, kept. */
+const FILE_EXT = /\.(?:log|txt|json|jsonl|toml|ini|cfg|conf|xml|ya?ml|csv|md|db|sqlite3?|db-wal|db-shm|wal|lock|dat|bin|cache|tmp|bak|old|exe|dll|so|dylib|msi|appimage|deb|rpm|dmg|app|desktop|sh|bat|cmd|ps1|zip|gz|xz|7z|tar|png|jpe?g|webp|ico|svg|js|mjs|wasm|html?|css|ts|rs|py|pdb|pak|toc)$/i;
+/** What may come before a path. */
+const B = "(?<=^|[\\s\"'(=[,;<>:`{|])";
+/** Where a path starts (its root), most specific first. */
+const PATH_START = new RegExp(
+  [
+    `${B}\\\\\\\\\\?\\\\UNC\\\\(?=[^\\s\\\\])`, // \\?\UNC\host
+    `${B}\\\\\\\\\\?\\\\[A-Za-z]:\\\\(?=[^\\s\\\\])`, // \\?\D:\
+    `${B}\\\\{2,4}(?=[^\\s\\\\?])`, // \\host (\\\\host in JSON)
+    `\\b(?:smb|file):\\/\\/(?=[^\\s\\/\\\\])`, // smb://host, file://host
+    `(?<=^|[\\s"'(=[,;<>\`{|])\\/\\/(?=[^\\s\\/\\\\])`, // //host (not after a scheme's ":")
+    `(?<=file:\\/\\/\\/)[A-Za-z]:[\\\\/](?=[^\\s\\\\/])`, // file:///D:/
+    `${B}[A-Za-z]:(?:[\\\\/]{1,2}|%2[Ff]|%5[Cc])(?=[^\\s\\\\/])`, // D:\ D:/
+    `${B}~[A-Za-z0-9._-]*[\\\\/](?=[^\\s\\\\/])`, // ~/ and ~name/
+    `${B}(?:\\$\\{?[A-Za-z_][A-Za-z0-9_]*\\}?|%[A-Za-z_][A-Za-z0-9_]*%)[\\\\/](?=[^\\s\\\\/])`, // $HOME/ ${HOME}/ %USERPROFILE%\
+    `(?:${B}|(?<=file:\\/\\/))(?:\\/|%2[Ff])(?=[^\\s\\/%])`, // /a/b
+    `${B}\\\\(?=[^\\s\\\\?])`, // \a\b
+  ].join("|"),
+  "g",
+);
+const HTTP_METHOD = /\b(?:GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)\s+$/;
+/** The first name of an address's path: the APIs MyOrbiter calls (warframe.market's /v1/, /v2/; /api/). */
+const API_ROOT = /^(?:v\d+|api)$/i;
+/** A placeholder another rule left: kept as it is. */
+const PLACEHOLDER = /^\[[a-z ]+\]$/;
+
+type PathKind = "unix" | "rooted" | "drive" | "share" | "home" | "named-home";
+
+/** The length of the separator at `k` (a slash either way, or `%2F` / `%5C`), or 0. */
+function sepAt(s: string, k: number): number {
+  const c = s[k];
+  if (c === "/" || c === "\\") return 1;
+  return c === "%" && /^%(?:2f|5c)/i.test(s.slice(k, k + 3)) ? 3 : 0;
+}
+
+/** Where the words after a hidden last name stop: a sure end (`: `, `, `, `; `, `. `, ` (`, the
+ *  end of the line) or a mark (`"`, `:`, `<`, `>`, `|`, `*`, `?`, `{`, `}`, a backtick, an arrow). */
+const RUN_STOP = /^(?:[\n"<>|*?:`{}\u2190-\u21ff]|, |; |\. | \()/;
+/** Another path or an address, after a space: the words before it are the name's, not it. */
+const PATH_AHEAD = /^(?:[A-Za-z]:[\\/%]|[~$%\\/]|\.{1,2}[\\/]|[A-Za-z][A-Za-z0-9+.-]*:\/\/)/;
+
+/** Whether a last name (no spaces) would be hidden: then it may run on over spaces. A `[user]` or
+ *  `[player]` an early rule left runs on too: those rules stop at a space ("/home/[user] Smith",
+ *  "/profile/[player] Smith"). */
+const hiddenName = (t: string) => t === "[user]" || t === "[player]" || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
+
+/** Where the path whose names start at `from` ends. `quote`: the quote it is in, if any.
+ *  `spacedFirst`: whether its first name may have spaces in it. */
+function pathEnd(s: string, from: number, quote: string | null, spacedFirst: boolean): number {
+  let i = from;
+  let end = from;
+  for (;;) {
+    let j = i;
+    if (quote) {
+      while (j < s.length && !sepAt(s, j) && s[j] !== "\n" && s[j] !== quote) j++;
+    } else {
+      // A name with spaces in it, when a slash follows: no space at either end of it, and not the
+      // start of the next path ("…/data to ~/x", "…/data to ./x").
+      let k = i;
+      while (k < s.length && !sepAt(s, k) && !/[\n"<>|*?:`{}]/.test(s[k])) k++;
+      const name = s.slice(i, k);
+      if (sepAt(s, k) && name.length > 0 && (spacedFirst || i > from || !/\s/.test(name)) && !/^\s|\s$|\s[~.]/.test(name)) j = k;
+      else {
+        // The last name: up to a space or punctuation a path doesn't end with ("…/EE.log: error", "…/EE.log.").
+        while (j < s.length && !sepAt(s, j) && !/[\s"<>|*?:,;()`{}]/.test(s[j])) j++;
+        while (j > i && /[.']/.test(s[j - 1])) j--;
+        // A last name that is hidden takes the words after it with it, up to a sure end or the next
+        // mark ("…\Alice Smith: denied", "…\Alice Smith -> E:\x"): the name's words up to there go
+        // with it. At a slash the path goes on ("/srv/Alice  Smith/x").
+        let run = false;
+        if (j > i && /^\s/.test(s.slice(j, j + 1)) && hiddenName(s.slice(i, j))) {
+          let e = j;
+          while (e < s.length && !RUN_STOP.test(s.slice(e, e + 2)) && !sepAt(s, e) && !(/\s/.test(s[e]) && PATH_AHEAD.test(s.slice(e + 1, e + 16)))) e++;
+          if (sepAt(s, e)) {
+            j = e;
+            run = true;
+          } else {
+            while (e > j && /[\s=.-]/.test(s[e - 1])) e--;
+            return e;
+          }
+        }
+        if (!run) return j > i ? j : end;
+      }
+    }
+    if (j === i) break;
+    end = j;
+    const n = sepAt(s, j);
+    if (!n) break;
+    let k = j;
+    while (sepAt(s, k)) k += sepAt(s, k);
+    end = k;
+    i = k;
+  }
+  return end;
+}
+
+/** One folder name, as the rule above has it. `before`: the names before it in the path.
+ *  `quoted`: whether the path is in quotes (then its last name runs to the closing quote). */
+function cleanFolder(name: string, before: string[], kind: PathKind, last: boolean, quoted: boolean): string {
+  const low = name.toLowerCase();
+  const prev = (before[before.length - 1] ?? "").toLowerCase();
+  const prev2 = (before[before.length - 2] ?? "").toLowerCase();
+  if (kind === "share" && before.length === 0) return "[host]";
+  if (PLACEHOLDER.test(name) || name === "." || name === "..") return name;
+  // A user's or player's name with a space in it, which an early rule cut at the space: all of it
+  // is the name.
+  const cut = /^\[(user|player)\]\s/.exec(name);
+  if (cut) return `[${cut[1]}]`;
+  // The user name: under /home, /Users, C:\Users, and Wine's drive_c\users (where Proton's is steamuser).
+  if (prev === "home" || prev === "users" || prev === "documents and settings") return low === "public" || low === "default" || low === "steamuser" ? name : "[user]";
+  // Steam's userdata\<account id>.
+  if (prev === "userdata" && /^\d+$/.test(name)) return "[id]";
+  // A bare last name with a space in it was taken over words ("…\Alice Smith see EE.log"): never a
+  // file's name. In quotes it is one ("EE log copy.txt").
+  if (/^\d+$/.test(name) || KEEP_FOLDERS.has(low) || (last && FILE_EXT.test(name) && (quoted || !/\s/.test(name)))) return name;
+  // A drive's label: under /mnt, /Volumes, /media/<user>, /run/media/<user>.
+  if (kind === "unix" && (((prev === "mnt" || prev === "volumes") && before.length === 1) || (prev === "[user]" && prev2 === "media"))) return "[drive]";
+  return "[folder]";
+}
+
+/** A path, every folder name that may name someone replaced. */
+function cleanPath(root: string, rest: string, kind: PathKind, quoted: boolean): string {
+  const before: string[] = [];
+  const parts = rest.split(/((?:[\\/]|%2[Ff]|%5[Cc])+)/);
+  const lastName = parts.reduce((at, p, i) => (p && i % 2 === 0 ? i : at), -1);
+  let out = kind === "named-home" ? `~[user]${root.slice(-1)}` : root;
+  parts.forEach((p, i) => {
+    if (i % 2 === 1 || !p) out += p;
+    else {
+      out += cleanFolder(p, before, kind, i === lastName, quoted);
+      before.push(p);
+    }
+  });
+  return out;
+}
+
+/** Every path in `s`, cleaned. */
+function cleanPaths(s: string): string {
+  let out = "";
+  let at = 0;
+  for (const m of s.matchAll(PATH_START)) {
+    const start = m.index;
+    const root = m[0];
+    if (start < at) continue;
+    const kind: PathKind = /^~./.test(root) && !/^~[\\/]$/.test(root) ? "named-home" : /^[~$%]/.test(root) && !/^%(?:2f|5c)/i.test(root) ? "home" : /^(?:\\\\|\/\/|smb:|file:)/i.test(root) && !/^\\\\\?\\[A-Za-z]:/.test(root) ? "share" : /^(?:\/|%2f)/i.test(root) ? "unix" : root === "\\" ? "rooted" : "drive";
+    const before = s[start - 1];
+    // A bare path from "/" doesn't start with a name with spaces: that is a sentence ("/w Name hi").
+    const quote = before === '"' || before === "'" ? before : null;
+    const end = pathEnd(s, start + root.length, quote, kind !== "unix" && kind !== "rooted");
+    const rest = s.slice(start + root.length, end);
+    if (!rest) continue;
+    if (kind === "unix" || kind === "rooted") {
+      const names = rest.split(/(?:[\\/]|%2[Ff]|%5[Cc])+/).filter(Boolean);
+      // A lone "/word" (a chat command), an address's path, the game's own item path: not a file's.
+      if (names.length < 2 || names[0] === "Lotus" || API_ROOT.test(names[0]) || HTTP_METHOD.test(s.slice(Math.max(0, start - 10), start))) continue;
+    }
+    out += s.slice(at, start) + cleanPath(root, rest, kind, quote !== null);
+    at = end;
+  }
+  return out + s.slice(at);
+}

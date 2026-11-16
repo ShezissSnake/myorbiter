@@ -54,7 +54,7 @@
     r.out === "skipped"
       ? [{ id: "back", label: "Put it back", note: "In this plan again, as it was" }]
       : r.out === "never"
-        ? [{ id: "sellAgain", label: "Sell again", note: "Off the never-sell list: in the next plan when it's spare" }]
+        ? [{ id: "sellAgain", label: "Sell again", note: r.neverBy ? `Takes ${r.neverBy} off the never-sell list: in the next plan when it's spare` : "Off the never-sell list: in the next plan when it's spare" }]
         : [
             { id: "skip", label: "Skip this time", note: "Left out of this plan only; back next time" },
             { id: "never", label: "Never sell", note: "Left out of every plan until you sell it again" },
