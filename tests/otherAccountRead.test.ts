@@ -5,7 +5,8 @@
 // replaced; a restart is the settings through JSON and nothing kept in memory.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { h, me, mkt, order, seller, settings, timedPass, logText, asAccount, ME } from "./support/pass";
+import { h, me, mkt, order, seller, settings, timedPass, logText, asAccount, ME, T0 } from "./support/pass";
+import { GONE_KEPT, settleApprovals } from "../src/lib/core/approved";
 import { market, type MarketSettings } from "../src/lib/backend";
 
 type Owned = Record<string, { key: string; platinum: number; by?: string }>;
@@ -65,24 +66,31 @@ const scenarios: [string, string[], string[]][] = [
   ["sold after the other account's read, then a new listing", ["O", "R", "SOLD", "N"], ["n->42"]],
 ];
 
-/** Run `ops` from the settings `s`; the passes' sends. */
-async function run(s0: MarketSettings, ops: string[]) {
+/**
+ * Run `ops` from the settings `s`; the passes' sends, and the per-item prices saved after each op.
+ * `short`: O, Ob and Pb are the first account's own reads, which warframe.market answered without a
+ * (a read that left a listing out and still succeeded).
+ */
+async function run(s0: MarketSettings, ops: string[], short = false) {
   let s = s0;
   const sent: string[] = [];
+  const saved: Record<string, number>[] = [];
+  const whose = short ? "me" : "other";
   for (const op of ops) {
     const before = structuredClone({ approved: s.approved, a: owned(s).a });
     if (op === "O" || op === "Ob") {
-      await read(s, op === "Ob" ? [order(50, "b")] : [], "other");
+      await read(s, op === "Ob" ? [order(50, "b")] : [], whose);
       // The first account's saved approvals and the per-item prices are the same as before.
-      assert.deepEqual({ approved: s.approved, a: owned(s).a }, before, `${op}: nothing of the first account's moved`);
+      if (!short) assert.deepEqual({ approved: s.approved, a: owned(s).a }, before, `${op}: nothing of the first account's moved`);
     } else if (op === "A") await read(s, [order(75, "a")]);
     else if (op === "R") s = restart(s);
     else if (op === "P") sent.push(await pass(s, [order(75, "a")]));
-    else if (op === "Pb") sent.push(await pass(s, [order(50, "b")], "other"));
+    else if (op === "Pb") sent.push(await pass(s, [order(50, "b")], whose));
     else if (op === "SOLD") await read(s, []);
     else if (op === "N") sent.push(await pass(s, [order(60, "n")]));
+    saved.push(structuredClone(s.approved));
   }
-  return { s, sent };
+  return { s, sent, saved };
 }
 
 // The same orders from the settings today's build saves: the 100p per item only. Every pass sends
@@ -107,6 +115,99 @@ for (const [name, ops, expected] of scenarios) {
     assert.deepEqual(s.approved, sold ? { "it||": 60 } : { "it||": 100 });
   });
 }
+
+// The same orders with O, Ob and Pb read on the first account itself: a read warframe.market
+// answered without a (it still succeeded), then a restart. a ends with that read, and is saved as
+// ended (approvedGone): read again under the same id it gets its 100p back, and the per-item price
+// with it. Until then the per-item price is what such a read leaves: none after O (as after a
+// sale), b's own 50p after Ob (as after a sale and a new listing at 50p).
+const shortExpected: Record<string, string[]> = {
+  "other read, restart, back": ["a->70"],
+  "restart, other read, back": ["a->70"],
+  "other read, back, no restart": ["a->70"],
+  "twice over with restarts": ["a->70"],
+  "back and forth with passes": ["a->70", "a->70", "a->70"],
+  "both accounts list the same item": ["a->70", "b->41", "a->70", "a->70"],
+  "both accounts list the same item, no restart": ["a->70", "b->41", "a->70"],
+  "many restarts": ["a->70", "a->70"],
+  "back, then the other account again": ["a->70", "a->70"],
+  "a pass on the other account between": ["b->41", "a->70"],
+};
+for (const [name, ops] of scenarios) {
+  const expected = shortExpected[name];
+  if (!expected) continue;
+  test(`a read of the first account's own listings that left a out, ${name}: a gets its approval back, and every pass stops at 70p`, async () => {
+    const { s, sent, saved } = await run(start(), ops, true);
+    assert.deepEqual(sent, expected, logText());
+    assert.deepEqual(owned(s).a, { key: "it||", platinum: 100, by: ME });
+    assert.deepEqual(s.approved, { "it||": 100 }, "saved 100p once a is back");
+    // Right after such a read, before a is read again: what it leaves saved.
+    ops.forEach((op, i) => {
+      if (op === "O") assert.deepEqual(saved[i], {}, `after ${op} (op ${i + 1}): none, as after a sale`);
+      if (op === "Ob") assert.deepEqual(saved[i], { "it||": 50 }, `after ${op} (op ${i + 1}): b's own 50p`);
+      if (op === "P") assert.deepEqual(saved[i], { "it||": 100 }, `after ${op} (op ${i + 1}): a back, 100p`);
+    });
+  });
+}
+
+test("a read of the first account's own listings that left a out, then a restart: a, read again, has its 100p back, and so has the per-item price", async () => {
+  let s = start();
+  await read(s, []);
+  assert.deepEqual({ approved: s.approved, owned: owned(s) }, { approved: {}, owned: {} });
+  assert.deepEqual((s as MarketSettings & { approvedGone?: unknown }).approvedGone, { a: { key: "it||", platinum: 100, by: ME, at: h.now } }, "saved as ended");
+  s = restart(s);
+  assert.equal(await pass(s, [order(75, "a")]), "a->70", logText());
+  assert.deepEqual(owned(s).a, { key: "it||", platinum: 100, by: ME });
+  assert.deepEqual(s.approved, { "it||": 100 });
+  assert.deepEqual((s as MarketSettings & { approvedGone?: unknown }).approvedGone, {}, "back: no longer ended");
+});
+
+test("an ended approval comes back only to its own account and platform, under its own key", async () => {
+  const gone = (by: string, key = "it||") => ({ a: { key, platinum: 100, by, at: T0 } });
+  // Another account's: a read under this one gives it nothing back (a starts from its own 75p).
+  for (const [label, approvedGone, mine] of [
+    ["another account's", gone("other|pc"), [order(75, "a")]],
+    ["another platform's", gone("me|xbox"), [order(75, "a")]],
+    ["one saved without whose (an earlier build of this change)", { a: { key: "it||", platinum: 100, at: T0 } }, [order(75, "a")]],
+    ["one under another key (a made again as another rank)", gone(ME), [order(75, "a", { rank: 3 })]],
+  ] as const) {
+    const s = settings({}, { approvedGone });
+    mkt.items = [h.it];
+    h.mine = [...mine];
+    await mkt.refresh(s);
+    assert.equal(owned(s).a?.platinum, 75, label);
+    assert.equal(owned(s).a?.legacy, undefined, label);
+  }
+});
+
+test("the first account ends 600 listings of its own: the latest 500 are kept as ended, and the other account's entries stay", async () => {
+  const s = start();
+  const theirs = { key: "it||", platinum: 90, by: "other|pc", at: T0 };
+  (s as MarketSettings & { approvedGone?: unknown }).approvedGone = { o1: theirs };
+  await read(s, [order(75, "a")]);
+  for (let batch = 0; batch < 6; batch++) {
+    h.now += 3600e3;
+    await read(s, [order(75, "a"), ...Array.from({ length: 100 }, (_, i) => order(30, `x${batch}_${i}`, { itemId: "x" }))]);
+    h.now += 3600e3;
+    await read(s, [order(75, "a")]);
+  }
+  const gone = (s as MarketSettings & { approvedGone?: Record<string, { by: string }> }).approvedGone ?? {};
+  const mine = Object.keys(gone).filter((id) => gone[id].by === ME);
+  assert.equal(mine.length, GONE_KEPT);
+  assert.ok(!mine.some((id) => id.startsWith("x0_")), "the oldest went first");
+  assert.ok(mine.some((id) => id.startsWith("x5_")));
+  assert.deepEqual(gone.o1, theirs);
+  assert.deepEqual(owned(s).a, { key: "it||", platinum: 100, by: ME });
+  assert.deepEqual(s.approved, { "it||": 100 });
+});
+
+test("an ended approval never counts as one this build agrees with: the per-item price from before still goes to the listing up", () => {
+  // 100p per item, saved by an older build; a's ended approval at 100p agrees with it, yet b, a
+  // listing of the item read now, takes that 100p as a per-item price from before.
+  const ended = new Map([["a", { key: "it||", platinum: 100, by: ME }]]);
+  const r = settleApprovals({ "it||": 100 }, {}, [{ id: "b", key: "it||", starless: null, itemId: h.it.id, platinum: 60 }], ended, ME);
+  assert.deepEqual(r.owned.b, { key: "it||", platinum: 100, by: ME, legacy: true });
+});
 
 test("another platform's read leaves the first one's approvals and per-item prices as they were", async () => {
   const s = start();

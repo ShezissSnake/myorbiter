@@ -5,7 +5,7 @@
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { defaultSettings, flushSettings, joinSettings, lightSettings, loadSettings, saveSettings, type Settings } from "../src/lib/backend";
-import { approvedForOf, approvedOf } from "../src/lib/core/approved";
+import { approvedForOf, approvedGoneOf, approvedOf } from "../src/lib/core/approved";
 
 const stored = new Map<string, string>();
 (globalThis as { localStorage?: unknown }).localStorage = {
@@ -44,4 +44,14 @@ test("a step back: the saved file still holds every approval per key, as an olde
   const raw = JSON.parse(stored.get("orbiter-settings")!);
   assert.deepEqual(approvedOf(raw.market.approved), { "it||": 70, [STAR]: 60 });
   assert.deepEqual(raw.market.floors["ay||"], 20, "the empty sculpture's floor, read by an older build for every Anasa listing, as before");
+});
+
+test("the approvals of listings a read ended come back after a save and a start", async () => {
+  const s = withApprovals();
+  const gone = { a: { key: "it||", platinum: 100, by: "me|pc", at: 1 } };
+  (s.market as unknown as { approvedGone: unknown }).approvedGone = gone;
+  saveSettings(() => joinSettings(JSON.stringify(lightSettings(s)), {}));
+  await flushSettings();
+  const loaded = await loadSettings();
+  assert.deepEqual(approvedGoneOf((loaded.market as unknown as { approvedGone?: unknown }).approvedGone), gone);
 });

@@ -31,7 +31,7 @@ import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
-import { AUTO_FLOOR_SHARE, approvedForOf, cutTooFar, sameEntries, settleApprovals, unattendedMove, whoseRead, type Approval, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
+import { AUTO_FLOOR_SHARE, approvedForOf, approvedGoneOf, cutTooFar, goneAfter, goneOf, sameEntries, settleApprovals, unattendedMove, whoseRead, type Approval, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
 
@@ -421,8 +421,6 @@ class MarketStore {
     return me?.id ? whoseRead(me.id, this.platform) : null;
   }
 
-  /** Approvals of listings gone earlier in this run, by order id: one seen again gets back what it had. */
-  readonly endedApprovals = new Map<string, Approval>();
   /** Listings MyOrbiter made since the last read, by whose: each one's key and the price it was listed at (approved by the read that finds it). */
   readonly madeHere = new Map<string, Map<string, number>>();
   /**
@@ -450,13 +448,18 @@ class MarketStore {
     });
     const w = s as MarketSettings & WithApprovedFor;
     const made = this.madeHere.get(whose) ?? new Map<string, number>();
-    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, this.endedApprovals, whose, made);
+    // What this account's earlier reads ended, saved: a listing read again gets its approval back.
+    const saved = approvedGoneOf(w.approvedGone);
+    const ended = goneOf(saved, whose);
+    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, ended, whose, made);
+    const gone = goneAfter(saved, ended, whose, Date.now());
     // One made here that this read doesn't have yet waits for the next read.
     if (made.size) this.madeHere.set(whose, made);
     else this.madeHere.delete(whose);
     // Assigned only when something changed: each assignment is a save.
     if (!sameEntries(next.approved, s.approved)) s.approved = next.approved;
     if (!sameEntries(next.owned, w.approvedFor as Record<string, unknown> | undefined)) w.approvedFor = next.owned;
+    if (!sameEntries(gone, w.approvedGone as Record<string, unknown> | undefined)) w.approvedGone = gone;
   }
   /** The price you last set or approved for this listing, if MyOrbiter has one. */
   approvedPrice(o: MyOrder, s: MarketSettings): number | undefined {

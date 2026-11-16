@@ -84,8 +84,46 @@ export interface Approval {
   /** Its price came from a per-key approval saved before listings were told apart (or by an older build): that key stays one. */
   legacy?: true;
 }
-/** Settings that carry `approvedFor` (saved beside `approved`; older builds keep it as they find it). */
-export type WithApprovedFor = { approved: Record<string, number>; approvedFor?: unknown };
+/** Settings that carry `approvedFor` and `approvedGone` (saved beside `approved`; older builds keep them as they find them). */
+export type WithApprovedFor = { approved: Record<string, number>; approvedFor?: unknown; approvedGone?: unknown };
+
+/**
+ * Approvals of listings a read of their own account and platform no longer had, by order id, with
+ * whose they were and when they went: a listing read again under the same id, on the same account
+ * and platform, gets its approval back, after a restart too (a read warframe.market answered short
+ * ends nothing for good). Kept for the latest GONE_KEPT of each account and platform.
+ */
+export type ApprovedGone = Record<string, Approval & { by: string; at: number }>;
+export const GONE_KEPT = 500;
+/** Saved ended approvals, kept only where whole: a key, a whole positive price, whose, and when. One without whose (saved by an earlier build of this change) is never given back. */
+export function approvedGoneOf(raw: unknown): ApprovedGone {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: ApprovedGone = {};
+  for (const [id, v] of Object.entries(raw as Record<string, unknown>)) {
+    const e = v as { key?: unknown; platinum?: unknown; by?: unknown; legacy?: unknown; at?: unknown } | null;
+    if (!id || !e || typeof e !== "object" || typeof e.key !== "string" || !Number.isInteger(e.platinum) || (e.platinum as number) < 1 || typeof e.by !== "string" || typeof e.at !== "number" || !Number.isFinite(e.at)) continue;
+    out[id] = { key: e.key, platinum: e.platinum as number, by: e.by, at: e.at, ...(e.legacy === true ? { legacy: true as const } : {}) };
+  }
+  return out;
+}
+/**
+ * The saved ended approvals after a read of `whose` listings: every other account's as they were,
+ * and `whose` own as `ended` holds them now (a new one dated `now`), the latest GONE_KEPT.
+ */
+export function goneAfter(saved: Readonly<ApprovedGone>, ended: ReadonlyMap<string, Approval>, whose: string, now: number): ApprovedGone {
+  const out: ApprovedGone = {};
+  for (const [id, e] of Object.entries(saved)) if (e.by !== whose) out[id] = e;
+  const mine = [...ended]
+    .map(([id, e]): [string, ApprovedGone[string]] => [id, { key: e.key, platinum: e.platinum, by: whose, at: saved[id]?.by === whose ? saved[id].at : now, ...(e.legacy ? { legacy: true as const } : {}) }])
+    .sort((a, b) => b[1].at - a[1].at)
+    .slice(0, GONE_KEPT);
+  for (const [id, e] of mine) out[id] = e;
+  return out;
+}
+/** `whose` own saved ended approvals, as the read's `ended`. */
+export function goneOf(saved: Readonly<ApprovedGone>, whose: string): Map<string, Approval> {
+  return new Map(Object.entries(saved).filter(([, e]) => e.by === whose).map(([id, e]) => [id, { key: e.key, platinum: e.platinum, by: e.by, ...(e.legacy ? { legacy: true as const } : {}) }]));
+}
 
 /** Whose listings a read is: the signed-in account and the platform it was read on. */
 export const whoseRead = (accountId: string, platform: string) => `${accountId}|${platform}`;
@@ -127,7 +165,8 @@ const itemOfKey = (key: string) => key.slice(0, key.indexOf("|"));
  *   up for that key takes it (a filled sculpture takes its item's old key's), marked `legacy`, and
  *   the key keeps it for an older build, listing or not.
  * - A listing with none takes back what it had when `ended` has it (gone from an earlier read of
- *   this run), else its own price: new, whoever made it. One MyOrbiter made (`made`: its key and
+ *   its own account and platform, saved: `approvedGone`), and its key's price with it; else its
+ *   own price: new, whoever made it. One MyOrbiter made (`made`: its key and
  *   the price it was listed at, since the read before) takes that price as its own approval, the
  *   key's saved price set to it as the listing was made.
  * - A listing of `whose` gone from the read ends its approval (into `ended`); its key's price goes
@@ -153,6 +192,8 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
       continue;
     }
     const back = ended.get(l.id);
+    // Seen again under another key: that one is not coming back.
+    if (back && back.key !== l.key) ended.delete(l.id);
     // Made in MyOrbiter at this price since the read before: approved at it, as listed.
     if (!had && !(back && back.key === l.key) && made.get(l.key) === l.platinum) {
       made.delete(l.key);
