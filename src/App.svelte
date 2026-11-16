@@ -3410,25 +3410,26 @@
 
   /* The foot: the status, then the buttons, never scrolled. Folded, one column; full, a grid of even
      cells. Never wider than the rail: a wide label can't push a row past the rail's edge. */
-  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); padding: 6px 0; border-top: 1px solid var(--rule); }
+  .foot { flex: none; display: grid; grid-template-columns: minmax(0, 1fr); padding: 6px 0 4px; border-top: 1px solid var(--rule); }
   /* The foot's "?" at the status's top right corner; the lines keep clear of it. */
-  .state { position: relative; display: grid; gap: 4px; min-width: 0; padding: 4px 36px 8px 18px; }
+  .state { position: relative; display: grid; gap: 4px; min-width: 0; padding: 4px 36px 6px 18px; }
   .state :global(.helpmark.corner) { top: 2px; right: 8px; background: #0e1013; }
   .st { display: flex; align-items: center; gap: 10px; min-width: 0; font-size: 13px; line-height: 17px; }
   .st .register { flex: none; width: 72px; font-size: 11px; }
   .st .v { min-width: 0; color: var(--platinum); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .dia { width: 7px; height: 7px; flex: none; background: var(--platinum); transform: rotate(45deg); }
   .dia.hollow { background: none; box-shadow: inset 0 0 0 1px var(--platinum-dim); }
-  /* Folded: Sync, Notifications and More, a row each. */
-  .tools { display: grid; grid-template-columns: minmax(0, 1fr); }
+  /* Folded: Sync, Notifications and More, a row each. Each one a control of its own, a little
+     apart from the next, so it reads as something to press before it is hovered. */
+  .tools { display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 0 6px; }
   /* Full: every button a cell of one size, as tall as a page row, four to a row; pictures alone on
-     one baseline, no box round each; the name and the shortcut in the tooltip. */
-  .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); padding: 0 8px; }
+     one baseline, each in its control's box; the name and the shortcut in the tooltip. */
+  .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); }
   .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
   /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
      picture without pointing at it; its name is the picture and the tooltip. */
-  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 6px; padding: 0 0 0 8px; }
+  .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 4px; padding: 0 0 0 6px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   /* Two cells are narrow for the register's capitals: the state in plain words there. */
   .tools.grid :global(.sync .lbls.aside) { font-family: var(--face-text); font-size: 11px; letter-spacing: 0; text-transform: none; }
@@ -3442,23 +3443,29 @@
   .tsd.tone-ok { background: var(--platinum); box-shadow: none; }
   .tsd.tone-warn { box-shadow: inset 0 0 0 1px var(--oxblood); }
   .tsd.tone-bad { background: var(--oxblood); box-shadow: none; }
+  /* Each tool is drawn as the app's control (app.css, button): a square edge in --rule-bright on the
+     plate, brighter edge and ground when hovered. The status above has neither: it is told, not
+     pressed. */
   .foot :global(.tool) {
     position: relative; display: flex; align-items: center; justify-content: flex-start; gap: 10px; width: 100%; height: var(--row); min-width: 0;
-    padding: 0 12px 0 10px; border: 0; background: transparent; color: var(--platinum-dim);
+    padding: 0 12px 0 10px; border: 1px solid var(--rule-bright); background: var(--plate); color: var(--platinum-dim);
     font-family: var(--face-text); font-size: 14px; font-weight: 400; letter-spacing: 0; text-transform: none; text-align: left;
   }
-  .foot :global(.tool:hover:not(:disabled)) { color: var(--platinum); background: rgb(255 255 255 / 4%); }
+  .foot :global(.tool:hover:not(:disabled)) { color: var(--platinum); border-color: var(--rule-control); background: var(--raised); }
   .foot :global(.tool:active:not(:disabled)) { transform: none; }
   .foot :global(.tool:focus-visible) { outline-offset: -2px; }
   .foot :global(.tool .ti), .foot :global(.tool .mark.pic) { width: 20px; height: 20px; display: grid; place-items: center; flex: none; opacity: .82; }
   .foot :global(.tool:hover .ti), .foot :global(.tool:hover .mark.pic) { opacity: 1; }
-  .foot :global(.tool.on) { color: var(--platinum); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
+  .foot :global(.tool.on) { color: var(--platinum); border-color: var(--rule-control); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .foot :global(.tool.on .ti) { opacity: 1; }
   .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
   .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }
+  /* Done and failed colour Sync's edge too, as ProgressButton draws them everywhere else. */
+  .foot :global(.tool.sync.done), .foot :global(.tool.sync.done:hover:not(:disabled)) { border-color: var(--verdigris); }
+  .foot :global(.tool.sync.failed), .foot :global(.tool.sync.failed:hover:not(:disabled)) { border-color: var(--oxblood); }
   /* Why the last sync failed, under the button (it goes with the button's failed look). */
   .syncerr { margin: 0; padding: 4px 12px 0 18px; font-size: 11px; line-height: 1.35; color: var(--oxblood); }
   .compact .syncerr { display: none; }
@@ -3485,14 +3492,15 @@
   .compact .nav .badge { position: absolute; top: 1px; right: 5px; margin: 0; min-width: 16px; height: 16px; padding: 0 3px; font-size: 10px; }
   .compact .nav .live { position: absolute; top: 4px; right: 9px; margin: 0; }
   /* Folded: the three state diamonds in a row (each line on hover), the "?" under them. */
-  .compact .state { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 4px 0 6px; }
+  .compact .state { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 4px 0 4px; }
   .compact .state :global(.helpmark.corner) { position: static; width: 20px; height: 20px; flex-basis: 20px; margin: 0 25px; }
   .compact .st { gap: 0; }
   /* The words stay for screen readers, out of sight. */
   .compact .st .register, .compact .st .v { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .compact .foot :global(.tool) { justify-content: center; padding: 0; }
   .compact .foot :global(.tool .lbls), .compact .foot :global(.tool .lbl), .compact .foot :global(.tool .chv) { display: none; }
-  .compact .bell .count { position: absolute; top: 1px; right: 7px; margin: 0; }
+  /* On the button's corner, clear of the envelope in the narrow column. */
+  .compact .bell .count { position: absolute; top: -3px; right: -3px; margin: 0; }
   .compact .bell.paused::after { left: 50%; }
   /* A short window: the top tighter, so more of the list shows before it scrolls. Rows keep their height. */
   @media (max-height: 820px) {
