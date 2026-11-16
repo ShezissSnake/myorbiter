@@ -491,8 +491,9 @@ export function discordFieldAction(value: string, event: "input" | "change" | "b
 }
 
 /**
- * The Discord address field emptied: the confirmed address leaves MyOrbiter's config folder.
- * `field` is the field's value; nothing is removed unless it is empty.
+ * The Discord address field emptied, or none saved at start (`discordAtStart`): the confirmed
+ * address leaves MyOrbiter's config folder. `field` is the field's value; nothing is removed unless
+ * it is empty.
  */
 export async function discordForget(field: string): Promise<void> {
   if (field.trim() !== "") return;
@@ -516,6 +517,31 @@ export async function discordAsk(
   if (now.trim() !== "") return "yes";
   await io.forget(now);
   return "emptied";
+}
+
+/**
+ * The Discord address at start, once the settings are read (`settingsReadWhole`); `fieldNow` reads
+ * the address in the settings. An address saved before MyOrbiter asked about them is asked about
+ * now (`discordAsk`). None saved (an empty or blank one, as the field treats it): the confirmed
+ * address's file, which an older MyOrbiter left when its field was emptied, is removed
+ * (`discordForget`, given the saved value, so the app refuses unless it is empty; no file there
+ * is no error). Settings that weren't read whole (they
+ * couldn't be read, or were damaged) are not "none saved": nothing is asked or removed. `io` is
+ * there for the tests.
+ */
+export async function discordAtStart(
+  fieldNow: () => string,
+  readWhole: boolean,
+  io: { confirm: (url: string) => Promise<boolean>; forget: (field: string) => Promise<void> } = { confirm: discordConfirm, forget: discordForget },
+): Promise<"asked" | "forgot" | "none"> {
+  if (!readWhole) return "none";
+  const url = fieldNow();
+  if (url.trim() === "") {
+    await io.forget(url);
+    return "forgot";
+  }
+  await discordAsk(url, fieldNow, io);
+  return "asked";
 }
 
 /** Posts a notification to your Discord webhook. */
@@ -901,6 +927,62 @@ export async function relicData(force = false): Promise<RelicData | null> {
 /** A finite number in [lo, hi], or `fallback` (a damaged settings file: a string, NaN, a huge number). */
 const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fallback);
 
+/** The largest price a saved price may be: the limit floors and minimum prices already have. */
+const MAX_SAVED_PRICE = 100_000;
+
+/**
+ * A group of yes-or-no switches as loaded: the fields of `base` and no others. A field missing
+ * from the file is its usual value; a field that is there is on only when it is a real true, and
+ * off otherwise (a damaged switch never turns something on that read as off before).
+ */
+function flagsOf<T extends object>(v: unknown, base: T): T {
+  const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+  return Object.fromEntries(Object.entries(base).map(([k, d]) => [k, Object.hasOwn(r, k) ? r[k] === true : d])) as T;
+}
+
+/** A platform MyOrbiter lists, by its own name only: "constructor" or "toString" are not platforms. */
+const platformOf = (v: unknown): Platform => (typeof v === "string" && Object.hasOwn(PLATFORM_LABEL, v) ? (v as Platform) : "pc");
+
+/**
+ * Saved relic prices as loaded. An entry needs a time that is a finite number and not in the
+ * future; each price in it needs to be a finite number above 0 and within MAX_SAVED_PRICE. What
+ * fails is left out (an entry that isn't an object, or has a bad time, wholly; a bad price alone),
+ * and the rest is kept. A relic left out is read again by the next relic price read.
+ */
+function relicPricesOf(v: unknown, now = Date.now()): RelicMarket {
+  if (!v || typeof v !== "object" || Array.isArray(v)) return {};
+  const out: RelicMarket = {};
+  for (const [relic, e] of Object.entries(v)) {
+    if (!e || typeof e !== "object" || Array.isArray(e)) continue;
+    const { at, prices, how } = e as { at?: unknown; prices?: unknown; how?: unknown };
+    if (typeof at !== "number" || !Number.isFinite(at) || at > now) continue;
+    if (!prices || typeof prices !== "object" || Array.isArray(prices)) continue;
+    const kept = Object.fromEntries(Object.entries(prices).filter(([, p]) => typeof p === "number" && Number.isFinite(p) && p > 0 && p <= MAX_SAVED_PRICE)) as Record<string, number>;
+    out[relic] = how === "median" ? { at, prices: kept, how } : { at, prices: kept };
+  }
+  return out;
+}
+
+/**
+ * The kinds that go to Discord as loaded. A list is kept (its texts only). Anything saved there
+ * that is not a list is damaged: nothing is posted until the player picks again, and the address
+ * stays. No list at all is the usual kinds, unless an address was saved: that player had Discord
+ * set up, so a missing list is damaged too.
+ */
+function discordKindsOf(discord: unknown): string[] {
+  const d = (discord && typeof discord === "object" && !Array.isArray(discord) ? discord : {}) as { url?: unknown; kinds?: unknown };
+  if (Array.isArray(d.kinds)) return d.kinds.filter((k: unknown): k is string => typeof k === "string");
+  if (d.kinds === undefined && !(typeof d.url === "string" && d.url !== "")) return [...DISCORD_DEFAULT_KINDS];
+  return [];
+}
+
+/** The reward-card weights as loaded: each a finite number, or the usual one (Forma's worth also at least 0). */
+function pickOf(v: unknown, base: PickWeights): PickWeights {
+  const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
+  const num = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? x : d);
+  return { plat: num(r.plat, base.plat), needed: num(r.needed, base.needed), ducats: num(r.ducats, base.ducats), set: num(r.set, base.set), forma: typeof r.forma === "number" && Number.isFinite(r.forma) && r.forma >= 0 ? r.forma : base.forma };
+}
+
 /**
  * The settings that decide what's listed and repriced by itself, and how low, read from a saved
  * file strictly: anything but `true` leaves automatic repricing, checking and hiding off, and a
@@ -984,6 +1066,9 @@ export async function loadSettings(): Promise<Settings> {
   const base = defaultSettings();
   // A file that isn't a settings object at all (a number, a list, text): the usual settings.
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = null;
+  // Read whole: a settings object, or no file at all (a new install). Not when the file couldn't be
+  // read, was damaged (moved aside) or held something else: then the defaults stand in for it.
+  loadedWhole = loadFailed == null && (raw != null || fresh);
   // Schema 2: cracking alone became the default for Relics and Planner alike.
   if (raw && (raw.schema ?? 1) < 2 && raw.advice && typeof raw.advice === "object") raw.advice.squad = 1;
   // `view` was never used; settings saved before it went still carry it.
@@ -999,6 +1084,7 @@ export async function loadSettings(): Promise<Settings> {
     ...base,
     ...(raw ?? {}),
     folded: typeof raw?.folded === "boolean" ? raw.folded : null,
+    jumpToPick: raw && Object.hasOwn(raw, "jumpToPick") ? (raw.jumpToPick as unknown) === true : base.jumpToPick,
     // Only the four sections' names, once each: anything else is dropped.
     sectionsClosed: Array.isArray(raw?.sectionsClosed) ? [...new Set(raw.sectionsClosed.filter((k: unknown): k is string => typeof k === "string" && SECTION_NAMES.includes(k)))] : [],
     // Pairs of a short key and a number only, each key once, at most METER_CAP.
@@ -1023,14 +1109,14 @@ export async function loadSettings(): Promise<Settings> {
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
-    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: raw?.market?.platform && raw.market.platform in PLATFORM_LABEL ? raw.market.platform : "pc", autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: raw?.market?.relicPrices && typeof raw.market.relicPrices === "object" && !Array.isArray(raw.market.relicPrices) ? raw.market.relicPrices : {}, repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
+    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: platformOf(raw?.market?.platform), autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: relicPricesOf(raw?.market?.relicPrices), repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
     advice: adviceOf(raw?.advice, base.advice),
     // `forma` came later: settings saved before it get the default (3p).
-    pick: { ...base.pick, ...(raw?.pick ?? {}), forma: typeof raw?.pick?.forma === "number" && Number.isFinite(raw.pick.forma) && raw.pick.forma >= 0 ? raw.pick.forma : base.pick.forma },
-    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: { ...base.overlay.show, ...(raw?.overlay?.show ?? {}) } },
-    tennoscope: { ...base.tennoscope, ...(raw?.tennoscope ?? {}) },
+    pick: pickOf(raw?.pick, base.pick),
+    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: flagsOf(raw?.overlay?.show, base.overlay.show) },
+    tennoscope: flagsOf(raw?.tennoscope, base.tennoscope),
     // "Your listings" was one switch before it was split: off stays off for all three.
-    notify: { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}), ...(raw?.notify ?? {}) },
+    notify: flagsOf(raw?.notify, { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}) }),
     notifyOptions: {
       paused: raw?.notifyOptions?.paused === true,
       pausedUntil: typeof raw?.notifyOptions?.pausedUntil === "number" ? raw.notifyOptions.pausedUntil : null,
@@ -1041,7 +1127,7 @@ export async function loadSettings(): Promise<Settings> {
       quiet: Array.isArray(raw?.notifyOptions?.quiet) ? raw.notifyOptions.quiet.filter((k: unknown): k is string => typeof k === "string") : [],
       discord: {
         url: typeof raw?.notifyOptions?.discord?.url === "string" ? raw.notifyOptions.discord.url : "",
-        kinds: Array.isArray(raw?.notifyOptions?.discord?.kinds) ? raw.notifyOptions.discord.kinds.filter((k: unknown): k is string => typeof k === "string") : DISCORD_DEFAULT_KINDS,
+        kinds: discordKindsOf(raw?.notifyOptions?.discord),
       },
     },
     // Once: the pages most people rarely open leave the sidebar (Settings → Pages puts them back).
@@ -1185,6 +1271,8 @@ export async function flushSettings() {
 let saveFailed = false;
 /** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
 let loadFailed: string | null = null;
+/** Whether the settings at start came from a settings object, or there was no file (see loadSettings). */
+let loadedWhole = false;
 let saveListener: ((trouble: SaveTrouble | null) => void) | null = null;
 /** Told when saving settings fails (why, and whether it's because they couldn't be read), and when a save goes through again (null). */
 export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
@@ -1194,6 +1282,8 @@ export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
 export const settingsUnreadable = () => loadFailed != null;
 /** Why the saved settings couldn't be read at start, or null when they could. */
 export const settingsUnreadableWhy = () => loadFailed;
+/** Whether the saved settings were read whole at start, or there were none (a new install). */
+export const settingsReadWhole = () => loadedWhole;
 
 /**
  * Opens a link MyOrbiter has already checked (`openable` in core/links.ts) in your browser: the
@@ -1241,12 +1331,17 @@ export interface Health {
   last_success: string | null;
 }
 export type Presence = "online" | "ingame" | "invisible";
+/**
+ * TennoScope's report as the page gets it, checked (core/tsReport.ts): `at`, `game_running`,
+ * `setup`, `health` and `last_error` are always there; every other field may be absent, when
+ * TennoScope didn't write it or wrote it in another shape.
+ */
 export interface TennoscopeReport {
   at: number;
-  pid: number;
+  pid?: number;
   game_running: boolean;
   health: Record<"game_reader" | "log_monitor" | "capture" | "catalog" | "market" | "collection_prices" | "database" | "market_account", Health>;
-  market: {
+  market?: {
     link: "unlinked" | "linked" | "needs_relink";
     backing: "keyring" | "database" | null;
     presence: { status: Presence | null; wanted: Presence | null; auto: boolean };

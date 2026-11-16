@@ -40,6 +40,7 @@ done
 # (scripts/collect-linux-sources.sh). The copyright files of linuxdeploy's go beside them in linux/.
 notices="$appdir/usr/lib/myorbiter/THIRD-PARTY-NOTICES"
 [ -d "$notices" ] || { echo "no THIRD-PARTY-NOTICES in the AppDir at $notices" >&2; exit 1; }
+rm -rf "$notices/linux"
 inner=$(mktemp -d)
 (cd "$inner" && APPIMAGE_EXTRACT_AND_RUN=1 "$pristine" --appimage-extract >/dev/null)
 NOTICES_DIR="$notices/linux" "$here/scripts/collect-linux-sources.sh" "$notices/SOURCES.md" "$appdir/usr/lib" "$appdir/usr/bin" "$inner/squashfs-root/usr"

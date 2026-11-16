@@ -54,7 +54,7 @@
     restoreLive,
     saved,
     saveSettings,
-    discordAsk,
+    discordAtStart,
     discordPost,
     notify,
     quit,
@@ -68,6 +68,7 @@
     tennoscope,
     onSaveTrouble,
     settingsUnreadable,
+    settingsReadWhole,
     settingsUnreadableWhy,
     type TennoscopeAccess,
     logLine,
@@ -130,7 +131,7 @@
   import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, cycleOverlay, recordRivens, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
@@ -166,6 +167,7 @@
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
+  import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
@@ -1725,19 +1727,8 @@
     if (!r) return;
     untrack(() => {
       const g = settings.game;
-      if (r.foundry_ready && JSON.stringify(r.foundry_ready) !== JSON.stringify(g.foundryReady)) g.foundryReady = r.foundry_ready;
-      if (r.mastery_rank != null && r.mastery_rank !== g.masteryRank) g.masteryRank = r.mastery_rank;
-      if (r.platinum != null && r.platinum !== g.platinum) g.platinum = r.platinum;
-      if (r.credits != null && r.credits !== g.credits) g.credits = r.credits;
-      if (r.endo != null && r.endo !== g.endo) g.endo = r.endo;
-      if (r.rivens && JSON.stringify(r.rivens) !== JSON.stringify(g.rivens)) g.rivens = r.rivens;
-      if (r.imprints && JSON.stringify(r.imprints) !== JSON.stringify(g.imprints)) g.imprints = r.imprints;
-      if (r.gear && JSON.stringify(r.gear) !== JSON.stringify(g.gear)) g.gear = r.gear;
-      if (r.consumed_suits && JSON.stringify(r.consumed_suits) !== JSON.stringify(g.consumedSuits)) g.consumedSuits = r.consumed_suits;
-      if (r.rivens) {
-        const hist = recordRivens(g.rivenHistory ?? {}, r.rivens);
-        if (hist) g.rivenHistory = hist;
-      }
+      // Each fact in the shape the pages read it in, or left out (core/tsReport.ts).
+      takeAccountFacts(g, r);
       // The wallet can arrive after the inventory it goes with: bring the latest chart point up to date.
       const last = g.valueHistory.at(-1);
       const at = model?.observedAt ? +model.observedAt : null;
@@ -2673,9 +2664,10 @@
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
       // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
-      // here, rather than at the first notification, which may come while they're away.
-      // A yes given after the field was emptied is undone (`discordAsk`); nothing more here.
-      if (settings.notifyOptions.discord.url) void discordAsk(settings.notifyOptions.discord.url, () => settings.notifyOptions.discord.url).catch(() => {});
+      // here, rather than at the first notification, which may come while they're away. None saved
+      // in settings read whole: the confirmed address's file an older MyOrbiter left is removed
+      // (`discordAtStart`). A failure is logged by the app, without the address, and stops nothing.
+      void discordAtStart(() => settings.notifyOptions.discord.url, settingsReadWhole()).catch(() => {});
       // Updates: checked once the window has drawn and things are quiet, then every 6 hours.
       updates.start(() => settings.updates);
       // The channel this build came from, as Settings names it ("local build" for one made here).

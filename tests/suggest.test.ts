@@ -49,8 +49,11 @@ const without = (...names: string[]): Owned => {
 };
 const modNames = (s: Suggestion) => s.names.mods.filter((n): n is string => !!n);
 
-/** Capacity used, recomputed from the build alone. */
-function usedOf(s: Suggestion, idx: ModIndex): number {
+/**
+ * Capacity used and the capacity, recomputed from the build alone, as its card counts them: the
+ * mods' drain, and the rank-based capacity plus what a counted aura or stance adds.
+ */
+function usedOf(s: Suggestion, idx: ModIndex): { used: number; bonus: number } {
   let used = 0;
   s.mods.forEach((m, i) => {
     if (!m) return;
@@ -62,22 +65,31 @@ function usedOf(s: Suggestion, idx: ModIndex): number {
     const c = idx.byPath.get(m.path)!;
     return bonusIn(c, m.rank ?? c.maxRank ?? 0, pol ?? null);
   };
-  used -= fixed(s.aura, s.polarities?.aura);
-  used -= fixed(s.stance, s.polarities?.stance);
+  // An aura or stance shown but not owned adds nothing until it is owned.
+  let bonus = 0;
+  if (!s.uncounted.includes("aura")) bonus += fixed(s.aura, s.polarities?.aura);
+  if (!s.uncounted.includes("stance")) bonus += fixed(s.stance, s.polarities?.stance);
   if (s.exilus) {
     const c = idx.byPath.get(s.exilus.path)!;
     used += drainIn(c, s.exilus.rank ?? c.maxRank ?? 0, s.polarities?.exilus ?? null);
   }
-  return used;
+  return { used, bonus };
 }
 
 function checkWhole(s: Suggestion, owned: Owned, idx: ModIndex) {
   assert.equal(s.source, "orbiter");
   assert.ok(s.note.startsWith("MyOrbiter's suggestion"), "the note says whose it is");
-  assert.equal(usedOf(s, idx), s.capacity.used, `${s.item} ${s.tier}: capacity adds up`);
+  const { used, bonus } = usedOf(s, idx);
+  assert.equal(used, s.capacity.used, `${s.item} ${s.tier}: capacity adds up`);
+  // The capacity is the rank's (30 or 40, two more a Forma for Kuva, Tenet and Coda, doubled from Intermediate) plus the aura or stance.
+  const base = s.capacity.max - bonus;
+  assert.ok(base >= 30 && base <= 80 && base % 2 === 0, `${s.item} ${s.tier}: capacity ${s.capacity.max} is a rank's ${base} plus ${bonus}`);
   assert.ok(s.capacity.used <= s.capacity.max, `${s.item} ${s.tier}: ${s.capacity.used} fits in ${s.capacity.max}`);
+  // The aura or stance a suggestion shows though it isn't owned: marked, and never owned.
+  const shown = (["aura", "stance"] as const).filter((k) => s.uncounted.includes(k)).map((k) => s[k]!.path);
+  for (const p of shown) assert.ok(!owned.has(p), `${idx.byPath.get(p)?.name} is shown as not owned`);
   const paths = [...s.mods.filter((m) => m).map((m) => m!.path), s.aura?.path, s.exilus?.path, s.stance?.path, ...s.arcanes.map((a) => a.path)].filter((p): p is string => !!p);
-  for (const p of paths) assert.ok(owned.has(p), `${idx.byPath.get(p)?.name} is owned`);
+  for (const p of paths) assert.ok(owned.has(p) || shown.includes(p), `${idx.byPath.get(p)?.name} is owned`);
   assert.equal(new Set(paths).size, paths.length, "no mod twice");
   s.mods.forEach((m, i) => assert.equal(!!m, !!s.reasons.mods[i], "a reason for every filled slot"));
   if (s.tier === "low") assert.equal(s.forma, 0, "no Forma for a new player");
@@ -105,13 +117,15 @@ test("aura and stance: base + rank added, doubled when matched, a fifth less whe
   assert.equal(bonusIn(cp, 5, "madurai"), 5);
 });
 
-test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons reach 80 with five Forma from Intermediate", () => {
+test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons gain two ranks a Forma, only the Forma they need", () => {
   const soma = suggestAll(item("Soma Prime"), all, index);
   assert.deepEqual(TIERS.map((t) => soma[t].capacity.max), [30, 60, 60]);
   assert.deepEqual(TIERS.map((t) => soma[t].catalyst), [false, true, true]);
   const hek = suggestAll(item("Kuva Hek"), all, index);
-  assert.deepEqual(TIERS.map((t) => hek[t].capacity.max), [30, 80, 80]);
-  assert.ok(hek.medium.forma! >= 5 && hek.high.forma! >= 5, "rank 40 takes five Forma");
+  assert.equal(hek.low.capacity.max, 30);
+  // Each Forma adds two ranks (doubled by the Catalyst), up to rank 40 at five: none taken that the mods don't need.
+  for (const t of ["medium", "high"] as const) assert.equal(hek[t].capacity.max, 2 * (30 + 2 * Math.min(5, hek[t].forma!)), `${t}: ${hek[t].forma} Forma`);
+  assert.ok(hek.medium.forma! < 5, `Intermediate takes ${hek.medium.forma} Forma, not five it doesn't need`);
   const mech = suggestAll(item("Voidrig"), all, index);
   assert.deepEqual(TIERS.map((t) => mech[t].capacity.max), [40, 80, 80]);
   for (const s of [...Object.values(soma), ...Object.values(hek), ...Object.values(mech)]) checkWhole(s, all, index);
@@ -190,10 +204,14 @@ test("a melee (Gram Prime): Condition Overload, Blood Rush and Weeping Wounds by
   assert.ok(s.stance, "a stance");
   assert.equal(index.byPath.get(s.stance!.path)?.compatName, "Heavy Blade");
   assert.equal(s.names.arcanes[0], "Melee Duplicate");
-  // Without a stance the slot is empty and the note says why.
-  const noStance = suggest(gram, "medium", new Map([...all].filter(([p]) => index.byPath.get(p)?.type !== "Stance Mod")), index);
-  assert.equal(noStance.stance, undefined);
-  assert.ok(noStance.upgrades.some((u) => index.byPath.get(u.path)?.type === "Stance Mod"), "a stance as an upgrade");
+  // Without a stance owned, one is shown in its slot, marked as not owned and not counted, and not also as an upgrade.
+  const noStanceOwned = new Map([...all].filter(([p]) => index.byPath.get(p)?.type !== "Stance Mod"));
+  const noStance = suggest(gram, "medium", noStanceOwned, index);
+  assert.equal(index.byPath.get(noStance.stance!.path)?.compatName, "Heavy Blade");
+  assert.deepEqual(noStance.uncounted, ["stance"]);
+  assert.match(noStance.reasons.stance ?? "", /isn't in your inventory yet, so the capacity it adds isn't counted: \d+ more once you have it\.$/);
+  assert.ok(!noStance.upgrades.some((u) => index.byPath.get(u.path)?.type === "Stance Mod"), "not also an upgrade");
+  checkWhole(noStance, noStanceOwned, index);
   checkWhole(s, all, index);
 });
 
@@ -459,14 +477,22 @@ test(`inventory (${from}): every suggestable item at every tier fits, from owned
 test("any aura held fills the aura slot when the frame's own picks aren't held, with the capacity it adds", () => {
   const rhino = item("Rhino Prime");
   // Mecha Empowered is in none of the aura lists: still an aura, still capacity.
-  const s = suggest(rhino, "medium", without("Corrosive Projection", "Growing Power", "Energy Siphon", "Steel Charge", "Brief Respite"), index);
+  const s = suggest(rhino, "medium", without("Corrosive Projection", "Growing Power", "Energy Siphon", "Steel Charge", "Brief Respite", "Dreamer's Bond"), index);
   assert.equal(s.names.aura, "Mecha Empowered");
   assert.match(s.reasons.aura ?? "", /^Mecha Empowered: an aura you hold, for the capacity it adds \(\d+ in this slot\); Corrosive Projection would suit the frame better\.$/);
   assert.ok(s.upgrades.some((u) => u.name === "Corrosive Projection" && u.replaces === "Mecha Empowered"));
-  // None held: the slot stays empty and the frame's aura is an upgrade.
-  const none = suggest(rhino, "medium", without(...index.auras.map((a) => a.name)), index);
-  assert.equal(none.aura, undefined);
-  assert.ok(none.upgrades.some((u) => u.name === "Corrosive Projection"));
+  assert.deepEqual(s.uncounted, []);
+  // Dreamer's Bond held counts like any aura: here it adds the most in Rhino's Madurai slot (7, on no polarity of its own).
+  const db = suggest(rhino, "medium", without("Corrosive Projection", "Growing Power", "Energy Siphon", "Steel Charge", "Brief Respite"), index);
+  assert.equal(db.names.aura, "Dreamer's Bond");
+  assert.deepEqual(db.uncounted, []);
+  // None held: the frame's aura is shown in its slot, marked as not owned and not counted, and not also an upgrade.
+  const noAura = without(...index.auras.map((a) => a.name));
+  const none = suggest(rhino, "medium", noAura, index);
+  assert.equal(none.names.aura, "Corrosive Projection");
+  assert.deepEqual(none.uncounted, ["aura"]);
+  assert.ok(!none.upgrades.some((u) => u.name === "Corrosive Projection"));
+  checkWhole(none, noAura, index);
 });
 
 test("a stance on the weapon's own stance polarity comes first: it adds twice the capacity", () => {

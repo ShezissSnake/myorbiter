@@ -267,6 +267,45 @@ ${OFFER}`);
   rmSync(f.dir, { recursive: true });
 });
 
+// repack-appimage.sh's notices step, from `notices=` to the removal of TennoScope's unpacked copy,
+// run on a made-up AppDir (the whole script needs a built AppImage and Tauri's packer). A
+// stand-in for TennoScope's AppImage unpacks one program of its own.
+const repackNotices = (): string => {
+  const text = readFileSync("scripts/repack-appimage.sh", "utf8");
+  const start = text.indexOf('\nnotices="$appdir/');
+  const end = text.indexOf('\nrm -rf "$inner"\n', start);
+  assert.ok(start >= 0 && end > start, "the notices step in scripts/repack-appimage.sh");
+  return text.slice(start + 1, end + '\nrm -rf "$inner"\n'.length);
+};
+
+test("repack-appimage.sh: the AppDir's linux/ holds only this pass's copyright files", { skip }, () => {
+  const f = fixture();
+  const appdir = join(f.dir, "myorbiter.AppDir");
+  const notices = join(appdir, "usr/lib/myorbiter/THIRD-PARTY-NOTICES");
+  write(join(appdir, "usr/lib/libfoo.so.1"), "");
+  write(join(appdir, "usr/lib/libbar.so.2"), "");
+  write(join(appdir, "usr/bin/myorbiter"), "", 0o755);
+  write(join(notices, "README.md"), "# Third-party notices\n");
+  write(join(notices, "fonts/OFL.txt"), "OFL\n");
+  // Left by an earlier pass: a package no longer bundled, and an older text of one still bundled.
+  write(join(notices, "linux/libgone0.copyright"), "Files: *\nLicense: GPL-2+\n");
+  write(join(notices, "linux/libfoo1.copyright"), "an older version's text\n");
+  const pristine = join(f.dir, "TennoScope.AppImage");
+  write(pristine, '#!/usr/bin/env bash\n[ "$1" = --appimage-extract ] && mkdir -p squashfs-root/usr/bin && : >squashfs-root/usr/bin/tennoscope && chmod 755 squashfs-root/usr/bin/tennoscope\n', 0o755);
+  const harness = join(f.dir, "repack.sh");
+  write(harness, `set -euo pipefail\nhere=$1 appdir=$2 pristine=$3\n${repackNotices()}`);
+  const r = run([harness, root, appdir, pristine], {
+    PATH: `${f.bin}:${process.env.PATH}`, STANDIN_PACKAGES: f.packages, COPYRIGHT_DOC_DIR: f.docs,
+  });
+  assert.equal(r.status, 0, r.stderr);
+  assert.deepEqual(readdirSync(join(notices, "linux")).sort(), ["libbar2.copyright", "libfoo1.copyright"]);
+  assert.equal(readFileSync(join(notices, "linux/libfoo1.copyright"), "utf8"), readFileSync(join(f.docs, "libfoo1/copyright"), "utf8"));
+  assert.equal(readFileSync(join(notices, "README.md"), "utf8"), "# Third-party notices\n");
+  assert.equal(readFileSync(join(notices, "fonts/OFL.txt"), "utf8"), "OFL\n");
+  assert.match(readFileSync(join(notices, "SOURCES.md"), "utf8"), /\| libfoo1 \| 1\.2-3 \|[^\n]*\n[^]*tennoscope/);
+  rmSync(f.dir, { recursive: true });
+});
+
 // ---------------------------------------------------------------- point 3: the .deb's notices
 
 // check_deb_notices, as ci/build.sh has it, run on a tar standing in for the .deb (a stand-in

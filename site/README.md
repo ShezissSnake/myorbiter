@@ -50,15 +50,15 @@ form or a `<base>`, and on a `data:` address.
 
 `site.js`, loaded by the landing page only, is plain script with no library. It turns the tour of
 the app's four sections into tabs (arrow keys, Home and End move between them; each section's pages
-are chips, and picking one shows that page's screenshot), opens a screenshot large in a `<dialog>`
+are chips, and picking one shows that page's screenshot and its few lines of what it does, which the build draws from the help list, `does` in `src/lib/help/`; a page with no screenshot leaves the picture as it is), opens a screenshot large in a `<dialog>`
 (previous and next, the arrow keys, Esc and Close; the large file is loaded only then), puts the
 visitor's platform first among the downloads (from the browser's user agent, read on the page and
 sent nowhere) and opens "Licence and sources" when a link to it is followed. It requests nothing
 from anywhere else, stores nothing and counts nothing. Motion is short, opacity and transform only,
 on an action only, and none under reduced motion.
 
-Without it the page reads top to bottom: every section with its pages and screenshot, every
-screenshot a link to its large file, every download listed.
+Without it the page reads top to bottom: every section with its pages, each page's lines under its name and
+the section's screenshot, every screenshot a link to its large file, every download listed.
 
 ## Screenshots
 
