@@ -421,10 +421,13 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
 
 // The names step against main's: whatever the rules for names and chats hide when no path is read
 // (hideNames: known names, RULES and NAME_LINES, each a plain replace, as main's redact runs
-// them), redact hides too. The one word it may show more often is a path root's own word where
-// it stands: a scheme before "://", a drive letter before ":" and a slash, a variable's name.
-// A `~name` root's name is a user's, not such a word.
-const ROOT_WORD = /\b(?:smb|file)(?=:\/\/)|(?<![A-Za-z0-9_])[A-Za-z](?=:(?:[\\/]|%2[Ff]|%5[Cc]))|(?<=\$\{?|\{)[A-Za-z_][A-Za-z0-9_]*|(?<=%)[A-Za-z_][A-Za-z0-9_]*(?=%[\\/])/g;
+// them), redact hides too. The one word it may show more often is a path root's own word in its
+// place, where a root stands: a scheme before "://", a drive letter before ":" and a slash, and a
+// variable's name, whatever it is, in `$NAME/`, `${NAME}/` or `%NAME%\`. One shape more, the gap
+// pinned above: after a /profile-family anchor, `=${NAME}/` or `[${NAME}/` comes out as
+// `[folder]{NAME}/`, a variable's name in braces right after a placeholder and before a slash.
+// A `~name` root's name is a user's, not such a word, and a word in braces anywhere else counts.
+const ROOT_WORD = /\b(?:smb|file)(?=:\/\/)|(?<![A-Za-z0-9_])[A-Za-z](?=:(?:[\\/]|%2[Ff]|%5[Cc]))|(?<=\$)[A-Za-z_][A-Za-z0-9_]*(?=[\\/])|(?<=\$\{|\]\{)[A-Za-z_][A-Za-z0-9_]*(?=\}[\\/])|(?<=%)[A-Za-z_][A-Za-z0-9_]*(?=%[\\/])/g;
 /** Each word of a text with how often it stands there, placeholders and encoded slashes aside. */
 const wordCounts = (t: string) => {
   const m = new Map<string, number>();
