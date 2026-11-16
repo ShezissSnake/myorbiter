@@ -141,7 +141,7 @@
       <span class="art">{#if t.image}<img src={imageUrl(t.image)} alt="" loading="lazy" decoding="async" />{/if}</span>
       <!-- The drain on its own line in the corner, above the name, as the game's mod card has it. -->
       <span class="body">
-        <span class="drain {fit(t)}">{#if t.drain != null}{t.uncounted ? `(+${-t.drain})` : t.drain < 0 ? `+${-t.drain}` : t.drain}{/if}{#if t.modPol}<img src={polImg(t.modPol)} alt={POLARITY_LABEL[t.modPol]} />{/if}</span>
+        <span class="drain {t.uncounted ? '' : fit(t)}">{#if t.drain != null}{t.uncounted ? `(+${-t.drain})` : t.drain < 0 ? `+${-t.drain}` : t.drain}{/if}{#if t.modPol}<img src={polImg(t.modPol)} alt={POLARITY_LABEL[t.modPol]} />{/if}</span>
         <b class="nm">{t.name}</b>
         {#if t.max}<span class="pips" aria-label="Rank {t.rank} of {t.max}">{#each Array.from({ length: Math.min(10, t.max) }, (_, i) => i) as i (i)}<i class:on={i < t.rank}></i>{/each}</span>{/if}
       </span>
@@ -157,7 +157,7 @@
 <div class="grid" style:--cols={cols}>
   {#if top.length}
     <div class="top">
-      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}{#if t.mod && t.have === "missing"}<span class="notheld"> · not owned</span>{/if}</span>{@render slot(t, true)}</div>{/each}
+      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}{#if t.mod && t.have === "missing"}<span class="notheld">{" · not owned"}</span>{/if}</span>{@render slot(t, true)}</div>{/each}
     </div>
   {/if}
   {#if mods.length}
