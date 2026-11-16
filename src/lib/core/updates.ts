@@ -193,9 +193,11 @@ export type ChannelAnswer = { version: string } | "empty" | null;
  * `firstOnly`), so every answer here is GitHub's own: a build there, or its 404 ("empty"). GitHub
  * not reached, a time-out or any other status (a 403, a 429, a 503) is a failed check, which
  * throws and settles nothing; GitLab's frozen copy is never read for it, nor waited on. What stays
- * open: the read GitHub answered with a file, then failed for the plugin (a failure too), and a
- * GitHub that answers 404 for every channel (the repository moved or gone): Experimental doesn't
- * count then, and nothing settles.
+ * open: the read GitHub answered with a file, then failed for the plugin (a failure too); a
+ * repository that moved, whose old addresses answer with a redirect for every channel, so a
+ * channel with no build reads as a failed check, never empty, and a new install of a build made
+ * before the move settles only by a pick; and a repository that is gone, answering 404 for every
+ * channel: Experimental doesn't count then, and nothing settles.
  */
 export const buildCounts = (a: ChannelAnswer | undefined, running: string) => !!a && a !== "empty" && compareVersions(a.version, running) >= 0;
 const counts = buildCounts;

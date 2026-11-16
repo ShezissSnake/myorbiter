@@ -44,7 +44,9 @@ pub(crate) fn version() -> &'static str {
 }
 
 /// Who's asking, and where to find out more: `MyOrbiter/<version> (+<REPO_URL>)`, on every
-/// request MyOrbiter makes (warframe.market's rules ask for exactly this).
+/// request MyOrbiter makes (warframe.market's rules ask for exactly this), but one: a new
+/// install's first read of a channel's file goes under the updater's name, so that an update check
+/// sends no MyOrbiter version (updates.rs, `first_read`).
 pub(crate) fn user_agent() -> String {
     user_agent_for(version())
 }
@@ -223,7 +225,9 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// the system's certificates are loaded once instead of on every request. Goes the way the
 /// sockets go (`presence::route`: the proxy set in the environment at startup, NO_PROXY unread);
 /// tests, which only talk to this machine, go straight. Only `request` uses it, so no request
-/// leaves without the User-Agent.
+/// leaves without the User-Agent: MyOrbiter's, or, for a new install's first read of a channel's
+/// file, the updater's in its place (updates.rs, `first_read`), so an update check sends no
+/// MyOrbiter version.
 ///
 /// Redirects are followed only where `REDIRECTS_FOLLOWED` names them: following any other would
 /// send the request (and its User-Agent) to whatever host the answer names. A redirect not
@@ -341,7 +345,9 @@ fn host_of(url: &str) -> &str {
     authority.rsplit_once('@').map_or(authority, |(_, h)| h)
 }
 
-/// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`.
+/// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`. One caller
+/// sets the updater's in its place: a new install's first read of a channel's file (updates.rs,
+/// `first_read`), so that an update check sends no MyOrbiter version.
 pub(crate) fn request(method: &str, url: &str) -> ureq::Request {
     http_agent().request(method, url).set("User-Agent", &user_agent())
 }

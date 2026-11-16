@@ -110,13 +110,20 @@ const UPDATER_AGENT: &str = "tauri-plugin-updater/2.14.1";
 /// to its file storage, and a release or file that isn't there with a 404: the site build reads
 /// the same address the same way (scripts/site.mjs, `get`; scripts/site-downloads.mjs,
 /// `channelManifest`).
+///
+/// A repository that moved answers its old addresses with a redirect to the new ones, for a file
+/// and for a missing one alike: a build made before the move reads "a file" for every channel,
+/// the plugin follows, and for a channel with no build the check fails (never empty), so no new
+/// install of such a build settles by itself until the player picks a channel. A repository that
+/// is gone answers 404 for every channel: Experimental doesn't count either, and nothing settles.
 #[derive(Debug, PartialEq, Eq)]
 enum FirstSays {
-    /// A file is there (a redirect, or a plain answer): the plugin reads it next.
+    /// A file is there (a redirect, or a 200): the plugin reads it next.
     File,
     /// GitHub's own "no such file": a 404 from the first address.
     NoFile,
-    /// Anything else: no connection, a time-out (`late`), another status (a 403, a 429, a 503).
+    /// Anything else: no connection, a time-out (`late`), another status (a 204, a 206, a 403, a
+    /// 429, a 503).
     Failed { late: bool, why: String },
 }
 
@@ -124,7 +131,8 @@ enum FirstSays {
 /// redirect the app's agent doesn't follow (lib.rs, `redirect_policy`), as `Error::Status`.
 fn first_says(answer: Result<ureq::Response, ureq::Error>) -> FirstSays {
     match answer {
-        Ok(_) => FirstSays::File,
+        Ok(r) if r.status() == 200 => FirstSays::File,
+        Ok(r) => FirstSays::Failed { late: false, why: format!("answered {}", r.status()) },
         Err(ureq::Error::Status(404, _)) => FirstSays::NoFile,
         Err(ureq::Error::Status(code, _)) if (300..400).contains(&code) => FirstSays::File,
         Err(ureq::Error::Status(code, _)) => FirstSays::Failed { late: false, why: format!("answered {code}") },
@@ -138,7 +146,9 @@ fn first_says(answer: Result<ureq::Response, ureq::Error>) -> FirstSays {
 }
 
 /// The read of the first address `first_says` takes: through the app's one HTTP client (its
-/// proxy rule, no redirect followed), with the updater's User-Agent, within `limit`.
+/// proxy rule, no redirect followed), within `limit`. MyOrbiter's own request, it goes under the
+/// updater's name (`UPDATER_AGENT`) so that an update check sends no MyOrbiter version: the one
+/// exception to `user_agent()` on MyOrbiter's requests.
 fn first_read(url: &str, limit: Duration) -> ureq::Request {
     crate::request("GET", url).set("User-Agent", UPDATER_AGENT).timeout(limit)
 }
@@ -1229,7 +1239,12 @@ mod tests {
     fn the_first_address_says_file_none_or_failed() {
         assert_eq!(first_says(status(302)), FirstSays::File, "a release file: GitHub's redirect to its storage");
         assert_eq!(first_says(status(301)), FirstSays::File);
+        assert_eq!(first_says(status(307)), FirstSays::File);
         assert_eq!(first_says(status(200)), FirstSays::File);
+        // Of the other answers in 2xx none is a file: the plugin would read a 204 as "up to date".
+        for code in [201, 202, 204, 206] {
+            assert_eq!(first_says(status(code)), FirstSays::Failed { late: false, why: format!("answered {code}") }, "{code} isn't the file");
+        }
         assert_eq!(first_says(status(404)), FirstSays::NoFile, "GitHub's own none");
         for code in [400, 403, 410, 429, 500, 502, 503] {
             assert_eq!(first_says(status(code)), FirstSays::Failed { late: false, why: format!("answered {code}") }, "{code} is a failure, not none");
