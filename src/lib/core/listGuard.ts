@@ -3,14 +3,14 @@
 // from the inventory as it is now, whatever path asked (the spares plan, the listing form, Orders,
 // the last-copy timer), and refuses anything it can't prove is spare. Pure: the store sends or
 // doesn't, and writes the line it returns to the log.
-import { KIND_LABEL, ducatWorth, ducatsBeat, freeToList, kindOfItem, neverHeld, neverWhy, platToBeat, provenSpare, type Listed, type SpareContext } from "./bulk";
+import { KIND_LABEL, ducatWorth, ducatsBeat, freeToList, kindOfItem, neverHeld, neverNames, neverWhy, platToBeat, provenSpare, type Listed, type SpareContext } from "./bulk";
 import { heldFor, type MarketItem } from "./market";
 import type { Model } from "./model";
 
 /** The refusal for something on the never-sell list, after "Didn't list Khra R0: ". */
 export const NEVER_SOLD_REFUSAL = "it's on your never-sell list (Sell spares). Sell again takes it off the list, then it can be listed";
-/** The refusal for a set held back by a part on the never-sell list, or a part by its set. */
-const neverAcrossRefusal = (why: string, n: number) => `${why}. Sell again takes ${n === 1 ? "it" : "them"} off the list`;
+/** The refusal for a set held back by a part on the never-sell list, or a part by its set: Sell again takes those entries off, named. */
+const neverAcrossRefusal = (why: string, names: string) => `${why}. Sell again takes ${names} off the list`;
 
 /**
  * An inventory read older than this proves nothing for a listing MyOrbiter makes by itself: copies
@@ -36,6 +36,14 @@ export const noInventoryRead = (m: Model) => !m.observedAt && m.inventoryByBase.
  */
 export const keepUnchecked = (m: Model, fullMode: boolean | null) => fullMode === true && noInventoryRead(m);
 export const KEEP_UNCHECKED_WARNING = "MyOrbiter hasn't read your inventory yet, so it can't check what you keep: list only copies you know you can spare.";
+
+/**
+ * A change on Orders that offers more copies than the listing does now: a quantity raised, or a
+ * hidden listing shown again. The last check holds such a change, and before the first read in
+ * Full mode (keepUnchecked) Orders asks first with KEEP_UNCHECKED_WARNING.
+ */
+export const offersMore = (o: { quantity: number; visible: boolean }, change: { quantity?: number; visible?: boolean }) =>
+  (change.quantity != null && change.quantity > o.quantity) || (change.visible === true && !o.visible);
 
 /**
  * Whether the inventory read can prove anything spare: there is one, with the item catalog the keep
@@ -106,6 +114,43 @@ export interface GuardRequest {
 
 export type GuardResult = { ok: true; audit: string } | { ok: false; why: string };
 
+/** What the last check would let go by hand now, for the figure a page shows ("You can spare N"). */
+export interface SpareNow {
+  /** Copies at this rank and variant that can still go up, beyond the ones already listed of it. */
+  free: number;
+  /** Copies of the same item, rank and variant in your listings, hidden ones included. */
+  same: number;
+  /** "You can spare N": what can go in all, the ones already listed of it counted in (0 when more is listed than is spare). */
+  spare: number;
+  /** What your other listings took of the same copies, in words ("2 inside your Bronco Prime Set listing"); null when nothing. */
+  across: string | null;
+  /** When the keep rules leave none at all: what's kept, in a short sentence. Null otherwise. */
+  kept: string | null;
+}
+
+/**
+ * The count the last check (guardListing) makes for a listing by hand of `item` at a rank and
+ * variant, against `listed` (your other listings, every item, hidden ones included): the keep
+ * rules' spare less what your listings already offer of the same copies (freeToList), or with no
+ * keep rule to count by, what you hold less what's listed of it. Null when nothing can be counted
+ * (no inventory read: what's typed goes, as the check lets it). Never-sell is left to its own line.
+ */
+export function spareNow(c: SpareContext, item: MarketItem, rank: number | null, subtype: string | null, listed: readonly Listed[]): SpareNow | null {
+  const m = c.model;
+  if (noInventoryRead(m)) return null;
+  const def = item.subtypes?.[0] ?? null;
+  const sameKey = (o: Listed) => o.itemId === item.id && (item.maxRank == null || (o.rank ?? 0) === (rank ?? 0)) && (o.subtype ?? def) === (subtype ?? def);
+  const same = listed.filter(sameKey).reduce((n, o) => n + o.quantity, 0);
+  const kind = kindOfItem(m, item);
+  const proven = kind ? provenSpare(c, kind, item, rank, subtype, true) : null;
+  if (!kind || !proven) {
+    const held = heldFor(m, item, { rank, subtype });
+    return held == null ? null : { free: Math.max(0, held - same), same, spare: Math.max(0, held), across: null, kept: null };
+  }
+  const { free, across } = freeToList(c, kind, item, rank, proven, same, listed.filter((o) => !sameKey(o)));
+  return { free: Math.max(0, free), same, spare: Math.max(0, free + same), across, kept: proven.spare <= 0 ? proven.short : null };
+}
+
 /** "Khra R0", "Axi A1 Relic (radiant)": the listing in a few words. */
 export function listingTag(it: MarketItem, rank: number | null, subtype: string | null): string {
   return `${it.name}${it.maxRank != null ? ` R${rank ?? 0}` : ""}${subtype && it.subtypes && it.subtypes.length > 1 ? ` (${subtype})` : ""}`;
@@ -151,7 +196,7 @@ export function guardListing(c: GuardContext, r: GuardRequest): GuardResult {
   // Never sold, whoever asks (the plan, the listing form, Orders): Sell again takes it off the list.
   // A part on the list holds back the sets it goes into, and a set its parts.
   const never = neverHeld(c.rules, c.model, c.index, r.item);
-  if (never) return refuse(never.self ? NEVER_SOLD_REFUSAL : neverAcrossRefusal(neverWhy(never), never.by.length));
+  if (never) return refuse(never.self ? NEVER_SOLD_REFUSAL : neverAcrossRefusal(neverWhy(never), neverNames(never)));
   // Never under the minimum, typed in by hand or not, inventory or none.
   const cheap = minimumRefusal(r.platinum, r.minimum);
   if (cheap) return refuse(cheap);

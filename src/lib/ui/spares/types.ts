@@ -60,6 +60,8 @@ export interface ReviewRow {
   why: string;
   /** Taken out by the player: for this plan only, or for good. */
   out?: "skipped" | "never";
+  /** Never sold: the never-sell entries Sell again takes off, by name (the item itself, or across a set its part or set). */
+  neverBy?: string;
   /** While the plan is applied: being sent, sent, or refused. */
   state?: "now" | "sent" | "refused";
 }

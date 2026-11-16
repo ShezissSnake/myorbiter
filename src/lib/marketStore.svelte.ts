@@ -27,7 +27,7 @@ import type { DucatOptions } from "./core/advice";
 import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
-import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, type GuardRequest } from "./core/listGuard";
+import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, offersMore, spareNow, type GuardContext, type GuardRequest, type SpareNow } from "./core/listGuard";
 import { autoFloor, unattendedMove } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
@@ -42,8 +42,16 @@ export interface Draft {
   subtype: string | null;
   maxRank: number | null;
   subtypes: string[] | null;
-  /** How many MyOrbiter thinks you can sell (spare copies), when the page knew. */
+  /**
+   * How many MyOrbiter thinks you can sell (spare copies), when the page knew: never more than the
+   * last check would let go, counted against your other listings (spareNow).
+   */
   available: number | null;
+  /**
+   * What made `available` smaller than the page's count, in a few words to follow it: ", less 2
+   * inside your Bronco Prime Set listing", or what's kept when none is spare. Null otherwise.
+   */
+  spareWhy?: string | null;
   /** The order book was read for the current rank / variant. */
   priced: boolean;
   /** In-game sellers and their prices, cheapest first. */
@@ -53,7 +61,7 @@ export interface Draft {
   addToExisting: boolean;
   /** What you hold, by rank and variant, so changing either recounts what you can list. */
   held: { rank: number | null; subtype: string | null; count: number }[];
-  /** The rank and variant the page asked for, with the copies it said you can spare. */
+  /** The rank and variant the page asked for, with the copies it said you can spare (its own count, before the last check's). */
   asked: { rank: number | null; subtype: string | null; available: number | null };
 }
 
@@ -497,7 +505,7 @@ class MarketStore {
       logLine("warn", "listing", why);
       return false;
     }
-    const r = guardListing({ model: m, index: this.index, sell: this.rules?.sellable, advice: this.advice ?? undefined, drops: drops.recent, fullMode: this.fullMode, rules: this.rules?.spares }, req);
+    const r = guardListing(this.guardContext(m), req);
     if (!r.ok) {
       this.note(r.why, "warn");
       logLine("warn", "listing", r.why);
@@ -505,6 +513,48 @@ class MarketStore {
     }
     audit(r.audit);
     return true;
+  }
+
+  /** What the last check counts from, for a model. */
+  private guardContext(m: Model): GuardContext {
+    return { model: m, index: this.index, sell: this.rules?.sellable, advice: this.advice ?? undefined, drops: drops.recent, fullMode: this.fullMode, rules: this.rules?.spares };
+  }
+
+  /**
+   * What the last check would let go of an item at a rank and variant, by hand, now: counted against
+   * all your listings (hidden ones included) but `except`. Null when nothing can be counted.
+   */
+  spareNow(m: Model | null, it: MarketItem, rank: number | null, subtype: string | null, except: string | null = null): SpareNow | null {
+    const at = this.model ?? m;
+    return at ? spareNow(this.guardContext(at), it, rank, subtype, this.orders.filter((o) => o.id !== except)) : null;
+  }
+
+  /**
+   * A page's spare count for an item ("N spare" on Orders' search), never above what the last check
+   * would let go: the page's own count, or for something it doesn't count (a relic) what you hold
+   * of each variant, each cut to spareNow. Null when neither counts it.
+   */
+  spareShown(m: Model, it: MarketItem, page: { rank: number | null; quantity: number } | null): { rank: number | null; quantity: number } | null {
+    if (page) {
+      const now = this.spareNow(m, it, page.rank, null);
+      return now ? { rank: page.rank, quantity: Math.min(page.quantity, now.spare) } : page;
+    }
+    const held = holdings(m, it) ?? [];
+    let total: number | null = null;
+    for (const h of held.filter((x) => x.count > 0)) {
+      const now = this.spareNow(m, it, h.rank, h.subtype);
+      if (now) total = (total ?? 0) + Math.min(h.count, now.spare);
+    }
+    return total == null ? null : { rank: null, quantity: total };
+  }
+
+  /** The form's count cut to what the last check would let go, with what cut it, in words. */
+  private draftSpare(m: Model, it: MarketItem, rank: number | null, subtype: string | null, page: number | null): { available: number | null; why: string | null } {
+    const now = this.spareNow(m, it, rank, subtype);
+    if (!now) return { available: page, why: null };
+    const count = now.spare;
+    if (page != null && page <= count) return { available: page, why: null };
+    return { available: count, why: now.across ? `, less ${now.across}` : now.kept && count === 0 ? ` (${now.kept})` : null };
   }
 
   /** A listing MyOrbiter made or changed, and why, in myorbiter.log: a wrong one can be explained from it. */
@@ -827,7 +877,9 @@ class MarketStore {
     const atRank = held.filter((h) => h.rank === rank && (req.subtype == null || h.subtype === req.subtype)).sort((a, b) => b.count - a.count);
     const pick = atRank[0] ?? null;
     const subtype = req.subtype ?? pick?.subtype ?? it.subtypes?.[0] ?? null;
-    const available = req.quantity ?? pick?.count ?? null;
+    const page = req.quantity ?? pick?.count ?? null;
+    const spare = this.draftSpare(m, it, rank, subtype, page);
+    const available = spare.available;
     this.draft = {
       itemId: it.id,
       name: it.name,
@@ -839,12 +891,13 @@ class MarketStore {
       maxRank: it.maxRank,
       subtypes: it.subtypes,
       available,
+      spareWhy: spare.why,
       priced: false,
       inGame: 0,
       ladder: [],
       addToExisting: true,
       held,
-      asked: { rank, subtype, available },
+      asked: { rank, subtype, available: page },
     };
     this.drafting = null;
     await this.priceDraft();
@@ -857,10 +910,15 @@ class MarketStore {
     const def = d.subtypes?.[0] ?? null;
     const same = d.rank === d.asked.rank && (d.subtype ?? def) === (d.asked.subtype ?? def);
     // The page's own spare count only holds for what it asked about; elsewhere, what you hold.
-    const available = same
+    const page = same
       ? d.asked.available
       : d.held.filter((h) => h.rank === d.rank && (h.subtype ?? def) === (d.subtype ?? def)).reduce((n, h) => n + h.count, 0);
+    const it = this.item(d.itemId);
+    const m = this.model ?? this.draftModel;
+    const spare = it && m ? this.draftSpare(m, it, d.rank, d.subtype, page) : { available: page, why: null };
+    const available = spare.available;
     d.available = available;
+    d.spareWhy = spare.why;
     d.quantity = Math.min(available ?? 1, 999);
     // Another rank or variant sells at another price: the old one doesn't carry over.
     d.platinum = null;
@@ -1041,7 +1099,7 @@ class MarketStore {
   async update(o: MyOrder, change: { platinum?: number; quantity?: number; visible?: boolean }): Promise<boolean> {
     // More copies, or shown again: the keep rules first (your own change, so an old read doesn't stop it).
     const it = this.item(o.itemId);
-    const raising = (change.quantity != null && change.quantity > o.quantity) || (change.visible === true && !o.visible);
+    const raising = offersMore(o, change);
     let why = "";
     // A new price, typed on Orders: never under the item's minimum, as the listing form.
     const cheap = it && this.rules && change.platinum != null && change.platinum !== o.platinum ? minimumRefusal(change.platinum, minimumForItem(this.rules, this.model, it)) : null;
