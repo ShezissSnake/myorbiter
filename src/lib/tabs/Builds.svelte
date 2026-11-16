@@ -671,9 +671,10 @@
   .ask { padding: .18rem .6rem; font-family: var(--face-text); font-size: .78rem; letter-spacing: 0; text-transform: none; color: var(--platinum-dim); }
   .ask.on { color: var(--slab); background: var(--sec); border-color: var(--sec); }
   .ask:focus-visible { outline: 2px solid var(--sec); outline-offset: 2px; }
-  .orphans ul { list-style: none; margin: .5rem 0 0; padding: 0; display: grid; gap: .3rem; }
+  .orphans { padding-bottom: .7rem; }
+  .orphans ul { list-style: none; margin: .5rem .8rem 0; padding: 0; display: grid; gap: .3rem; }
   .orphans li { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding: .45rem .7rem; background: var(--plate); border: 1px solid var(--rule); }
-  .orphans p { margin: .2rem 0 0; }
+  .orphans p { margin: .3rem .8rem 0; max-width: 72ch; }
   .out { display: flex; gap: 1.1rem; }
   .out .link { display: inline-flex; align-items: center; gap: .3rem; font-size: .82rem; }
 
