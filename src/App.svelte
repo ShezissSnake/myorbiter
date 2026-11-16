@@ -7,7 +7,7 @@
   import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { tradeLineSale } from "./lib/core/soldMarks";
-  import { discordMessage } from "./lib/core/untrusted";
+  import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
@@ -930,7 +930,9 @@
   });
   /**
    * The kinds you chose also go to your Discord webhook, unless notifications are paused. As the
-   * text reads: a chat message or a name can't make a link or other Markdown there (`discordMessage`).
+   * text reads (`discordMessage`): a chat message or a name can't make a masked link or other
+   * Markdown there, and mentions stay off; a bare address in it still becomes a link, and Discord
+   * may draw a card for it.
    */
   function toDiscord(kind: NoticeKind, title: string, body: string) {
     const d = settings.notifyOptions.discord;
@@ -1331,7 +1333,7 @@
     untrack(() => {
       const fresh = due.filter((c) => !notifiedChats.has(`${c.id}@${c.lastUpdate}`));
       for (const c of fresh) notifiedChats.add(`${c.id}@${c.lastUpdate}`);
-      if (fresh.length && settings.notify.siteChat) tell("siteChat", fresh.length === 1 ? `${fresh[0].with} messaged you on warframe.market` : `${fresh.length} chats on warframe.market`, fresh.map((c) => (c.lastMessage ? `${c.with}: ${c.lastMessage.slice(0, 140)}` : `${c.with}: ${c.unread} unread`)).join("\n"));
+      if (fresh.length && settings.notify.siteChat) tell("siteChat", fresh.length === 1 ? `${fresh[0].with} messaged you on warframe.market` : `${fresh.length} chats on warframe.market`, fresh.map((c) => (c.lastMessage ? `${c.with}: ${cutChars(c.lastMessage, 140)}` : `${c.with}: ${c.unread} unread`)).join("\n"));
     });
   });
   const notifiedChats = new Set<string>();
@@ -3165,7 +3167,7 @@
       {/if}
       {#if chatsDue.length}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
-          <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{chatsDue[0].lastMessage.slice(0, 120)}”</i>{/if}</span>
+          <span>{chatsDue.length === 1 ? `${chatsDue[0].with} messaged you on warframe.market` : `${chatsDue.length} unread chats on warframe.market`}{#if chatsDue.length === 1 && chatsDue[0].lastMessage}: <i class="msg">“{cutChars(chatsDue[0].lastMessage, 120)}”</i>{/if}</span>
           <ProgressButton variant="icon" icon="external" tone="quiet" label="Open warframe.market" working="Opening…" busy={links.isOpening("https://warframe.market/")} onclick={() => openUrl("https://warframe.market/")} />
           <IconButton icon="close" tone="quiet" label="Dismiss" onclick={chatsRead} />
         </div></div></div>

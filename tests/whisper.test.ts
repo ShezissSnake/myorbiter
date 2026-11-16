@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP_NAME, tradeWhisper } from "../src/lib/core/whisper";
+import { APP_NAME, NO_WHISPER, tradeWhisper } from "../src/lib/core/whisper";
 import { buildModel } from "../src/lib/core/model";
 import { dealFromOrder, findDeals, type Watch } from "../src/lib/core/deals";
 import { cheapestSeller } from "../src/lib/core/buildsPage";
@@ -87,6 +87,11 @@ test("a build's missing mod or arcane (cheapestSeller on Builds): the site's mes
 
 // ---- Only to the player shown, and one line.
 
+test("where no whisper is built, the player reads that MyOrbiter builds none, not what a name can be", () => {
+  assert.match(NO_WHISPER, /MyOrbiter/);
+  assert.doesNotMatch(NO_WHISPER, /in-game name|can't be|cannot be|start/i);
+});
+
 test("a name that can't be an in-game name gives no whisper: never to someone else, never two lines", () => {
   const o = { action: "buy" as const, item: "Serration", platinum: 9 };
   // A space would send it to "Other", with the rest as the message.
@@ -97,11 +102,11 @@ test("a name that can't be an in-game name gives no whisper: never to someone el
   assert.equal(tradeWhisper({ ...o, player: "Seller1\n/w Other" }), null);
   assert.equal(tradeWhisper({ ...o, player: "Seller1\r" }), null);
   const rlo = String.fromCodePoint(0x202e);
-  for (const player of ["", " ", "?", "Seller1 ", "-dash", ".dot", "a/b", `Sel${rlo}ler`, "x".repeat(41)]) {
+  for (const player of ["", " ", "?", "Seller1 ", "a/b", `Sel${rlo}ler`, "x".repeat(41)]) {
     assert.equal(tradeWhisper({ ...o, player }), null, JSON.stringify(player));
   }
-  // Real names: letters, digits, "_", "-" and "." (as warframe.market's profile addresses take them).
-  for (const player of ["Seller1", "Alpha_1", "Beta-2", "Gamma.3", "x", "x".repeat(40)]) {
+  // Names of letters, digits, "_", "-" and ".", up to 40, whatever the first character (the app's own rule).
+  for (const player of ["Seller1", "Alpha_1", "Beta-2", "Gamma.3", "x", "x".repeat(40), "-Name-", "_Name_", ".dot", "-"]) {
     const m = tradeWhisper({ ...o, player });
     assert.ok(m?.startsWith(`/w ${player} Hi! I want to buy: `), String(m));
     assert.ok(!/[\r\n]/.test(m!), m!);

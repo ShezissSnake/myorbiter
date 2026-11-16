@@ -48,20 +48,18 @@ function stars(cyan: number | null | undefined, amber: number | null | undefined
 }
 
 /**
- * Whether `name` can be an in-game name: letters, digits, "_", "-" and ".", starting with a letter
- * or digit, at most 40 characters (the rule warframe.market's profile addresses go by, market.rs's
- * `user_slug`). A space would address the whisper to another player, the rest of the name read as
- * the message, and a line break would make a paste of several lines.
+ * Whether MyOrbiter builds a whisper to `name`: 1 to 40 letters, digits, "_", "-" and "." (MyOrbiter's
+ * own rule, not the game's or the site's). A space would address the whisper to another player,
+ * the rest of the name read as the message, and a line break would make a paste of several lines.
  */
-export const isInGameName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/.test(name);
+export const isInGameName = (name: string): boolean => /^[A-Za-z0-9_.-]{1,40}$/.test(name);
 
-/** What's shown where a whisper would be, for a name that can't be an in-game name. */
-export const NO_WHISPER = "No whisper: that name can't be an in-game name.";
+/** What's shown where a whisper would be, for a name `isInGameName` turns down. */
+export const NO_WHISPER = "No whisper: MyOrbiter doesn't build one for this name.";
 
 /**
- * The site's copy/paste message for this order, then the application's name. Null when the
- * player's name can't be an in-game name (`isInGameName`): no whisper then, never one to someone
- * else. Always one line, whatever the site sent in any field (a variant, an item name, a price):
+ * The site's copy/paste message for this order, then the application's name. Null for a name
+ * `isInGameName` turns down: no whisper then, never one to someone else. Always one line, whatever the site sent in any field (a variant, an item name, a price):
  * hidden characters taken out and every run of whitespace, line breaks too, made one space.
  */
 export function tradeWhisper(o: WhisperOrder): string | null {

@@ -7,6 +7,15 @@ test("csv: fields with commas and quotes are quoted", () => {
   assert.equal(field(null), "");
 });
 
+test("csv: a text cell holding a ';' stays one cell in a sheet split on ';', so it can't open as a formula", () => {
+  // A sheet that splits on ";" (common where "," is the decimal mark) would read "=1+1" as a
+  // cell of its own; quoted, the whole name is one cell of text.
+  assert.equal(field("ExamplePlayer;=1+1"), '"ExamplePlayer;=1+1"');
+  assert.equal(field("a;b"), '"a;b"');
+  assert.equal(field("2× Serration R10; Mesa Prime Set"), '"2× Serration R10; Mesa Prime Set"');
+  assert.equal(field("Serration"), "Serration");
+});
+
 test("csv: a cell that starts like a formula opens as text; numbers the app writes stay numbers", () => {
   const f = field("=1+1");
   assert.ok(!f.startsWith("="), f);
@@ -49,7 +58,7 @@ test("csv: every source named, line breaks quoted, ranks and counts in a trade's
   const t = tradesCsv([
     { key: "b", at: Date.UTC(2026, 9, 2), partner: "ExamplePlayer", offered: [{ name: "Serration", rank: 10, count: 2 }, { name: "Mesa Prime Set", rank: null, count: 1 }], received: [{ name: "Vitality", rank: 0, count: 1 }], platOut: 5, platIn: 0 },
   ]);
-  assert.equal(t.trim().split("\n")[1], "2026-10-02T00:00:00Z,ExamplePlayer,2× Serration R10; Mesa Prime Set,Vitality R0,0,5");
+  assert.equal(t.trim().split("\n")[1], '2026-10-02T00:00:00Z,ExamplePlayer,"2× Serration R10; Mesa Prime Set",Vitality R0,0,5');
   assert.equal(salesCsv([]), "\uFEFFdate,item,rank,quantity,platinum_each,platinum_total,median_then,source\n");
 });
 

@@ -19,7 +19,7 @@ mod rendering;
 mod timing;
 mod datamove;
 
-use myorbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
+use myorbiter_data::ee_log::{find_ee_log_passing_over, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -802,7 +802,11 @@ fn ee_log_path() -> Option<PathBuf> {
             return Some(path.clone());
         }
     }
-    let path = find_ee_log();
+    let (path, passed) = find_ee_log_passing_over();
+    static PASSED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if let Some(line) = passed_over_line(PASSED.swap(passed, std::sync::atomic::Ordering::Relaxed), passed) {
+        log::warn!(target: "myorbiter::ee_log", "{line}");
+    }
     let before = found.as_ref().map(|(p, _)| p.clone());
     // Said once when MyOrbiter starts looking, then whenever it changes.
     static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -814,6 +818,13 @@ fn ee_log_path() -> Option<PathBuf> {
     }
     *found = path.clone().map(|p| (p, Instant::now()));
     path
+}
+
+/// The line for MyOrbiter's log when a look for the game's log passed over `now` logs another user
+/// on the computer owns (Linux), `before` on the look before: said when it happens, and again only
+/// when the number changes. No path: the found log's is written already.
+fn passed_over_line(before: usize, now: usize) -> Option<String> {
+    (now > 0 && now != before).then(|| format!("passed over {now} EE.log{} in a Steam library that another user on this computer owns", if now == 1 { "" } else { "s" }))
 }
 
 /// Warframe's display mode from its EE.cfg, beside the log ("MODE_BORDERLESS", "MODE_FULLSCREEN",
@@ -1879,6 +1890,16 @@ pub(crate) mod test_http {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_game_log_passed_over_for_its_owner_is_said_once() {
+        let line = passed_over_line(0, 1).expect("said when it happens");
+        assert!(line.contains("another user") && !line.contains('/'), "{line}");
+        assert_eq!(passed_over_line(1, 1), None, "not again on the next look");
+        assert!(passed_over_line(1, 2).is_some(), "again when the number changes");
+        assert_eq!(passed_over_line(1, 0), None);
+        assert_eq!(passed_over_line(0, 0), None);
+    }
 
     #[test]
     fn the_riven_key_is_a_function_key_or_has_a_modifier() {

@@ -37,9 +37,9 @@ const TRADE_FAILED: [&str; 3] = ["The trade failed", "The trade was cancelled", 
 /// trade: it's dropped (no sale) rather than held and grown for the rest of the session.
 const MAX_DIALOG_BYTES: usize = 64 * 1024;
 /// The most of each list a session keeps, the oldest leaving first. A real session holds a few
-/// dozen of each (a long day's trading a few hundred trades and whispers, a long relic run a few
-/// hundred missions); a log that goes far past them isn't one the game wrote, and the whole state
-/// goes to the window on every look.
+/// dozen of each (a long day's trading a few hundred trades and whispers, a long relic run a
+/// hundred or so missions); a log that goes far past them isn't one the game wrote, and the whole
+/// state goes to the window on every look.
 const TRADES_MAX: usize = 1000;
 const WHISPERS_MAX: usize = 1000;
 const HISTORY_MAX: usize = 300;
@@ -578,7 +578,23 @@ pub fn find_ee_log() -> Option<PathBuf> {
 /// Steam Deck's SD card included: it's one of the libraries Steam lists).
 #[cfg(not(any(windows, target_os = "macos")))]
 pub fn find_ee_log() -> Option<PathBuf> {
-    find_ee_log_under(&PathBuf::from(std::env::var_os("HOME")?), running_uid())
+    find_ee_log_passing_over().0
+}
+
+/// `find_ee_log`, and how many logs it passed over because another user on the computer owns them
+/// (`find_ee_log_under`).
+#[cfg(not(any(windows, target_os = "macos")))]
+pub fn find_ee_log_passing_over() -> (Option<PathBuf>, usize) {
+    match std::env::var_os("HOME") {
+        Some(home) => find_ee_log_under(&PathBuf::from(home), running_uid()),
+        None => (None, 0),
+    }
+}
+
+/// `find_ee_log`: on Windows and macOS no log is passed over for its owner.
+#[cfg(any(windows, target_os = "macos"))]
+pub fn find_ee_log_passing_over() -> (Option<PathBuf>, usize) {
+    (find_ee_log(), 0)
 }
 
 /// The user MyOrbiter runs as: its effective user id, the second number of the `Uid:` line in
@@ -593,12 +609,13 @@ fn running_uid() -> Option<u32> {
 #[cfg(not(any(windows, target_os = "macos")))]
 const VDF_MAX: u64 = 1 << 20;
 
-/// `find_ee_log` for the home folder `home`. Only a log `owner` owns is taken (the user MyOrbiter
-/// runs as, whose game writes it): a library listed in Steam's `.vdf` can sit on a drive other
-/// users can write to, and a newer `EE.log` planted there by one of them would otherwise be
-/// followed, its trades taken as the player's.
+/// `find_ee_log_passing_over` for the home folder `home`. Only a log `owner` owns is taken (the
+/// user MyOrbiter runs as, whose game writes it): a library listed in Steam's `.vdf` can sit on a
+/// drive other users can write to, and a newer `EE.log` planted there by one of them would
+/// otherwise be followed, its trades taken as the player's. The second number is how many logs
+/// were passed over for that.
 #[cfg(not(any(windows, target_os = "macos")))]
-fn find_ee_log_under(home: &Path, owner: Option<u32>) -> Option<PathBuf> {
+fn find_ee_log_under(home: &Path, owner: Option<u32>) -> (Option<PathBuf>, usize) {
     use std::os::unix::fs::MetadataExt;
     let steam_roots = [
         home.join(".local/share/Steam"),
@@ -621,11 +638,13 @@ fn find_ee_log_under(home: &Path, owner: Option<u32>) -> Option<PathBuf> {
         }
     }
     let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
-    libraries
-        .iter()
-        .map(|lib| lib.join(tail))
-        .filter(|p| std::fs::metadata(p).is_ok_and(|m| m.is_file() && owner.is_none_or(|uid| m.uid() == uid)))
-        .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+    let logs: Vec<(PathBuf, std::fs::Metadata)> = libraries.iter().map(|lib| lib.join(tail)).filter_map(|p| std::fs::metadata(&p).ok().filter(|m| m.is_file()).map(|m| (p, m))).collect();
+    // Each file once, however many library paths lead to it (`~/.steam/steam` is often a link).
+    let mut others: Vec<(u64, u64)> = logs.iter().filter(|(_, m)| owner.is_some_and(|uid| m.uid() != uid)).map(|(_, m)| (m.dev(), m.ino())).collect();
+    others.sort_unstable();
+    others.dedup();
+    let found = logs.into_iter().filter(|(_, m)| owner.is_none_or(|uid| m.uid() == uid)).max_by_key(|(_, m)| m.modified().ok()).map(|(p, _)| p);
+    (found, others.len())
 }
 
 #[cfg(test)]
@@ -741,13 +760,13 @@ and will receive from Buyer1\u{E000} the following:\n\
         let other = home.join("Games/SteamLibrary");
         std::fs::create_dir_all(steam.join(tail).parent().unwrap()).unwrap();
         std::fs::create_dir_all(other.join(tail).parent().unwrap()).unwrap();
-        assert_eq!(find_ee_log_under(&home, running_uid()), None, "no log yet");
+        assert_eq!(find_ee_log_under(&home, running_uid()).0, None, "no log yet");
         std::fs::write(steam.join("steamapps/libraryfolders.vdf"), format!("\"libraryfolders\"\n{{\n\t\"1\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n", other.display())).unwrap();
         std::fs::write(steam.join(tail), "old").unwrap();
         let older = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
         std::fs::File::options().write(true).open(steam.join(tail)).unwrap().set_modified(older).unwrap();
         std::fs::write(other.join(tail), "new").unwrap();
-        assert_eq!(find_ee_log_under(&home, running_uid()), Some(other.join(tail)));
+        assert_eq!(find_ee_log_under(&home, running_uid()).0, Some(other.join(tail)));
         std::fs::remove_dir_all(&home).ok();
     }
 
@@ -765,7 +784,7 @@ and will receive from Buyer1\u{E000} the following:\n\
         crate::test_support::fifo(&steam.join("steamapps/libraryfolders.vdf"));
         let found = crate::test_support::within({
             let home = home.clone();
-            move || find_ee_log_under(&home, running_uid())
+            move || find_ee_log_under(&home, running_uid()).0
         });
         assert_eq!(found, Some(Some(steam.join(tail))), "returns at once, with the log it can see");
         std::fs::remove_dir_all(&home).ok();
@@ -785,8 +804,8 @@ and will receive from Buyer1\u{E000} the following:\n\
         std::fs::create_dir_all(log.parent().unwrap()).unwrap();
         std::fs::write(&log, "log").unwrap();
         let me = std::fs::metadata(&log).unwrap().uid();
-        assert_eq!(find_ee_log_under(&home, Some(me)), Some(log.clone()));
-        assert_eq!(find_ee_log_under(&home, Some(me + 1)), None, "not the running user's: passed over");
+        assert_eq!(find_ee_log_under(&home, Some(me)), (Some(log.clone()), 0));
+        assert_eq!(find_ee_log_under(&home, Some(me + 1)), (None, 1), "not the running user's: passed over, and counted");
         // A file made here is the running user's, as /proc/self/status says.
         assert_eq!(running_uid(), Some(me));
         std::fs::remove_dir_all(&home).ok();

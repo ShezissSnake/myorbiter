@@ -108,8 +108,11 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
 /// (`body-markup`, as KDE Plasma's does) reads `<`, `>` and `&` in the body as markup: another
 /// player's chat message could draw a link of its own under MyOrbiter's name, and plain text
 /// ("Ack & Brunt") could come out cut. For such a service they're escaped, and it draws them as
-/// typed; one that doesn't take markup shows the body as it is. (Windows builds the toast with
-/// the system's own XML calls, which escape the text; macOS takes plain text.)
+/// typed; one that doesn't take markup shows the body as it is. (On Windows, as read in the locked
+/// versions, notify-rust 4.18.2 hands the title and body to tauri-winrt-notification 0.8.1, which
+/// sets each as the inner text of a `<text>` element of the toast's XML (`SetInnerText`): text,
+/// never markup. How Windows then draws that text wasn't checked on Windows. The macOS side,
+/// mac-notification-sys, wasn't read.)
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 fn body_for(body: &str, markup: bool) -> String {
     if !markup {

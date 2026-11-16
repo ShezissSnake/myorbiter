@@ -57,6 +57,12 @@ export function cleanBlock(v: unknown, max: number): string | null {
   return chars.length > max ? chars.slice(0, max).join("").trimEnd() : s;
 }
 
+/** `s` cut to its first `max` characters by code point, so an emoji is never split in half. */
+export const cutChars = (s: string, max: number): string => {
+  const chars = [...s];
+  return chars.length > max ? chars.slice(0, max).join("") : s;
+};
+
 /** A player's name from warframe.market (a seller, a chat's partner): `cleanLine` at 40 characters, "" when nothing is left. */
 export const cleanName = (v: unknown): string => cleanLine(v, 40) ?? "";
 /** A chat message from warframe.market, as the notification and the chat strip show it: `cleanLine` at 1,000 characters. */

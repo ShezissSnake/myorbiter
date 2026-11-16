@@ -42,11 +42,11 @@ export interface PasteOptions {
   held?: (path: string) => number;
 }
 
-const LABEL = /^\s*(?:[-*•·▪►>]+\s*|\d{1,2}\s*[.)]\s*)?(aura|exilus|stance|arcanes?|mods?|archon\s+shards?|shards?|helminth|subsumed?|slot\s*\d{1,2}|forma|notes?|description|tags?)\s*(?:\([^)]*\))?\s*[:\-–—=]\s*/i;
+const LABEL = /^\s*(?:[-*•·▪►>]+\s*|\d{1,2}\s*[.)]\s*)?(aura|exilus|stance|arcanes?|mods?|archon\s+shards?|shards?|helminth|subsumed?|slot\s*\d{1,2}|forma|notes?|description|tags?)\s*(?:\([^)]*\)\s*)?[:\-–—=]\s*/i;
 const BULLET = /^\s*(?:[-*•·▪►>]+|\d{1,2}\s*[.)])\s*/;
-const RANK = /\b(?:r|rank|lvl|lv|level)\s*[:.]?\s*(\d{1,2})\b|\((\d{1,2})\s*\/\s*\d{1,2}\)|\[(\d{1,2})\]|\b(max(?:ed)?(?:\s+rank)?|unranked)\b/gi;
-const SHARD = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)(?:\s+archon)?\s+shards?(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\(|\bfor\b)\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
-const SHARD_LOOSE = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)\b(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\()\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
+const RANK = /\b(?:r|rank|lvl|lv|level)\s*(?:[:.]\s*)?(\d{1,2})\b|\((\d{1,2})\s*\/\s*\d{1,2}\)|\[(\d{1,2})\]|\b(max(?:ed)?(?:\s+rank)?|unranked)\b/gi;
+const SHARD = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)(?:\s+archon)?\s+shards?(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\(|\bfor\b)\s*([^,;()\n\s](?:[^,;()\n]*[^,;()\n\s])?))?\)?/gi;
+const SHARD_LOOSE = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)\b(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\()\s*([^,;()\n\s](?:[^,;()\n]*[^,;()\n\s])?))?\)?/gi;
 const HELMINTH = /([A-Za-z][\w'’ ]*?)\s+(?:replac(?:es|ing|ed)|in place of|instead of|over|on|→|->)\s+([A-Za-z0-9][\w'’ ]*?)(?=\s*(?:[,;.)(]|$))/i;
 /**
  * The longest stretch HELMINTH reads. A real Helminth phrase runs to a few dozen characters ("Roar
@@ -178,7 +178,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
 
     // Taken out wherever they are.
     line = takeAll(line, /\b(?:update|u)\s*(\d{2}(?:\.\d{1,2}){0,2})\b/gi, (m) => (gameUpdate ??= m[1]));
-    line = takeAll(line, /(\d{1,2})\s*[x×]?\s*(umbral?\s+)?formas?\b/gi, (m) => {
+    line = takeAll(line, /(\d{1,2})\s*(?:[x×]\s*)?(umbral?\s+)?formas?\b/gi, (m) => {
       if (m[2]) umbraForma = Math.max(umbraForma, Number(m[1]));
       else forma = Math.max(forma ?? 0, Number(m[1]));
     });

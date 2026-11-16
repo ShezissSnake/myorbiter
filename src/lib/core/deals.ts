@@ -73,7 +73,7 @@ export interface Deal {
   usual: number;
   seller: string;
   why: string;
-  /** What warframe.market's "Buy" copies: paste it in game chat. Null when the seller's name can't be an in-game name. */
+  /** What warframe.market's "Buy" copies: paste it in game chat. Null for a name MyOrbiter builds no whisper for (core/whisper.ts). */
   whisper: string | null;
 }
 

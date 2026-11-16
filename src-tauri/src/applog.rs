@@ -280,14 +280,18 @@ fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
 }
 
 /// Cuts out anything shaped like a sign-in: a JWT (three dot-separated base64 runs starting
-/// "eyJ"), whatever follows "Bearer", "JWT" or "token", the value of a `key=value` or JSON pair
-/// whose key names a secret (`json_pairs`), and a Discord webhook address (its id and token are all
-/// it takes to post as it).
+/// "eyJ"), whatever follows "Bearer", "JWT" or "token", every pair in a Cookie header, the value
+/// of a `key=value` or JSON pair whose key names a secret (`secret_pair`, `json_pairs`), and a
+/// Discord webhook address (its id and token are all it takes to post as it).
 pub fn redact(s: &str) -> String {
     let json = json_pairs(s);
     let s = json.as_str();
     let mut out = String::with_capacity(s.len());
     let mut hide_next = false;
+    // After "Cookie:" or "Set-Cookie:" the header's first word is hidden, and so is each
+    // `name=value` word after one that ends in `;`.
+    let mut cookie_header = false;
+    let mut cookie_more = false;
     // Words between any whitespace (a tab or a line break hides nothing), the whitespace kept.
     let mut rest = s;
     while !rest.is_empty() {
@@ -295,9 +299,15 @@ pub fn redact(s: &str) -> String {
         out.push_str(&rest[..gap]);
         rest = &rest[gap..];
         let end = rest.find(char::is_whitespace).unwrap_or(rest.len());
+        let start = s.len() - rest.len();
         let (word, after) = rest.split_at(end);
         rest = after;
         if word.is_empty() {
+            continue;
+        }
+        if std::mem::take(&mut cookie_more) && word.contains('=') {
+            out.push_str("[redacted]");
+            cookie_more = word.ends_with(';');
             continue;
         }
         let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
@@ -325,19 +335,67 @@ pub fn redact(s: &str) -> String {
         if hide_next || jwt {
             out.push_str("[redacted]");
             hide_next = false;
+            cookie_more = std::mem::take(&mut cookie_header) && word.ends_with(';');
             continue;
         }
-        if let Some((k, v)) = word.split_once('=').filter(|(k, _)| secret_key(k)) {
-            out.push_str(k);
-            out.push_str(if v.is_empty() { "=" } else { "=[redacted]" });
+        if let Some((at, in_query)) = secret_pair(word) {
+            out.push_str(&word[..at]);
+            let v = start + at;
+            let line_end = |from: usize| s[from..].find('\n').map_or(s.len(), |e| from + e);
+            match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
+                // A quoted value, to its closing quote (or the line's end).
+                Some(q) => {
+                    out.push(q);
+                    out.push_str("[redacted]");
+                    match closing_on_line(s.as_bytes(), v + 1, q as u8) {
+                        Some(c) => {
+                            out.push(q);
+                            rest = &s[c + 1..];
+                        }
+                        None => rest = &s[line_end(v)..],
+                    }
+                }
+                // After `?`, `&` or `;` (a query, or pairs in one word) a value holds no space: to
+                // the word's end.
+                None if in_query => out.push_str(if at == word.len() { "" } else { "[redacted]" }),
+                // In running text nothing marks where a value with a space ends: to the line's end.
+                None if s[v..line_end(v)].trim().is_empty() => rest = &s[line_end(v)..],
+                None => {
+                    out.push_str("[redacted]");
+                    rest = &s[line_end(v)..];
+                }
+            }
             continue;
         }
         // The word before a secret: a scheme, a header naming one ("Authorization:Bearer" too).
         let last = lower.rsplit(':').next().unwrap_or("");
-        hide_next = scheme || matches!(last, "bearer" | "jwt" | "token") || matches!(lower.as_str(), "cookie" | "set-cookie" | "authorization" | "proxy-authorization");
+        cookie_header = matches!(lower.as_str(), "cookie" | "set-cookie");
+        hide_next = scheme || cookie_header || matches!(last, "bearer" | "jwt" | "token") || matches!(lower.as_str(), "authorization" | "proxy-authorization");
         out.push_str(word);
     }
     out
+}
+
+/// In a word, the place right after the `=` of the first pair whose key names a secret
+/// (`secret_key`), and whether that pair comes after a `?`, `&` or `;`.
+fn secret_pair(word: &str) -> Option<(usize, bool)> {
+    let mut from = 0;
+    for (i, c) in word.char_indices().chain([(word.len(), '&')]) {
+        if matches!(c, '?' | '&' | ';') {
+            let pair = &word[from..i];
+            if let Some(eq) = pair.find('=').filter(|&eq| secret_key(&pair[..eq])) {
+                return Some((from + eq + 1, from > 0));
+            }
+            from = i + 1;
+        }
+    }
+    None
+}
+
+/// The index of the `q` that closes a quoted value, looking from `b[from]` to the line's end: the
+/// first one no backslash escapes.
+fn closing_on_line(b: &[u8], from: usize, q: u8) -> Option<usize> {
+    (from..b.len()).take_while(|&i| b[i] != b'\n').find(|&i| b[i] == q && backslashes_before(&b[from..], i - from) % 2 == 0)
 }
 
 /// The longest JSON key `json_pairs` reads: a longer run between two quotes is text, not a key.
@@ -379,7 +437,7 @@ fn json_pairs(s: &str) -> String {
                 }
             }
         } else {
-            let end = bare_value_end(b, v);
+            let end = bare_value_end(b, v, depth);
             (v, end, end)
         };
         if end <= start {
@@ -426,12 +484,14 @@ fn skip_space(b: &[u8], mut i: usize) -> usize {
 }
 
 /// Where a JSON value that isn't a string ends: a number or a word at the next `,`, `}`, `]`,
-/// quote, backslash or space; an object or a list after its closing bracket (or at the line's end).
-fn bare_value_end(b: &[u8], v: usize) -> usize {
+/// quote, backslash or space; an object or a list after its closing bracket (or at the line's end),
+/// a bracket inside one of its strings (quoted `depth` deep, as the pair is) not counted.
+fn bare_value_end(b: &[u8], v: usize, depth: usize) -> usize {
     if matches!(b.get(v), Some(b'{' | b'[')) {
         let mut level = 0usize;
-        for (i, &c) in b.iter().enumerate().skip(v) {
-            match c {
+        let mut i = v;
+        while i < b.len() {
+            match b[i] {
                 b'{' | b'[' => level += 1,
                 b'}' | b']' => {
                     level -= 1;
@@ -439,9 +499,14 @@ fn bare_value_end(b: &[u8], v: usize) -> usize {
                         return i + 1;
                     }
                 }
+                b'"' if backslashes_before(b, i) == depth => match closing_quote(b, i + 1, depth) {
+                    Some(c) => i = c,
+                    None => return b[i..].iter().position(|&c| c == b'\n').map_or(b.len(), |e| i + e),
+                },
                 b'\n' => return i,
                 _ => {}
             }
+            i += 1;
         }
         return b.len();
     }
@@ -449,13 +514,25 @@ fn bare_value_end(b: &[u8], v: usize) -> usize {
 }
 
 /// Where a webhook address's path starts in `word`: `/api/webhooks/`, or with an API version
-/// (`/api/v10/webhooks/`, `/api/vX/webhooks/`), in any case.
+/// (`/api/v10/webhooks/`, `/api/vX/webhooks/`), in any case, its slashes escaped as JSON may write
+/// them (`\/api\/webhooks\/`) or not.
 fn webhook_at(word: &str) -> Option<usize> {
-    let lower = word.to_ascii_lowercase();
-    lower.match_indices("/api/").map(|(i, _)| i).find(|&i| {
-        let rest = &lower[i + "/api/".len()..];
-        rest.starts_with("webhooks/") || rest.split_once('/').is_some_and(|(version, after)| version.starts_with('v') && after.starts_with("webhooks/"))
-    })
+    // The word in lower case with `\/` read as `/`, each byte's place in `word` kept.
+    let b = word.as_bytes();
+    let (mut lower, mut place) = (Vec::with_capacity(b.len()), Vec::with_capacity(b.len()));
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'\\' && b.get(i + 1) == Some(&b'/') {
+            i += 1;
+        }
+        lower.push(b[i].to_ascii_lowercase());
+        place.push(i);
+        i += 1;
+    }
+    (0..lower.len()).find(|&i| {
+        let Some(rest) = lower[i..].strip_prefix(b"/api/") else { return false };
+        rest.starts_with(b"webhooks/") || rest.iter().position(|&c| c == b'/').is_some_and(|j| rest[0] == b'v' && rest[j + 1..].starts_with(b"webhooks/"))
+    }).map(|i| place[i])
 }
 
 /// A key in `key=value` whose value is a sign-in or a session: a token, password, secret, cookie,
@@ -513,7 +590,9 @@ mod tests {
         assert_eq!(redact("see https://example.com/api/webhooks/1/x"), "see https://example.com/api/webhooks/1/x", "only Discord's");
         assert_eq!(redact("POST /v2/order: 429"), "POST /v2/order: 429");
         assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
-        assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted] and sessionid=[redacted] and nonce=[redacted]");
+        // In running text a value runs to the line's end (it may hold a space).
+        assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted]");
+        assert_eq!(redact("got sessionid=xyz\nnonce=12"), "got sessionid=[redacted]\nnonce=[redacted]");
         assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
     }
 
@@ -581,6 +660,64 @@ mod tests {
             assert_eq!(cut_whole(url, "hunter2"), "[redacted webhook]");
         }
         assert_eq!(redact("https://discord.com/api/v10/users/1"), "https://discord.com/api/v10/users/1");
+    }
+
+    /// `cut_whole`, and the line passed through `redact` again (as `tail_in` does) comes out the same.
+    fn cut_once(input: &str, secret: &str) -> String {
+        let r = cut_whole(input, secret);
+        assert_eq!(redact(&r), r, "{input:?} again");
+        r
+    }
+
+    #[test]
+    fn a_secret_pair_after_another_in_one_word_is_cut_out() {
+        assert_eq!(cut_once("GET /v2/x?x=1&token=abc123 done", "abc123"), "GET /v2/x?x=1&token=[redacted] done");
+        assert_eq!(cut_once("a=1;session=abc123 done", "abc123"), "a=1;session=[redacted] done");
+        assert_eq!(cut_once("next=/x?nonce=abc123 done", "abc123"), "next=/x?nonce=[redacted] done");
+        // Pairs with other keys stay.
+        assert_eq!(redact("GET /v2/items?x=1&y=2 done"), "GET /v2/items?x=1&y=2 done");
+    }
+
+    #[test]
+    fn a_quoted_secret_value_is_cut_out_to_its_closing_quote() {
+        assert_eq!(cut_once(r#"login password="hun ter2" ok"#, "hun ter2"), r#"login password="[redacted]" ok"#);
+        assert_eq!(cut_once("login password='hun ter2' ok", "hun ter2"), "login password='[redacted]' ok");
+        assert_eq!(cut_once(r#"login password="hun\" ter2" ok"#, "hun ter2"), r#"login password="[redacted]" ok"#);
+        assert_eq!(cut_once("x ?token=\"hun ter2\" ok", "hun ter2"), "x ?token=\"[redacted]\" ok");
+        // With no closing quote, to the line's end.
+        assert_eq!(cut_once("login password=\"hun ter2\nnext line", "hun ter2"), "login password=\"[redacted]\nnext line");
+    }
+
+    #[test]
+    fn a_secret_value_in_running_text_is_cut_out_to_the_lines_end() {
+        // Nothing marks where a value with a space ends, so the rest of the line goes with it.
+        assert_eq!(cut_once("login password=hun ter2 ok\nnext line", "hun ter2"), "login password=[redacted]\nnext line");
+        assert_eq!(cut_once("login password= hun ter2", "hun ter2"), "login password=[redacted]");
+        // An empty value at the line's end has nothing to cut.
+        assert_eq!(redact("password=\nnext"), "password=\nnext");
+    }
+
+    #[test]
+    fn an_object_value_with_a_bracket_inside_a_string_is_cut_out_whole() {
+        assert_eq!(cut_once(r#"x {"session":{"a":"}","b":"s3cr3t"}} y"#, "s3cr3t"), r#"x {"session":[redacted]} y"#);
+        assert_eq!(cut_once(r#"x {"session":["]","s3cr3t"]} y"#, "s3cr3t"), r#"x {"session":[redacted]} y"#);
+        // JSON escaped inside a string.
+        assert_eq!(cut_once(r#"body "{\"session\":{\"a\":\"}\",\"b\":\"s3cr3t\"},\"x\":1}""#, "s3cr3t"), r#"body "{\"session\":[redacted],\"x\":1}""#);
+    }
+
+    #[test]
+    fn a_webhook_address_with_escaped_slashes_is_cut_out() {
+        assert_eq!(cut_once(r#"{"url":"https:\/\/discord.com\/api\/webhooks\/123\/abc123"}"#, "abc123"), r#"{"url":"[redacted webhook]"#);
+        assert_eq!(cut_once(r"https:\/\/discord.com\/api\/v10\/webhooks\/1\/abc123", "abc123"), "[redacted webhook]");
+        assert_eq!(redact(r#"{"url":"https:\/\/example.com\/api\/webhooks\/1\/x"}"#), r#"{"url":"https:\/\/example.com\/api\/webhooks\/1\/x"}"#, "only Discord's");
+    }
+
+    #[test]
+    fn every_pair_in_a_cookie_header_is_cut_out() {
+        assert_eq!(cut_once("Cookie: a=abc123; sid=def456; c=ghi789", "abc123 def456 ghi789"), "Cookie: [redacted] [redacted] [redacted]");
+        assert_eq!(cut_once("Set-Cookie: sid=abc123; Path=/; HttpOnly", "abc123"), "Set-Cookie: [redacted] [redacted] HttpOnly");
+        // A word after the last pair stays.
+        assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
     }
 
     #[test]
@@ -753,6 +890,14 @@ mod fuzz {
                 format!("{{\"password\":\"{}{}{secret}\"}}", r.word(4), gap(&mut r)),
                 format!("\"{{\\\"token\\\":\\\"{}{}{secret}\\\"}}\"", r.word(4), gap(&mut r)),
                 format!("https://Discord.com/API/v{}/webhooks/123/{secret}", r.word(2)),
+                format!("/v2/x?{}=1&token={secret}", r.word(3)),
+                format!("{}=1;session={secret}", r.word(3)),
+                format!("password=\"{} {secret}\"", r.word(4)),
+                format!("password='{}{}{secret}'", r.word(4), space(&mut r).replace('\n', " ")),
+                format!("password={} {secret}", r.word(4)),
+                format!("{{\"session\":{{\"a\":\"}}]\",\"b\":\"{secret}\"}}}}"),
+                format!("https:\\/\\/discord.com\\/api\\/webhooks\\/123\\/{secret}"),
+                format!("Cookie:{}a={}; sid={secret}", gap(&mut r).replace('\n', " "), r.word(4)),
             ];
             let mut text = String::new();
             for _ in 0..r.below(4) {
@@ -766,6 +911,8 @@ mod fuzz {
             for must in [secret.as_str(), &jwt[..20]] {
                 assert!(!out.contains(must), "seed {seed}: {must:?} survived in {out:?} (from {text:?})");
             }
+            // A report passes the written line through again: it comes out the same.
+            assert_eq!(redact(&out), out, "seed {seed}, from {text:?}");
         }
     }
 }

@@ -2,7 +2,8 @@
 // Discord and into the page: as it was typed, with nothing of its own (core/untrusted.ts).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { discordMessage } from "../src/lib/core/untrusted";
+import { readFileSync } from "node:fs";
+import { cutChars, discordMessage } from "../src/lib/core/untrusted";
 import { auctionsIn, bookIn, chatsIn, feedOrderIn, marketUserIn } from "../src/lib/backend";
 import type { BookOrder } from "../src/lib/core/market";
 import type { RivenAuction } from "../src/lib/core/rivens";
@@ -57,4 +58,18 @@ test("discord: headings, quotes, lists, mentions and code come out as typed; pla
   assert.equal(discordMessage("You sold Mesa Prime Set", "to Buyer for 120 platinum. Ack & Brunt (rank 5) · 3 listings"), "**You sold Mesa Prime Set**\nto Buyer for 120 platinum. Ack & Brunt (rank 5) · 3 listings");
   assert.equal(discordMessage("Alpha_1 whispered you", ""), "**Alpha\\_1 whispered you**");
   assert.equal(discordMessage("Beta-2 whispered you", "a - b, 2. c"), "**Beta-2 whispered you**\na - b, 2. c");
+});
+
+test("a chat line cut for a notice keeps whole characters, never half of one", () => {
+  const smile = String.fromCodePoint(0x1f600);
+  const line = "a".repeat(139) + smile + "b";
+  assert.notEqual(line.slice(0, 140), "a".repeat(139) + smile, "cutting by UTF-16 units leaves half of it");
+  const cut = cutChars(line, 140);
+  assert.equal(cut, "a".repeat(139) + smile);
+  assert.ok(!/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/.test(cut), "no lone half");
+  assert.equal(cutChars("short", 140), "short");
+  // The chat notice cuts each message this way.
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  assert.match(app, /cutChars\(c\.lastMessage, 140\)/);
+  assert.doesNotMatch(app, /lastMessage\.slice\(/);
 });
