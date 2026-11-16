@@ -6,7 +6,7 @@
 // rule, and a test here fails. Every market call is replaced.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { h, order, seller, settings, timedPass, logText } from "./support/pass";
+import { h, mkt, order, seller, settings, timedPass, logText } from "./support/pass";
 import { AUTO_FLOOR_SHARE, AUTO_LEAST_KEPT, AUTO_LIMITS, AUTO_LIMITS_CONSOLE, autoFloor, cutTooFar, unattendedMove } from "../src/lib/core/approved";
 import { DRIFT, DRIFT_RULES, noteChange } from "../src/lib/core/drift";
 
@@ -58,6 +58,28 @@ test("what it says of a listing under its own floor or the minimum is what a pas
   assert.deepEqual(h.sent, [["a", 10]], logText());
 });
 
+// What it says of a price typed on one of two listings of an item, with an earlier version's
+// price saved for it: a, listed at 100p, and b, at 30p, both held by the 20p saved before; 100p
+// typed on b. b's approval and the item's price are 100p; a keeps the 20p, so a pass with the
+// market at 60p sends a to 60p (an older build, holding every listing by the item's one price,
+// stops it at 70p). b, of the same key, then waits for the hour a's change starts.
+test("what it says of a price typed on one listing is what a pass does: the others already up keep the earlier price", async () => {
+  for (const s of both) assert.match(s, /a price you type or reprice on one listing leaves the others already up at the earlier one/);
+  h.mine = [order(100, "a"), order(30, "b")];
+  const s = settings({ "it||": 20 });
+  mkt.items = [h.it];
+  mkt.rules = s;
+  await mkt.refresh(s);
+  await mkt.update(mkt.orders.find((o) => o.id === "b")!, { platinum: 100 });
+  h.book = [seller(60), seller(60)];
+  h.sent = [];
+  h.now += 25 * 3600e3;
+  await timedPass(s);
+  assert.deepEqual(h.sent, [["a", 60]], logText());
+  const owned = (s as typeof s & { approvedFor?: Record<string, { key: string; platinum: number }> }).approvedFor ?? {};
+  assert.deepEqual({ a: owned.a?.platinum, b: owned.b?.platinum, item: s.approved["it||"] }, { a: 20, b: 100, item: 100 });
+});
+
 test("its floors are a listing's own and the minimum, never Orders' Floor share of the market price", () => {
   for (const s of both) {
     assert.doesNotMatch(s, /your own floors/);
@@ -66,7 +88,7 @@ test("its floors are a listing's own and the minimum, never Orders' Floor share 
 });
 
 test("what it says of approvals is the rule: they belong to the listing, and a new one starts from its own price unless an earlier version saved one for the item", async () => {
-  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again\./);
+  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again \(a price you type or reprice on one listing leaves the others already up at the earlier one\)\./);
   // A listing made on the website at 60p, the market at 41p, nothing saved for the item: its own
   // 60p holds it at 42p.
   const pass = async (saved: Record<string, number>) => {

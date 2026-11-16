@@ -343,6 +343,23 @@ test("a step back after a sale and forward again: a listing the older build lowe
   assert.deepEqual(s.approved, { "it||": 100 });
 });
 
+// Named in the text as taken: a, approved here at 100p, is still up at the step back. On the
+// older build a ends and c of the same item is listed in MyOrbiter at the same 100p, which that
+// build doesn't write (it holds that figure already); its timer takes c to 70p. Forward again, a's
+// approval still agrees with the item's price, so that price counts as this build's own, and c
+// starts from its own 70p: a pass with the market at 41p sends it to 49p, where the older build
+// sends nothing. Pinned so a later change shows.
+test("a step back with a still up, a sold there and c listed there at the same 100p, its timer taking c to 70p: forward, c starts from 70p and goes to 49p", async () => {
+  let s = start();
+  await read(s, [order(100, "a")]);
+  s = restart(s); // the older build: nothing of approved or approvedFor written
+  s = restart(s); // forward again
+  h.now += 72 * 3600e3;
+  assert.equal(await pass(s, [order(70, "c")]), "c->49", logText());
+  assert.deepEqual(owned(s), { c: { key: "it||", platinum: 70, by: ME } });
+  assert.deepEqual(s.approved, { "it||": 70 });
+});
+
 test("a listing really sold on its own account ends; the next one takes its own price", async () => {
   let s = start();
   await read(s, [], "other");

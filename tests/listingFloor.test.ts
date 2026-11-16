@@ -141,6 +141,28 @@ test("a floor typed on a relic row with no refinement is also where older builds
   assert.deepEqual(h.sent, [["d", 30]], logText());
 });
 
+// Named in the text as taken: 45p typed here on a relic row with no refinement, then 60p typed
+// for the same row on an older build after a step back (it writes the key with no refinement).
+// Forward again, this build reads the row's floor under the intact key first: 45p, and a pass
+// with the market at 20p sends the row from 60p to 45p, where the older build holds it at 60p.
+// Pinned so a later change shows.
+test("45p typed here on a relic row with no refinement, then 60p typed for it on an older build: this build holds the row at 45p", async () => {
+  const { ownFloor, typedFloor, withOwnFloor } = core;
+  const row = order(60, "u", { itemId: "r", subtype: null });
+  const here = withOwnFloor({}, row, "intact", 45);
+  const there: Record<string, number> = { ...here, "r||": 60 };
+  const olderRead = there[listingKey(row)]; // what the older build reads for the row
+  assert.deepEqual(there, { "r||": 60, "r||intact": 45, "r||#raised": 45 });
+  assert.equal(ownFloor(there, row, "intact"), 45);
+  assert.equal(typedFloor(there, row, "intact"), 45);
+  assert.equal(olderRead, 60, "the older build's read of the row");
+  h.it = relic;
+  h.mine = [row];
+  h.book = [seller(20, null), seller(20, null)];
+  await timedPass(settings({ "r||": 60 }, { floors: there }), empty);
+  assert.deepEqual(h.sent, [["u", 45]], logText());
+});
+
 /** A relic whose daily price is 20p and which sellers ask 25p for; a crack of it is worth 31p to the player. */
 function relicSetup(): { m: Model; d: Draft } {
   h.it = relic;
