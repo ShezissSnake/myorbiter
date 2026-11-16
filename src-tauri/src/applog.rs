@@ -377,8 +377,13 @@ pub fn redact(s: &str) -> String {
 }
 
 /// In a word, the place right after the `=` of the first pair whose key names a secret
-/// (`secret_key`), and whether that pair comes after a `?`, `&` or `;`.
+/// (`secret_key`), and whether that pair comes after a `?`, `&` or `;`. The key of the word's
+/// first `=` is all that comes before it (`/auth/token?code=x`, a path naming the secret); a
+/// later pair's starts after the `?`, `&` or `;` before it.
 fn secret_pair(word: &str) -> Option<(usize, bool)> {
+    if let Some(eq) = word.find('=').filter(|&eq| secret_key(&word[..eq])) {
+        return Some((eq + 1, word[..eq].contains(['?', '&', ';'])));
+    }
     let mut from = 0;
     for (i, c) in word.char_indices().chain([(word.len(), '&')]) {
         if matches!(c, '?' | '&' | ';') {
@@ -597,7 +602,7 @@ mod tests {
     }
 
     /// docs/privacy.md: "Before a line is written, these are cut out: … the value of a `key=value`
-    /// pair, or of a JSON pair …; and a Discord webhook address."
+    /// pair (…), or of a JSON pair …; and a Discord webhook address, …"
     #[test]
     fn any_webhook_address_and_a_json_password_are_cut_out() {
         // A webhook address of any API version.
@@ -674,6 +679,9 @@ mod tests {
         assert_eq!(cut_once("GET /v2/x?x=1&token=abc123 done", "abc123"), "GET /v2/x?x=1&token=[redacted] done");
         assert_eq!(cut_once("a=1;session=abc123 done", "abc123"), "a=1;session=[redacted] done");
         assert_eq!(cut_once("next=/x?nonce=abc123 done", "abc123"), "next=/x?nonce=[redacted] done");
+        // A secret word anywhere before the word's first `=`, as in a path.
+        assert_eq!(cut_once("POST /auth/token?code=abc123 done", "abc123"), "POST /auth/token?code=[redacted] done");
+        assert_eq!(cut_once("GET /session/x;id=abc123 done", "abc123"), "GET /session/x;id=[redacted] done");
         // Pairs with other keys stay.
         assert_eq!(redact("GET /v2/items?x=1&y=2 done"), "GET /v2/items?x=1&y=2 done");
     }
@@ -892,6 +900,7 @@ mod fuzz {
                 format!("https://Discord.com/API/v{}/webhooks/123/{secret}", r.word(2)),
                 format!("/v2/x?{}=1&token={secret}", r.word(3)),
                 format!("{}=1;session={secret}", r.word(3)),
+                format!("/auth/token?{}={secret}", r.word(3)),
                 format!("password=\"{} {secret}\"", r.word(4)),
                 format!("password='{}{}{secret}'", r.word(4), space(&mut r).replace('\n', " ")),
                 format!("password={} {secret}", r.word(4)),
