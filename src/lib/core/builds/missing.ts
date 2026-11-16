@@ -20,7 +20,7 @@ import { heldCount, type Model } from "../model";
 import type { GearCopy } from "../notNeeded";
 import type { CatalogItem } from "../types";
 import { tierOf, type TierResult } from "./capacity";
-import { usesReactor } from "./gear";
+import { slotLayout, usesReactor } from "./gear";
 import type { Build, BuildShard, GearKind, ShardColour } from "./types";
 
 const MISC = "/Lotus/Types/Items/MiscItems/";
@@ -176,9 +176,9 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
     lines.push({ kind: "part", name, path: p, held, have: held > 0 || inBuild ? "ok" : "missing", text: inBuild ? "In a build of yours." : held > 0 ? `${plural(held, "held")}.` : "Not held." });
   }
 
-  // Mods, at their rank.
+  // Mods, at their rank. Mods past the item's mod slots aren't in the build (its reasons say so).
   let endo = 0;
-  const mods = [build.aura, build.stance, ...build.mods, build.exilus].filter((x): x is NonNullable<typeof x> => !!x);
+  const mods = [build.aura, build.stance, ...build.mods.slice(0, slotLayout(build.kind).mods), build.exilus].filter((x): x is NonNullable<typeof x> => !!x);
   for (const x of mods) {
     const c = m.catalogByUnique.get(x.path);
     if (!c) {
@@ -282,6 +282,6 @@ export function missing(build: Build, m: Model, opts: { tier?: TierResult } = {}
   // The Helminth: not read yet.
   if (build.helminth) lines.push({ kind: "helminth", name: build.helminth.ability, have: "unknown", text: `MyOrbiter can't check the Helminth yet: ${build.helminth.ability} replaces ${build.helminth.replaces}.` });
 
-  const fallback: TierResult = { tier: "low", capacityTier: "low", limits: [], fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["MyOrbiter doesn't know this item."], unknown: [] };
+  const fallback: TierResult = { tier: "low", capacityTier: "low", limits: [], fits: true, rank: 30, capacity: 30, drain: 0, catalyst: false, forma: 0, umbraForma: 0, formaPlan: [], exilusAdapter: false, arcaneAdapter: false, slots: [], reasons: ["MyOrbiter doesn't know this item."], unknown: [], unsure: false };
   return { tier: tier ?? fallback, lines, todo: lines.filter((l) => l.have === "short" || l.have === "missing").length, endo, copy };
 }
