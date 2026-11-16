@@ -38,6 +38,7 @@
   import Effort from "../ui/Effort.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import CopyButton from "../ui/CopyButton.svelte";
+  import { NO_WHISPER } from "../core/whisper";
   import UndoSlot from "../ui/UndoSlot.svelte";
   import { UndoSlots } from "../undo.svelte";
   import P from "../ui/P.svelte";
@@ -895,7 +896,11 @@
               <Thumb file={model.imageOf(d.name)} name={d.name} size={26} />
               <span class="fn"><b class="mark">{d.name}</b><span class="dim small">{d.seller} · {d.why}</span></span>
               <span class="pr"><P v={d.price} /><s class="dim small">{d.usual}</s></span>
-              <CopyButton text={d.whisper} label="Copy whisper" title="Copy the whisper to {d.seller}, to paste in game chat: {d.whisper}" />
+              {#if d.whisper}
+                <CopyButton text={d.whisper} label="Copy whisper" title="Copy the whisper to {d.seller}, to paste in game chat: {d.whisper}" />
+              {:else}
+                <span class="dim small nowhisper">{NO_WHISPER}</span>
+              {/if}
             </li>
           {/each}
         </ul>
@@ -1209,6 +1214,7 @@
   .sub { margin-top: .4rem; color: var(--platinum-deep); }
   .dl li { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto auto; gap: .6rem; align-items: center; }
   .pr { display: inline-flex; align-items: center; gap: .4rem; }
+  .nowhisper { max-width: 11rem; }
 
   .ph { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding-bottom: .6rem; border-bottom: 1px solid var(--rule); }
   .pt { display: inline-flex; align-items: center; gap: .55rem; }

@@ -53,6 +53,8 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
     std::thread::spawn(move || {
         #[cfg(any(target_os = "linux", target_os = "windows"))]
         let _waiting = id.is_some().then_some(Waiting);
+        #[cfg(target_os = "linux")]
+        let body = body_for(&body, takes_markup());
         let mut n = notify_rust::Notification::new();
         n.appname("MyOrbiter").summary(&summary).body(&body);
         #[cfg(target_os = "linux")]
@@ -102,6 +104,39 @@ pub fn notify(app: tauri::AppHandle, summary: String, body: String, id: Option<S
     answer
 }
 
+/// The body as the notification service gets it. A Linux service that says it takes markup
+/// (`body-markup`, as KDE Plasma's does) reads `<`, `>` and `&` in the body as markup: another
+/// player's chat message could draw a link of its own under MyOrbiter's name, and plain text
+/// ("Ack & Brunt") could come out cut. For such a service they're escaped, and it draws them as
+/// typed; one that doesn't take markup shows the body as it is. (On Windows, as read in the locked
+/// versions, notify-rust 4.18.2 hands the title and body to tauri-winrt-notification 0.8.1, which
+/// sets each as the inner text of a `<text>` element of the toast's XML (`SetInnerText`): text,
+/// never markup. How Windows then draws that text wasn't checked on Windows. The macOS side,
+/// mac-notification-sys, wasn't read.)
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+fn body_for(body: &str, markup: bool) -> String {
+    if !markup {
+        return body.to_string();
+    }
+    let mut out = String::with_capacity(body.len());
+    for c in body.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Whether the desktop's notification service takes markup in a body. When it can't be asked, as
+/// if it did: escaped text reads right on nearly every service, unescaped markup doesn't.
+#[cfg(target_os = "linux")]
+fn takes_markup() -> bool {
+    notify_rust::get_capabilities().map_or(true, |caps| caps.iter().any(|c| c == "body-markup"))
+}
+
 /// An error from the notification service as one short line for the page.
 fn reason(e: &str) -> String {
     let line: String = e.split_whitespace().collect::<Vec<_>>().join(" ");
@@ -143,6 +178,20 @@ mod tests {
         drop(tx);
         let e = sent(&rx, Duration::from_secs(1)).unwrap_err();
         assert!(e.contains("without an answer"), "{e}");
+    }
+
+    #[test]
+    fn another_players_markup_reaches_the_service_as_text() {
+        let body = r#"Buyer: <a href="https://example.invalid">x</a> & <b>y</b>"#;
+        let sent = body_for(body, true);
+        println!("the body as a service that takes markup gets it: {sent}");
+        assert_eq!(sent, r#"Buyer: &lt;a href="https://example.invalid"&gt;x&lt;/a&gt; &amp; &lt;b&gt;y&lt;/b&gt;"#);
+        assert!(!sent.contains('<') && !sent.contains('>'), "{sent}");
+        // Plain text with an ampersand reads right on such a service: it draws "&amp;" as "&".
+        assert_eq!(body_for("Ack & Brunt: 3 sellers under 20p", true), "Ack &amp; Brunt: 3 sellers under 20p");
+        // A service that doesn't take markup draws the body as it is: nothing to escape.
+        assert_eq!(body_for(body, false), body);
+        assert_eq!(body_for("Ack & Brunt", false), "Ack & Brunt");
     }
 
     #[test]

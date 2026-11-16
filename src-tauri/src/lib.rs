@@ -19,7 +19,7 @@ mod rendering;
 mod timing;
 mod datamove;
 
-use myorbiter_data::ee_log::{find_ee_log, LogFollower, MissionState};
+use myorbiter_data::ee_log::{find_ee_log_passing_over, LogFollower, MissionState};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
@@ -538,7 +538,7 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
     // name, or over a file, and a name taken means the next number.
     for n in 1..1000 {
         let path = if n == 1 { dir.join(format!("myorbiter-{what}-{day}.csv")) } else { dir.join(format!("myorbiter-{what}-{day}-{n}.csv")) };
-        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        match create_export(&path) {
             Ok(f) => {
                 write_whole(&path, f, text.as_bytes()).map_err(|e| e.to_string())?;
                 return Ok(path.display().to_string());
@@ -548,6 +548,19 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
         }
     }
     Err("too many exports of that name today".into())
+}
+
+/// A new export file at `path`, never one already there. Only the player can read it (0600 on
+/// Unix), as the log: it names the same trade partners.
+fn create_export(path: &Path) -> std::io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
 }
 
 /// Writes all of `bytes` to `out`, the file just made at `path`, or removes the file: a disk that
@@ -789,7 +802,11 @@ fn ee_log_path() -> Option<PathBuf> {
             return Some(path.clone());
         }
     }
-    let path = find_ee_log();
+    let (path, passed) = find_ee_log_passing_over();
+    static PASSED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+    if let Some(line) = passed_over_line(PASSED.swap(passed, std::sync::atomic::Ordering::Relaxed), passed) {
+        log::warn!(target: "myorbiter::ee_log", "{line}");
+    }
     let before = found.as_ref().map(|(p, _)| p.clone());
     // Said once when MyOrbiter starts looking, then whenever it changes.
     static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
@@ -803,13 +820,27 @@ fn ee_log_path() -> Option<PathBuf> {
     path
 }
 
+/// The line for MyOrbiter's log when a look for the game's log passed over `now` logs another user
+/// on the computer owns (Linux), `before` on the look before: said when it happens, and again only
+/// when the number changes. No path: the found log's is written already.
+fn passed_over_line(before: usize, now: usize) -> Option<String> {
+    (now > 0 && now != before).then(|| format!("passed over {now} EE.log{} in a Steam library: the log file{} to another user than the one MyOrbiter runs as", if now == 1 { "" } else { "s" }, if now == 1 { " belongs" } else { "s belong" }))
+}
+
 /// Warframe's display mode from its EE.cfg, beside the log ("MODE_BORDERLESS", "MODE_FULLSCREEN",
 /// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so MyOrbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
-    let log = ee_log_from(path).ok()?.or_else(ee_log_path)?;
-    let text = fs::read_to_string(log.parent()?.join("EE.cfg")).ok()?;
-    window_mode(&text)
+    window_mode_beside(&ee_log_from(path).ok()?.or_else(ee_log_path)?)
+}
+
+/// The most of an EE.cfg read: the game's settings, a few KB.
+const EE_CFG_MAX: u64 = 1 << 20;
+
+/// The display mode from the EE.cfg beside the log at `log`.
+fn window_mode_beside(log: &Path) -> Option<String> {
+    let bytes = myorbiter_data::read_capped(&log.parent()?.join("EE.cfg"), EE_CFG_MAX).ok()?;
+    window_mode(&String::from_utf8(bytes).ok()?)
 }
 
 fn window_mode(cfg: &str) -> Option<String> {
@@ -1861,6 +1892,18 @@ pub(crate) mod test_http {
 mod tests {
 
     #[test]
+    fn a_game_log_passed_over_for_its_owner_is_said_once() {
+        let line = passed_over_line(0, 1).expect("said when it happens");
+        assert!(line.contains("another user") && !line.contains('/'), "{line}");
+        // Whose: the log file's owner, not the library's.
+        assert_eq!(line, "passed over 1 EE.log in a Steam library: the log file belongs to another user than the one MyOrbiter runs as");
+        assert_eq!(passed_over_line(1, 1), None, "not again on the next look");
+        assert!(passed_over_line(1, 2).is_some(), "again when the number changes");
+        assert_eq!(passed_over_line(1, 0), None);
+        assert_eq!(passed_over_line(0, 0), None);
+    }
+
+    #[test]
     fn the_riven_key_is_a_function_key_or_has_a_modifier() {
         for ok in ["F9", "f12", "Ctrl+Shift+R", "Alt+K", "Super+F1", "CmdOrCtrl+R"] {
             assert!(riven_key_allowed(ok).is_ok(), "{ok}");
@@ -2319,6 +2362,23 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
     }
 
+    /// An export names trade partners, as the log does: only the player can read it, as the log.
+    #[cfg(unix)]
+    #[test]
+    fn an_export_is_readable_by_the_player_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("myorbiter-export-mode-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("myorbiter-trades-2026-11-02.csv");
+        let file = create_export(&path).unwrap();
+        write_whole(&path, file, b"date,partner\n").unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        // Never over a file already there.
+        assert_eq!(create_export(&path).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
     #[test]
     fn page_paths_are_checked() {
         let abs = if cfg!(windows) { "C:\\Users\\me\\data" } else { "/home/me/data" };
@@ -2362,6 +2422,34 @@ mod tests {
         assert_eq!(window_mode("Graphics.WindowMode=MODE_FULLSCREEN").as_deref(), Some("MODE_FULLSCREEN"));
         assert_eq!(window_mode("Graphics.WindowMode=<script>"), None);
         assert_eq!(window_mode("nothing here"), None);
+    }
+
+    /// An EE.cfg that is a named pipe beside a log in a Steam library someone else can write: no
+    /// mode, at once, rather than the command waiting on the pipe for good.
+    #[cfg(unix)]
+    #[test]
+    fn an_ee_cfg_that_is_not_a_plain_file_is_passed_over_at_once() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-eecfg-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("EE.log");
+        fs::write(dir.join("EE.cfg"), "Graphics.WindowMode=MODE_BORDERLESS\n").unwrap();
+        assert_eq!(window_mode_beside(&log).as_deref(), Some("MODE_BORDERLESS"));
+        fs::remove_file(dir.join("EE.cfg")).unwrap();
+        assert!(std::process::Command::new("mkfifo").arg(dir.join("EE.cfg")).status().unwrap().success());
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(window_mode_beside(&log));
+        });
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)), Ok(None), "no mode, and at once");
+        // Larger than any real one (sparse): not read.
+        fs::remove_file(dir.join("EE.cfg")).unwrap();
+        let f = fs::File::create(dir.join("EE.cfg")).unwrap();
+        f.set_len(EE_CFG_MAX + 1).unwrap();
+        drop(f);
+        std::io::Write::write_all(&mut fs::OpenOptions::new().append(true).open(dir.join("EE.cfg")).unwrap(), b"\nGraphics.WindowMode=MODE_WINDOWED\n").unwrap();
+        assert_eq!(window_mode_beside(&dir.join("EE.log")), None);
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

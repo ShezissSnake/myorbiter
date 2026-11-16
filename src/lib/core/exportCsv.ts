@@ -1,10 +1,17 @@
 // Sales and trades as CSV, for a spreadsheet: one row each, the date in ISO form, plain numbers.
 import type { Sale, TradeLogEntry } from "../backend";
 
-/** One CSV field: quoted when it holds a comma, a quote or a line break, quotes doubled. */
+/**
+ * One CSV field: quoted when it holds a comma, a quote, a line break or a `;`, quotes doubled (how
+ * a spreadsheet that splits on `;` reads such a quoted cell isn't checked here). Text that
+ * starts with `=`, `+`, `-`, `@`, a tab or a carriage return (a trade partner's name, an item's)
+ * would be a formula in a spreadsheet that opens the file: it gets a `'` in front, so it opens as
+ * text. Numbers the app writes are numbers, and stay as they are.
+ */
 export const field = (v: string | number | null | undefined): string => {
-  const s = v == null ? "" : String(v);
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  let s = v == null ? "" : String(v);
+  if (typeof v === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",;\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 const row = (xs: (string | number | null | undefined)[]) => xs.map(field).join(",");
 const date = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
