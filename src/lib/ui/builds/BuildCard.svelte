@@ -11,7 +11,7 @@
   import type { Model } from "../../core/model";
   import { bonusElement, ELEMENT_LABEL, missing, type Build, type MissingLine, type MissingReport } from "../../core/builds";
   import type { Loadout, LoadoutPick, WeaponRiven } from "../../core/builds/suggest";
-  import { ageLine, BASIS_WORD, helminthShow, rivenShort, shardSlots, sourceName, withItLines, TIER_NAME, TIER_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
+  import { ageLine, BASIS_WORD, helminthShow, noteShown, rivenShort, shardSlots, sourceName, tierWord, withItLines, TIER_TIP, UNSURE_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
   import { familyOfTag } from "./tags";
   import { openable } from "../../core/links";
   import { info } from "../../hover.svelte";
@@ -71,8 +71,13 @@
   const LEAD_SHOWN = 3;
   let whyOpen = $state(false);
   const leadN = $derived(Math.max(1, t.limits.length));
-  const lead = $derived(t.reasons.slice(0, leadN));
+  // A mod MyOrbiter doesn't know comes first of all (it is why the tier can't be told).
+  const unknownN = $derived(t.limits[0]?.kind === "unknown" ? 1 : 0);
+  const first = $derived(t.reasons.slice(0, unknownN));
+  const lead = $derived(t.reasons.slice(unknownN, leadN));
   const after = $derived(t.reasons.slice(leadN));
+  // MyOrbiter's suggestion says what it invests in this card's figures.
+  const note = $derived(noteShown(b, t));
   const lo = $derived(extras?.loadout ?? null);
   const withIt = $derived(withItLines(lo, b.arcanes.map((a) => a.path)));
   const shards = $derived(shardSlots(b, lo));
@@ -173,9 +178,9 @@
 
     <div class="side">
       <section class="tier" aria-label="What it takes">
-        <div class="tline" title={TIER_TIP[t.tier]}>
-          <span class="tmark t-{t.tier}" aria-hidden="true"><i></i><i></i><i></i></span>
-          <b class="name-mark">{TIER_NAME[t.tier]}</b>
+        <div class="tline" title={t.unsure ? UNSURE_TIP : TIER_TIP[t.tier]}>
+          <span class="tmark t-{t.unsure ? 'unsure' : t.tier}" aria-hidden="true"><i></i><i></i><i></i></span>
+          <b class="name-mark">{tierWord(t)}</b>
           {#if !t.fits}<span class="tag alert" title="Even with the Catalyst and Forma, the mods drain more than the capacity">Doesn't fit</span>{/if}
         </div>
         <span class="register capword">Capacity</span>
@@ -184,6 +189,7 @@
           <span class="nums"><b>{t.drain}</b><span class="dim">/{t.capacity}</span>{#if over}<span class="bad small"> {over} over</span>{/if}</span>
         </div>
         <ul class="reasons">
+          {#each first as r, i (i)}<li class="sum">{r}</li>{/each}
           {#each after as r, i (i)}<li class="sum">{r}</li>{/each}
           {#each lead.slice(0, LEAD_SHOWN) as r, i (i)}<li>{r}</li>{/each}
           {#if lead.length > LEAD_SHOWN}
@@ -260,7 +266,7 @@
           <ul>{#each extras.upgrades.slice(0, 5) as u (u.name)}<li title={u.reason}><b>{u.name}</b>{#if u.replaces}{" "}<span class="dim">for {u.replaces}</span>{/if}</li>{/each}</ul>
         </section>
       {/if}
-      {#if b.note}<p class="note dim small" title={b.note}>{b.note}</p>{/if}
+      {#if note}<p class="note dim small" title={note}>{note}</p>{/if}
     </div>
   </div>
 </article>
