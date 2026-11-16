@@ -188,6 +188,8 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
   const next: ApprovedFor = {};
   for (const [id, e] of Object.entries(owned)) if (theirs(e)) next[id] = e;
   const seen = new Set<string>();
+  // Approvals given back by this read, the highest per key: the key's price comes back with them.
+  const restored = new Map<string, number>();
   for (const l of up) {
     seen.add(l.id);
     const had = owned[l.id];
@@ -215,6 +217,7 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
             ? { key: l.key, platinum: approved[l.starless], legacy: true }
             : null;
     next[l.id] = { key: l.key, platinum: own?.platinum ?? l.platinum, by: whose, ...(own?.legacy ? { legacy: true as const } : {}) };
+    if (own && own === back) restored.set(l.key, Math.max(back.platinum, restored.get(l.key) ?? 0));
     ended.delete(l.id);
   }
   const endedNow: Approval[] = [];
@@ -229,15 +232,17 @@ export function settleApprovals(approved: Readonly<Record<string, number>>, owne
   }
   // Each key's price as older builds read it. Kept as it is when it is a per-key one from before,
   // or another account's (or one recorded unknown) agrees with it; else the one it had when a
-  // listing of this read still has it, or the first one's; else, when the approval it was ended
-  // here and nothing else holds it, it goes.
+  // listing of this read still has it, or the first one's, raised to an approval given back here
+  // (the price it had before the read that ended it); else, when the approval it was ended here
+  // and nothing else holds it, it goes.
   const keyed: Record<string, number> = { ...approved };
   const heldElsewhere = (k: string) => Object.values(next).some((e) => e.by !== whose && !e.legacy && e.key === k && approved[k] === e.platinum);
   const mine = new Map<string, Approval[]>();
   for (const e of Object.values(next)) if (e.by === whose) mine.set(e.key, [...(mine.get(e.key) ?? []), e]);
   for (const [k, list] of mine) {
     if (unowned(k) || heldElsewhere(k)) continue;
-    keyed[k] = list.some((e) => e.platinum === approved[k]) ? approved[k] : list[0].platinum;
+    const kept = list.some((e) => e.platinum === approved[k]) ? approved[k] : list[0].platinum;
+    keyed[k] = Math.max(kept, restored.get(k) ?? 0);
   }
   for (const e of endedNow) if (!e.legacy && !mine.has(e.key) && approved[e.key] === e.platinum && !heldElsewhere(e.key)) delete keyed[e.key];
   return { approved: keyed, owned: next };

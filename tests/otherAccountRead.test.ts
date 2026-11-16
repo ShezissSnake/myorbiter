@@ -162,6 +162,19 @@ test("a read of the first account's own listings that left a out, then a restart
   assert.deepEqual((s as MarketSettings & { approvedGone?: unknown }).approvedGone, {}, "back: no longer ended");
 });
 
+test("a read that left a out while b of the same item stayed up: a, read again, has its 100p back, and so has the per-item price", async () => {
+  // a approved at 100p, b made on the website at 50p (its own price); the per-item price is a's.
+  let s = settings({ "it||": 100 }, { approvedFor: { a: { key: "it||", platinum: 100 }, b: { key: "it||", platinum: 50 } } });
+  await read(s, [order(50, "b")]);
+  assert.deepEqual(s.approved, { "it||": 50 }, "until a is read again: b's own, as after a sale");
+  s = restart(s);
+  await read(s, [order(75, "a"), order(50, "b")]);
+  assert.deepEqual(owned(s).a, { key: "it||", platinum: 100, by: ME });
+  assert.deepEqual(owned(s).b, { key: "it||", platinum: 50, by: ME });
+  assert.deepEqual(s.approved, { "it||": 100 }, "the per-item price a had");
+  assert.equal(await pass(s, [order(75, "a")]), "a->70", logText());
+});
+
 test("an ended approval comes back only to its own account and platform, under its own key", async () => {
   const gone = (by: string, key = "it||") => ({ a: { key, platinum: 100, by, at: T0 } });
   // Another account's: a read under this one gives it nothing back (a starts from its own 75p).
@@ -284,16 +297,19 @@ for (const how of ["signing in to another account", "switching platform"] as con
   });
 }
 
-test("the other account ends 500 listings while the first is away: the first one's approval is kept", async () => {
+test("the other account ends 600 listings while the first is away: the first one's approval is kept", async () => {
   let s = start();
   await read(s, [], "other");
-  for (let batch = 0; batch < 5; batch++) {
+  for (let batch = 0; batch < 6; batch++) {
     h.now += 3600e3;
     await read(s, Array.from({ length: 100 }, (_, i) => order(30, `x${batch}_${i}`, { itemId: "x" })), "other");
     h.now += 3600e3;
     await read(s, [], "other");
   }
   assert.equal(s.approved["it||"], 100);
+  assert.deepEqual(owned(s).a, { key: "it||", platinum: 100, by: ME }, "a's entry kept");
+  const gone = (s as MarketSettings & { approvedGone?: Record<string, { by: string }> }).approvedGone ?? {};
+  assert.equal(Object.values(gone).filter((e) => e.by === "other|pc").length, GONE_KEPT, "the other account's latest 500 kept as ended");
   s = restart(s);
   assert.equal(await pass(s, [order(75, "a")]), "a->70", logText());
 });
