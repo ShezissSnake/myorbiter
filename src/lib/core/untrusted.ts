@@ -1,5 +1,6 @@
 // Text MyOrbiter didn't write: build titles and authors from Overframe's list and Nox's Frame's
-// pages, names from warframe.market, what a player types into a bug report. Svelte shows it as text
+// pages, names and chat messages from warframe.market (cleaned where they come in, backend.ts's
+// `chatsIn`, `bookIn` and the rest), what a player types into a bug report. Svelte shows it as text
 // (never as HTML), so it can't run; these keep it from hiding anything either. Characters that
 // draw nothing (zero-width, the Unicode "tag" block) or reorder what's around them (bidi overrides
 // and isolates) can make a title read differently from what it holds, or carry text nobody sees.
@@ -55,6 +56,11 @@ export function cleanBlock(v: unknown, max: number): string | null {
   const chars = [...s];
   return chars.length > max ? chars.slice(0, max).join("").trimEnd() : s;
 }
+
+/** A player's name from warframe.market (a seller, a chat's partner): `cleanLine` at 40 characters, "" when nothing is left. */
+export const cleanName = (v: unknown): string => cleanLine(v, 40) ?? "";
+/** A chat message from warframe.market, as the notification and the chat strip show it: `cleanLine` at 1,000 characters. */
+export const cleanMessage = (v: unknown): string | null => cleanLine(v, 1000);
 
 /**
  * Text as Discord shows it as typed: every character its Markdown reads (emphasis, code, spoilers,

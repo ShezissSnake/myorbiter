@@ -3,6 +3,39 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { discordMessage } from "../src/lib/core/untrusted";
+import { auctionsIn, bookIn, chatsIn, feedOrderIn, marketUserIn } from "../src/lib/backend";
+import type { BookOrder } from "../src/lib/core/market";
+import type { RivenAuction } from "../src/lib/core/rivens";
+
+// Right-to-left override, zero-width space, a "tag" character: none of them is drawn as itself.
+const RLO = "\u202E";
+const ZWSP = "\u200B";
+const TAG = "\u{E0041}";
+
+test("warframe.market: a chat's partner and newest message come in cleaned, one line, ids untouched", () => {
+  const [c] = chatsIn([{ id: "c1", with: `Bu${RLO}yer${ZWSP}`, unread: 2, lastUpdate: "2026-10-27T09:00:00+00:00", lastMessage: `wtb${TAG} blind rage\nsecond line\r\n${RLO}third` }]);
+  assert.deepEqual(c, { id: "c1", with: "Buyer", unread: 2, lastUpdate: "2026-10-27T09:00:00+00:00", lastMessage: "wtb blind rage second line third" });
+  // Nothing left of a message: none, as when the reply carries no text.
+  assert.equal(chatsIn([{ id: "c2", with: "A", unread: 1, lastUpdate: "x", lastMessage: `${ZWSP} ` }])[0].lastMessage, null);
+  assert.equal(chatsIn([{ id: "c3", with: "A", unread: 1, lastUpdate: "x", lastMessage: null }])[0].lastMessage, null);
+});
+
+test("warframe.market: sellers' names in a book, the live feed, a profile and riven auctions come in cleaned", () => {
+  const user = { id: "u1", ingameName: `Sel${RLO}ler1`, status: "ingame", platform: "pc", crossplay: true };
+  const order: BookOrder = { id: "o1", type: "sell", platinum: 9, quantity: 1, rank: null, subtype: null, visible: true, user };
+  const [o] = bookIn([order, { ...order, id: "o2", user: { ...user, ingameName: null } }]);
+  assert.equal(o.user.ingameName, "Seller1");
+  assert.equal(o.id, "o1");
+  assert.equal(o.user.id, "u1");
+  assert.equal(bookIn([{ ...order, user: { ...user, ingameName: null } }])[0].user.ingameName, null);
+  assert.equal(feedOrderIn({ id: "f", type: "sell", platinum: 3, itemId: "i", user: { ingameName: `Feed${ZWSP}1\n`, id: "f1" } }).user.ingameName, "Feed1");
+  assert.equal(marketUserIn({ ingameName: `Rep${TAG}Example`, slug: "repexample", reputation: 3, status: null })?.ingameName, "RepExample");
+  assert.equal(marketUserIn(null), null);
+  const a = { id: "a1", price: 100, starting: 90, name: `visi${RLO}-critacron`, rank: 0, rerolls: 0, mr: 8, polarity: "madurai", attributes: [], seller: `Riven${ZWSP}Seller`, status: "ingame", updated: "x" } as RivenAuction;
+  assert.deepEqual(auctionsIn([a]).map((x) => [x.name, x.seller]), [["visi-critacron", "RivenSeller"]]);
+  // Real names come through as they are.
+  assert.equal(bookIn([{ ...order, user: { ...user, ingameName: "Alpha_1.Beta-2" } }])[0].user.ingameName, "Alpha_1.Beta-2");
+});
 
 test("discord: a chat line can't make a masked link or other Markdown of its own", () => {
   const m = discordMessage("Buyer messaged you on warframe.market", "Buyer: [warframe.market/verify](https://example.invalid) **now**");
