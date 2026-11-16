@@ -280,9 +280,12 @@ fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
 }
 
 /// Cuts out anything shaped like a sign-in: a JWT (three dot-separated base64 runs starting
-/// "eyJ"), whatever follows "Bearer", "JWT" or "token", and a Discord webhook address (its id and
-/// token are all it takes to post as it).
+/// "eyJ"), whatever follows "Bearer", "JWT" or "token", the value of a `key=value` or JSON pair
+/// whose key names a secret (`json_pairs`), and a Discord webhook address (its id and token are all
+/// it takes to post as it).
 pub fn redact(s: &str) -> String {
+    let json = json_pairs(s);
+    let s = json.as_str();
     let mut out = String::with_capacity(s.len());
     let mut hide_next = false;
     // Words between any whitespace (a tab or a line break hides nothing), the whitespace kept.
@@ -301,7 +304,7 @@ pub fn redact(s: &str) -> String {
         let lower = bare.to_ascii_lowercase();
         // A JWT, whole or cut short after its second part (a line cut at its length limit).
         let jwt = word.find("eyJ").is_some_and(|i| word[i..].contains('.'));
-        if let Some(at) = webhook_at(word).filter(|_| word.contains("discord")) {
+        if let Some(at) = webhook_at(word).filter(|_| word.to_ascii_lowercase().contains("discord")) {
             let start = word[..at].rfind("http").unwrap_or(0);
             out.push_str(&word[..start]);
             out.push_str("[redacted webhook]");
@@ -324,13 +327,6 @@ pub fn redact(s: &str) -> String {
             hide_next = false;
             continue;
         }
-        // JSON: `{"password":"x"}`, or `"password":` with its value in the next word.
-        let (json, value_next) = json_secrets(word);
-        if json.is_some() || value_next {
-            out.push_str(json.as_deref().unwrap_or(word));
-            hide_next = value_next;
-            continue;
-        }
         if let Some((k, v)) = word.split_once('=').filter(|(k, _)| secret_key(k)) {
             out.push_str(k);
             out.push_str(if v.is_empty() { "=" } else { "=[redacted]" });
@@ -344,61 +340,121 @@ pub fn redact(s: &str) -> String {
     out
 }
 
-/// The JSON pairs in `word` whose key names a secret (`secret_key`), each value cut out
-/// (`{"password":"[redacted]"}`), or None when there's none; and whether the word ends with such a
-/// key's colon, its value in the next word (`{"password": "x"}`).
-fn json_secrets(word: &str) -> (Option<String>, bool) {
-    let mut out = String::with_capacity(word.len());
-    let mut rest = word;
-    let mut changed = false;
-    while let Some(i) = rest.find("\":") {
-        let key = rest[..i].rfind('"').map(|s| &rest[s + 1..i]);
-        out.push_str(&rest[..i + 2]);
-        rest = &rest[i + 2..];
-        if !key.is_some_and(secret_key) {
+/// The longest JSON key `json_pairs` reads: a longer run between two quotes is text, not a key.
+const KEY_MAX: usize = 64;
+
+/// `s` with the value of every JSON pair whose key names a secret (`secret_key`) cut out whole:
+/// `{"password":"[redacted]"}`, whatever the spaces around the colon or inside the value; JSON
+/// written inside a string (`{\"password\":\"[redacted]\"}`); a key and its value side by side in
+/// a list (`["password","[redacted]"]`); and a value the line cuts short, to the line's end.
+fn json_pairs(s: &str) -> String {
+    let b = s.as_bytes();
+    let mut out = String::new();
+    let mut copied = 0;
+    let mut from = 0;
+    while let Some(q) = s[from..].find('"').map(|q| q + from) {
+        from = q + 1;
+        // How deep the quote is escaped: `"` 0, `\"` 1 (JSON inside a string), and so on.
+        let depth = backslashes_before(b, q);
+        let Some(close) = closing_quote(b, q + 1, depth) else { continue };
+        let key = &s[q + 1..close - depth];
+        if key.len() > KEY_MAX || !secret_key(key) {
             continue;
         }
-        if rest.is_empty() {
-            return (changed.then_some(out), true);
+        let in_list = matches!(s[..q - depth].trim_end().as_bytes().last(), Some(b'[' | b','));
+        let mut v = skip_space(b, close + 1);
+        match b.get(v) {
+            Some(b':') => v = skip_space(b, v + 1),
+            // In a list, only a string after the key is its value.
+            Some(b',') if in_list && quote_at(b, skip_space(b, v + 1), depth) => v = skip_space(b, v + 1),
+            _ => continue,
         }
-        let end = json_value_end(rest);
-        out.push_str(if rest.starts_with('"') { "\"[redacted]\"" } else { "[redacted]" });
-        rest = &rest[end..];
-        changed = true;
+        let (start, end, resume) = if quote_at(b, v, depth) {
+            let open = v + depth;
+            match closing_quote(b, open + 1, depth) {
+                Some(c) => (open + 1, c - depth, c + 1),
+                None => {
+                    let end = s[open + 1..].find('\n').map_or(s.len(), |e| open + 1 + e);
+                    (open + 1, end, end)
+                }
+            }
+        } else {
+            let end = bare_value_end(b, v);
+            (v, end, end)
+        };
+        if end <= start {
+            continue;
+        }
+        out.push_str(&s[copied..start]);
+        out.push_str("[redacted]");
+        copied = end;
+        from = resume;
     }
-    out.push_str(rest);
-    (changed.then_some(out), false)
+    if copied == 0 {
+        return s.to_string();
+    }
+    out.push_str(&s[copied..]);
+    out
 }
 
-/// Where the JSON value at the start of `s` ends: after its closing quote (escaped quotes passed
-/// over), or at the next `,`, `}` or `]`.
-fn json_value_end(s: &str) -> usize {
-    let Some(body) = s.strip_prefix('"') else {
-        return s.find([',', '}', ']']).unwrap_or(s.len());
-    };
-    let mut escaped = false;
-    for (i, c) in body.char_indices() {
-        if escaped {
-            escaped = false;
-        } else if c == '\\' {
-            escaped = true;
-        } else if c == '"' {
-            return i + 2;
-        }
-    }
-    s.len()
+/// How many backslashes come right before `b[i]`.
+fn backslashes_before(b: &[u8], i: usize) -> usize {
+    b[..i].iter().rev().take_while(|&&c| c == b'\\').count()
 }
 
-/// Where a webhook address's path starts in `word`: `/api/webhooks/`, or with an API version,
-/// `/api/v10/webhooks/`.
+/// Whether a quote escaped `depth` deep (`depth` backslashes, then `"`) starts at `b[i]`.
+fn quote_at(b: &[u8], i: usize, depth: usize) -> bool {
+    b.get(i..i + depth).is_some_and(|run| run.iter().all(|&c| c == b'\\')) && b.get(i + depth) == Some(&b'"')
+}
+
+/// The index of the `"` that closes a string opened by a quote escaped `depth` deep, looking from
+/// `b[from]` on: the first one escaped exactly as deep (at depth 0, any one not escaped).
+fn closing_quote(b: &[u8], from: usize, depth: usize) -> Option<usize> {
+    (from..b.len()).find(|&i| {
+        b[i] == b'"' && {
+            let n = backslashes_before(&b[from..], i - from);
+            if depth == 0 { n % 2 == 0 } else { n == depth }
+        }
+    })
+}
+
+fn skip_space(b: &[u8], mut i: usize) -> usize {
+    while b.get(i).is_some_and(|c| c.is_ascii_whitespace()) {
+        i += 1;
+    }
+    i
+}
+
+/// Where a JSON value that isn't a string ends: a number or a word at the next `,`, `}`, `]`,
+/// quote, backslash or space; an object or a list after its closing bracket (or at the line's end).
+fn bare_value_end(b: &[u8], v: usize) -> usize {
+    if matches!(b.get(v), Some(b'{' | b'[')) {
+        let mut level = 0usize;
+        for (i, &c) in b.iter().enumerate().skip(v) {
+            match c {
+                b'{' | b'[' => level += 1,
+                b'}' | b']' => {
+                    level -= 1;
+                    if level == 0 {
+                        return i + 1;
+                    }
+                }
+                b'\n' => return i,
+                _ => {}
+            }
+        }
+        return b.len();
+    }
+    (v..b.len()).find(|&i| matches!(b[i], b',' | b'}' | b']' | b'"' | b'\\') || b[i].is_ascii_whitespace()).unwrap_or(b.len())
+}
+
+/// Where a webhook address's path starts in `word`: `/api/webhooks/`, or with an API version
+/// (`/api/v10/webhooks/`, `/api/vX/webhooks/`), in any case.
 fn webhook_at(word: &str) -> Option<usize> {
-    word.match_indices("/api/").map(|(i, _)| i).find(|&i| {
-        let rest = &word[i + "/api/".len()..];
-        let rest = rest.strip_prefix('v').map_or(rest, |r| {
-            let digits = r.len() - r.trim_start_matches(|c: char| c.is_ascii_digit()).len();
-            if digits > 0 { r[digits..].strip_prefix('/').unwrap_or(rest) } else { rest }
-        });
-        rest.starts_with("webhooks/")
+    let lower = word.to_ascii_lowercase();
+    lower.match_indices("/api/").map(|(i, _)| i).find(|&i| {
+        let rest = &lower[i + "/api/".len()..];
+        rest.starts_with("webhooks/") || rest.split_once('/').is_some_and(|(version, after)| version.starts_with('v') && after.starts_with("webhooks/"))
     })
 }
 
@@ -482,6 +538,49 @@ mod tests {
         assert!(!r.contains("hunter2"), "{r}");
         // Other pairs stay.
         assert_eq!(redact(r#"{"name":"Mesa Prime Set","platinum":120}"#), r#"{"name":"Mesa Prime Set","platinum":120}"#);
+    }
+
+    /// `redact`, checked to leave no word of `secret` in what it writes.
+    fn cut_whole(input: &str, secret: &str) -> String {
+        let r = redact(input);
+        for part in secret.split_whitespace() {
+            assert!(!r.contains(part), "{input:?} gave {r:?}");
+        }
+        r
+    }
+
+    #[test]
+    fn a_secret_pair_with_a_space_before_its_colon_is_cut_out() {
+        assert_eq!(cut_whole(r#"{"password" : "hunter2"}"#, "hunter2"), r#"{"password" : "[redacted]"}"#);
+        cut_whole(r#"{"password"  :"hunter2"}"#, "hunter2");
+    }
+
+    #[test]
+    fn a_secret_key_and_its_value_side_by_side_in_a_list_are_cut_out() {
+        assert_eq!(cut_whole(r#"["password","hunter2"]"#, "hunter2"), r#"["password","[redacted]"]"#);
+        cut_whole(r#"["user", "password", "hunter2"]"#, "hunter2");
+        // A list of names alone stays.
+        assert_eq!(redact(r#"["user","email","x"]"#), r#"["user","email","x"]"#);
+    }
+
+    #[test]
+    fn a_secret_value_with_spaces_in_it_is_cut_out_whole() {
+        assert_eq!(cut_whole(r#"{"password":"hun ter2 x"}"#, "hun ter2 x"), r#"{"password":"[redacted]"}"#);
+        assert_eq!(cut_whole(r#"{"password": "hun ter2", "remember": true}"#, "hun ter2"), r#"{"password": "[redacted]", "remember": true}"#);
+        // JSON escaped inside a string.
+        assert_eq!(cut_whole(r#"body "{\"password\":\"hun ter2\",\"x\":1}""#, "hun ter2"), r#"body "{\"password\":\"[redacted]\",\"x\":1}""#);
+        // A value the line cuts short.
+        cut_whole(r#"{"password":"hun ter2"#, "hun ter2");
+        // A string that only mentions one stays.
+        assert_eq!(redact(r#"{"note":"no password here","x":"y"}"#), r#"{"note":"no password here","x":"y"}"#);
+    }
+
+    #[test]
+    fn a_webhook_address_in_any_spelling_is_cut_out() {
+        for url in ["https://discord.com/API/webhooks/1/hunter2", "https://Discord.com/Api/Webhooks/1/hunter2", "https://discord.com/api/vX/webhooks/1/hunter2", "https://discord.com/api/v/webhooks/1/hunter2", "https://DISCORDAPP.COM/api/v6/webhooks/1/hunter2"] {
+            assert_eq!(cut_whole(url, "hunter2"), "[redacted webhook]");
+        }
+        assert_eq!(redact("https://discord.com/api/v10/users/1"), "https://discord.com/api/v10/users/1");
     }
 
     #[test]
@@ -635,6 +734,7 @@ mod fuzz {
             let jwt = format!("eyJ{}.{}.{}", r.word(10), r.word(20), r.word(12));
             let half_jwt = format!("eyJ{}.{}", r.word(10), secret);
             let gap = |r: &mut Rng| r.pick(&[" ", "  ", "\t", " \t ", "\n", ": ", " : "]).to_string();
+            let space = |r: &mut Rng| r.pick(&["", " ", "  ", "\t", "\n"]).to_string();
             let planted = [
                 format!("Bearer{}{secret}", gap(&mut r)),
                 format!("Authorization:{}Bearer{}{secret}", gap(&mut r), gap(&mut r)),
@@ -648,6 +748,11 @@ mod fuzz {
                 format!("{{\"password\":\"{secret}\"}}"),
                 format!("{{\"email\":\"x\",\"token\":\"{secret}\"}}"),
                 format!("{{\"password\": \"{secret}\"}}"),
+                format!("{{\"password\"{}:{}\"{secret}\"}}", space(&mut r), space(&mut r)),
+                format!("[\"password\",{}\"{secret}\"]", space(&mut r)),
+                format!("{{\"password\":\"{}{}{secret}\"}}", r.word(4), gap(&mut r)),
+                format!("\"{{\\\"token\\\":\\\"{}{}{secret}\\\"}}\"", r.word(4), gap(&mut r)),
+                format!("https://Discord.com/API/v{}/webhooks/123/{secret}", r.word(2)),
             ];
             let mut text = String::new();
             for _ in 0..r.below(4) {
