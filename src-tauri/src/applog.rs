@@ -285,11 +285,12 @@ fn replace_folder(s: &str, folder: &str, any_case: bool) -> String {
 /// of a `key=value` or JSON pair whose key names a secret (`secret_pair`, `json_pairs`), and a
 /// Discord webhook address (its id and token are all it takes to post as it).
 ///
-/// The words are read twice, and a stretch either reading cuts out is cut: `word_cuts`, which also
-/// hides the word after a head glued to a JSON key (`{"auth":"Bearer x"}`) and a word after a head
-/// with an address in it, and `earlier_word_cuts`, the word rules as they stood before those, which
-/// keep a scheme's hiding on across an empty pair (`Bearer token= x`). Each reading alone misses a
-/// word the other hides; together nothing either hides is written.
+/// The words are read three times, and a stretch any reading cuts out is cut: `word_cuts`, which
+/// also hides the word after a head glued to a JSON key (`{"auth":"Bearer x"}`) and a word after a
+/// head with an address in it; `word_cuts` again with `keep_on`, which also keeps a scheme's hiding
+/// on across an empty pair after a head (`Bearer token= x`); and `earlier_word_cuts`, the word rules
+/// as they stood before the glued heads. Each reading alone misses a word another hides; together
+/// nothing any of them hides is written.
 pub fn redact(s: &str) -> String {
     let json = json_pairs(s);
     let s = json.as_str();
