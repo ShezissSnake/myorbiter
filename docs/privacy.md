@@ -390,7 +390,12 @@ takes up to the path's drive letter (`/home/Name Other,D:\Folder\Name` becomes
 (`/profile/`, `/chat/with/`, `/orders/user/` and the like), a `file:///` path glued to the name,
 which is read with it (`https://warframe.market/profile/Name,file:///srv/Folder/x` becomes
 `https://warframe.market/profile/[player]///srv/Folder/x`), and a path glued to a second name after it, or to the name
-by `=` or `[` (`/profile/Name, Other,D:/Folder/x` becomes `/[folder]/[player]:/Folder/x`); and
+by `=` or `[` (`/profile/Name, Other,D:/Folder/x` becomes `/[folder]/[player]:/Folder/x`); in
+such an address (a profile, user, orders, review or chat address), a word written as a variable
+before a slash and glued by a mark to the player's name, which is kept as a variable, whatever the
+word, though it may be part of the name
+(`https://warframe.market/profile/Name,$Word/x` becomes
+`https://warframe.market/profile/[player],$Word/[folder]`); and
 `//computer/share` straight after `://`, which reads as an address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
