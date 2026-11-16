@@ -174,6 +174,9 @@ function slotMismatch(want: MatchWant, c: CatalogItem, idx: NameIndex): string |
   return null;
 }
 
+/** Whether a mod already in the editor's slot `want` (a pasted or saved build) is that slot's kind. */
+export const fitsSlot = (want: MatchWant, c: CatalogItem, idx: NameIndex): boolean => slotMismatch(want, c, idx) === null;
+
 /**
  * One name against the catalog, for an item. `want` limits it to mods or arcanes (the editor's
  * slot); by default either. `held` (copies you hold of a path) breaks ties between same-name

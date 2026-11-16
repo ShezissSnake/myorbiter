@@ -9,7 +9,7 @@
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
-  import { matchName, modRole, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, slotNames, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
+  import { fitsSlot, matchName, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, slotNames, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
   import ModGrid from "./ModGrid.svelte";
@@ -144,9 +144,7 @@
   function misplaced(s: Slot): boolean {
     if (!s.path || s.role === "arcane") return false;
     const c = model.catalogByUnique.get(s.path);
-    if (!c) return false;
-    const role = modRole(c);
-    return s.role === "aura" || s.role === "stance" ? role !== s.role : role !== "mod";
+    return !!c && !fitsSlot(s.role, c, idx);
   }
   function save() {
     for (const s of slots) if (s.text.trim() && (!s.path || misplaced(s))) commit(s);

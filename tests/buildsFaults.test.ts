@@ -85,6 +85,20 @@ test("the editor's exilus slot: only a mod the catalog marks for it, where the c
   assert.ok(matchName("Sure Footed", idx, excal, "warframe", "exilus" as "mod").ok, "Sure Footed is an exilus mod");
 });
 
+test("the editor, on saving a pasted or saved build: a mod already in a slot of another kind is caught, the exilus slot too", async () => {
+  const match = (await import("../src/lib/core/builds/match")) as Record<string, unknown>;
+  const fitsSlot = match.fitsSlot as ((want: string, c: CatalogItem, idx: ReturnType<typeof nameIndex>) => boolean) | undefined;
+  assert.equal(typeof fitsSlot, "function", "the editor has a check for a mod already in a slot");
+  const idx = nameIndex(demo.catalog);
+  const mod = (name: string) => demo.catalog.find((c) => c.category === "Mods" && c.name === name)!;
+  assert.equal(fitsSlot!("exilus", mod("Intensify"), idx), false, "Intensify saved in the exilus slot");
+  assert.equal(fitsSlot!("exilus", mod("Sure Footed"), idx), true);
+  assert.equal(fitsSlot!("aura", mod("Intensify"), idx), false, "Intensify saved in the aura slot");
+  assert.equal(fitsSlot!("aura", mod("Steel Charge"), idx), true);
+  assert.equal(fitsSlot!("mod", mod("Steel Charge"), idx), false, "an aura saved in a mod slot");
+  assert.equal(fitsSlot!("mod", mod("Intensify"), idx), true);
+});
+
 // ---------------------------------------------------------------- 2. mods for a class of weapon or companion
 
 test("mods whose compatName is a class or a qualified class fit the gear they are for", () => {
