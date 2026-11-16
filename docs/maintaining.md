@@ -165,6 +165,60 @@ change `BUILD_OFFSET` so the first build is still above the bridge build, throug
 before running it. Never lower it afterwards: a version made twice, or one lower than an installed
 build, is never offered.
 
+## The dependencies' licences
+
+Every download carries, for each program in it, the list of the third-party packages compiled into
+that program for its system, each with its name, version, licence and licence texts:
+`THIRD-PARTY-NOTICES/dependencies/` for MyOrbiter and `tennoscope/THIRD-PARTY-NOTICES/dependencies/`
+for TennoScope. `scripts/dependency-licences.mjs` makes each list while the build runs, from what
+the build itself has unpacked (cargo's registry folder, the page's `node_modules`), with no request
+of its own: MyOrbiter's as `tauri build`'s `beforeBundleCommand` (`src-tauri/tauri.bundle.json`),
+after compiling and before packing; TennoScope's once it is put into `vendor/tennoscope/`
+(`ci/build.sh` for Linux, the Windows job's *Put TennoScope beside MyOrbiter's sources*).
+`ci/build.sh` then checks that the `.deb` carries both Linux lists, each with every text it names.
+
+**The gate.** The script stops the build, naming every package at fault and why, when a package:
+
+- has no licence in its manifest, or names a licence file in place of a licence expression;
+- has a licence that `scripts/dependency-licences-allowed.txt` doesn't allow. A choice (`OR`, or
+  the old `/`) passes when one side is allowed, an `AND` when every side is, an exception (`WITH`)
+  only as the list names it, and an expression the script can't read never passes;
+- comes from anywhere but the registry (a git repository, a path outside the workspace, a tarball);
+- ships no licence text and isn't in `scripts/dependency-licences-no-text.json` by name and
+  version (a new version of a crate listed there stops it too).
+
+It stops as well when the page's packages aren't installed, or the page holds a module that is
+neither its own nor a package's. It never passes by leaving a package out.
+
+**When it stops a build.** The job's log lists each package with the reason (the Linux job's
+*Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
+
+- A licence that isn't on the allowed list: **adding a licence to the allowed list is the
+  maintainer's decision**, made after reading that licence, by a pull request that changes only
+  `scripts/dependency-licences-allowed.txt`. Otherwise the dependency that brought it is changed
+  back or replaced.
+- A crate with no licence text of its own: the text comes, unchanged, from upstream's own file or,
+  for a licence with no line of its own to fill (Apache-2.0, BSL-1.0), from the same licence's text
+  as another package of the build ships it; never written by hand. It goes into
+  `scripts/dependency-licences-no-text.json`, with the maintainer's yes like any licence file.
+- A source that isn't the registry: the dependency goes back to a published version.
+- The page not installed, or a module of no known package: the build steps before it changed;
+  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same.
+
+Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
+TennoScope) and a build of the program, so its crates are unpacked:
+`node scripts/dependency-licences.mjs myorbiter x86_64-unknown-linux-gnu` writes
+`THIRD-PARTY-NOTICES/dependencies/` (`--out <folder>` writes elsewhere; the folder is never
+committed).
+
+**What the list doesn't cover**, as each list also says: the Rust standard library, which no
+lockfile names; code a package carries inside itself (for example the copy of `tslib` inside
+`@tauri-apps/api`); C and C++ sources inside crates (the `-sys` crates, `ring`'s C and assembly, a C
+header a crate bundles), of which only the crate's own licence is listed; what isn't a package (the
+system libraries an AppImage carries, in `SOURCES.md` and `linux/`; Tesseract and its libraries;
+WebView2's installer; the files listed in `NOTICE.md`); and packages used only to build or test a
+program.
+
 ## Actions
 
 - [ ] **Fork pull requests wait for approval:** Settings → Actions → General → "Approval for running

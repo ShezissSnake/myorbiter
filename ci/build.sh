@@ -60,7 +60,9 @@ check_glibc_floor() {
 # (every package-built library in that AppImage, where its source is, and the written offer) and
 # linux/ (each package's copyright file). Proved on the built .deb, as repack-appimage.sh proves
 # its AppImage. The folder is found by name: MyOrbiter's is the one with the tree's README.md and
-# fonts/ (TennoScope's, tennoscope/THIRD-PARTY-NOTICES/, holds only tesseract/).
+# fonts/ (TennoScope's, tennoscope/THIRD-PARTY-NOTICES/, holds tesseract/ and dependencies/). Both
+# carry the list of the packages compiled into their program for Linux, with every text it names
+# (scripts/dependency-licences.mjs).
 check_deb_notices() {
   local deb=$1 unpacked notices dir pkg rows=0
   local found=() missing=()
@@ -87,6 +89,8 @@ check_deb_notices() {
     echo "$deb: no copyright file in ${notices#"$unpacked"}/linux/ for: ${missing[*]}" >&2
     exit 1
   fi
+  node scripts/dependency-licences.mjs --check "$notices/dependencies" myorbiter x86_64-unknown-linux-gnu
+  node scripts/dependency-licences.mjs --check "${notices%/THIRD-PARTY-NOTICES}/tennoscope/THIRD-PARTY-NOTICES/dependencies" tennoscope x86_64-unknown-linux-gnu
   rm -rf "$unpacked"
   echo "notices: $(basename "$deb") lists $rows packages, each with its copyright file"
 }
@@ -116,6 +120,10 @@ built=(tennoscope/target/release/bundle/appimage/*.AppImage)
 install -m 755 "${built[0]}" vendor/tennoscope/TennoScope.AppImage
 # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
 scripts/tennoscope-notice.sh vendor/tennoscope
+# The packages compiled into it, with their licences and texts; the build stops at one the allowed
+# list doesn't allow (scripts/dependency-licences.mjs). MyOrbiter's own list is made the same way by
+# tauri build, before it packs (src-tauri/tauri.bundle.json).
+node scripts/dependency-licences.mjs tennoscope x86_64-unknown-linux-gnu
 # Where the source of every library TennoScope's AppImage carries is (the system libraries
 # linuxdeploy copied into it, its Tesseract's), with the written offer, and their copyright files
 # in linux/: in the tree's THIRD-PARTY-NOTICES/, so the AppImage and the .deb both carry them.
@@ -157,6 +165,7 @@ if $windows; then
   # one) and none of the Linux half's copyright files.
   rm -rf THIRD-PARTY-NOTICES/linux
   scripts/tennoscope-notice.sh vendor/tennoscope
+  node scripts/dependency-licences.mjs tennoscope "$win"
 
   step "MyOrbiter's installer (Windows, $version)"
   rm -f "$target/$win"/release/bundle/nsis/*-setup.exe

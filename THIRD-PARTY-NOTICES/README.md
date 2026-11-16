@@ -24,7 +24,8 @@ the rest); in the `.deb`, every library inside the TennoScope AppImage it carrie
 
 MyOrbiter's Rust crates and npm packages are under their own licences (MIT, Apache-2.0 and others
 compatible with the GPL): `Cargo.lock` and `package-lock.json` in MyOrbiter's source
-(`myorbiter-source.tar.gz`) list them, and each one's licence comes with its source.
+(`myorbiter-source.tar.gz`) list them, and `dependencies/` here lists the ones compiled into this
+download with their licences and licence texts, and names those whose published source has none.
 
 Files under other licences that aren't programs (Warframe's artwork, wiki data) are listed in
 `NOTICE.md`.
