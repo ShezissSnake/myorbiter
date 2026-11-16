@@ -49,8 +49,11 @@ const without = (...names: string[]): Owned => {
 };
 const modNames = (s: Suggestion) => s.names.mods.filter((n): n is string => !!n);
 
-/** Capacity used, recomputed from the build alone. */
-function usedOf(s: Suggestion, idx: ModIndex): number {
+/**
+ * Capacity used and the capacity, recomputed from the build alone, as its card counts them: the
+ * mods' drain, and the rank-based capacity plus what a counted aura or stance adds.
+ */
+function usedOf(s: Suggestion, idx: ModIndex): { used: number; bonus: number } {
   let used = 0;
   s.mods.forEach((m, i) => {
     if (!m) return;
@@ -63,19 +66,24 @@ function usedOf(s: Suggestion, idx: ModIndex): number {
     return bonusIn(c, m.rank ?? c.maxRank ?? 0, pol ?? null);
   };
   // An aura or stance shown but not owned adds nothing until it is owned.
-  if (!s.uncounted.includes("aura")) used -= fixed(s.aura, s.polarities?.aura);
-  if (!s.uncounted.includes("stance")) used -= fixed(s.stance, s.polarities?.stance);
+  let bonus = 0;
+  if (!s.uncounted.includes("aura")) bonus += fixed(s.aura, s.polarities?.aura);
+  if (!s.uncounted.includes("stance")) bonus += fixed(s.stance, s.polarities?.stance);
   if (s.exilus) {
     const c = idx.byPath.get(s.exilus.path)!;
     used += drainIn(c, s.exilus.rank ?? c.maxRank ?? 0, s.polarities?.exilus ?? null);
   }
-  return used;
+  return { used, bonus };
 }
 
 function checkWhole(s: Suggestion, owned: Owned, idx: ModIndex) {
   assert.equal(s.source, "orbiter");
   assert.ok(s.note.startsWith("MyOrbiter's suggestion"), "the note says whose it is");
-  assert.equal(usedOf(s, idx), s.capacity.used, `${s.item} ${s.tier}: capacity adds up`);
+  const { used, bonus } = usedOf(s, idx);
+  assert.equal(used, s.capacity.used, `${s.item} ${s.tier}: capacity adds up`);
+  // The capacity is the rank's (30 or 40, two more a Forma for Kuva, Tenet and Coda, doubled from Intermediate) plus the aura or stance.
+  const base = s.capacity.max - bonus;
+  assert.ok(base >= 30 && base <= 80 && base % 2 === 0, `${s.item} ${s.tier}: capacity ${s.capacity.max} is a rank's ${base} plus ${bonus}`);
   assert.ok(s.capacity.used <= s.capacity.max, `${s.item} ${s.tier}: ${s.capacity.used} fits in ${s.capacity.max}`);
   // The aura or stance a suggestion shows though it isn't owned: marked, and never owned.
   const shown = (["aura", "stance"] as const).filter((k) => s.uncounted.includes(k)).map((k) => s[k]!.path);
@@ -109,13 +117,15 @@ test("aura and stance: base + rank added, doubled when matched, a fifth less whe
   assert.equal(bonusIn(cp, 5, "madurai"), 5);
 });
 
-test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons reach 80 with five Forma from Intermediate", () => {
+test("capacity at each tier: 30, 60 with a catalyst, 60 with Forma; Kuva weapons gain two ranks a Forma, only the Forma they need", () => {
   const soma = suggestAll(item("Soma Prime"), all, index);
   assert.deepEqual(TIERS.map((t) => soma[t].capacity.max), [30, 60, 60]);
   assert.deepEqual(TIERS.map((t) => soma[t].catalyst), [false, true, true]);
   const hek = suggestAll(item("Kuva Hek"), all, index);
-  assert.deepEqual(TIERS.map((t) => hek[t].capacity.max), [30, 80, 80]);
-  assert.ok(hek.medium.forma! >= 5 && hek.high.forma! >= 5, "rank 40 takes five Forma");
+  assert.equal(hek.low.capacity.max, 30);
+  // Each Forma adds two ranks (doubled by the Catalyst), up to rank 40 at five: none taken that the mods don't need.
+  for (const t of ["medium", "high"] as const) assert.equal(hek[t].capacity.max, 2 * (30 + 2 * Math.min(5, hek[t].forma!)), `${t}: ${hek[t].forma} Forma`);
+  assert.ok(hek.medium.forma! < 5, `Intermediate takes ${hek.medium.forma} Forma, not five it doesn't need`);
   const mech = suggestAll(item("Voidrig"), all, index);
   assert.deepEqual(TIERS.map((t) => mech[t].capacity.max), [40, 80, 80]);
   for (const s of [...Object.values(soma), ...Object.values(hek), ...Object.values(mech)]) checkWhole(s, all, index);
