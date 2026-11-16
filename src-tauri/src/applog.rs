@@ -313,13 +313,19 @@ pub fn redact(s: &str) -> String {
         let bare = word.trim_matches(|c: char| !c.is_ascii_alphanumeric());
         let lower = bare.to_ascii_lowercase();
         // A JWT, whole or cut short after its second part (a line cut at its length limit).
-        let jwt = word.find("eyJ").is_some_and(|i| word[i..].contains('.'));
+        let is_jwt = |w: &str| w.find("eyJ").is_some_and(|i| w[i..].contains('.'));
+        let jwt = is_jwt(word);
         if let Some(at) = webhook_at(word).filter(|_| word.to_ascii_lowercase().contains("discord")) {
             let start = word[..at].rfind("http").unwrap_or(0);
-            out.push_str(&word[..start]);
-            out.push_str("[redacted webhook]");
-            hide_next = false;
-            continue;
+            // A secret pair or a JWT before the address in the same word goes by its own rule
+            // below, which takes the address with it.
+            let before = &word[..start];
+            if secret_pair(before).is_none() && !is_jwt(before) {
+                out.push_str(before);
+                out.push_str("[redacted webhook]");
+                hide_next = false;
+                continue;
+            }
         }
         // Punctuation on its own ("token : x") hides nothing and passes the hiding on.
         if bare.is_empty() {
@@ -409,7 +415,9 @@ const KEY_MAX: usize = 64;
 /// `s` with the value of every JSON pair whose key names a secret (`secret_key`) cut out whole:
 /// `{"password":"[redacted]"}`, whatever the spaces around the colon or inside the value; JSON
 /// written inside a string (`{\"password\":\"[redacted]\"}`); a key and its value side by side in
-/// a list (`["password","[redacted]"]`); and a value the line cuts short, to the line's end.
+/// a list (`["password","[redacted]"]`); an object or a list to its closing bracket, on whatever
+/// line (`bare_value_end`); and a string the line cuts short, to the next quote of its kind on a
+/// later line or, with none, to the line's end.
 fn json_pairs(s: &str) -> String {
     let b = s.as_bytes();
     let mut out = String::new();
@@ -489,8 +497,10 @@ fn skip_space(b: &[u8], mut i: usize) -> usize {
 }
 
 /// Where a JSON value that isn't a string ends: a number or a word at the next `,`, `}`, `]`,
-/// quote, backslash or space; an object or a list after its closing bracket (or at the line's end),
-/// a bracket inside one of its strings (quoted `depth` deep, as the pair is) not counted.
+/// quote, backslash or space; an object or a list after its closing bracket, even on a later line
+/// (JSON written over several lines), a bracket inside one of its strings (quoted `depth` deep, as
+/// the pair is) not counted. With no closing bracket (a record cut short), at the text's end:
+/// `json_pairs` then reads no further, so a run of unclosed ones is read once, not once each.
 fn bare_value_end(b: &[u8], v: usize, depth: usize) -> usize {
     if matches!(b.get(v), Some(b'{' | b'[')) {
         let mut level = 0usize;
@@ -506,9 +516,8 @@ fn bare_value_end(b: &[u8], v: usize, depth: usize) -> usize {
                 }
                 b'"' if backslashes_before(b, i) == depth => match closing_quote(b, i + 1, depth) {
                     Some(c) => i = c,
-                    None => return b[i..].iter().position(|&c| c == b'\n').map_or(b.len(), |e| i + e),
+                    None => return b.len(),
                 },
-                b'\n' => return i,
                 _ => {}
             }
             i += 1;
@@ -729,6 +738,32 @@ mod tests {
     }
 
     #[test]
+    fn a_secret_before_a_webhook_address_in_the_same_word_is_cut_out() {
+        // The pair's own rule: in running text, to the line's end (the address goes with it).
+        assert_eq!(cut_once("x token=abc123,https://discord.com/api/webhooks/1/zzz999 y", "abc123 zzz999"), "x token=[redacted]");
+        assert_eq!(cut_once("x ?token=abc123&u=https://discord.com/api/webhooks/1/zzz999 y", "abc123 zzz999"), "x ?token=[redacted] y");
+        assert_eq!(cut_once("eyJabc.def,https://discord.com/api/webhooks/1/zzz999 y", "eyJabc zzz999"), "[redacted] y");
+        // Text with no secret before the address stays.
+        assert_eq!(redact("(see https://discord.com/api/webhooks/1/zzz999)"), "(see [redacted webhook]");
+        assert_eq!(redact("url=https://discord.com/api/webhooks/1/zzz999"), "url=[redacted webhook]");
+    }
+
+    #[test]
+    fn an_object_or_list_over_several_lines_under_a_secret_key_is_cut_out_whole() {
+        assert_eq!(cut_once("body {\"session\":{\n  \"id\":\"abc123\"\n}} end", "abc123"), "body {\"session\":[redacted]} end");
+        assert_eq!(cut_once("{\"tokens\":[\n\"abc123\",\n\"def456\"\n]}", "abc123 def456"), "{\"tokens\":[redacted]}");
+        // A bracket inside a string on a later line isn't counted.
+        assert_eq!(cut_once("{\"session\":{\n\"a\":\"}\",\n\"b\":\"abc123\"\n}, \"x\":1}", "abc123"), "{\"session\":[redacted], \"x\":1}");
+        // With no closing bracket anywhere (a record cut short), to the record's end.
+        assert_eq!(cut_once("{\"session\":{\"id\":\"abc123\"\n\"x\":\"def456\"", "abc123 def456"), "{\"session\":[redacted]");
+        // Many of them still take one pass: the first unclosed one ends the reading.
+        let many = "{\"session\":{\n".repeat(20_000);
+        let t0 = std::time::Instant::now();
+        assert_eq!(redact(&many), "{\"session\":[redacted]");
+        assert!(t0.elapsed() < std::time::Duration::from_secs(1), "{:?}", t0.elapsed());
+    }
+
+    #[test]
     fn the_windows_lines_never_pass_for_the_rust_sides_own() {
         // `from_ui("info", "market", "x")` must not log under `myorbiter::market`, where the Rust
         // side writes what it did on warframe.market.
@@ -901,6 +936,8 @@ mod fuzz {
                 format!("/v2/x?{}=1&token={secret}", r.word(3)),
                 format!("{}=1;session={secret}", r.word(3)),
                 format!("/auth/token?{}={secret}", r.word(3)),
+                format!("token={secret},https://discord.com/api/webhooks/1/{}", r.word(6)),
+                format!("{{\"session\":{{{}\"id\":\"{secret}\"{}}}}}", gap(&mut r), gap(&mut r)),
                 format!("password=\"{} {secret}\"", r.word(4)),
                 format!("password='{}{}{secret}'", r.word(4), space(&mut r).replace('\n', " ")),
                 format!("password={} {secret}", r.word(4)),

@@ -459,8 +459,9 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
   before the `;`); the value of a `key=value` pair that is the word's first (its key all that comes
   before the `=`) or follows a `?`, `&` or `;` (a quoted one to its closing quote; after a `?`, `&`
   or `;` to the word's end; otherwise to the line's end, with the rest of the line, since such a
-  value can hold a space), or of a JSON pair with a key of
-  up to 64 characters (a bracket inside its strings not counted), whose key contains token,
+  value can hold a space), or of a JSON pair with a key of up to 64 characters (an object or a list
+  to its closing bracket, on whatever line, or with none to the end of what is written; a bracket
+  inside its strings not counted), whose key contains token,
   password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook address, its
   slashes escaped (`\/`) or not. A secret written another way (`password: x` in plain text, a key such as `api_key`,
   another site's webhook address) isn't caught (nothing MyOrbiter writes there is meant to hold one, though another player's chat line in a notification can), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into

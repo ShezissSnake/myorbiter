@@ -824,7 +824,7 @@ fn ee_log_path() -> Option<PathBuf> {
 /// on the computer owns (Linux), `before` on the look before: said when it happens, and again only
 /// when the number changes. No path: the found log's is written already.
 fn passed_over_line(before: usize, now: usize) -> Option<String> {
-    (now > 0 && now != before).then(|| format!("passed over {now} EE.log{} in a Steam library that another user on this computer owns", if now == 1 { "" } else { "s" }))
+    (now > 0 && now != before).then(|| format!("passed over {now} EE.log{} in a Steam library: the log file{} to another user than the one MyOrbiter runs as", if now == 1 { "" } else { "s" }, if now == 1 { " belongs" } else { "s belong" }))
 }
 
 /// Warframe's display mode from its EE.cfg, beside the log ("MODE_BORDERLESS", "MODE_FULLSCREEN",
@@ -1895,6 +1895,8 @@ mod tests {
     fn a_game_log_passed_over_for_its_owner_is_said_once() {
         let line = passed_over_line(0, 1).expect("said when it happens");
         assert!(line.contains("another user") && !line.contains('/'), "{line}");
+        // Whose: the log file's owner, not the library's.
+        assert_eq!(line, "passed over 1 EE.log in a Steam library: the log file belongs to another user than the one MyOrbiter runs as");
         assert_eq!(passed_over_line(1, 1), None, "not again on the next look");
         assert!(passed_over_line(1, 2).is_some(), "again when the number changes");
         assert_eq!(passed_over_line(1, 0), None);
