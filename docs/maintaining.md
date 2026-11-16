@@ -195,7 +195,10 @@ from, in a stylesheet or a component's `<style>`, and every small file Vite inli
 address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`), or
 whatever the page's own config reads. Two readers aren't counted: a tool of the build (Vite, a
 plugin) reading a package's `package.json` to find its files, and Node's loader reading a tool's
-code to run it. Each package found is listed and gated like any other.
+code to run it. Each package found is listed and gated like any other. What those two readers
+bring in is not seen: a package whose code the page's config or a plugin runs (Node's loader
+reads it) and whose output goes into the page, through `define` for example, or a `package.json`
+a plugin reads and writes into the page, isn't listed.
 
 It stops as well when:
 
@@ -210,7 +213,7 @@ It stops as well when:
 - cargo's answer has a line the script can't read, or no crate at all;
 - the script is given an argument it doesn't know.
 
-It never passes by leaving a package out.
+It never passes by leaving out a package it has found.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
