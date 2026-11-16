@@ -91,24 +91,8 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
   [new RegExp(`(["']?\\b(?:partner|buyer|seller|player|ingame_?name|user(?:name)?)["']?\\s*[=:]\\s*["']?)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
 ];
 
-/** Where a name rule's match from `at` to `end` runs into a path's root: the root's start (also
- *  when the match ends on the mark the root needs before it, "/profile/Name,//host"), or the
- *  start of the `smb` or `file` it ends in when `://` follows (`file:///…` has no root of its own
- *  around the scheme), as a word of its own and in lower case, as PATH_START reads a scheme: in
- *  "Xfile://", "Vexfile://" or "SMB://" it is a name or the end of one, hidden whole. Null when it
- *  doesn't. */
-function rootCut(s: string, roots: readonly (readonly [number, number])[], at: number, end: number): number | null {
-  const root = roots.find(([a, b]) => (end > a && end <= b) || (end === a && end > at && /[\s"'(=[,;<>:`{|]/.test(s[end - 1])));
-  if (root) return Math.max(root[0], at);
-  if (s.startsWith("://", end)) {
-    const scheme = /\b(?:smb|file)$/.exec(s.slice(at, end));
-    if (scheme) return at + scheme.index;
-  }
-  return null;
-}
-
-/** One line (or several) with nothing private left in it. */
-export function redact(text: string, opts: RedactOptions = {}): string {
+/** Known names, then RULES: the steps before the names by their shape. */
+function knownAndRules(text: string, opts: RedactOptions): string {
   let s = text;
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
@@ -117,46 +101,120 @@ export function redact(text: string, opts: RedactOptions = {}): string {
     s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
   for (const [re, to] of RULES) s = s.replace(re, to as never);
-  // Names by their shape before the paths: cleaning a path first could take a rule's anchor
-  // ("/profile/", "buyer:"), its closing bracket or its reach. A match that runs into a root
-  // ("traded with smb://…", "buyer: Name.smb://…", "to file:///…") is read again up to the root,
-  // and the root is left for the path's own cleaning. Not after a /profile-family anchor whose
-  // name takes a glued scheme with its colon ("/profile/Name,file:///…"): that root goes with the
-  // name, as on main (a known gap, pinned in the tests).
-  for (const [re, to] of NAME_LINES) {
-    const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
-    const once = new RegExp(re.source, re.flags.replace("g", "") + "y");
-    const src = s;
-    s = s.replace(re, (...m) => {
-      const whole = m[0] as string;
-      const at = m[m.length - 2] as number;
-      let end = at + whole.length;
-      let args = m as unknown[];
-      for (let tries = 0; tries < 4; tries++) {
-        const cut = rootCut(src, roots, at, end);
-        if (cut == null) return (to as (...x: unknown[]) => string)(...args) + src.slice(end, at + whole.length);
-        // Read the rule again on the text before the root, without the marks a path may follow.
-        const before = src.slice(0, cut).replace(/[\s"'(=[,;<>:`{|.-]+$/, "");
-        once.lastIndex = at;
-        const again = once.exec(before);
-        if (!again) {
-          // Nothing the rule takes as a name is left before the root ("traded with smb://…"): the
-          // match is kept for the path. But a word of the name is ("people whispered you: D.smb://…",
-          // one letter, which the rule doesn't take alone): the whole match is hidden, as main does.
-          const lead = typeof m[1] === "string" ? (m[1] as string).trimEnd() : "";
-          return before.length - at > lead.length ? (to as (...x: unknown[]) => string)(...(m as unknown[])) : whole;
-        }
-        end = at + again[0].length;
-        // A word the re-read left out before the root ("people whispered you: Name, X.smb://…",
-        // a one-letter last name) would show: the whole match is hidden instead, as main does.
-        if (/[\p{L}\p{N}_]/u.test(before.slice(end))) return (to as (...x: unknown[]) => string)(...(m as unknown[]));
-        args = [...again, at, before];
-      }
-      return whole;
-    });
-  }
-  s = cleanPaths(s);
   return s;
+}
+
+/** Known names, RULES and the rules for names and chats, each a plain replace and nothing else:
+ *  what the names step hides when no path is read. The tests compare `redact` with it. */
+export function hideNames(text: string, opts: RedactOptions = {}): string {
+  let s = knownAndRules(text, opts);
+  for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
+  return s;
+}
+
+/** A placeholder a rule for names wrote over the text from `at` to `end` (in the text the rules
+ *  started from). */
+type Hidden = { at: number; end: number; text: string };
+
+/** The rules for names and chats, run exactly as `hideNames` runs them, so that each rule reads
+ *  the same text, reaches as far and stops at the same placeholders. Beside the text, each of its
+ *  characters is marked with where it stood in `s`, or with the placeholder it belongs to (as
+ *  -1 - its number in the list), so that each placeholder knows the text it was written over. */
+function hideNamesMarked(s: string): { text: string; from: number[]; hidden: Hidden[] } {
+  let text = s;
+  let from = Array.from({ length: s.length }, (_, i) => i);
+  const hidden: Hidden[] = [];
+  const start = (i: number) => (from[i] >= 0 ? from[i] : hidden[-1 - from[i]].at);
+  const stop = (i: number) => (from[i] >= 0 ? from[i] + 1 : hidden[-1 - from[i]].end);
+  for (const [re, to] of NAME_LINES) {
+    let out = "";
+    const marks: number[] = [];
+    let last = 0;
+    text.replace(re, (...m) => {
+      const whole = m[0] as string;
+      const index = m[m.length - 2] as number;
+      const put = (to as (...x: unknown[]) => string)(...m);
+      // Every rule writes its lead back as it was, then the placeholder over the rest.
+      const lead = typeof m[1] === "string" ? (m[1] as string).length : 0;
+      const a = index + lead;
+      const b = index + whole.length;
+      out += text.slice(last, a);
+      for (let i = last; i < a; i++) marks.push(from[i]);
+      const n = hidden.push({ at: start(a), end: stop(b - 1), text: put.slice(lead) });
+      out += put.slice(lead);
+      for (let i = lead; i < put.length; i++) marks.push(-n);
+      last = b;
+      return put;
+    });
+    if (!last && !marks.length) continue;
+    text = out + text.slice(last);
+    from = marks.concat(from.slice(last));
+  }
+  return { text, from, hidden };
+}
+
+/** What a placeholder written over `s` from `at` to `end` may leave after it: where the text it
+ *  was written over runs into a path's root ("traded with smb://…", "buyer: Name.smb://…",
+ *  "/profile/Name,D:/…", "/profile/Name,//host", "to file:///…"), the roots from the first of
+ *  them, and the marks before it, are left for the path's own cleaning. Each root is one that
+ *  path cleaning reads there (PATH_START), several in a row with marks between them, and the
+ *  last holds the end or starts right after it with a mark before it; `file` before `:///…`
+ *  counts, since that root starts after the scheme. A root's own words are a scheme, a drive
+ *  letter or a variable's name; a `~name` root's name is a user's, so a tail with one is only
+ *  given when `tilde` is set, and `redact` checks that the path's cleaning hid that name. Every
+ *  word before the roots stays under the placeholder. Null when nothing is left. */
+function rootTail(s: string, roots: readonly (readonly [number, number])[], at: number, end: number, tilde: boolean): { keep: boolean; from: number; names: string[] } | null {
+  const names: string[] = [];
+  let from: number | null = null;
+  let e = end;
+  for (;;) {
+    let root = roots.find(([a, b]) => a >= at && ((e > a && e <= b) || (e === a && e > at && /[\s"'(=[,;<>:`{|]/.test(s[e - 1]))));
+    if (!root && e === end && s.startsWith(":///", e) && /(?<![A-Za-z0-9_])file$/.test(s.slice(at, e))) {
+      const after = roots.find(([a]) => a === e + 3);
+      if (after) root = [e - 4, e];
+    }
+    if (!root) break;
+    const named = /^~([^\\/]+)/.exec(s.slice(root[0], root[1]));
+    if (named) {
+      if (!tilde) return null;
+      names.push(named[1]);
+    }
+    from = root[0];
+    e = at + s.slice(at, from).replace(/[\s"'(=[,;<>:`{|.-]+$/, "").length;
+  }
+  if (from === null) return null;
+  return { keep: e > at, from: e, names };
+}
+
+/** One line (or several) with nothing private left in it. */
+export function redact(text: string, opts: RedactOptions = {}): string {
+  // Names by their shape before the paths: cleaning a path first could take a rule's anchor
+  // ("/profile/", "buyer:"), its closing bracket or its reach. The rules run as hideNames runs
+  // them; only then is a placeholder whose text ran into a path's root given back that root
+  // (rootTail), so no rule reads a text hideNames' rules don't, and every word a placeholder was
+  // written over stays under it but a root's own.
+  const s = knownAndRules(text, opts);
+  const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
+  const { text: named, from, hidden } = hideNamesMarked(s);
+  const write = (tilde: boolean) => {
+    let out = "";
+    const users: string[] = [];
+    for (let i = 0; i < named.length; ) {
+      if (from[i] >= 0) { out += named[i++]; continue; }
+      const k = from[i];
+      const h = hidden[-1 - k];
+      while (i < named.length && from[i] === k) i++;
+      const tail = rootTail(s, roots, h.at, h.end, tilde);
+      if (tail) users.push(...tail.names);
+      out += tail === null ? h.text : (tail.keep ? h.text : "") + s.slice(tail.from, h.end);
+    }
+    return { out: cleanPaths(out), users };
+  };
+  const first = write(true);
+  // A `~name` given back whose path wasn't cleaned (nothing after its slash, or read inside the
+  // path before it) would show the user name: then every such root stays under its placeholder.
+  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return write(false).out;
+  return first.out;
 }
 
 // ---------------------------------------------------------------- paths

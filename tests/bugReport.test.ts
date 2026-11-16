@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
-import { redact } from "../src/lib/core/redact";
+import { hideNames, redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
 const LOG = readFileSync(new URL("./fixtures/report/myorbiter.log", import.meta.url), "utf8").trim().split("\n");
@@ -385,7 +385,7 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     ["partner: Kestrel in /srv/old/notes", "partner: [player] in /srv/[folder]/[folder]"],
     // A rule's name that ends in a share's scheme leaves it to the path: the computer is hidden.
     ["traded with smb://EXAMPLE-PC/share", "traded with smb://[host]/share"],
-    // A match that runs into a root is read again up to it: the names before it are hidden.
+    // A match that runs into a root gives the root back to the path: every word before it stays hidden.
     ["3 people whispered you: Kestrel, smb://host/share", "3 people whispered you: [players], smb://[host]/share"],
     ["3 people whispered you: Kestrel, Bryn_2, Ostra.smb://box/s", "3 people whispered you: [players].smb://[host]/[folder]"],
     ["buyer: Quillon.smb://box/s", "buyer: [player].smb://[host]/[folder]"],
@@ -398,17 +398,18 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     ["buyer: file:///mnt/Kestrel Disk/x", "buyer: file:///mnt/[drive]/[folder]"],
     ["buyer: Quillon-file:///srv/a/x", "buyer: [player]-file:///srv/[folder]/[folder]"],
     // A name that ends in smb or file glued to "://" is a name, hidden whole as main hides it, and
-    // so is a scheme word not in lower case ("SMB://"). A one-letter word before a scheme, which
-    // the rule doesn't take alone, alone or as the last name of a list, hides the whole match too.
+    // so is a scheme word not in lower case ("SMB://"), which the path's cleaning doesn't read as
+    // one. A one-letter word before a scheme, alone or as the last name of a list, is hidden with
+    // the names before it, and the scheme is left to the path.
     ["buyer: Xfile://box/s", "buyer: [player]://box/s"],
     ["buyer: Vexfile://box/s", "buyer: [player]://box/s"],
     ["/w Qsmb://box/s", "/w [player]://box/s"],
     ["traded with Kfile:///srv/a/x", "traded with [player]:///srv/a/x"],
-    ["3 people whispered you: D.smb://Hostqar/share/Folderzed", "3 people whispered you: [players]://Hostqar/share/Folderzed"],
-    ["3 people whispered you: Vexmora, X.smb://box/s", "3 people whispered you: [players]://box/s"],
-    ["3 people whispered you: Kestrel, Bryn_2, Q-file:///srv/a/x", "3 people whispered you: [players]:///srv/a/x"],
-    ["3 people whispered you (Vexmora, D.smb://box/s)", "3 people whispered you ([players]://box/s)"],
-    ["people whispered you · Vexmora,C.file://box/s", "people whispered you · [players]://box/s"],
+    ["3 people whispered you: D.smb://Hostqar/share/Folderzed", "3 people whispered you: [players].smb://[host]/share/[folder]"],
+    ["3 people whispered you: Vexmora, X.smb://box/s", "3 people whispered you: [players].smb://[host]/[folder]"],
+    ["3 people whispered you: Kestrel, Bryn_2, Q-file:///srv/a/x", "3 people whispered you: [players]-file:///srv/[folder]/[folder]"],
+    ["3 people whispered you (Vexmora, D.smb://box/s)", "3 people whispered you ([players].smb://[host]/[folder])"],
+    ["people whispered you · Vexmora,C.file://box/s", "people whispered you · [players].file://[host]/[folder]"],
     ["buyer: SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
     ["buyer: Vexmora.SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
   ];
@@ -416,6 +417,54 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     assert.equal(redact(line), want, line);
     assert.equal(redact(want), want, `a second pass changes nothing: ${want}`);
   }
+});
+
+// The names step against main's: whatever the rules for names and chats hide when no path is read
+// (hideNames: known names, RULES and NAME_LINES, each a plain replace, as main's redact runs
+// them), redact hides too. The one word it may show more often is a path root's own word where
+// it stands: a scheme before "://", a drive letter before ":" and a slash, a variable's name.
+// A `~name` root's name is a user's, not such a word.
+const ROOT_WORD = /\b(?:smb|file)(?=:\/\/)|(?<![A-Za-z0-9_])[A-Za-z](?=:(?:[\\/]|%2[Ff]|%5[Cc]))|(?<=\$\{?|\{)[A-Za-z_][A-Za-z0-9_]*|(?<=%)[A-Za-z_][A-Za-z0-9_]*(?=%[\\/])/g;
+/** Each word of a text with how often it stands there, placeholders and encoded slashes aside. */
+const wordCounts = (t: string) => {
+  const m = new Map<string, number>();
+  for (const w of t.replace(/\[[a-z ]+\]/g, " ").replace(/%(?:2f|5c)/gi, " ").match(/[\p{L}\p{N}_]+/gu) ?? []) m.set(w, (m.get(w) ?? 0) + 1);
+  return m;
+};
+/** The words `redact` shows more often than the names step does, a root's own word aside. */
+const shownMore = (line: string) => {
+  const names = wordCounts(hideNames(line));
+  return [...wordCounts(redact(line).replace(ROOT_WORD, " "))].filter(([w, n]) => n > (names.get(w) ?? 0)).map(([w]) => w);
+};
+
+test("names and chats: no word the names step hides shows, whatever paths the line holds", () => {
+  const lines: string[] = [];
+  // Every rule's anchor, a name (none, one letter, a list), a mark, a root and what follows it.
+  const anchors = ["traded with ", "sold Ash to ", "Ash Prime Set: 20p from ", "sold Ash: 20p from ", "buyer: ", "\"partner\": \"", "3 people whispered you: ", "3 people whispered you: Kestrel, ", "3 people whispered you (", "/w ", "see https://warframe.market/profile/", "see /profile/"];
+  const names = ["", "Vexmora", "X", "Vexmora, X", "Bb"];
+  const marks = ["", ".", ",", "-", " ", "="];
+  const roots = ["smb://", "file://", "file:///", "SMB://", "M:\\", "M:/", "//", "\\\\", "~/", "~Talqen/", "$HOME/", "${HOME}/", "%USERPROFILE%\\", "/"];
+  const after = ["h/x.log", ": gone"];
+  for (const a of anchors) for (const n of names) for (const m of marks) for (const r of roots) for (const f of after) for (const t of ["", ", thanks to Kestrel"]) lines.push(a + n + m + r + f + t);
+  // The two rules no root can cut, for their anchors: "give Name +rep" and a chat's brackets.
+  for (const [a, t] of [["Couldn't give ", " +rep"], ["siteChat: Bryn messaged you on warframe.market (Bryn: see ", ")"]]) for (const n of names) for (const m of marks) for (const r of roots) for (const f of after) lines.push(a + n + m + r + f + t);
+  // Several roots in a row after a profile address's name, whose match can hold them all.
+  for (const a of ["see https://warframe.market/profile/", "see /profile/", "/chat/with/"]) for (const n of ["", "Vexmora", "X"]) for (const m of ["", ",", "="]) for (const c of ["G:\\,", "G:\\,H:\\,", "G:\\,H:\\,K:\\,", "G:\\,~/,", "$HOME/,G:\\,"]) for (const r of roots) for (const f of [...after, "x"]) lines.push(a + n + m + c + r + f);
+  // A second name later on the line, at every distance the "sold … to" rule can reach.
+  const fill = " and then the game closed twice before it came back, and then once more after that";
+  for (const a of ["3 people whispered you: Aa, ", "sold Ash: 20p from ", "traded with ", "sold Ash to "]) for (const n of ["", "Bb", "X"]) for (const m of ["", "."]) for (const r of ["smb://", "file:///", "M:/"]) for (let i = 0; i <= fill.length; i++) lines.push(`${a}${n}${m}${r}h/x.log,${fill.slice(0, i)} to Kestrel`);
+  // Each of these showed a name or a user name main hides, in an earlier version of this branch.
+  for (const line of [
+    "see https://warframe.market/profile/Vexmora,G:\\,H:\\,K:\\,M:/x",
+    "3 people whispered you: Aa, Bb.smb://h/x.log, and then the game closed twice before it came back to Kestrel",
+    "see https://warframe.market/profile/Vexmora,~Talqen/: gone",
+    "sold Ash: 20p from smb://h/x.log, thanks to Kestrel",
+  ]) {
+    assert.ok(lines.includes(line), line);
+    assert.deepEqual(shownMore(line), [], line);
+  }
+  const worse = lines.filter((l) => shownMore(l).length);
+  assert.deepEqual(worse.slice(0, 5).map((l) => `${l} -> ${redact(l)}`), [], `${worse.length} of ${lines.length} lines`);
 });
 
 test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {
