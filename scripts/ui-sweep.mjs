@@ -53,7 +53,7 @@ const url = `http://localhost:${port}/`;
 
 /** The app's minimum window (src-tauri/tauri.conf.json), the Steam Deck, a common laptop, 1080p, 1440p. */
 const SIZES = [
-  { w: 900, h: 560 },
+  { w: 900, h: 500 },
   { w: 1280, h: 800 },
   { w: 1366, h: 768 },
   { w: 1920, h: 1080 },

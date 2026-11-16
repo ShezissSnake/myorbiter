@@ -1,11 +1,12 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Main window. Of Tauri's core, only listening for MyOrbiter's own events (and stopping); no windows, webviews, paths, menus or other core commands. No dialog permission: MyOrbiter's native dialogs (TennoScope's program, a step back to an older build, a new Discord webhook) open from Rust. No opener permission: links open through MyOrbiter's own open_link command, which allows https to its sites only (src-tauri/src/link.rs, the same list as src/lib/core/links.ts), and MyOrbiter's log folders open from Rust too. Of the process plugin, only restart (after an update is installed); updates themselves go through MyOrbiter's own commands (updates.rs), so none of the updater plugin's commands are allowed.",
+  "description": "Main window. Of Tauri's core, only listening for MyOrbiter's own events (and stopping) and setting the page's zoom (Tauri's zoom keys call it outside Windows); no windows, other webview commands, paths, menus or other core commands. No dialog permission: MyOrbiter's native dialogs (TennoScope's program, a step back to an older build, a new Discord webhook) open from Rust. No opener permission: links open through MyOrbiter's own open_link command, which allows https to its sites only (src-tauri/src/link.rs, the same list as src/lib/core/links.ts), and MyOrbiter's log folders open from Rust too. Of the process plugin, only restart (after an update is installed); updates themselves go through MyOrbiter's own commands (updates.rs), so none of the updater plugin's commands are allowed.",
   "windows": ["main"],
   "permissions": [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:webview:allow-set-webview-zoom",
     "window-state:default",
     "process:allow-restart"
   ]
