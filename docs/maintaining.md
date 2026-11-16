@@ -203,8 +203,8 @@ short list in the script (`tools` of each program in `PROGRAMS`: Vite,
 `@sveltejs/vite-plugin-svelte` and Svelte for MyOrbiter; Vite, Vitest and `@vitejs/plugin-react`
 for TennoScope), with every package they use (their `dependencies` and `optionalDependencies`,
 all the way down). The list is added to by hand, in the same change that adds a tool to a page's
-build. Those tools reading a package's `package.json` to find its files is the one read that
-isn't counted; any other code reading one stops the build.
+build. Two reads aren't counted: Node loading those tools' code to run it, and those tools
+reading a package's `package.json` to find its files; any other code reading one stops the build.
 
 It stops as well when:
 
@@ -235,12 +235,16 @@ It stops as well when:
 
 It never passes by leaving out a package it has found, and it stops on every reader above it
 doesn't know. What it lets through without following it: what the known tools' own code and files
-carry into the page when the config runs or reads them (Vite and Svelte are listed anyway, as
-the page holds their code; `@sveltejs/vite-plugin-svelte` isn't); a read made below Node's `fs`
-functions (by native code, apart from the modules the bundler reads, which the page's chunks
-show, or through Node's internal bindings); a module loaded in the same Node before the build
-started (the script runs in a process of its own, after only `cargo`); and a package linked from
-a folder inside the repository, whose modules are taken for the page's own.
+carry into the page when the config runs or reads them (in MyOrbiter's page, Vite and Svelte are
+listed anyway, as the page holds their code; the other tools' packages aren't listed unless the
+page holds theirs); a package's file the config has a known tool read for it below Node's `fs`
+(Vite's bundler, in a second build or its config loader pointed at a package's file); a
+`package.json` a known tool reads for the config from a callback, where the config isn't in the
+stack that called it (or is deeper than the 50 frames the script looks at); a read made below
+Node's `fs` functions otherwise (by native code, apart from the modules the page's own build
+bundles, which its chunks show, or through Node's internal bindings); a module loaded in the same
+Node before the build started (the script runs in a process of its own, after only `cargo`); and
+a package linked from a folder inside the repository, whose modules are taken for the page's own.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:

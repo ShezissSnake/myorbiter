@@ -577,16 +577,19 @@ test("a package's file the page's own config reads into the page is in the page;
   assert.match(r.failures[0], /node_modules\/fakepj\/package\.json is read by .*vite\.config\.ts\.timestamp.*, which is none of the build's known tools/);
 });
 
-test("a package's file the config reads through fs.ReadStream's constructor, or through a link in the page's folder, is in the page", unix, async () => {
+test("a package's file the config reads through fs.ReadStream's constructor, through a link in the page's folder, or through a link and then \"..\", is in the page", unix, async () => {
   const r = await pageBuild({
-    "src/main.js": "console.log(__STREAM__, __LINKED__);\n",
+    "src/main.js": "console.log(__STREAM__, __LINKED__, __DOTDOT__);\n",
     "node_modules/fakestream/x.txt": "made-up stream\n",
     "node_modules/fakesymcfg/x.txt": "made-up link\n",
+    "node_modules/fakedotdot/x.txt": "made-up link and ..\n",
+    "node_modules/fakedotdot/sub/y.txt": "y\n",
     "vite.config.ts": 'import fs from "node:fs";\n' +
       'const stream = await new Promise((ok) => { let s = ""; new fs.ReadStream("node_modules/fakestream/x.txt", "utf8").on("data", (d) => (s += d)).on("end", () => ok(s)); });\n' +
-      'export default { define: { __STREAM__: JSON.stringify(stream), __LINKED__: JSON.stringify(fs.readFileSync("src/linked.txt", "utf8")) } };\n',
-  }, false, { "src/linked.txt": "node_modules/fakesymcfg/x.txt" });
-  assert.deepEqual(r.made, ["fakestream 1.0.0 GPL-3.0", "fakesymcfg 1.0.0 GPL-3.0"]);
+      "export default { define: { __STREAM__: JSON.stringify(stream), __LINKED__: JSON.stringify(fs.readFileSync(\"src/linked.txt\", \"utf8\")),\n" +
+      '  __DOTDOT__: JSON.stringify(fs.readFileSync("src/sub/../x.txt", "utf8")) } };\n',
+  }, false, { "src/linked.txt": "node_modules/fakesymcfg/x.txt", "src/sub": "node_modules/fakedotdot/sub" });
+  assert.deepEqual(r.made, ["fakedotdot 1.0.0 GPL-3.0", "fakestream 1.0.0 GPL-3.0", "fakesymcfg 1.0.0 GPL-3.0"]);
   assert.deepEqual(r.failures, []);
 });
 

@@ -29,7 +29,7 @@ import * as nodeModule from "node:module";
 import workerThreads from "node:worker_threads";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -442,12 +442,15 @@ const STYLE = /\.(css|scss|sass|less|styl|stylus|pcss|postcss|sss)$/;
 export const PREPROCESSORS = ["sass", "sass-embedded", "less", "stylus"];
 
 const norm = (p) => p.replace(/\\/g, "/");
-/** A path as the disk has it, every link followed; the path as given when there is no such file. */
+/**
+ * A path as the disk has it, every link followed as the system follows it (a link, then "..",
+ * leads where the link's target's parent is); the path as given when there is no such file.
+ */
 const real = (p) => {
   try {
-    return norm(realpathSync(p));
+    return norm(realpathSync.native(p));
   } catch {
-    return norm(p);
+    return norm(normalize(p));
   }
 };
 
@@ -502,7 +505,9 @@ export function filesUnder(path) {
   } catch {
     return out;
   }
-  if (st.isDirectory()) walk(path);
+  // A folder from where the system finds it (a path through a link and "..": not where the
+  // words of the path lead).
+  if (st.isDirectory()) walk(real(path));
   else if (st.isFile()) out.push(path);
   return out;
 }
@@ -582,7 +587,7 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }, kno
   };
   const inPage = (p) => p === root || p.startsWith(`${root}/`);
   // A package of the path as given, and of the path the disk has (a link into a package).
-  const packagesOf = (path) => [...new Set([packageDir(norm(path)), packageDir(real(path))].filter(Boolean))];
+  const packagesOf = (path) => [...new Set([packageDir(norm(normalize(path))), packageDir(real(path))].filter(Boolean))];
   const toolsOwn = (file) => {
     const d = packageDir(real(file));
     return !!d && known.tools.has(real(d));
@@ -596,7 +601,7 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }, kno
     }
   };
   const read = (path, stack, how = "read") => {
-    const given = norm(path);
+    const given = norm(normalize(path));
     heard.add(given);
     heard.add(real(path));
     const dirs = packagesOf(path);
@@ -696,7 +701,10 @@ const STOPS_AT = /^node:(fs|internal\/fs\/.*)$/;
 function listenOnce() {
   if (listening) return;
   listening = true;
-  const toPath = (p) => (typeof p === "string" ? resolve(p) : p instanceof URL ? fileURLToPath(p) : Buffer.isBuffer(p) ? resolve(p.toString()) : null);
+  // The path as the call gives it, made absolute without folding "..": the system follows a link
+  // before a "..", so "src/link/../x" may be a package's file where "src/x" isn't.
+  const absolute = (s) => (isAbsolute(s) ? s : `${process.cwd()}${sep}${s}`);
+  const toPath = (p) => (typeof p === "string" ? absolute(p) : p instanceof URL ? fileURLToPath(p) : Buffer.isBuffer(p) ? absolute(p.toString()) : null);
   const inCall = []; // paths of the calls listened to that are running now
   const streams = new Map(); // createReadStream's paths, until its stream opens the file
   // The stack from the frame that called `fn` on, one "at <function> (<file>:<line>:<column>)" a
@@ -723,8 +731,9 @@ function listenOnce() {
     const orig = obj[name];
     if (typeof orig !== "function") return;
     const listened = function (p, ...rest) {
-      const path = build ? toPath(p) : null;
-      if (!path) return orig.call(this, p, ...rest);
+      const raw = build ? toPath(p) : null;
+      if (!raw) return orig.call(this, p, ...rest);
+      const path = resolve(raw);
       const stack = stackFrom(listened);
       const caller = callerOf(stack);
       if (STOPS_AT.test(caller) && inCall.some((c) => path === c || path.startsWith(c + sep))) {
@@ -735,7 +744,7 @@ function listenOnce() {
       } else {
         // Anything else is heard, fs's own code too: `new fs.ReadStream` opens its file later, from
         // fs's stream code, and that open is all there is to hear of it.
-        for (const f of how === "tree" ? filesUnder(path) : [path]) build.read(f, stack, how === "read" ? "read" : "copy");
+        for (const f of how === "tree" ? filesUnder(raw) : [raw]) build.read(f, stack, how === "read" ? "read" : "copy");
         if (name === "createReadStream") streams.set(path, (streams.get(path) ?? 0) + 1);
       }
       inCall.push(path);
