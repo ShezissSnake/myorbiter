@@ -309,8 +309,9 @@ check also reads the nearest other channel's `latest.json` (the next one if that
 the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
 settings saved yet) has no channel, and is offered no update, until its first check hears back.
 That check reads github.com alone, never gitlab.com: Stable's `latest.json`, Beta's too if Stable
-has no build or an older one than yours, then Experimental's, and starts on the most stable channel
-whose build is yours or newer (Stable, else Beta, else Experimental). For each channel it first
+has no build or an older one than yours, and Experimental's only if neither has yours or a newer
+one, and starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
+Experimental). For each channel it first
 reads the file's address once, following no redirect, with the updater's User-Agent; a 404 there
 is that channel having no build, and when github.com answers with the file, the updater reads it
 there (two reads of github.com, and of the file storage github.com hands the file to). Anything
@@ -384,10 +385,13 @@ it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an a
 be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
 can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
 paragraph, and says why, on the page and in its log, rather than going around the proxy; the
-window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: none
-of MyOrbiter's own requests and connections skips the proxy.
+window's read of last week's riven trades isn't made then either, nor a new install's first read
+of each channel's file on github.com, which is one of MyOrbiter's own requests (Updates, above).
+`NO_PROXY` isn't read: none of MyOrbiter's own requests and connections skips the proxy.
 
-The update check and its download, and TennoScope's web requests, choose for themselves: they use
+The update check and its download, and TennoScope's web requests, choose for themselves (all but
+a new install's first read of each channel's file on github.com, which goes MyOrbiter's way, by
+the paragraph above: no system proxy settings, `HTTP_PROXY` read, `NO_PROXY` not): they use
 `HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
 never `HTTP_PROXY`, their addresses all being https. They take an `https://` proxy too, skip the
 proxy for the hosts `NO_PROXY` names, and go straight when the address set can't be read and no
