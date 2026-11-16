@@ -447,9 +447,16 @@ pub fn find_binary(custom: Option<&str>, bundled: Option<&Path>) -> Option<PathB
     let mut candidates: Vec<PathBuf> = bundled.map(Path::to_path_buf).into_iter().collect();
     candidates.extend(checkout_build());
     if let Some(path) = std::env::var_os("PATH") {
-        candidates.extend(std::env::split_paths(&path).map(|d| d.join(PROCESS)));
+        candidates.extend(on_path(&path));
     }
     candidates.into_iter().find(|p| p.is_file())
+}
+
+/// Where TennoScope would be in each folder of `path` (a `PATH` value). Absolute folders only: an
+/// empty entry (`/usr/bin:`) or a relative one (`.`, `bin`) is resolved against the current folder,
+/// which may be one someone else can write, and the routine check would start what's there.
+fn on_path(path: &std::ffi::OsStr) -> Vec<PathBuf> {
+    std::env::split_paths(path).filter(|d| d.is_absolute()).map(|d| d.join(PROCESS)).collect()
 }
 
 /// TennoScope as built in the MyOrbiter checkout this development build came from
@@ -1243,6 +1250,17 @@ mod tests {
         assert_eq!(refused.changes(&full), ["TennoScope's game reader: failed (permission denied while reading Warframe process 12)", "TennoScope's item data: failed (No valid WFCD catalog is available)", "TennoScope turned a request down: access mode is already changing"]);
         // It ends: said, and nothing about a report it can't write.
         assert_eq!(Seen::of(false, &Err(NoReport::NoFile)).changes(&refused), ["TennoScope isn't running"]);
+    }
+
+    /// An empty or relative entry in PATH (`/usr/bin:` or `.`) is the current folder, which may be
+    /// one someone else can write: TennoScope is never looked for there.
+    #[cfg(unix)]
+    #[test]
+    fn the_search_on_path_takes_absolute_folders_only() {
+        let found = on_path(std::ffi::OsStr::new(":/usr/bin::.:bin:../x:/opt/tools/"));
+        assert_eq!(found, vec![PathBuf::from("/usr/bin").join(PROCESS), PathBuf::from("/opt/tools/").join(PROCESS)]);
+        assert!(on_path(std::ffi::OsStr::new(":")).is_empty(), "{:?}", on_path(std::ffi::OsStr::new(":")));
+        assert!(on_path(std::ffi::OsStr::new("")).is_empty());
     }
 
     #[test]
