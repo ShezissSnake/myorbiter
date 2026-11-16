@@ -488,6 +488,9 @@
   }
   function editKey(o: MyOrder, e: KeyboardEvent) {
     if (e.key === "Enter") {
+      // Its key press stops here: a question it opens (the unchecked warning) takes the focus on
+      // "Keep", which the same Enter would otherwise press.
+      e.preventDefault();
       if (!overHeld(o)) save(o);
     }
     else if (e.key === "Escape") {

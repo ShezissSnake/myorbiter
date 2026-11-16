@@ -166,6 +166,11 @@ test("Orders: in Full mode before the first read, the show switch and a raise as
   assert.match(row, /use:focusIt onclick=\{\(\) => \(askUnchecked = null\)\}[^\n]*>Keep it hidden<\/button>/);
   assert.match(row, /onclick=\{\(\) => save\(o, true\)\}[^>]*>List \{q\} anyway<\/button>/);
   assert.match(row, /use:focusIt onclick=\{\(\) => revert\(o\)\}[^\n]*>Keep \{o\.quantity\}<\/button>/);
+  // Enter in the quantity box opens the question, which takes the focus on "Keep": the same key
+  // press must stop at the box, or it presses "Keep" and the raise is dropped unasked.
+  const key = /function editKey\(o: MyOrder, e: KeyboardEvent\) \{([\s\S]*?)\n {2}\}/.exec(page)?.[1] ?? "";
+  const enter = /if \(e\.key === "Enter"\) \{([\s\S]*?)\}/.exec(key)?.[1] ?? "";
+  assert.ok(enter.includes("e.preventDefault();") && enter.indexOf("e.preventDefault();") < enter.indexOf("save(o)"), "Enter's key press stops before Save opens the question");
 });
 
 test("Orders: the state it asks in is the form's: Full mode on, no inventory read", async () => {
