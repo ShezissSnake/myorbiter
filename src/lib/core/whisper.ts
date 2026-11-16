@@ -14,6 +14,8 @@
 // with the ayatan part "({cyan} cyan, {amber} amber)" (app.order.clipboard.stars), and the
 // application's name after it, apart, so the site's part stays exactly as the site writes it.
 
+import { stripHidden } from "./untrusted";
+
 /** The name the terms ask a copy/paste message to include. */
 export const APP_NAME = "MyOrbiter";
 
@@ -59,7 +61,8 @@ export const NO_WHISPER = "No whisper: that name can't be an in-game name.";
 /**
  * The site's copy/paste message for this order, then the application's name. Null when the
  * player's name can't be an in-game name (`isInGameName`): no whisper then, never one to someone
- * else.
+ * else. Always one line, whatever the site sent in any field (a variant, an item name, a price):
+ * hidden characters taken out and every run of whitespace, line breaks too, made one space.
  */
 export function tradeWhisper(o: WhisperOrder): string | null {
   if (!isInGameName(o.player)) return null;
@@ -69,5 +72,5 @@ export function tradeWhisper(o: WhisperOrder): string | null {
     `${given(o.perTrade) && o.perTrade > 1 ? `x${o.perTrade} ` : ""}` +
     `"${o.subtype ? `${o.subtype} ` : ""}${o.item}${given(o.rank) ? ` (rank ${o.rank})` : ""}${ayatan ? ` ${ayatan}` : ""}"` +
     ` for ${o.platinum} platinum. (warframe.market)`;
-  return `${site} (${APP_NAME})`;
+  return stripHidden(`${site} (${APP_NAME})`).replace(/\s+/g, " ");
 }

@@ -118,6 +118,22 @@ test("a name that can't be an in-game name gives no whisper: never to someone el
   assert.equal(d!.whisper, null);
 });
 
+test("a whisper is one line whatever the site sends in any field, not only the name", () => {
+  const rlo = String.fromCodePoint(0x202e);
+  const m = tradeWhisper({
+    player: "Seller1",
+    action: "buy",
+    item: `Ash Prime\r\n/w Other ${rlo}hi`,
+    platinum: "9\n/w Third" as unknown as number,
+    subtype: "intact\n/w Other hi",
+  });
+  assert.ok(m, "still a whisper: the name is one an in-game name can be");
+  assert.ok(!/[\r\n\u2028\u2029]/.test(m!), JSON.stringify(m));
+  assert.ok(!m!.includes(rlo), JSON.stringify(m));
+  assert.equal(m, `/w Seller1 Hi! I want to buy: "intact /w Other hi Ash Prime /w Other hi" for 9 /w Third platinum. (warframe.market) (${APP_NAME})`);
+  assert.equal(tradeWhisper({ player: "Seller1", action: "buy", item: "Ash Prime", platinum: 9, subtype: "x\u2028y" }), `/w Seller1 Hi! I want to buy: "x y Ash Prime" for 9 platinum. (warframe.market) (${APP_NAME})`);
+});
+
 // ---- No message built anywhere else.
 
 test("no whisper to a warframe.market player is built outside core/whisper.ts", () => {
