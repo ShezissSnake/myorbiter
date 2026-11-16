@@ -293,6 +293,8 @@ pub fn redact(s: &str) -> String {
     // `name=value` word after one that ends in `;`.
     let mut cookie_header = false;
     let mut cookie_more = false;
+    // The Cookie header was itself a hidden word (`Bearer Cookie: token=x y`).
+    let mut cookie_hidden = false;
     // Words between any whitespace (a tab or a line break hides nothing), the whitespace kept.
     let mut rest = s;
     while !rest.is_empty() {
@@ -334,9 +336,10 @@ pub fn redact(s: &str) -> String {
             out.push_str(word);
             continue;
         }
-        // "Authorization: Bearer x": the scheme stays readable, the token after it goes.
+        // "Authorization: Bearer x": the scheme stays readable, the token after it goes. A pair
+        // (`token=`) is no scheme: it is hidden below, as far as its own rule reaches.
         let scheme = matches!(lower.as_str(), "bearer" | "jwt" | "token" | "basic");
-        if hide_next && scheme {
+        if hide_next && scheme && secret_pair(word).is_none() {
             out.push_str(word);
             continue;
         }
@@ -344,11 +347,13 @@ pub fn redact(s: &str) -> String {
         if hide_next || jwt {
             out.push_str("[redacted]");
             let in_cookie = std::mem::take(&mut cookie_header);
+            let header_hidden = std::mem::take(&mut cookie_hidden);
             cookie_more = in_cookie && word.ends_with(';');
             // A secret pair in the hidden word reaches as far as its own rule below: a quoted value
             // to the end of the word its closing quote stands in, one in running text to the line's
-            // end. A Cookie header's pairs go by its own rule.
-            if let Some((at, in_query)) = secret_pair(word).filter(|_| !in_cookie) {
+            // end. After a Cookie header that was written, its pairs go by the header's own rule.
+            let pair = secret_pair(word);
+            if let Some((at, in_query)) = pair.filter(|_| !in_cookie || header_hidden) {
                 let v = start + at;
                 match s[v..].chars().next().filter(|&c| c == '"' || c == '\'') {
                     Some(q) => match closing_on_line(s.as_bytes(), v + 1, q as u8) {
@@ -359,8 +364,9 @@ pub fn redact(s: &str) -> String {
                     None => rest = &s[line_end(v)..],
                 }
             }
-            // A hidden word that is a head itself still hides the word after it.
-            (hide_next, cookie_header) = head_word(word);
+            // A hidden word that is a head itself still hides the word after it; a pair is none.
+            (hide_next, cookie_header) = if pair.is_some() { (false, false) } else { head_word(word) };
+            cookie_hidden = cookie_header;
             continue;
         }
         if let Some((at, in_query)) = secret_pair(word) {
@@ -392,6 +398,7 @@ pub fn redact(s: &str) -> String {
             continue;
         }
         (hide_next, cookie_header) = head_word(word);
+        cookie_hidden = false;
         out.push_str(word);
     }
     out
@@ -826,6 +833,14 @@ mod tests {
         // A hidden word that is a head itself hides the word after it.
         assert_eq!(cut_once("{\"auth\":\"Bearer Authorization: abc123 y", "abc123"), "{\"auth\":\"Bearer [redacted] [redacted] y");
         assert_eq!(cut_once("auth=Bearer Cookie: a=1; sid=abc123 y", "abc123"), "auth=Bearer [redacted] [redacted] [redacted] y");
+        // A pair after a head is no scheme to pass over: `token=` goes as far as its own rule.
+        assert_eq!(cut_once("{\"auth\":\"Bearer token= abc def", "abc def"), "{\"auth\":\"Bearer [redacted]");
+        assert_eq!(cut_once("Authorization: x:token token= abc def", "abc def"), "Authorization: [redacted] [redacted]");
+        assert_eq!(cut_once("Bearer token=\" abc def\" y", "abc def"), "Bearer [redacted] y");
+        // After a Cookie header that was itself hidden, a pair goes as far as its own rule.
+        assert_eq!(cut_once("Bearer Cookie: token=abc def", "abc def"), "Bearer [redacted] [redacted]");
+        // After a Cookie header that was written, its pairs go by the header's rule.
+        assert_eq!(cut_once("Cookie: JWT=abc; other", "abc"), "Cookie: [redacted] other");
     }
 
     #[test]
