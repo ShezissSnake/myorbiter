@@ -48,6 +48,12 @@ const RANK = /\b(?:r|rank|lvl|lv|level)\s*[:.]?\s*(\d{1,2})\b|\((\d{1,2})\s*\/\s
 const SHARD = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)(?:\s+archon)?\s+shards?(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\(|\bfor\b)\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
 const SHARD_LOOSE = /(?:(\d)\s*[x×]\s*)?(tauforged\s+)?(crimson|azure|amber|violet|topaz|emerald)\b(?:\s*[x×]\s*(\d))?(?:\s*(?::|=|-|–|—|→|->|\()\s*([^,;()\n]*[^,;()\n\s]))?\)?/gi;
 const HELMINTH = /([A-Za-z][\w'’ ]*?)\s+(?:replac(?:es|ing|ed)|in place of|instead of|over|on|→|->)\s+([A-Za-z0-9][\w'’ ]*?)(?=\s*(?:[,;.)(]|$))/i;
+/**
+ * The longest line HELMINTH reads. A real Helminth line runs to a few dozen characters ("Helminth:
+ * Roar replacing Rhino Stomp"); on a long line built for it ("helminth a on a on … !") the pattern
+ * backtracks over every " on " from every start, and the page, the only thread, hangs.
+ */
+const HELMINTH_MAX = 200;
 /** Words around names that aren't names. */
 const FILLER = new Set(["and", "or", "the", "a", "an", "for", "with", "on", "in", "to", "of", "my", "your", "x", "slot", "slots", "mod", "mods", "arcane", "arcanes", "build", "optional", "alt", "alternative", "alternatively", "core", "recommended", "swap", "replace", "instead", "use", "using", "if", "you", "have", "need", "flex", "then", "also", "plus", "is", "it", "this", "can", "be", "any", "other", "e", "g", "eg", "i", "e.g", "etc", "no", "not", "yes", "maybe"]);
 
@@ -97,6 +103,13 @@ function known(phrase: string, idx: NameIndex): boolean {
 
 const COLOURS: ShardColour[] = ["crimson", "azure", "amber", "violet", "topaz", "emerald"];
 
+/**
+ * The most of a paste that's read. A whole build page runs to a few thousand characters; the paste
+ * dialog reads the text again after each key, and some patterns below take time that grows with
+ * the square of a long line's length (ranks are blanked out one by one).
+ */
+export const PASTE_MAX = 20_000;
+
 /** Reads pasted text into a build for `item`. `catalog`: the model's catalogByUnique (or the catalog list). */
 export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem> | readonly CatalogItem[], opts: PasteOptions = {}): PasteResult {
   const kind = opts.kind ?? gearKindOf(item);
@@ -117,6 +130,10 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
   const adapters: { exilus?: boolean; arcane?: boolean } = {};
   let gameUpdate = undefined as string | undefined;
   const labelTags: string[] = [];
+  if (text.length > PASTE_MAX) {
+    text = text.slice(0, PASTE_MAX);
+    notes.push(`Only the first ${PASTE_MAX.toLocaleString("en-US")} characters were read.`);
+  }
 
   const addShards = (m: RegExpExecArray) => {
     const n = Math.min(5, Math.max(1, Number(m[1] ?? m[4] ?? 1)));
@@ -166,7 +183,7 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
       continue;
     }
     if (label === "helminth" || label === "subsume" || label === "subsumed" || /helminth|subsum|replac|instead of|in place of/i.test(line)) {
-      const h = HELMINTH.exec(line);
+      const h = line.length <= HELMINTH_MAX ? HELMINTH.exec(line) : null;
       if (h) {
         const ability = h[1].replace(/^(?:helminth|subsume[ds]?|use|with)\s+/i, "").trim();
         const replaces = abilityName(item, h[2].trim());
@@ -177,7 +194,8 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
         }
         line = blank(line, h.index, h.index + h[0].length);
       } else if (label === "helminth" || label === "subsume" || label === "subsumed") {
-        notes.push(`Couldn't read the Helminth line "${raw.trim()}": say it as "Ability replacing Ability".`);
+        const said = raw.trim();
+        notes.push(`Couldn't read the Helminth line "${said.length > 120 ? `${said.slice(0, 120)}…` : said}": say it as "Ability replacing Ability".`);
         continue;
       }
     }

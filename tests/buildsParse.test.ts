@@ -131,6 +131,34 @@ test("Helminth by ability number; shards and Helminth on a weapon are noted, not
   assert.ok(w.notes.some((n) => /warframes only/.test(n)));
 });
 
+test("a pasted line built to make the Helminth pattern backtrack reads in well under a second", () => {
+  // "helminth " then "a on " over and over, ending in "!": each start tries each " on ", and the
+  // second name then runs to the "!" and fails.
+  for (const size of [200, 5_000, 20_000]) {
+    const line = `helminth ${"a on ".repeat(Math.ceil(size / 5))}`.slice(0, size - 1) + "!";
+    assert.equal(line.length, size);
+    const t0 = performance.now();
+    parsePaste(line, item(P.rhino), CAT, { now: NOW });
+    const ms = performance.now() - t0;
+    console.log(`${size} characters: ${ms.toFixed(1)} ms`);
+    assert.ok(ms < 1000, `${size} characters: ${Math.round(ms)} ms`);
+  }
+});
+
+test("a very long paste is read up to its first 20,000 characters, and says so", () => {
+  // Ranks are taken out one by one, the line rebuilt each time: a paste of hundreds of thousands
+  // of characters would take seconds.
+  const text = "Vitality\n" + "r 1 ".repeat(50_000);
+  const t0 = performance.now();
+  const r = parsePaste(text, item(P.rhino), CAT, { now: NOW });
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1000, `${text.length} characters: ${Math.round(ms)} ms`);
+  assert.deepEqual(r.build.mods.filter(Boolean), [{ path: P.vitality }]);
+  assert.ok(r.notes.includes("Only the first 20,000 characters were read."), r.notes.join(" | "));
+  // A paste of that size or less has no such note.
+  assert.ok(!parsePaste("Vitality", item(P.rhino), CAT, { now: NOW }).notes.some((n) => /first 20,000/.test(n)));
+});
+
 test("Necramechs get twelve slots, and a gear kind can be given for what the catalog can't say", () => {
   const r = parsePaste("Necramech Vitality", item(P.voidrig), CAT, { now: NOW });
   assert.equal(r.build.kind, "necramech");
