@@ -236,6 +236,8 @@
     }
   });
   const suggested = $derived(Object.fromEntries(Object.entries(suggestions).map(([t, s]) => [t, toBuild(s, now) as unknown as Build])) as Partial<Record<Tier, Build>>);
+  /** A suggestion's aura or stance the player doesn't own: shown, not counted (by the build shown). */
+  const uncountedOf = $derived(new Map(TIERS.flatMap((t) => (suggested[t] && suggestions[t]?.uncounted.length ? [[suggested[t]!, suggestions[t]!.uncounted] as const] : []))));
 
   // A network source's builds (Nox's Frame, when it's on): read once per item, on choosing it, with
   // no age limit (the page hides old ones itself, so "show" needs no second read).
@@ -297,7 +299,7 @@
   const tiers = new WeakMap<Build, TierResult>();
   const tierFor = (b: Build): TierResult => {
     let t = tiers.get(b);
-    if (!t && item && kind) tiers.set(b, (t = tierOf(b, item, model.catalogByUnique, kind)));
+    if (!t && item && kind) tiers.set(b, (t = tierOf(b, item, model.catalogByUnique, kind, { uncounted: uncountedOf.get(b) })));
     return t!;
   };
   let reportsOf = $state.raw(new WeakMap<Build, MissingReport>());
