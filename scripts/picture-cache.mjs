@@ -1,24 +1,38 @@
 // The checks' picture cache. In the browser dev mode the demo's pages load item pictures from
 // WFCD's copy on raw.githubusercontent.com, and Rivens reads Digital Extremes' weekly riven file
 // from www-static.warframe.com. The sweep (scripts/ui-sweep.mjs), the screenshots and the
-// help-picture check (scripts/screenshots.mjs, scripts/help-shots.mjs) contact no host. The guard
-// (`guard`, on each page's browser context, so on every frame and window the page opens) answers
-// those requests from this cache, on disk outside the repository, and refuses every other request
-// and WebSocket that isn't to this machine, counting it. What a page could reach the network with
-// past a route (a worker, a shared worker, a service worker, WebTransport, a peer connection) is
-// taken from every page before it loads, and using one is refused and counted too. A run that
-// refused any fails. A script's own routes that ask again (`route.fetch()`) only ever ask the demo
-// server, and Node's own requests only the demo server's port, following no redirect.
+// help-picture check (scripts/screenshots.mjs, scripts/help-shots.mjs) are built to contact no
+// host. What the guard is shown, and what it does with it:
+// - Requests and WebSockets, through Playwright's routes on each page's browser context (so from
+//   the page, its frames and the windows it opens). One to localhost, `data:` or `blob:` goes
+//   through; a GET for an item picture or the riven file is answered from this cache, on disk
+//   outside the repository; any other is refused and counted.
+// - The constructors that reach the network past a route (Worker, SharedWorker, WebTransport,
+//   RTCPeerConnection, and registering a service worker), taken from each page and frame before
+//   its own scripts run: using one is refused and counted.
+// - The sweep's reward-screen route answers only the demo server's file, asking it again with
+//   `route.fetch({ maxRedirects: 0 })`. Node's own requests ask the demo server's port only and
+//   follow no redirect.
+// A run that refused any fails; one that refused none ends with `requests outside this machine, 0`.
 //
-// Not decided by the guard, as no route sees it: a connection or name lookup a page could make
-// ahead of any request (`<link rel=preconnect>`, `dns-prefetch`). The browser's launch rule holds
-// those: it resolves no name but localhost (LAUNCH_ARGS), so nothing a route didn't answer leaves
-// the machine.
+// Not shown to the guard, and left to the browser's launch rule (LAUNCH_ARGS: it resolves no name
+// but localhost):
+// - a redirect from localhost that the browser follows (a route sees a request's first address
+//   only), the reward-screen route's answer included, as it passes a 3xx on;
+// - speculation-rules prefetch and prerender (`<script type=speculationrules>`);
+// - a connection or name lookup made ahead of any request (`<link rel=preconnect>`,
+//   `dns-prefetch`).
+// In probes the launch rule held each of these, and none of them was counted: a run with one
+// passes. Not probed: an address written as numbers, other than 127.0.0.1, against the launch
+// rule. The demo's pages cause none of these today.
 //
 // No printed line names the home folder, the repository's folder, this cache's, Playwright's
 // browsers' (when PLAYWRIGHT_BROWSERS_PATH is set) or the temporary folder (when it isn't /tmp):
 // each is shown as `~`, `<repository>`, the cache's variable, `$PLAYWRIGHT_BROWSERS_PATH` or
-// `$TMPDIR` (hidePaths), a stop before a run begins included. Another path an error names is not.
+// `$TMPDIR` (hidePaths). That holds for a stop before a run begins once this helper has loaded (a
+// bad argument, Playwright not installed). A script of the repository that can't be found stops
+// Node before this helper loads, and that error prints its full path. Another path an error names
+// is not hidden.
 //
 // A request the cache can't answer is refused and its address kept in the cache's wanted list.
 // One step, run by hand, fetches what that list holds and the cache hasn't got, by GET, from those
@@ -97,9 +111,10 @@ export function hidePaths(text) {
   return s;
 }
 
-// A script that stops before its run begins (a bad argument, a missing file, a failed import)
-// would have Node print its error with the script's full path: printed here with the paths hidden
-// instead, for every script that loads this one.
+// A script that stops before its run begins, once this one has loaded (a bad argument, a missing
+// file, Playwright not installed), would have Node print its error with the script's full path:
+// printed here with the paths hidden instead. A static import that can't be found (a script of the
+// repository missing) stops Node before this runs, and is printed as Node prints it.
 const stopped = (e) => {
   console.error(hidePaths(e instanceof Error ? (e.stack ?? e.message) : e));
   process.exit(1);
@@ -129,7 +144,8 @@ const fillable = (address) => {
     const u = new URL(address);
     // Written as the browser writes it (no other spelling of the same address), with nothing but
     // the host and the path: no port, sign-in, query or fragment, and no encoded slash, backslash
-    // or dot that a server might decode into another path.
+    // or dot that a server might decode into another path. A bare `?` or `#` at the end still
+    // passes: the `?` asks the same host for the same file, and a `#` is never sent.
     return (
       address === u.href &&
       u.protocol === "https:" &&
@@ -182,20 +198,22 @@ const hostOf = (address) => {
  * What a page could reach the network with past a route: Playwright routes requests (from a page,
  * its frames, its windows, a dedicated worker or a service worker) and WebSockets, but not what a
  * shared worker asks, a WebTransport session, a peer connection's packets, or a worker's own
- * sockets. The demo uses none of these, so each is taken from every page and frame before it
- * loads: using one is refused, counted, and fails the run. (Vite's client asks for a shared worker
+ * sockets. The demo uses none of these, so each is taken from each page and frame before its own
+ * scripts run: using one is refused, counted, and fails the run. (Vite's client asks for a shared worker
  * only when its socket to the dev server has dropped.)
  */
 const TAKEN = ["Worker", "SharedWorker", "WebTransport", "RTCPeerConnection", "webkitRTCPeerConnection"];
 
 /**
  * Before anything else on the page `p`, on its browser context (each `browser.newPage` has its
- * own), so a window or frame it opens is held too: every request and WebSocket that isn't to this
- * machine is answered from the cache or refused and counted, and the ways past a route (TAKEN, and
- * registering a service worker) are refused and counted. The page's own routes come before its
- * context's, so the world-state stop (scripts/no-world-state.mjs) and a view's own stand-ins keep
- * their own say. Left to the browser's launch rule (LAUNCH_ARGS), as no route sees them: a
- * connection or name lookup made ahead of any request (`<link rel=preconnect>`, `dns-prefetch`).
+ * own), so a window or frame it opens is held too: a request or WebSocket the routes are shown
+ * that isn't to this machine is answered from the cache or refused and counted, and the ways past
+ * a route (TAKEN, and registering a service worker) are refused and counted. The page's own routes
+ * come before its context's, so the world-state stop (scripts/no-world-state.mjs) and a view's own
+ * stand-ins keep their own say. Left to the browser's launch rule (LAUNCH_ARGS), as no route is
+ * shown them (the head comment lists them): a redirect the browser follows from localhost,
+ * speculation-rules prefetch and prerender, and a connection or name lookup made ahead of any
+ * request (`<link rel=preconnect>`, `dns-prefetch`).
  */
 export async function guard(p) {
   const context = p.context();
@@ -276,7 +294,8 @@ export function cacheEnd() {
   const lines = [...run.missed].sort().map((a) => `NOT IN THE CACHE ${a}`);
   if (run.missed.size) lines.push(`${run.missed.size} pictures not in the cache: run ${FILL}`);
   for (const e of run.errors) lines.push(`PICTURE CACHE ${e}: the request was refused`);
-  // Every request for another host that the cache didn't answer: each refused, none sent.
+  // The requests for another host that the guard was shown and the cache didn't answer: each
+  // refused, none sent.
   const refused = [...run.refused].sort((a, b) => b[1] - a[1]).map(([h, n]) => `${h} ${n}`);
   if (run.missedAsked) refused.unshift(`${run.missedAsked} for pictures not in the cache`);
   if (worldStateAsked.count) refused.push(`${worldStateAsked.count} world-state`);

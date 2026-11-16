@@ -30,12 +30,14 @@
 // window size (every view, flagged elements outlined in red) is saved there as PNG; needs
 // ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
 // to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
-// The sweep contacts no host: item pictures (and Rivens' weekly file) come from the picture cache,
-// so their shapes are measured on the real pictures; every other request or WebSocket off this
-// machine (warframe.market's included), from the page or a frame or window it opens, is refused
-// and counted, and fails the sweep; a picture the cache lacks is listed by address and fails the
-// sweep. scripts/picture-cache.mjs (whose --fill step fills the cache) says what its guard decides
-// and what it leaves to the browser's launch rule.
+// The sweep is built to contact no host: item pictures (and Rivens' weekly file) come from the
+// picture cache, so their shapes are measured on the real pictures; a request or WebSocket off
+// this machine that the cache's guard is shown (warframe.market's included, from the page or a
+// frame or window it opens) is refused and counted, and fails the sweep; a picture the cache lacks
+// is listed by address and fails the sweep. scripts/picture-cache.mjs (whose --fill step fills the
+// cache) says what its guard is shown, what it leaves to the browser's launch rule (a redirect the
+// browser follows from localhost among them, this sweep's reward-screen route's included), and
+// what was probed.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -463,14 +465,15 @@ const pause = (p, ms) => p.waitForTimeout(ms);
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
 async function open(size, { firstRun = false, noInventory = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h }, reducedMotion });
-  // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
+  // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
   await guard(p);
   await stopWorldState(p);
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
   // item picture wide. Only the demo server's file: `r.fetch()` asks again from here, past the
-  // guard and the browser's launch rule.
+  // guard and the browser's launch rule, and follows no redirect; a 3xx it gets is passed on to
+  // the browser, which follows it unseen by the guard (left to the launch rule).
   if (widePictures) {
     const demo = new URL(url).origin;
     await p.route((u) => u.origin === demo && u.pathname === "/dev-reward-screen.json", async (r) => {

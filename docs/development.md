@@ -43,17 +43,27 @@ Or use the invented account in `demo/` (the one in the screenshots), with no dat
 [--check]`) and the sweep (`npm run sweep`) see the same world on every run, online or not; each of
 them stops and counts any world-state request, and fails if there was one.
 
-Those checks contact no host. The item pictures the demo's pages show (WFCD's, from
+Those checks are built to contact no host. The item pictures the demo's pages show (WFCD's, from
 raw.githubusercontent.com) and Rivens' weekly file (www-static.warframe.com) come from a cache
 outside the repository, `myorbiter-check-pictures` in `$XDG_CACHE_HOME` (by default `~/.cache`).
-Every other request or WebSocket off this machine, from a page, a frame or a window it opens, is
-refused, counted and fails the run, and so is using what could reach the network past that (a
-worker, a shared worker, a service worker, WebTransport, a peer connection), which the checks'
-pages don't have. A run that passes ends with `requests outside this machine, 0`.
+The checks' guard (`scripts/picture-cache.mjs`) is shown the requests and WebSockets of a page,
+its frames and the windows it opens, through Playwright's routes: one to `localhost` goes through,
+a picture or the riven file is answered from the cache, and one to another host is refused,
+counted and fails the run. Before a page's own scripts run, what could reach the network past a
+route (a worker, a shared worker, a service worker, WebTransport, a peer connection) is taken from
+it, and using one is refused, counted and fails the run too; the checks' pages use none. A run
+that refused none ends with `requests outside this machine, 0`.
 
-Not seen that way: a connection or name lookup a page could make ahead of any request
-(`<link rel=preconnect>`, `dns-prefetch`). The checks' browser resolves no name but `localhost`,
-which holds those.
+Not shown to the guard, and left to the checks' browser, which resolves no name but `localhost`:
+
+- a redirect from `localhost` that the browser follows (a route sees only a request's first
+  address);
+- speculation-rules prefetch and prerender (`<script type=speculationrules>`);
+- a connection or name lookup made ahead of any request (`<link rel=preconnect>`, `dns-prefetch`).
+
+In probes that rule held each of these, and none was counted, so a run with one would pass. An
+address written as numbers, other than `127.0.0.1`, was not probed against that rule. The demo's
+pages cause none of these today.
 
 A picture the cache lacks is not fetched: the run lists it by address and fails, and keeps its
 address for the fill step. That step is the one part that fetches: by GET, from those two hosts

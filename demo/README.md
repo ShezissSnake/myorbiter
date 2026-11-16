@@ -78,7 +78,8 @@ Still read from the network in the demo: item pictures (raw.githubusercontent.co
 Digital Extremes' weekly riven file (www-static.warframe.com). Without the network the pictures are
 left blank, Rivens lacks its "Traded in game" figures, and everything else is the same. The
 screenshots, the help pictures, their check and the sweep read both from a cache on disk instead,
-and contact no host (`docs/development.md`).
+and are built to contact no host (`docs/development.md` says what that holds and what it leaves
+to the browser).
 
 ## @wfcd/items's licence
 

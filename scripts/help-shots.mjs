@@ -12,8 +12,9 @@
 // the window), then exits 1 if there was any. A step that matches nothing stops that picture's
 // check there, so it is the one miss listed for that picture.
 //
-// Item pictures come from the picture cache, and the cache's guard refuses the rest off this
-// machine (scripts/picture-cache.mjs says what it decides).
+// Item pictures come from the picture cache, and the cache's guard refuses the rest it is shown
+// off this machine (scripts/picture-cache.mjs says what it is shown, and what it leaves to the
+// browser's launch rule).
 //
 // Pictures are taken at twice the window's pixels and kept at most MAX_W pixels wide, at the
 // highest WebP quality that keeps them under MAX_BYTES.
@@ -105,7 +106,7 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
 async function openApp(browser, url, w, h, shot = {}) {
   const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
-  // Nothing leaves the machine: pictures come from the cache, the rest (warframe.market included) is refused.
+  // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
   await guard(p);
   await stopWorldState(p);
   p.on("pageerror", (e) => console.error(`help: ${hidePaths(e.message)}`));
