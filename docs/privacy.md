@@ -386,7 +386,11 @@ closes, whose last name runs to the end of the line and is kept when it ends in 
 (`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); the folder
 names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces, which that name
 takes up to the path's drive letter (`/home/Name Other,D:\Folder\Name` becomes
-`/home/[user]:\Folder\Name`); and
+`/home/[user]:\Folder\Name`); after a warframe.market profile address's player name
+(`/profile/`, `/chat/with/`, `/orders/user/` and the like), a `file:///` path glued to the name,
+which is read with it (`https://warframe.market/profile/Name,file:///srv/Folder/x` becomes
+`https://warframe.market/profile/[player]///srv/Folder/x`), and a path glued to a second name after it, or to the name
+by `=` or `[` (`/profile/Name, Other,D:/Folder/x` becomes `/[folder]/[player]:/Folder/x`); and
 `//computer/share` straight after `://`, which reads as an address.
 Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
 a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,

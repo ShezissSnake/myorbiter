@@ -110,6 +110,7 @@ test("docs/privacy.md names the address as newIssuePage builds it", () => {
   assert.match(para, /A later slash on the line takes the words before it as folder names, a file's name and a price among them/);
   assert.match(para, /a price written like `~name\/a` is read as one \(`costs ~50p\/each` becomes `costs ~\[user\]\/\[folder\]`\)/);
   assert.match(para, /the folder names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces/);
+  assert.match(para, /after a warframe\.market profile address's player name .* a `file:\/\/\/` path glued to the name, which is read with it .* and a path glued to a second name after it, or to the name by `=` or `\[`/);
   assert.ok(!/balance/i.test(para), "no promise about a balance");
 });
 
@@ -351,6 +352,17 @@ test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
   // to its drive letter, and that path's folder names stay.
   assert.equal(redact("/home/Orren Taskwell,D:\\Kestrel\\Bryn"), "/home/[user]:\\Kestrel\\Bryn");
   assert.equal(redact("D:\\Games\\Orren Taskwell;E:\\Kestrel\\Bryn"), "D:\\Games\\[folder]:\\Kestrel\\Bryn");
+  // After a /profile-family anchor, whose name runs to the next slash, a scheme glued to the name
+  // is read with it ("Name,file:" with the colon), and the file:/// path after it passes, as on
+  // main.
+  assert.equal(redact("see https://warframe.market/profile/Vexmora,file:///srv/Folderzed/x"), "see https://warframe.market/profile/[player]///srv/Folderzed/x");
+  assert.equal(redact("see https://warframe.market/profile/file:///srv/Folderzed/x"), "see https://warframe.market/profile/[player]///srv/Folderzed/x");
+  assert.equal(redact("see /profile/Vexmora,file:///D:/Folderzed"), "see /[folder]/[player]///[folder]:/Folderzed");
+  // A /profile path's [player] runs on over a second name and takes a root glued to it, so the
+  // path after it passes, as on main.
+  assert.equal(redact("/profile/Vexmora, Talqen_3,D:/Folderzed/x"), "/[folder]/[player]:/Folderzed/x");
+  assert.equal(redact("/profile/Vexmora, Talqen_3,smb://Hostqar/share/Folderzed"), "/[folder]/[player]://Hostqar/share/Folderzed");
+  assert.equal(redact("/profile/Vexmora=${HOME}/Folderzed"), "/[folder]/[folder]{HOME}/Folderzed");
 });
 
 test("names and chats: a path on the line takes no rule's anchor, bracket or reach", () => {
@@ -379,11 +391,19 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     ["buyer: Quillon.smb://box/s", "buyer: [player].smb://[host]/[folder]"],
     ["see https://warframe.market/profile/Quillon,D:/x", "see https://warframe.market/profile/[player],D:/[folder]"],
     ["see https://warframe.market/profile/Quillon,//box/s", "see https://warframe.market/profile/[player],//[host]/[folder]"],
-    // A scheme is never read as a name, so file:///'s path is still cleaned.
+    // A scheme word of its own after these rules is not read as a name, so file:///'s path is
+    // still cleaned. (After a /profile anchor it is: pinned with the known gaps.)
     ["sold the list to file:///srv/Kestrel/x.json", "sold the list to file:///srv/[folder]/x.json"],
     ["sold the list to file:///D:/Kestrel", "sold the list to file:///D:/[folder]"],
     ["buyer: file:///mnt/Kestrel Disk/x", "buyer: file:///mnt/[drive]/[folder]"],
-    ["buyer: Quillonfile:///srv/a/x", "buyer: [player]file:///srv/[folder]/[folder]"],
+    ["buyer: Quillon-file:///srv/a/x", "buyer: [player]-file:///srv/[folder]/[folder]"],
+    // A name that ends in smb or file glued to "://" is a name, hidden whole as main hides it, and
+    // so is a one-letter word before a scheme, which the rule doesn't take alone.
+    ["buyer: Xfile://box/s", "buyer: [player]://box/s"],
+    ["buyer: Vexfile://box/s", "buyer: [player]://box/s"],
+    ["/w Qsmb://box/s", "/w [player]://box/s"],
+    ["traded with Kfile:///srv/a/x", "traded with [player]:///srv/a/x"],
+    ["3 people whispered you: D.smb://Hostqar/share/Folderzed", "3 people whispered you: [players]://Hostqar/share/Folderzed"],
   ];
   for (const [line, want] of cases) {
     assert.equal(redact(line), want, line);

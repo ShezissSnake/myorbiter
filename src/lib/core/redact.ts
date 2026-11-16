@@ -94,12 +94,13 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
 /** Where a name rule's match from `at` to `end` runs into a path's root: the root's start (also
  *  when the match ends on the mark the root needs before it, "/profile/Name,//host"), or the
  *  start of the `smb` or `file` it ends in when `://` follows (`file:///…` has no root of its own
- *  around the scheme). Null when it doesn't. */
+ *  around the scheme), as a word of its own, as PATH_START reads a scheme: in "Xfile://" or
+ *  "Vexfile://" it is the end of a name, hidden whole. Null when it doesn't. */
 function rootCut(s: string, roots: readonly (readonly [number, number])[], at: number, end: number): number | null {
   const root = roots.find(([a, b]) => (end > a && end <= b) || (end === a && end > at && /[\s"'(=[,;<>:`{|]/.test(s[end - 1])));
   if (root) return Math.max(root[0], at);
   if (s.startsWith("://", end)) {
-    const scheme = /(?:smb|file)$/i.exec(s.slice(at, end));
+    const scheme = /\b(?:smb|file)$/i.exec(s.slice(at, end));
     if (scheme) return at + scheme.index;
   }
   return null;
@@ -116,9 +117,11 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   }
   for (const [re, to] of RULES) s = s.replace(re, to as never);
   // Names by their shape before the paths: cleaning a path first could take a rule's anchor
-  // ("/profile/", "buyer:"), its closing bracket or its reach. A path's root is never read as a
-  // name: a match that runs into one ("traded with smb://…", "buyer: Name.smb://…", "to file:///…")
-  // is read again up to the root, and the root is left for the path's own cleaning.
+  // ("/profile/", "buyer:"), its closing bracket or its reach. A match that runs into a root
+  // ("traded with smb://…", "buyer: Name.smb://…", "to file:///…") is read again up to the root,
+  // and the root is left for the path's own cleaning. Not after a /profile-family anchor whose
+  // name takes a glued scheme with its colon ("/profile/Name,file:///…"): that root goes with the
+  // name, as on main (a known gap, pinned in the tests).
   for (const [re, to] of NAME_LINES) {
     const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
     const once = new RegExp(re.source, re.flags.replace("g", "") + "y");
@@ -135,7 +138,13 @@ export function redact(text: string, opts: RedactOptions = {}): string {
         const before = src.slice(0, cut).replace(/[\s"'(=[,;<>:`{|.-]+$/, "");
         once.lastIndex = at;
         const again = once.exec(before);
-        if (!again) return whole;
+        if (!again) {
+          // Nothing the rule takes as a name is left before the root ("traded with smb://…"): the
+          // match is kept for the path. But a word of the name is ("people whispered you: D.smb://…",
+          // one letter, which the rule doesn't take alone): the whole match is hidden, as main does.
+          const lead = typeof m[1] === "string" ? (m[1] as string).trimEnd() : "";
+          return before.length - at > lead.length ? (to as (...x: unknown[]) => string)(...(m as unknown[])) : whole;
+        }
         end = at + again[0].length;
         args = [...again, at, before];
       }
