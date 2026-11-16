@@ -28,9 +28,17 @@
 // Linux and WebView2 on Windows; text widths differ a little between engines, which is why the
 // layouts this checks are meant to hold with room to spare. With --out, one contact sheet per
 // window size (every view, flagged elements outlined in red) is saved there as PNG; needs
-// ImageMagick (`magick`). Every request to warframe.market is stopped: the sweep sends none. The
-// world state is the demo's own (demo/dev-worldstate.json): a request to a world-state service is
-// stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
+// ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
+// to a world-state service that the page's routes are shown is stopped and counted, and fails the
+// sweep (scripts/no-world-state.mjs).
+// The sweep is built to contact no host: item pictures (and Rivens' weekly file) come from the
+// picture cache, so their shapes are measured on the real pictures; a request or `WebSocket` off
+// this machine that the cache's guard is shown (warframe.market's included, from the page or a
+// frame or window it opens) is refused and counted, and fails the sweep; a picture the cache lacks
+// is listed by address and fails the sweep. scripts/picture-cache.mjs (whose --fill step fills the
+// cache) says what its guard is shown, what it leaves to the browser's launch rule (a redirect the
+// browser follows from localhost among them, this sweep's reward-screen route's included), and
+// what was probed.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
@@ -38,6 +46,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { requestsLine, stopWorldState, worldStateAsked } from "./no-world-state.mjs";
+import { LAUNCH_ARGS, cacheEnd, cacheStartLine, guard, hidePaths, relay } from "./picture-cache.mjs";
 import { deflateSync } from "node:zlib";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
@@ -423,9 +432,10 @@ function widePicture(w = 320, h = 160) {
 }
 const WIDE_PICTURE = widePicture();
 
+// Node's own requests ask the demo server's port only, and follow no redirect off it.
 const answers = async () => {
   try {
-    return (await fetch(url)).ok;
+    return (await fetch(url, { redirect: "manual" })).ok;
   } catch {
     return false;
   }
@@ -433,7 +443,7 @@ const answers = async () => {
 // The demo server (vite.config.ts) tags each demo file with its size and time in demo/.
 async function isDemo() {
   const st = statSync(join(root, "demo/dev-market.json"));
-  const res = await fetch(new URL("dev-market.json", url)).catch(() => null);
+  const res = await fetch(new URL("dev-market.json", url), { redirect: "manual" }).catch(() => null);
   return res?.headers.get("etag") === `"${st.size}-${Math.round(st.mtimeMs)}"`;
 }
 
@@ -456,22 +466,27 @@ const pause = (p, ms) => p.waitForTimeout(ms);
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
 async function open(size, { firstRun = false, noInventory = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h }, reducedMotion });
-  await p.route(/warframe\.market/, (r) => r.abort());
+  // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
+  await guard(p);
   await stopWorldState(p);
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
-  // item picture wide.
+  // item picture wide. Only the demo server's file: `r.fetch()` asks again from here, past the
+  // guard and the browser's launch rule, and follows no redirect. A 3xx whose body is JSON is
+  // passed on to the browser, which follows it unseen by the guard (left to the launch rule); for
+  // one with any other body `res.json()` throws, and the page's request waits until it closes.
   if (widePictures) {
-    await p.route(/\/dev-reward-screen\.json/, async (r) => {
+    const demo = new URL(url).origin;
+    await p.route((u) => u.origin === demo && u.pathname === "/dev-reward-screen.json", async (r) => {
       try {
-        const res = await r.fetch();
+        const res = await r.fetch({ maxRedirects: 0 });
         await r.fulfill({ response: res, json: { ...(await res.json()), cards: FORMA_SCREEN.cards } });
-      } catch {} // the page closed while it was asked
+      } catch {} // the page closed while it was asked, or the answer wasn't JSON
     });
     await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
   }
-  p.on("pageerror", (e) => console.error(`  page error: ${e.message}`));
+  p.on("pageerror", (e) => console.error(`  page error: ${hidePaths(e.message)}`));
   await p.addInitScript((first) => {
     try {
       const s = JSON.parse(localStorage.getItem("orbiter-settings") ?? "{}");
@@ -950,8 +965,10 @@ try {
   server = spawn(process.execPath, [join(root, "node_modules/vite/bin/vite.js"), "--port", port, "--strictPort"], {
     cwd: root,
     env: { ...process.env, MYORBITER_DEMO: "1" },
-    stdio: ["ignore", "ignore", "inherit"],
+    stdio: ["ignore", "ignore", "pipe"],
   });
+  // What the server says goes on with paths hidden.
+  relay(server.stderr, process.stderr);
   let ended = false;
   server.on("exit", () => (ended = true));
   for (let i = 0; !(await answers()); i++) {
@@ -961,11 +978,12 @@ try {
   }
   if (ended || !(await isDemo())) throw new Error(`the server at ${url} isn't the demo one`);
   try {
-    browser = await chromium.launch();
+    browser = await chromium.launch({ args: LAUNCH_ARGS });
   } catch (e) {
     throw new Error(`Playwright's Chromium didn't start (${String(e).split("\n")[0]}). Install it with: npx playwright install chromium`);
   }
   if (out) work = mkdtempSync(join(tmpdir(), "myorbiter-sweep-"));
+  console.log(cacheStartLine());
   for (const size of SIZES) {
     console.log(`${size.w}×${size.h}`);
     await walk(size, check, { widePictures: !coverageOnly });
@@ -988,8 +1006,8 @@ try {
       if (!mine.length) continue;
       const sheet = join(out, `sweep-${size.w}x${size.h}.png`);
       const tiles = mine.flatMap((s) => ["-label", s.view, s.png]);
-      execFileSync("magick", ["montage", "-background", "#222", "-fill", "#ddd", "-pointsize", "18", ...tiles, "-tile", "4x", "-geometry", `${Math.round(size.w / 3)}x${Math.round(size.h / 3)}+6+6`, sheet]);
-      console.log(sheet);
+      execFileSync("magick", ["montage", "-background", "#222", "-fill", "#ddd", "-pointsize", "18", ...tiles, "-tile", "4x", "-geometry", `${Math.round(size.w / 3)}x${Math.round(size.h / 3)}+6+6`, sheet], { stdio: ["ignore", "ignore", "pipe"] });
+      console.log(hidePaths(sheet));
     }
   }
   const bugs = findings.filter((f) => !f.deliberate);
@@ -1030,9 +1048,11 @@ try {
   for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
   console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
   console.log(requestsLine());
-  if (worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  const cache = cacheEnd();
+  for (const l of cache.lines) console.log(l);
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
-  console.error(e instanceof Error ? e.message : e);
+  console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
 } finally {
   await browser?.close();
