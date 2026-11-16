@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { buildReport, cleanUserText, detailsText, FIELDS, FORM_ONLY, issueText, NEW_ISSUE, newIssuePage, reportMarkdown, SECTIONS, TEMPLATE, LOG_LINES, type ReportDetails } from "../src/lib/core/bugReport";
-import { redact } from "../src/lib/core/redact";
+import { hideNames, redact } from "../src/lib/core/redact";
 import { openable } from "../src/lib/core/links";
 
 const LOG = readFileSync(new URL("./fixtures/report/myorbiter.log", import.meta.url), "utf8").trim().split("\n");
@@ -78,6 +78,470 @@ test("Open on GitHub opens the issue form with only the version, system and arch
   assert.match(ui, /const reading = \$derived\(\(env == null && !envFailed\)/, "not opened before the version is read");
 });
 
+test("docs/privacy.md names the address as newIssuePage builds it", () => {
+  const doc = readFileSync("docs/privacy.md", "utf8");
+  const from = doc.indexOf("\n## Reporting a bug\n");
+  assert.ok(from >= 0, "privacy.md has its Reporting a bug section");
+  const para = doc.slice(from, doc.indexOf("\n## ", from + 1)).replace(/\s+/g, " ");
+  // What the page's address carries, written with placeholders: built by the app with the same ones.
+  const u = new URL(newIssuePage({ version: "<version>", os: "<system>", arch: "<architecture>" }));
+  assert.deepEqual([...u.searchParams.keys()], ["template", "build"]);
+  assert.ok(para.includes(`\`template=${u.searchParams.get("template")}\``), "the template parameter");
+  assert.ok(para.includes(`(\`build=${u.searchParams.get("build")}\`)`), `the build parameter, as ${u.searchParams.get("build")}`);
+  // And what the details leave out, as redact.ts does it.
+  assert.match(para, /the folder names in the paths of the shapes MyOrbiter recognises/);
+  assert.match(para, /a path of an unusual shape can pass/i);
+  // The encoded forms: what works, and the gap beside it (both held by the tests below).
+  assert.match(para, /Encoded slashes count only as `%2F` at the start of a path .* and as `%2F` or `%5C` after a drive letter: an encoded share, `~`, variable or whole address .* passes as written/);
+  // The known gaps the path tests pin ("known gaps, pinned as they are").
+  assert.match(para, /Left as written: the words after a sure end or a mark inside such a last name, such as .*, in most shapes: not under/);
+  assert.match(para, /after a user name under `C:\\Users\\` .* written with backslashes and with no backslash after it, the words up to the next `:`, slash or quote go with it/);
+  assert.match(para, /a `\. `, `, ` or `; ` straight after a one-word user name under a home folder does not end it/);
+  assert.match(para, /The marks, shapes and cases this page names are examples, not whole lists/);
+  assert.match(para, /hidden whole when a slash follows it, except under a bare `drive_c\\users`/);
+  assert.match(para, /a last folder name whose first word is a kept folder, a number or a file's name, with no slash after it/);
+  assert.match(para, /the words after the first of a user name under a `drive_c\\users` that is not inside a longer path/);
+  assert.match(para, /a name with an apostrophe in a path in single quotes/);
+  assert.match(para, /a path after a quote that never closes/);
+  assert.match(para, /`~` with a name that has spaces in it/);
+  assert.match(para, /prices and amounts included/);
+  assert.match(para, /`\/\/computer\/share` straight after `:\/\/`/);
+  assert.match(para, /prices of listings and sales are kept, except those that go with a hidden name or are read as part of a path/);
+  assert.match(para, /A later slash on the line takes the words before it as folder names, a file's name and a price among them/);
+  assert.match(para, /a price written like `~name\/a` is read as one \(`costs ~50p\/each` becomes `costs ~\[user\]\/\[folder\]`\)/);
+  assert.match(para, /the folder names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces/);
+  assert.match(para, /after a warframe\.market profile address's player name .* a `file:\/\/\/` path glued to the name, which is read with it .* and a path glued to a second name after it, or to the name by `=` or `\[`/);
+  assert.ok(!/balance/i.test(para), "no promise about a balance");
+});
+
+test("paths anywhere: the name part is hidden, what a bug hunter needs stays", () => {
+  const cases: [string, string][] = [
+    // Linux, another drive or mount: the label and any folder of the player's own go.
+    ["found at /mnt/ExampleDisk/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log", "found at /mnt/[drive]/SteamLibrary/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log"],
+    ["couldn't open /run/media/someone/EXAMPLE 64/Games/stuff: No such file", "couldn't open /run/media/[user]/[drive]/Games/[folder]: No such file"],
+    ["copied /srv/examplebox/orbiter-data to /data2/someone/myorbiter (the folder before the rename stays as it was)", "copied /srv/[folder]/[folder] /[folder]/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    ["copied /run/media/someone/EXAMPLE 64/orbiter-data to ~/ExampleFolder/myorbiter (the folder", "copied /run/media/[user]/[drive]/[folder] ~/[folder]/myorbiter (the folder"],
+    ["/Volumes/Example SSD/Warframe/EE.log", "/Volumes/[drive]/Warframe/EE.log"],
+    ["~/Games/ExampleStuff/Warframe/EE.log", "~/Games/[folder]/Warframe/EE.log"],
+    ["started /tmp/.mount_orbitAbC123/usr/bin/tennoscope, the one inside MyOrbiter", "started /tmp/[folder]/usr/bin/tennoscope, the one inside MyOrbiter"],
+    // Windows, either slash, with spaces, bare and in quotes.
+    ["found at D:\\Example Games\\Warframe\\Downloaded\\Public\\EE.log", "found at D:\\[folder]\\Warframe\\Downloaded\\Public\\EE.log"],
+    ["found at D:/ExampleStuff/Warframe/EE.log.", "found at D:/[folder]/Warframe/EE.log."],
+    ['opened "E:\\Example Person Backup\\Warframe Stuff\\EE log copy.txt" ok', 'opened "E:\\[folder]\\[folder]\\EE log copy.txt" ok'],
+    ["opened 'E:/Example Person/Program Files (x86)/Steam/x' ok", "opened 'E:/[folder]/Program Files (x86)/Steam/[folder]' ok"],
+    ["C:\\Program Files (x86)\\Steam\\steamapps\\common\\Warframe\\Tools\\Launcher.exe", "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Warframe\\Tools\\Launcher.exe"],
+    // A network share's computer, a JSON string's doubled backslashes, file addresses.
+    ["\\\\EXAMPLE-PC\\Games\\Warframe\\EE.log", "\\\\[host]\\Games\\Warframe\\EE.log"],
+    ['{"path":"C:\\\\Games\\\\Someone\\\\EE.log"}', '{"path":"C:\\\\Games\\\\[folder]\\\\EE.log"}'],
+    ["file:///C:/Users/Someone/Desktop/x.html and file:///mnt/ExampleDisk/x.txt", "file:///C:/Users/[user]/Desktop/x.html and file:///mnt/[drive]/x.txt"],
+    // Wine's own folders keep Proton's user name; another prefix's is hidden.
+    ["/prefix/drive_c/users/someone/AppData and Z:\\home\\someone\\Games\\Warframe", "/prefix/drive_c/users/[user]/AppData and Z:\\home\\[user]\\Games\\Warframe"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Not files' paths: addresses, the game's item paths, chat commands, a line and column, prose.
+  for (const kept of [
+    "PATCH /v2/order/[id]: ok",
+    "GET /v1/profile/[player]/reviews: 429, slowing down",
+    "couldn't open https://warframe.market/items/ash_prime_set: refused",
+    "Error at https://tauri.localhost/assets/index-AbC.js:1:2 (Orders.svelte:120)",
+    "no price for /Lotus/Types/Items/MiscItems/PrimeBucks",
+    "type the name after /w, and/or 3/4 of R5/6 / done",
+  ])
+    assert.equal(redact(kept), kept, kept);
+  // A name of the player's own in a folder of a bigger path, wherever it is.
+  assert.ok(!redact("game at /media/someone/ExampleLabel/ExampleFolder/Warframe/EE.log").match(/someone|Example/));
+});
+
+test("paths: apostrophes and spaces don't cut a name short", () => {
+  const cases: [string, string][] = [
+    ["found at D:\\Games\\Jo's Stuff\\Example Person\\Warframe\\EE.log", "found at D:\\Games\\[folder]\\[folder]\\Warframe\\EE.log"],
+    ["E:\\Example Person's Games\\Warframe\\EE.log", "E:\\[folder]\\Warframe\\EE.log"],
+    // A spaced last name: hidden up to where the line goes on (": ", " (", the end).
+    ["couldn't open D:\\Games\\Example Person: denied", "couldn't open D:\\Games\\[folder]: denied"],
+    ["/mnt/My Passport", "/mnt/[drive]"],
+    ["copied /mnt/Example Disk Two (the folder", "copied /mnt/[drive] (the folder"],
+    ["/home/someone/Jo's Files/x.txt", "/home/[user]/[folder]/x.txt"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // A name with spaces before a slash is one name, however long and whatever its first word: past
+  // 255 characters, with two spaces in a row, or starting with a word that is kept alone.
+  assert.equal(redact(`D:\\Games\\Steam ${"word ".repeat(60)}Orren\\EE.log`), "D:\\Games\\[folder]\\EE.log");
+  assert.equal(redact("D:\\Games\\Steam  Orren Taskwell\\EE.log"), "D:\\Games\\[folder]\\EE.log");
+});
+
+test("paths: no word of a spaced last name passes, whatever follows it", () => {
+  // A made-up two-word name; after it, the words up to a sure end or the next mark go with it.
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    // The app's own "copied … to …" line, its Windows and its mount shape.
+    ["copied D:\\Games\\Orren Taskwell to E:\\Backup\\Warframe (the folder before the rename stays as it was)", "copied D:\\Games\\[folder] E:\\[folder]\\Warframe (the folder before the rename stays as it was)"],
+    ["copied /run/media/someone/Orren Taskwell to ~/x/myorbiter (the folder before the rename stays as it was)", "copied /run/media/[user]/[drive] ~/[folder]/myorbiter (the folder before the rename stays as it was)"],
+    // Marks between two paths.
+    ["moved D:\\Games\\Orren Taskwell -> E:\\Warframe", "moved D:\\Games\\[folder] -> E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell → E:\\Warframe", "moved D:\\Games\\[folder] → E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell > E:\\Warframe", "moved D:\\Games\\[folder] > E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell | E:\\Warframe", "moved D:\\Games\\[folder] | E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell <- E:\\Warframe", "moved D:\\Games\\[folder] <- E:\\Warframe"],
+    ["moved D:\\Games\\Orren Taskwell * E:\\Warframe", "moved D:\\Games\\[folder] * E:\\Warframe"],
+    // JSON messages: the closing quote ends it.
+    ['{"msg":"couldn\'t open D:\\\\Games\\\\Orren Taskwell"}', '{"msg":"couldn\'t open D:\\\\Games\\\\[folder]"}'],
+    ['{"msg":"couldn\'t open /mnt/Orren Taskwell"}', '{"msg":"couldn\'t open /mnt/[drive]"}'],
+    // A web address later on the line stays; the words before it go.
+    ["D:\\Games\\Orren Taskwell does not exist see https://example.org/help", "D:\\Games\\[folder] https://example.org/help"],
+    // Two spaces inside the name, and the path going on after it.
+    ["/srv/Orren  Taskwell/x", "/srv/[folder]/[folder]"],
+    // The run's sure ends: ", ", "; ", ". ", a new line.
+    ["D:\\Games\\Orren Taskwell, then more", "D:\\Games\\[folder], then more"],
+    ["D:\\Games\\Orren Taskwell; then more", "D:\\Games\\[folder]; then more"],
+    ["D:\\Games\\Orren Taskwell. Then more", "D:\\Games\\[folder]. Then more"],
+    ["D:\\Games\\Orren Taskwell\nthen more", "D:\\Games\\[folder]\nthen more"],
+    // An apostrophe in a last name.
+    ["D:\\Games\\Orren's Taskwell: denied", "D:\\Games\\[folder]: denied"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // A run past the length cap (255) is hidden too.
+  const long = redact(`D:\\Games\\Orren ${"x ".repeat(150)}Taskwell`);
+  assert.equal(long, "D:\\Games\\[folder]");
+  // A kept name or a file's name before a space ends the path there: the words after stay.
+  assert.equal(redact("found at D:\\Games\\Warframe and more"), "found at D:\\Games\\Warframe and more");
+  assert.equal(redact("opened D:\\Orren\\EE.log and more"), "opened D:\\[folder]\\EE.log and more");
+});
+
+test("paths: a user name with a space in it, as the last name of a recognised home shape, is hidden whole", () => {
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    // Windows, with either slash, and as an address.
+    ["C:/Users/Orren Taskwell", "C:/Users/[user]"],
+    ["C:/Users/Orren Taskwell -> E:\\x", "C:/Users/[user] -> E:\\[folder]"],
+    ["file:///C:/Users/Orren Taskwell", "file:///C:/Users/[user]"],
+    ["C:\\Users\\Orren Taskwell: denied", "C:\\Users\\[user]: denied"],
+    // The home shapes.
+    ["/home/Orren Taskwell", "/home/[user]"],
+    ["/var/home/Orren Taskwell", "/var/home/[user]"],
+    ["/Users/Orren Taskwell", "/Users/[user]"],
+    ["/media/Orren Taskwell", "/media/[user]"],
+    ["/run/media/Orren Taskwell", "/run/media/[user]"],
+    ["Z:\\home\\Orren Taskwell", "Z:\\home\\[user]"],
+    // Wine's users folder inside a Proton path, with and without a slash after it, and with an
+    // apostrophe in the name.
+    ["/home/x/pfx/drive_c/users/Orren Taskwell", "/home/[user]/pfx/drive_c/users/[user]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell/Documents", "/home/[user]/pfx/drive_c/users/[user]/Documents"],
+    ["/home/x/pfx/drive_c/users/Orren O'Taskwell", "/home/[user]/pfx/drive_c/users/[user]"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Proton's own user stays.
+  assert.equal(redact("drive_c/users/steamuser/Documents"), "drive_c/users/steamuser/Documents");
+});
+
+test("paths: after a bare drive_c/users/<name>, the next path or address is read as one", () => {
+  // The path or address that follows a Wine user name is cleaned as a path of its own, bare and
+  // inside a Proton path: its drive letter or ~ is never taken as a word of the name.
+  const cases: [string, string][] = [
+    ["drive_c/users/Orren to E:\\Kestrel", "drive_c/users/[user] to E:\\[folder]"],
+    ["drive_c/users/Orren copied to ~/Kestrel", "drive_c/users/[user] copied to ~/[folder]"],
+    ["drive_c/users/Orren see C:/Users/Kestrel", "drive_c/users/[user] see C:/Users/[user]"],
+    ["drive_c/users/Orren see https://example.org/x", "drive_c/users/[user] see https://example.org/x"],
+    ["/home/x/pfx/drive_c/users/Orren to E:\\Kestrel", "/home/[user]/pfx/drive_c/users/[user] E:\\[folder]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell copied to ~/Kestrel", "/home/[user]/pfx/drive_c/users/[user] ~/[folder]"],
+    ["/home/x/pfx/drive_c/users/Orren Taskwell see https://example.org/x", "/home/[user]/pfx/drive_c/users/[user] https://example.org/x"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!/Kestrel|Orren|Taskwell/.test(out), `nothing of the names: ${out}`);
+  }
+});
+
+test("paths: a bare name taken over spaces is never kept as a file's name; in quotes it is", () => {
+  const gone = /Orren|Taskwell/;
+  const cases: [string, string][] = [
+    ["copied D:\\Games\\Orren Taskwell to backup.zip", "copied D:\\Games\\[folder]"],
+    ["D:\\Games\\Orren Taskwell missing config.json", "D:\\Games\\[folder]"],
+    ["/srv/x/Orren Taskwell see EE.log", "/srv/[folder]/[folder]"],
+    ["/mnt/Orren Taskwell has EE.log", "/mnt/[drive]"],
+  ];
+  for (const [input, want] of cases) {
+    const out = redact(input);
+    assert.equal(out, want, input);
+    assert.ok(!gone.test(out), `no word of the name: ${out}`);
+  }
+  assert.equal(redact('opened "E:\\x\\EE log copy.txt" ok'), 'opened "E:\\[folder]\\EE log copy.txt" ok');
+});
+
+test("paths: known gaps, pinned as they are (named in docs/privacy.md)", () => {
+  // A two-word folder name whose first word is a kept one (Games, Steam, Dev, a number) passes
+  // when no slash follows it: the rule can't tell a kept word that ends a path from one that
+  // starts a name ("found at D:\Games\Warframe and more").
+  assert.equal(redact("D:\\Games\\Dev Orren"), "D:\\Games\\Dev Orren");
+  assert.equal(redact("~/Steam Orren Taskwell"), "~/Steam Orren Taskwell");
+  assert.equal(redact("D:\\Games\\2024 Orren Taskwell"), "D:\\Games\\2024 Orren Taskwell");
+  // With a slash after it, it is hidden.
+  assert.equal(redact("D:\\Games\\Dev Orren\\x"), "D:\\Games\\[folder]\\[folder]");
+  // In single quotes, an apostrophe in a name reads as the closing quote.
+  assert.equal(redact("'D:\\Games\\Orren O'Taskwell'"), "'D:\\Games\\[folder]'Taskwell'");
+  // "//host" straight after a scheme's "://" is an address, not a share.
+  assert.equal(redact("path://EXAMPLE-PC/share/Orren"), "path://EXAMPLE-PC/share/Orren");
+  // A sure end inside a last name (". " after an initial) ends the run: the words after it stay.
+  // Under C:\\Users\\ with a backslash the name runs to the next separator; with a slash after
+  // it, the name is hidden.
+  assert.equal(redact("C:/Users/Orren A. Taskwell"), "C:/Users/[user]. Taskwell");
+  assert.equal(redact("/home/Orren Taskwell Jr. Bo"), "/home/[user]. Bo");
+  assert.equal(redact("D:\\Games\\Orren A. Taskwell"), "D:\\Games\\[folder]. Taskwell");
+  // Any other sure end or mark inside it does the same.
+  assert.equal(redact("D:\\Games\\Taskwell, Orren"), "D:\\Games\\[folder], Orren");
+  assert.equal(redact("D:\\Games\\Orren(Bex) Taskwell"), "D:\\Games\\[folder](Bex) Taskwell");
+  // ": " inside a name, even with a slash after it.
+  assert.equal(redact("/srv/Orren: Taskwell/x"), "/srv/[folder]: Taskwell/x");
+  // But ". ", ", " or "; " straight after a one-word user name under a home folder is kept in the
+  // name by the home rule, so it does not end the run: a price after it goes too. With a
+  // two-word name, or outside a home folder, the run stops there.
+  assert.equal(redact("/home/Orren, has 30p"), "/home/[user]");
+  assert.equal(redact("/home/Orren. Has 30p"), "/home/[user]");
+  assert.equal(redact("C:/Users/Orren; has 30p"), "C:/Users/[user]");
+  assert.equal(redact("/home/Orren Taskwell, has 30p"), "/home/[user], has 30p");
+  assert.equal(redact("D:\\Games\\Orren, has 30p"), "D:\\Games\\[folder], has 30p");
+  // A bare ~name with nothing after it is not a recognised shape.
+  assert.equal(redact("found ~orren here"), "found ~orren here");
+  // After a user name under C:\\Users\\ written with backslashes and with no backslash after it,
+  // that rule takes the words up to the next ":", the next path's drive letter included: a path
+  // with one folder name after it keeps that name.
+  assert.equal(redact("C:\\Users\\Orren to E:\\Kestrel"), "C:\\Users\\[user]:\\Kestrel");
+  assert.equal(redact("C:\\Documents and Settings\\Orren to E:\\Kestrel"), "C:\\Documents and Settings\\[user]:\\Kestrel");
+  assert.equal(redact("C:\\Users\\Orren to E:\\Kestrel\\Bryn"), "C:\\Users\\[user]:\\[folder]\\[folder]");
+  assert.equal(redact("C:\\Users\\Orren A. Taskwell"), "C:\\Users\\[user]");
+  assert.equal(redact("C:/Users/Orren A. Taskwell/x"), "C:/Users/[user]/[folder]");
+  // A bare drive_c/users/<name> outside a longer path is relative: only the name's first word
+  // becomes [user], with or without a slash after it.
+  assert.equal(redact("drive_c/users/Orren Taskwell"), "drive_c/users/[user] Taskwell");
+  assert.equal(redact("drive_c/users/Orren Taskwell/x"), "drive_c/users/[user] Taskwell/x");
+  assert.equal(redact("drive_c\\users\\Orren Taskwell\\Documents"), "drive_c\\users\\[user] Taskwell\\Documents");
+  assert.equal(redact("drive_c/users/Orren O'Taskwell"), "drive_c/users/[user] O'Taskwell");
+  assert.equal(redact("drive_c/users/O'Taskwell"), "drive_c/users/[user]'Taskwell");
+  assert.equal(redact("drive_c/users/Orren\u00a0Taskwell"), "drive_c/users/[user]\u00a0Taskwell");
+  // A path after a quote that never closes: its last name runs to the end of the line, and is
+  // kept when it ends in a file's name.
+  assert.equal(redact('"/mnt/Orren see EE.log'), '"/mnt/Orren see EE.log');
+  // ~ with a name with spaces in it is not a recognised shape.
+  assert.equal(redact("~Orren Taskwell/x"), "~Orren Taskwell/x");
+  // A hidden last name takes the words after it, an amount included (a one-word user name too).
+  assert.equal(redact("/home/someone has 1,234 platinum"), "/home/[user]");
+  assert.equal(redact("C:/Users/someone sold for 120 platinum"), "C:/Users/[user]");
+  assert.equal(redact("D:\\Games\\Orren has 30p"), "D:\\Games\\[folder]");
+  // A later slash on the line takes the words before it as folder names, a file's name and a
+  // price among them.
+  assert.equal(redact("couldn't read D:\\Games\\Warframe\\EE.log, retrying 1/3"), "couldn't read D:\\Games\\Warframe\\[folder]/3");
+  // A price written like ~name/x is read as one: ~ and its name, then a folder.
+  assert.equal(redact("costs ~50p/each"), "costs ~[user]/[folder]");
+  // A path glued to ",", ";", "=" or a bracket after a last name with spaces: the run takes it up
+  // to its drive letter, and that path's folder names stay.
+  assert.equal(redact("/home/Orren Taskwell,D:\\Kestrel\\Bryn"), "/home/[user]:\\Kestrel\\Bryn");
+  assert.equal(redact("D:\\Games\\Orren Taskwell;E:\\Kestrel\\Bryn"), "D:\\Games\\[folder]:\\Kestrel\\Bryn");
+  // After a /profile-family anchor, whose name runs to the next slash, a scheme glued to the name
+  // is read with it ("Name,file:" with the colon), and the file:/// path after it passes, as on
+  // main.
+  assert.equal(redact("see https://warframe.market/profile/Vexmora,file:///srv/Folderzed/x"), "see https://warframe.market/profile/[player]///srv/Folderzed/x");
+  assert.equal(redact("see https://warframe.market/profile/file:///srv/Folderzed/x"), "see https://warframe.market/profile/[player]///srv/Folderzed/x");
+  assert.equal(redact("see /profile/Vexmora,file:///D:/Folderzed"), "see /[folder]/[player]///[folder]:/Folderzed");
+  // A /profile path's [player] runs on over a second name and takes a root glued to it, so the
+  // path after it passes, as on main.
+  assert.equal(redact("/profile/Vexmora, Talqen_3,D:/Folderzed/x"), "/[folder]/[player]:/Folderzed/x");
+  assert.equal(redact("/profile/Vexmora, Talqen_3,smb://Hostqar/share/Folderzed"), "/[folder]/[player]://Hostqar/share/Folderzed");
+  assert.equal(redact("/profile/Vexmora=${HOME}/Folderzed"), "/[folder]/[folder]{HOME}/Folderzed");
+});
+
+test("names and chats: a path on the line takes no rule's anchor, bracket or reach", () => {
+  const cases: [string, string][] = [
+    // The rule's anchor inside the path, a closing bracket after it, or a path before the name.
+    ["opened /profile/Lag.exe", "opened /[folder]/[player]"],
+    ["siteChat: Chatty messaged you on warframe.market (Chatty: see D:\\Stuff\\old notes)", "siteChat: [player] messaged you on warframe.market ([chat hidden])"],
+    ["saved D:\\Stuff\\notes buyer: Kestrel", "saved D:\\[folder]\\[folder]: [player]"],
+    ["sold /a/b/c/d/e/f/g/h/i/j, to Kestrel", "sold /[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder]/[folder], to [player]"],
+    // Each rule for names and chats, with a path on the line and a name the app does not know.
+    ["siteChat: Chatty messaged you on warframe.market (Chatty: see /srv/old/notes)", "siteChat: [player] messaged you on warframe.market ([chat hidden])"],
+    ["Kestrel whispered you about D:\\Stuff\\old notes", "[player] whispered you about D:\\[folder]\\[folder]"],
+    ["3 people whispered you: Kestrel, Bryn in /srv/old/notes", "3 people whispered you: [players] in /srv/[folder]/[folder]"],
+    ["Ash Prime Set: 20p from Kestrel at /srv/old/notes", "Ash Prime Set: 20p from [player] at /srv/[folder]/[folder]"],
+    ["sold Ash Prime Set to Kestrel, saved /srv/old/notes", "sold Ash Prime Set to [player], saved /srv/[folder]/[folder]"],
+    ["Couldn't give Kestrel +rep, see /srv/old/notes", "Couldn't give [player] +rep, see /srv/[folder]/[folder]"],
+    ["D:\\Stuff\\old notes /w Kestrel hi", "D:\\[folder]\\[folder] /w [player] hi"],
+    ["see /profile/Kestrel and /srv/old/notes", "see /[folder]/[player] /srv/[folder]/[folder]"],
+    ["D:\\Stuff\\old notes /chat/with/Kestrel", "D:\\[folder]\\[folder] /[folder]/[folder]/[player]"],
+    ["partner: Kestrel in /srv/old/notes", "partner: [player] in /srv/[folder]/[folder]"],
+    // A rule's name that ends in a share's scheme leaves it to the path: the computer is hidden.
+    ["traded with smb://EXAMPLE-PC/share", "traded with smb://[host]/share"],
+    // A match that runs into a root gives the root back to the path: every word before it stays hidden.
+    ["3 people whispered you: Kestrel, smb://host/share", "3 people whispered you: [players], smb://[host]/share"],
+    ["3 people whispered you: Kestrel, Bryn_2, Ostra.smb://box/s", "3 people whispered you: [players].smb://[host]/[folder]"],
+    ["buyer: Quillon.smb://box/s", "buyer: [player].smb://[host]/[folder]"],
+    ["see https://warframe.market/profile/Quillon,D:/x", "see https://warframe.market/profile/[player],D:/[folder]"],
+    ["see https://warframe.market/profile/Quillon,//box/s", "see https://warframe.market/profile/[player],//[host]/[folder]"],
+    // A scheme word of its own after these rules is not read as a name, so file:///'s path is
+    // still cleaned. (After a /profile anchor it is: pinned with the known gaps.)
+    ["sold the list to file:///srv/Kestrel/x.json", "sold the list to file:///srv/[folder]/x.json"],
+    ["sold the list to file:///D:/Kestrel", "sold the list to file:///D:/[folder]"],
+    ["buyer: file:///mnt/Kestrel Disk/x", "buyer: file:///mnt/[drive]/[folder]"],
+    ["buyer: Quillon-file:///srv/a/x", "buyer: [player]-file:///srv/[folder]/[folder]"],
+    // A name that ends in smb or file glued to "://" is a name, hidden whole as main hides it, and
+    // so is a scheme word not in lower case ("SMB://"), which the path's cleaning doesn't read as
+    // one. A one-letter word before a scheme, alone or as the last name of a list, is hidden with
+    // the names before it, and the scheme is left to the path.
+    ["buyer: Xfile://box/s", "buyer: [player]://box/s"],
+    ["buyer: Vexfile://box/s", "buyer: [player]://box/s"],
+    ["/w Qsmb://box/s", "/w [player]://box/s"],
+    ["traded with Kfile:///srv/a/x", "traded with [player]:///srv/a/x"],
+    ["3 people whispered you: D.smb://Hostqar/share/Folderzed", "3 people whispered you: [players].smb://[host]/share/[folder]"],
+    ["3 people whispered you: Vexmora, X.smb://box/s", "3 people whispered you: [players].smb://[host]/[folder]"],
+    ["3 people whispered you: Kestrel, Bryn_2, Q-file:///srv/a/x", "3 people whispered you: [players]-file:///srv/[folder]/[folder]"],
+    ["3 people whispered you (Vexmora, D.smb://box/s)", "3 people whispered you ([players].smb://[host]/[folder])"],
+    ["people whispered you · Vexmora,C.file://box/s", "people whispered you · [players].file://[host]/[folder]"],
+    ["buyer: SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
+    ["buyer: Vexmora.SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
+  ];
+  for (const [line, want] of cases) {
+    assert.equal(redact(line), want, line);
+    assert.equal(redact(want), want, `a second pass changes nothing: ${want}`);
+  }
+});
+
+// The names step against main's: whatever the rules for names and chats hide when no path is read
+// (hideNames: known names, RULES and NAME_LINES, each a plain replace, as main's redact runs
+// them), redact hides too. The one word it may show more often is a path root's own word in its
+// place, where a root stands: a scheme before "://", a drive letter before ":" and a slash, and a
+// variable's name, whatever it is, in `$NAME/`, `${NAME}/` or `%NAME%\`. One shape more, the gap
+// pinned above: after a /profile-family anchor, `=${NAME}/` or `[${NAME}/` comes out as
+// `[folder]{NAME}/`, a variable's name in braces right after a placeholder and before a slash.
+// A `~name` root's name is a user's, not such a word, and a word in braces anywhere else counts.
+const ROOT_WORD = /\b(?:smb|file)(?=:\/\/)|(?<![A-Za-z0-9_])[A-Za-z](?=:(?:[\\/]|%2[Ff]|%5[Cc]))|(?<=\$)[A-Za-z_][A-Za-z0-9_]*(?=[\\/])|(?<=\$\{|\]\{)[A-Za-z_][A-Za-z0-9_]*(?=\}[\\/])|(?<=%)[A-Za-z_][A-Za-z0-9_]*(?=%[\\/])/g;
+/** Each word of a text with how often it stands there, placeholders and encoded slashes aside. */
+const wordCounts = (t: string) => {
+  const m = new Map<string, number>();
+  for (const w of t.replace(/\[[a-z ]+\]/g, " ").replace(/%(?:2f|5c)/gi, " ").match(/[\p{L}\p{N}_]+/gu) ?? []) m.set(w, (m.get(w) ?? 0) + 1);
+  return m;
+};
+/** The words `redact` shows more often than the names step does, a root's own word aside. */
+const shownMore = (line: string) => {
+  const names = wordCounts(hideNames(line));
+  return [...wordCounts(redact(line).replace(ROOT_WORD, " "))].filter(([w, n]) => n > (names.get(w) ?? 0)).map(([w]) => w);
+};
+
+test("names and chats: no word the names step hides shows, whatever paths the line holds", () => {
+  const lines: string[] = [];
+  // Every rule's anchor, a name (none, one letter, a list), a mark, a root and what follows it.
+  const anchors = ["traded with ", "sold Ash to ", "Ash Prime Set: 20p from ", "sold Ash: 20p from ", "buyer: ", "\"partner\": \"", "3 people whispered you: ", "3 people whispered you: Kestrel, ", "3 people whispered you (", "/w ", "see https://warframe.market/profile/", "see /profile/"];
+  const names = ["", "Vexmora", "X", "Vexmora, X", "Bb"];
+  const marks = ["", ".", ",", "-", " ", "="];
+  const roots = ["smb://", "file://", "file:///", "SMB://", "M:\\", "M:/", "//", "\\\\", "~/", "~Talqen/", "$HOME/", "${HOME}/", "%USERPROFILE%\\", "/"];
+  const after = ["h/x.log", ": gone"];
+  for (const a of anchors) for (const n of names) for (const m of marks) for (const r of roots) for (const f of after) for (const t of ["", ", thanks to Kestrel"]) lines.push(a + n + m + r + f + t);
+  // The two rules no root can cut, for their anchors: "give Name +rep" and a chat's brackets.
+  for (const [a, t] of [["Couldn't give ", " +rep"], ["siteChat: Bryn messaged you on warframe.market (Bryn: see ", ")"]]) for (const n of names) for (const m of marks) for (const r of roots) for (const f of after) lines.push(a + n + m + r + f + t);
+  // Several roots in a row after a profile address's name, whose match can hold them all.
+  for (const a of ["see https://warframe.market/profile/", "see /profile/", "/chat/with/"]) for (const n of ["", "Vexmora", "X"]) for (const m of ["", ",", "="]) for (const c of ["G:\\,", "G:\\,H:\\,", "G:\\,H:\\,K:\\,", "G:\\,~/,", "$HOME/,G:\\,"]) for (const r of roots) for (const f of [...after, "x"]) lines.push(a + n + m + c + r + f);
+  // A second name later on the line, at every distance the "sold … to" rule can reach.
+  const fill = " and then the game closed twice before it came back, and then once more after that";
+  for (const a of ["3 people whispered you: Aa, ", "sold Ash: 20p from ", "traded with ", "sold Ash to "]) for (const n of ["", "Bb", "X"]) for (const m of ["", "."]) for (const r of ["smb://", "file:///", "M:/"]) for (let i = 0; i <= fill.length; i++) lines.push(`${a}${n}${m}${r}h/x.log,${fill.slice(0, i)} to Kestrel`);
+  // Each of these showed a name or a user name main hides, in an earlier version of this branch.
+  for (const line of [
+    "see https://warframe.market/profile/Vexmora,G:\\,H:\\,K:\\,M:/x",
+    "3 people whispered you: Aa, Bb.smb://h/x.log, and then the game closed twice before it came back to Kestrel",
+    "see https://warframe.market/profile/Vexmora,~Talqen/: gone",
+    "sold Ash: 20p from smb://h/x.log, thanks to Kestrel",
+  ]) {
+    assert.ok(lines.includes(line), line);
+    assert.deepEqual(shownMore(line), [], line);
+  }
+  const worse = lines.filter((l) => shownMore(l).length);
+  assert.deepEqual(worse.slice(0, 5).map((l) => `${l} -> ${redact(l)}`), [], `${worse.length} of ${lines.length} lines`);
+});
+
+test("paths: an address after a method or with an API prefix, and the long-path drive start", () => {
+  for (const kept of ["GET /orders/x: 429", "429 from /api/x"]) assert.equal(redact(kept), kept, kept);
+  // \\?\D:\ and file:///D:/ are starts of their own: a single name after the drive is hidden too.
+  assert.equal(redact("at \\\\?\\D:\\Orren\\EE.log"), "at \\\\?\\D:\\[folder]\\EE.log");
+  assert.equal(redact("at \\\\?\\D:\\Orren"), "at \\\\?\\D:\\[folder]");
+  assert.equal(redact("at file:///D:/Orren"), "at file:///D:/[folder]");
+});
+
+test("paths: shares and Windows' long-path prefixes", () => {
+  const cases: [string, string][] = [
+    ["//EXAMPLE-PC/share/EE.log", "//[host]/share/EE.log"],
+    ["mounted //EXAMPLE-PC/Games at /mnt/x", "mounted //[host]/Games at /mnt/[drive]"],
+    ["smb://EXAMPLE-PC/share/Warframe/EE.log", "smb://[host]/share/Warframe/EE.log"],
+    ["file://EXAMPLE-PC/share/EE.log", "file://[host]/share/EE.log"],
+    ["\\\\?\\UNC\\EXAMPLE-PC\\share\\EE.log", "\\\\?\\UNC\\[host]\\share\\EE.log"],
+    ["\\\\?\\D:\\ExampleStuff\\EE.log", "\\\\?\\D:\\[folder]\\EE.log"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // An address's "//" stays: it isn't a share.
+  assert.equal(redact("see https://warframe.market/items/x"), "see https://warframe.market/items/x");
+});
+
+test("paths: a file's extension counts on the last name only; Steam's account id is hidden", () => {
+  assert.equal(redact("D:\\Example Person.bak\\Warframe\\EE.log"), "D:\\[folder]\\Warframe\\EE.log");
+  assert.equal(redact("/home/someone/someone.app/x.desktop"), "/home/[user]/[folder]/x.desktop");
+  assert.equal(redact("/mnt/Games/Steam/userdata/123456789/230410/remote/x.dat"), "/mnt/Games/Steam/userdata/[id]/230410/remote/x.dat");
+  // Numbers elsewhere are kept (Steam's app ids), and so are . and ..
+  assert.equal(redact("D:\\Games\\..\\ExampleStuff\\.\\230410\\EE.log"), "D:\\Games\\..\\[folder]\\.\\230410\\EE.log");
+});
+
+test("paths: after a colon, a backtick, { or |, from a variable or ~name, or with %2F for a slash", () => {
+  const cases: [string, string][] = [
+    ["found at:/mnt/ExampleDisk/EE.log", "found at:/mnt/[drive]/EE.log"],
+    ["cwd:/srv/someone/x", "cwd:/srv/[folder]/[folder]"],
+    ["see `/mnt/ExampleDisk/x` here", "see `/mnt/[drive]/[folder]` here"],
+    ["{/mnt/ExampleDisk/x}", "{/mnt/[drive]/[folder]}"],
+    ["a|/mnt/ExampleDisk/x", "a|/mnt/[drive]/[folder]"],
+    ["$HOME/someone/Warframe", "$HOME/[folder]/Warframe"],
+    ["${HOME}/someone/Warframe", "${HOME}/[folder]/Warframe"],
+    ["%USERPROFILE%\\someone\\EE.log", "%USERPROFILE%\\[folder]\\EE.log"],
+    ["~someone/Games/EE.log", "~[user]/Games/EE.log"],
+    ["~/ExampleStuff", "~/[folder]"],
+    ["path=%2Fhome%2Fsomeone%2FEE.log", "path=%2Fhome%2F[user]%2FEE.log"],
+    ["C:%5CUsers%5Csomeone%5CEE.log", "C:%5CUsers%5C[user]%5CEE.log"],
+    ["file:///D:/ExampleStuff/x.txt", "file:///D:/[folder]/x.txt"],
+    ["\\ExampleStuff\\x", "\\[folder]\\[folder]"],
+  ];
+  for (const [input, want] of cases) {
+    assert.equal(redact(input), want, input);
+    assert.equal(redact(want), want, `stable: ${want}`);
+  }
+  // Left as written, as docs/privacy.md says: a lone /word or \word, D:word, a relative path, and
+  // an encoded share, ~, variable or whole address.
+  for (const kept of ["/ExampleStuff", "\\ExampleStuff", "D:ExampleStuff\\x", "./someone/x", "someone/x", "%5C%5CEXAMPLE-PC%5Cshare", "~%2FExampleStuff", "$HOME%2FExampleStuff%2Fx", "file%3A%2F%2F%2Fmnt%2FExampleDisk"]) assert.equal(redact(kept), kept, kept);
+});
+
+test("paths: an address's path is told from a file's, and amounts pass as written", () => {
+  // The APIs MyOrbiter calls start /v1/, /v2/ or /api/; no system has those folders at its root.
+  for (const kept of ["429 from /v2/orders/item/ash_prime_set", "429 from /v1/items/ash_prime_set/orders", "GET /api/v4/projects: 200"]) assert.equal(redact(kept), kept, kept);
+  // Prices and amounts: nothing hides them.
+  for (const kept of ["You sold Mesa Prime Set to [player] for 120 platinum", "Ash Prime Set: 20p from [player] (usually 40p)", "Platinum x 17", "Listed 2× Ash Prime Set at 30p", "Ash Prime Set: 30p → 25p, down to the cheapest seller", "you hold 2", "you have 30p", "you have 1,234 platinum"])
+    assert.equal(redact(kept), kept, kept);
+  // The whole block, from the fixture's log with paths on other drives in it.
+  const extra = ["[2026-11-04][10:00:10][ee_log][INFO] found at /mnt/ExampleDisk/Games/Warframe/EE.log", "[2026-11-04][10:00:11][app][WARN] couldn't open D:\\Example Games\\Warframe\\EE.log: denied"];
+  const text = detailsText(buildReport({ what: "x", steps: "", expected: "" }, details([...LOG, ...extra]), NAMES).details!);
+  for (const gone of ["ExampleDisk", "Example Games"]) assert.ok(!text.includes(gone), `${gone} is hidden`);
+  for (const kept of ["for 120 platinum", "found at /mnt/[drive]/Games/Warframe/EE.log", "couldn't open D:\\[folder]\\Warframe\\EE.log: denied"]) assert.ok(text.includes(kept), `keeps: ${kept}`);
+});
+
 test("the text to paste: the form's sections and the details as text", () => {
   const r = buildReport({ what: "Orders froze.\nAfter Reprice.", steps: "1. Open Orders\n2. Reprice", expected: "Prices change" }, details());
   assert.equal(r.title, "Orders froze");
@@ -119,7 +583,8 @@ test("hostile text: tokens, cookies, e-mails, webhooks, ids and IPs in any shape
     ["hook https://hooks.slack.com/services/T000/B000/XXXX and https://example.com/api/webhooks/1/2", /^hook \[redacted webhook\] and \[redacted webhook\]$/],
     ["from 10.0.0.12 and 2001:db8:85a3::8a2e:370:7334", /^from \[ip\] and \[ip\]$/],
     ["C:\\Users\\Jane Doe\\AppData\\Local", /^C:\\Users\\\[user\]\\AppData\\Local$/],
-    ["/Users/jane/Library and /var/home/jane/x", /^\/Users\/\[user\]\/Library and \/var\/home\/\[user\]\/x$/],
+    // A folder name that isn't one everybody has is hidden too, the last one included ("x").
+    ["/Users/jane/Library and /var/home/jane/x", /^\/Users\/\[user\]\/Library and \/var\/home\/\[user\]\/\[folder\]$/],
     ["id 5f1e2d3c4b5a69788796a5b4 and opaque Zm9vYmFyYmF6cXV4MTIzNDU2Nzg5", /^id \[id\] and opaque \[id\]$/],
     ["/invite SomeFriend and /w OtherOne hi", /^\/invite \[player\] and \/w \[player\] hi$/],
     [".../pfx/drive_c/users/steamuser/AppData and /prefix/drive_c/users/alice/AppData", /^\.\.\.\/pfx\/drive_c\/users\/steamuser\/AppData and \/prefix\/drive_c\/users\/\[user\]\/AppData$/],

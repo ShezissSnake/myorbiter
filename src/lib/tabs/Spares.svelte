@@ -7,7 +7,7 @@
   import { tick } from "svelte";
   import type { Model } from "../core/model";
   import type { AdviceSettings, MarketSettings } from "../backend";
-  import { actionItemId, actionKey, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, neverTest, planTally, sparesPreview, toApply, type BulkAction, type SparesTally } from "../core/bulk";
+  import { actionItemId, actionKey, LIMIT_WHY, LIMIT_WHY_TRADES, LISTING_LIMIT, neverNames, neverTest, planTally, sparesPreview, toApply, unsentWhy, type BulkAction, type SparesTally } from "../core/bulk";
   import { SPARE_CATEGORIES, withNeverSell, withoutNeverSell, type SpareCategory, type SparesRules } from "../core/sparesRules";
   import { lichWeaponsLeft } from "../core/views";
   import { daysToTrade } from "../core/tradeLimit";
@@ -200,6 +200,11 @@
     const sub = a.type === "create" || a.type === "skip" ? (a.subtype ?? null) : a.order.subtype;
     const ap = mkt.applying;
     const mine = (a.type === "create" || a.type === "update" || a.rule === "never") && !!neverOfId(id) && !undo.has(key);
+    // A change to a listing the never-sell list holds back ("You hold 2 now"): Apply doesn't send it
+    // (toApply), so the line says it's left as listed and shows the listing as it is.
+    const unsent = unsentWhy(a, mine);
+    if (unsent && a.type === "update")
+      return { ...rowOf({ ...a, type: "skip", name: a.item.name, itemId: a.item.id, rank: a.order.rank, subtype: a.order.subtype, quantity: a.order.quantity, each: a.order.platinum, why: unsent }, skipped), key, out: skipped.has(key) ? "skipped" : "never", neverBy: neverNames(neverOfId(id)!) };
     return {
       key,
       id,
@@ -215,6 +220,7 @@
       rule: a.ruleText ?? "",
       why: a.type === "create" || a.type === "update" ? `${a.why} · ${a.priceWhy}` : a.why,
       out: skipped.has(key) ? "skipped" : mine ? "never" : undefined,
+      neverBy: mine ? neverNames(neverOfId(id)!) : undefined,
       state: ap ? (ap.sent.has(a) ? "sent" : ap.failed.has(a) ? "refused" : ap.now === a ? "now" : undefined) : undefined,
     };
   }
