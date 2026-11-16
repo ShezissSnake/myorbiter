@@ -308,9 +308,27 @@ function floorKeys(o: Keyed, defaultSubtype: string | null): string[] {
   return [...new Set([...keys(o), ...(hasStars(o) ? keys(starless(o)) : [])])];
 }
 
+/**
+ * A floor typed here for a listing the site gives with no variant (an intact relic's, left
+ * unnamed) is also written under the key with no variant, where older builds read that listing's
+ * floor, when the one there is lower or missing. These two keys say so: `#raised` is the floor it
+ * was raised to, `#before` the one it had (none when missing). Older builds keep them and read
+ * neither.
+ */
+const raisedKey = (k: string) => `${k}#raised`;
+const beforeKey = (k: string) => `${k}#before`;
+/** The floor saved under `k`, as this build counts it: one raised for older builds counts as what it was before. */
+function floorAt(floors: Readonly<Record<string, number>>, k: string): number | undefined {
+  const raised = floors[raisedKey(k)];
+  return raised != null && floors[k] === raised ? floors[beforeKey(k)] : floors[k];
+}
+
 /** The listing's own floor (Orders' Floor column), wherever it was saved; null when it has none. */
 export function ownFloor(floors: Readonly<Record<string, number>>, o: Keyed, defaultSubtype: string | null): number | null {
-  for (const k of floorKeys(o, defaultSubtype)) if (floors[k] != null) return floors[k];
+  for (const k of floorKeys(o, defaultSubtype)) {
+    const f = floorAt(floors, k);
+    if (f != null) return f;
+  }
   return null;
 }
 
@@ -345,6 +363,29 @@ export function withOwnFloor(floors: Readonly<Record<string, number>>, o: Keyed,
   const out = { ...floors };
   const key = typedKey(o, defaultSubtype);
   delete out[key];
+  const bare = listingKey({ ...o, subtype: null });
+  if (defaultSubtype != null && bare !== key && (o.subtype ?? defaultSubtype) === defaultSubtype) {
+    // The item's first variant: a raise of the floor with no variant made for it before goes back
+    // to what that floor was (unless it was changed since, by an older build).
+    const raised = out[raisedKey(bare)];
+    if (raised != null) {
+      if (out[bare] === raised) {
+        const before = out[beforeKey(bare)];
+        if (before != null) out[bare] = before;
+        else delete out[bare];
+      }
+      delete out[raisedKey(bare)];
+      delete out[beforeKey(bare)];
+    }
+    // Typed on a row the site gives with no variant: older builds read its floor with no variant,
+    // so that one is raised to it when lower or missing (this build still counts what it was).
+    const had = out[bare];
+    if (floor != null && o.subtype == null && (had == null || had < floor)) {
+      if (had != null) out[beforeKey(bare)] = had;
+      out[bare] = floor;
+      out[raisedKey(bare)] = floor;
+    }
+  }
   if (floor != null) out[key] = floor;
   return out;
 }

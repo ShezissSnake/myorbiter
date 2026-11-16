@@ -40,9 +40,11 @@ test("a listing's floor is read under either key of it, and a change to it is th
   // with no variant stays, for the other refinements.
   assert.deepEqual(withOwnFloor({ "r||": 50, "x||": 7 }, intact, "intact", 55), { "r||": 50, "r||intact": 55, "x||": 7 });
   assert.equal(ownFloor(withOwnFloor({ "r||": 50 }, intact, "intact", 55), intact, "intact"), 55);
-  // Typed on it while it named no variant: saved as intact, and read so once it does.
+  // Typed on it while it named no variant: saved as intact, and read so once it does; the one with
+  // no variant is raised to it for older builds, which read that listing's floor there, and still
+  // counts as 50p here.
   const unnamed = order(60, "a", { itemId: "r", subtype: null });
-  assert.deepEqual(withOwnFloor({ "r||": 50 }, unnamed, "intact", 55), { "r||": 50, "r||intact": 55 });
+  assert.deepEqual(withOwnFloor({ "r||": 50 }, unnamed, "intact", 55), { "r||": 55, "r||intact": 55, "r||#raised": 55, "r||#before": 50 });
   assert.equal(ownFloor(withOwnFloor({ "r||": 50 }, unnamed, "intact", 55), unnamed, "intact"), 55);
   // Cleared: its own floor goes; the one saved with no variant stays.
   assert.deepEqual(withOwnFloor({ "r||": 50, "r||intact": 55, "x||": 7 }, intact, "intact", null), { "r||": 50, "x||": 7 });
@@ -84,6 +86,59 @@ test("typing or clearing the intact listing's Floor leaves the floor saved with 
   h.book = [seller(20, "radiant"), seller(20, "radiant")];
   await timedPass(settings({ "r||radiant": 60 }, { floors }), empty);
   assert.deepEqual(h.sent, [["b", 50]], logText());
+});
+
+// A floor typed on a relic row warframe.market gives with no refinement: today's build reads that
+// listing's floor under the key with no refinement only (listingKey), so it is written there too
+// when the one there is lower or missing, and marked so that this build still counts what was
+// there before for the other refinements. No floor saved before stops applying.
+test("a floor typed on a relic row with no refinement is also where older builds read it, and every floor saved before still holds", async () => {
+  const { ownFloor, typedFloor, withOwnFloor } = core;
+  const unnamed = order(60, "u", { itemId: "r", subtype: null });
+  const intact = order(60, "i", { itemId: "r", subtype: "intact" });
+  const radiant = order(60, "d", { itemId: "r", subtype: "radiant" });
+  /** The floor an older build holds the unnamed listing at: the one saved under its key as given. */
+  const older = (f: Record<string, number>) => f[listingKey(unnamed)];
+  for (const [label, before, olderAfter, radiantAfter] of [
+    ["none saved before", {}, 45, null],
+    ["a lower one saved before with no refinement", { "r||": 30 }, 45, 30],
+    ["a higher one saved before with no refinement", { "r||": 60 }, 60, 60],
+    ["the same one", { "r||": 45 }, 45, 45],
+  ] as const) {
+    const typed = withOwnFloor(before, unnamed, "intact", 45);
+    assert.equal(older(typed), olderAfter, `${label}: older builds hold it at ${olderAfter}p`);
+    assert.ok(older(typed)! >= 45, label);
+    assert.equal(ownFloor(typed, unnamed, "intact"), 45, `${label}: this build reads 45p for it`);
+    assert.equal(typedFloor(typed, unnamed, "intact"), 45, `${label}: and its field shows 45p`);
+    assert.equal(ownFloor(typed, radiant, "intact"), radiantAfter, `${label}: the radiant listing falls back on what was there before`);
+    assert.equal(ownFloor(typed, intact, "intact"), 45, `${label}: the same listing read as intact`);
+    // Typed again, then cleared: back to what was saved before, marks and all.
+    assert.deepEqual(withOwnFloor(withOwnFloor(typed, unnamed, "intact", 50), unnamed, "intact", null), before, `${label}: cleared`);
+    assert.deepEqual(withOwnFloor(typed, intact, "intact", null), before, `${label}: cleared on the row read as intact`);
+  }
+  // An older build changed the floor with no refinement since: that one is kept, and counts here.
+  const changed = { ...withOwnFloor({ "r||": 30 }, unnamed, "intact", 45), "r||": 40 };
+  assert.equal(ownFloor(changed, radiant, "intact"), 40);
+  assert.deepEqual(withOwnFloor(changed, unnamed, "intact", null), { "r||": 40 });
+  // Typed on the row read as intact: nothing written with no refinement (that row has its own key in every build).
+  assert.deepEqual(withOwnFloor({ "r||": 30 }, intact, "intact", 45), { "r||": 30, "r||intact": 45 });
+  // The intact row typed 55 and cleared with 50 saved with no refinement: 50 stays, the radiant one still 50.
+  const typedIntact = withOwnFloor({ "r||": 50 }, intact, "intact", 55);
+  assert.equal(ownFloor(typedIntact, radiant, "intact"), 50);
+  assert.deepEqual(withOwnFloor(typedIntact, intact, "intact", null), { "r||": 50 });
+  // A pass on this build: the unnamed listing at 45p, the radiant one at the 30p from before.
+  h.it = relic;
+  const floors = withOwnFloor({ "r||": 30 }, unnamed, "intact", 45);
+  h.mine = [unnamed];
+  h.book = [seller(20, null), seller(20, null)];
+  await timedPass(settings({ "r||intact": 60 }, { floors }), empty);
+  assert.deepEqual(h.sent, [["u", 45]], logText());
+  h.mine = [radiant];
+  h.book = [seller(20, "radiant"), seller(20, "radiant")];
+  h.sent = [];
+  // Approved at 40p, so the 70% mark (28p) is under it.
+  await timedPass(settings({ "r||radiant": 40 }, { floors }), empty);
+  assert.deepEqual(h.sent, [["d", 30]], logText());
 });
 
 /** A relic whose daily price is 20p and which sellers ask 25p for; a crack of it is worth 31p to the player. */
