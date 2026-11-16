@@ -121,6 +121,7 @@
       delete b.author;
       delete b.votes;
       delete b.updatedAt;
+      delete b.madeFor;
     }
     const tg = parseTags([...tags, ...parseTags(tagText)].join(","));
     if (tg.length) b.tags = tg;

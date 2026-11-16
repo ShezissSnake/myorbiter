@@ -113,16 +113,20 @@ export function unknownItemBuilds(builds: readonly Build[], catalog: ReadonlyMap
 /**
  * Something worked out once per build and per `key` (the catalog a tier was counted against, the
  * model a report was read from): a new key works it out again, so a data update or a new
- * collection is never answered from before it. Builds are replaced, never changed, when edited.
+ * collection is never answered from before it, and per `kind` it was counted as (a kitgun
+ * chamber's build is shown as a Secondary or a Primary). Builds are replaced, never changed, when
+ * edited.
  */
 export class PerBuild<T> {
-  #by = new WeakMap<object, WeakMap<Build, T>>();
-  get(b: Build, key: object, make: () => T): T {
+  #by = new WeakMap<object, WeakMap<Build, Map<string, T>>>();
+  get(b: Build, key: object, make: () => T, kind = ""): T {
     let m = this.#by.get(key);
     if (!m) this.#by.set(key, (m = new WeakMap()));
-    if (m.has(b)) return m.get(b)!;
+    let k = m.get(b);
+    if (!k) m.set(b, (k = new Map()));
+    if (k.has(kind)) return k.get(kind)!;
     const v = make();
-    m.set(b, v);
+    k.set(kind, v);
     return v;
   }
 }

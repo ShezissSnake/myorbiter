@@ -26,7 +26,8 @@
 //  3. Takes the first owned mod of each pick, fits them into the tier's capacity (fit()), and
 //     lists the better mods the player doesn't own as upgrades.
 //  4. Has the card's count (capacity.ts's tierOf) judge the result: while that doesn't fit it at
-//     the tier it was made for, the least valued mod goes. The capacity, Forma and polarities the
+//     the tier it was made for, the least valued mods are lowered a rank at a time (down to a
+//     third), and if that isn't enough, the least valued mod goes. The capacity, Forma and polarities the
 //     suggestion states are that count's, so its note, its card and its tab say the same.
 //
 // Every suggestion says it is MyOrbiter's (`source: "orbiter"`), gives a one-line reason per slot,
@@ -1417,12 +1418,36 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     s.names.exilus = exilus.mod.name;
   }
   // The card's count judges it: while that doesn't fit it at this tier (its own Forma plan can
-  // differ from the one above), the least valued mod goes, and the slot is left empty.
+  // differ from the one above), the least valued mods are lowered a rank at a time, down to a
+  // third of their ranks, as above; if that isn't enough, they keep their ranks and the least
+  // valued mod goes instead, its slot left empty.
   const judge = () => tierOf(toBuild(s, now) as unknown as SavedBuild, item, index.byPath, kind, { uncounted: s.uncounted });
+  const judged = (x: ReturnType<typeof judge>) => x.fits && x.tier === tier && x.forma <= MAX_FORMA;
   let t = judge();
   const byWorth = placed.map((_, i) => at[i]).reverse();
+  if (!judged(t)) {
+    const was = { mods: [...s.mods], reasons: [...s.reasons.mods] };
+    for (const slot of byWorth) {
+      const m = s.mods[slot];
+      const c = m && index.byPath.get(m.path);
+      if (!m || !c) continue;
+      const max = c.maxRank ?? 0;
+      const why = (s.reasons.mods[slot] ?? "").replace(/ Rank \d+ of \d+, to fit \d+ capacity\.$/, "");
+      for (let rank = (m.rank ?? max) - 1; rank >= Math.ceil(max / 3) && !judged(t); rank--) {
+        s.mods[slot] = { path: m.path, rank };
+        s.reasons.mods[slot] = `${why} Rank ${rank} of ${max}, to fit ${t.capacity} capacity.`;
+        t = judge();
+      }
+      if (judged(t)) break;
+    }
+    if (!judged(t)) {
+      s.mods = was.mods;
+      s.reasons.mods = was.reasons;
+      t = judge();
+    }
+  }
   for (const slot of byWorth) {
-    if (t.fits && t.tier === tier && t.forma <= MAX_FORMA) break;
+    if (judged(t)) break;
     if (!s.mods[slot]) continue;
     s.mods[slot] = null;
     s.names.mods[slot] = null;

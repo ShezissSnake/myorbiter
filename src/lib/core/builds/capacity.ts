@@ -33,7 +33,8 @@
 //
 // MyOrbiter's own suggestion (`madeFor`, the tier it was made for) is counted as that tier has it:
 // from Intermediate on with the Catalyst or Reactor the suggestion comes with, and its tier read as
-// at least the one it was made for, so its card, its note and its tab say the same.
+// at least the one it was made for, so its card, its note and its tab say the same. Only a build
+// whose source is still MyOrbiter's counts so: a player's edited copy is the player's own.
 //
 // Which physical slot carries an innate polarity isn't in the catalog, only how many of each; mods
 // can go in any slot, so only the counts matter. Slot numbers in the reasons are the build's own
@@ -252,6 +253,9 @@ export type CapacityResult = Omit<TierResult, "capacityTier" | "limits" | "unsur
  * the player doesn't own yet: shown, its capacity left out and named in the reasons. A suggestion
  * made for Intermediate or Veteran (`build.madeFor`) is counted with its Catalyst or Reactor.
  */
+/** The tier MyOrbiter's own suggestion was made for; none for any other build, a copy included. */
+const madeForOf = (build: Build) => (build.source === "orbiter" ? build.madeFor : undefined);
+
 export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind, opts: CountOptions = {}): CapacityResult {
   const layout = slotLayout(kind);
   const uncounted = opts.uncounted ?? [];
@@ -278,7 +282,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
   };
   const extra = build.mods.slice(layout.mods).filter((m): m is BuildMod => !!m);
   // MyOrbiter's suggestion for Intermediate or Veteran comes with the Catalyst or Reactor.
-  const withDoubler = build.madeFor === "medium" || build.madeFor === "high";
+  const withDoubler = madeForOf(build) === "medium" || madeForOf(build) === "high";
   const innate = (item.polarities ?? []).map(polarityOf).slice(0, layout.mods);
   const startPlan: Plan = {
     slotPols: Array.from({ length: Math.max(layout.mods, mods.length) }, (_, i) => innate[i] ?? null),
@@ -433,7 +437,7 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
 
   // Capacity: a doubler or regular Forma are Intermediate, Umbra Forma Veteran.
   // MyOrbiter's suggestion is counted with the doubler it comes with: whether its mods need it.
-  const spare = !!build.madeFor && cap.catalyst && !cap.formaPlan.length && !capacityOf({ ...build, madeFor: undefined }, item, catalog, kind, opts).catalyst;
+  const spare = !!madeForOf(build) && cap.catalyst && !cap.formaPlan.length && !capacityOf({ ...build, madeFor: undefined }, item, catalog, kind, opts).catalyst;
   if (cap.catalyst) add({ kind: "doubler", tier: "medium", what: doubler, why: spare ? "MyOrbiter's suggestion comes with one, though its mods fit without it" : `drain ${cap.drain} is over the ${cap.rank} it has without one` });
   const plain = cap.forma - cap.umbraForma;
   if (plain > 0) add({ kind: "forma", tier: "medium", what: a(plain, "Forma", "Forma"), why: "to fit the mods" });
@@ -471,7 +475,7 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
   const known: Tier = !cap.fits ? "high" : limits[0]?.tier ?? "low";
   // MyOrbiter's suggestion reads as the tier it was made for, even when what it holds needs less
   // (a Veteran suggestion from the mods a player holds can be all Intermediate mods).
-  const floor = build.madeFor;
+  const floor = madeForOf(build);
   if (floor && TIER_RANK[floor] > TIER_RANK[known]) limits.unshift({ kind: "suggestion", tier: floor, what: `MyOrbiter's ${TIER_LABEL[floor]} suggestion`, why: `what it holds needs only ${TIER_LABEL[known]}` });
   // A mod or arcane MyOrbiter doesn't know (renamed or removed by a game update): it could be
   // anything, so the build is never rated lower for it. Listed under Veteran; "can't tell" when

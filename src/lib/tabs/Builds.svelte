@@ -311,11 +311,12 @@
   const hiddenOld = $derived(savedAll.length - filterByAge(savedAll, settings.buildsMaxAgeDays, now).length + siteAll.length - siteFresh.length + (noxShows ? noxHidden : 0));
 
   // Tiers and reports, worked out once per build (a build is replaced, never changed, when edited)
-  // and again for a new catalog (a tier) or a new collection (a report, and the tier it reads).
+  // and again for a new catalog (a tier) or a new collection (a report, and the tier it reads), and
+  // for the kind shown (a site build is listed under both of a kitgun chamber's kinds).
   const tiers = new PerBuild<TierResult>();
-  const tierFor = (b: Build): TierResult => tiers.get(b, model.catalogByUnique, () => tierOf(b, item!, model.catalogByUnique, kind!, { uncounted: uncountedOf.get(b) }));
+  const tierFor = (b: Build): TierResult => tiers.get(b, model.catalogByUnique, () => tierOf(b, item!, model.catalogByUnique, kind!, { uncounted: uncountedOf.get(b) }), kind!);
   const reports = new PerBuild<MissingReport>();
-  const reportFor = (b: Build): MissingReport => reports.get(b, model, () => missing(b, model, { tier: tierFor(b) }));
+  const reportFor = (b: Build): MissingReport => reports.get(b, model, () => missing(b, model, { tier: tierFor(b) }), kind!);
   const arranged = $derived(item && kind ? arrange(saved, site, suggested, tierFor) : { low: [], medium: [], high: [] });
   // Tags: the ones on this item's builds, every tier; picking some keeps the builds carrying them all.
   let picked = $state<string[]>([]);

@@ -210,6 +210,29 @@ test("a saved copy of a suggestion keeps the tier it was made for, and its note 
   assert.deepEqual(disagreements("Excalibur, saved", "medium", saved, t, { forma: t.forma, capacity: { max: t.capacity } }), []);
 });
 
+test("an edited copy of a suggestion is the player's own: counted the same now and after a restart", () => {
+  const it = fxItem("Excalibur");
+  const s = suggest(it, "high", allOwned, fxIdx, 0);
+  const first = s.mods.find((m) => !!m)!;
+  // What "Edit a copy" made of it before this fix: the player's build, still marked as made for Veteran.
+  const copy = { ...toBuild(s, 0), id: "copy", source: "mine" as const, aura: null, exilus: null, mods: s.mods.map((m) => (m === first ? m : null)) };
+  const now = tierOf(copy, it, fxByU);
+  const afterRestart = tierOf(sanitizeBuilds([copy])[0], it, fxByU);
+  assert.deepEqual({ tier: now.tier, capacity: now.capacity, drain: now.drain }, { tier: afterRestart.tier, capacity: afterRestart.capacity, drain: afterRestart.drain });
+  assert.ok(!now.limits.some((l) => l.kind === "suggestion"), "a player's copy isn't read as MyOrbiter's suggestion");
+  assert.ok(!now.limits.some((l) => /MyOrbiter's suggestion/.test(l.why)), "nor said to come with MyOrbiter's Catalyst");
+});
+
+test("MyOrbiter's suggestion lowers a rank before it drops a mod to fit the card's count", () => {
+  const owned = new Map<string, number>();
+  for (const r of demo.inventory) if ((r.category === "mod" || r.category === "arcane") && r.quantity > 0) owned.set(r.item_id.split("#")[0], Math.max(owned.get(r.item_id.split("#")[0]) ?? -1, r.rank ?? 0));
+  const it = gear("Excalibur Umbra");
+  const s = suggest(it, "high", owned, modIndex(demo.catalog), 0);
+  const t = tierOf(toBuild(s, 0) as unknown as Build, it, byU, undefined, { uncounted: s.uncounted });
+  assert.ok(t.fits && t.tier === "high" && t.forma <= 6, `${t.tier}, ${t.drain} of ${t.capacity}, ${t.forma} Forma`);
+  assert.equal(s.mods.filter(Boolean).length, 8, `all eight mods kept: ${s.mods.map((m) => (m ? (m.rank ?? "max") : "-")).join(",")}`);
+});
+
 test("Kuva, Tenet and Coda weapons don't state five Forma they don't need", () => {
   const it = fxItem("Kuva Grattler");
   const s = suggest(it, "medium", new Map(), fxIdx, 0);
@@ -280,6 +303,18 @@ test("a chamber's build keeps its own kind; one that names its grip follows the 
   assert.equal(kindFor({ ...base, parts: [primaryGrip] }, c), "primary");
   assert.equal(kindFor({ ...base, kind: "primary", parts: [secondaryGrip] }, c), "secondary");
   assert.equal(kindFor(build(P.braton, []), item(P.braton)), "primary");
+});
+
+test("a site build on a kitgun chamber is counted for the kind shown, Secondary or Primary", () => {
+  const c = chamber();
+  // A site build carries no grip: the page lists it under both kinds, and keeps its tier per build.
+  const site: Build = { id: "site", item: c.uniqueName, kind: "secondary", mods: [], arcanes: [], shards: [], source: { url: "https://example.org/build/1", site: "Nox's Frame" }, importedAt: 0 };
+  type Keeper = { get: (b: Build, key: object, make: () => string, kind?: string) => string };
+  const Memo = api.PerBuild as new () => Keeper;
+  const memo = new Memo();
+  assert.equal(memo.get(site, CAT, () => "counted as secondary", "secondary"), "counted as secondary");
+  assert.equal(memo.get(site, CAT, () => "counted as primary", "primary"), "counted as primary", "switching to Primary counts it again");
+  assert.equal(memo.get(site, CAT, () => { throw new Error("counted twice"); }, "secondary"), "counted as secondary", "and back to Secondary keeps the first count");
 });
 
 // ---------------------------------------------------------------- 7. a saved build for an item MyOrbiter doesn't know
