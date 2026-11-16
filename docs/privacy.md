@@ -455,9 +455,11 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
   on warframe.market, your notifications (with other players' names), the game log's location and
   errors. Readable only by you on Linux. Before a line is written, these are cut out: a JWT
   (`eyJ…`); the word after "Bearer", "JWT" or "token", or after a Cookie or Authorization header,
-  and in a Cookie header each `name=value` after a `;`; the value of a `key=value` pair (a quoted
-  one to its closing quote; after a `?`, `&` or `;` to the word's end; otherwise to the line's end,
-  with the rest of the line, since such a value can hold a space), or of a JSON pair with a key of
+  and in a Cookie header each `name=value` after a pair that ends in `;` (`a=1; b=2`, no space
+  before the `;`); the value of a `key=value` pair that is the word's first (its key all that comes
+  before the `=`) or follows a `?`, `&` or `;` (a quoted one to its closing quote; after a `?`, `&`
+  or `;` to the word's end; otherwise to the line's end, with the rest of the line, since such a
+  value can hold a space), or of a JSON pair with a key of
   up to 64 characters (a bracket inside its strings not counted), whose key contains token,
   password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook address, its
   slashes escaped (`\/`) or not. A secret written another way (`password: x` in plain text, a key such as `api_key`,
