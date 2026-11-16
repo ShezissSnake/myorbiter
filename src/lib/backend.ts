@@ -38,6 +38,7 @@ import { timing, type TimingEnv } from "./timing";
 import { defaultUpdates, newInstallUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 import { meterMemoryOf } from "./core/meterMemory";
+import { cleanMessage, cleanName } from "./core/untrusted";
 
 
 /** warframe.market's platforms: whose market MyOrbiter reads and lists on. */
@@ -1780,6 +1781,24 @@ export interface ChatSummary {
   lastMessage: string | null;
 }
 
+// What warframe.market says that the page draws or announces (a chat's partner and newest message,
+// a seller's name, a riven's), cleaned where it comes in (core/untrusted.ts): a character that
+// draws nothing or reorders the text around it can't make a name read as another, and a message
+// is one line in a notification and the chat strip. Ids and times are left as they are.
+
+/** Chats as the page keeps them. */
+export const chatsIn = (list: ChatSummary[]): ChatSummary[] => list.map((c) => ({ ...c, with: cleanName(c.with), lastMessage: cleanMessage(c.lastMessage) }));
+/** A player's name in an order, as the page keeps it. */
+const userIn = <U extends { ingameName?: string | null }>(u: U): U => (u && typeof u.ingameName === "string" ? { ...u, ingameName: cleanName(u.ingameName) } : u);
+/** An item's order book, as the page keeps it. */
+export const bookIn = (orders: BookOrder[]): BookOrder[] => (Array.isArray(orders) ? orders.map((o) => (o?.user ? { ...o, user: userIn(o.user) } : o)) : orders);
+/** A new order from the live feed, as the page keeps it. */
+export const feedOrderIn = (o: import("./core/deals").FeedOrder): import("./core/deals").FeedOrder => (o?.user ? { ...o, user: userIn(o.user) } : o);
+/** A player's profile, as the page keeps it. */
+export const marketUserIn = (u: MarketUser | null): MarketUser | null => (u ? userIn(u) : u);
+/** Riven auctions, as the page keeps them: the seller's name and the riven's. */
+export const auctionsIn = (list: RivenAuction[]): RivenAuction[] => (Array.isArray(list) ? list.map((a) => ({ ...a, seller: cleanName(a.seller), name: cleanName(a.name) })) : list);
+
 /** warframe.market's live feed of new orders (src-tauri/src/feed.rs). */
 export interface FeedState {
   running: boolean;
@@ -1806,7 +1825,7 @@ export async function onNoticeAction(fn: (id: string, action: string) => void): 
 export async function onMarketOrder(fn: (order: import("./core/deals").FeedOrder) => void): Promise<() => void> {
   if (!inTauri) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
-  return listen<import("./core/deals").FeedOrder>("market-order", (e) => fn(e.payload));
+  return listen<import("./core/deals").FeedOrder>("market-order", (e) => fn(feedOrderIn(e.payload)));
 }
 
 let devPlatform: Platform = "pc";
@@ -1822,11 +1841,11 @@ export const market = {
     return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : [];
   },
   /** Your chats on warframe.market's messenger. */
-  chats: async (): Promise<ChatSummary[]> => (inTauri ? invoke("market_chats") : []),
+  chats: async (): Promise<ChatSummary[]> => (inTauri ? chatsIn(await invoke<ChatSummary[]>("market_chats")) : []),
   feedState: (): Promise<FeedState> => (inTauri ? invoke("market_feed_state") : Promise.resolve({ running: false, connected: false, received: 0, error: null })),
   /** A trade partner's warframe.market profile by in-game name; null when there's no such account. */
   user: async (name: string): Promise<MarketUser | null> =>
-    inTauri ? invoke("market_user", { name }) : { ingameName: name, slug: name.toLowerCase(), reputation: 3, status: "offline" },
+    inTauri ? marketUserIn(await invoke<MarketUser | null>("market_user", { name })) : { ingameName: name, slug: name.toLowerCase(), reputation: 3, status: "offline" },
   /** The review you've left a player: 1 for +rep, -1 for a report, null for none. */
   myReview: (name: string): Promise<number | null> => (inTauri ? invoke("market_my_review", { name }) : Promise.resolve(null)),
   /** +rep: a positive review with your message, from your account. */
@@ -1845,9 +1864,11 @@ export const market = {
   rivenMeta: async (): Promise<RivenMeta> =>
     rivenMetaOf(await (inTauri ? invoke<unknown>("market_riven_meta") : fetch("/dev-rivens.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("no riven data in the browser")))))),
   rivenAuctions: async (weapon: string, positive: string[], negative: string | null): Promise<RivenAuction[]> =>
-    inTauri
-      ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
-      : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app")))),
+    auctionsIn(
+      await (inTauri
+        ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
+        : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app"))))),
+    ),
   /** Your riven auctions (raw; see parseMyAuctions). In the browser dev mode, /dev-market.json's `auctions`, or none. */
   myAuctions: async (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : ((await devMarket()) as { auctions?: unknown } | null)?.auctions ?? []),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>
@@ -1861,13 +1882,13 @@ export const market = {
     return inTauri ? invoke("market_platform", { platform }) : Promise.resolve();
   },
   book: async (slug: string): Promise<BookOrder[]> => {
-    if (inTauri) return invoke("market_order_book", { slug });
+    if (inTauri) return bookIn(await invoke<BookOrder[]>("market_order_book", { slug }));
     // Browser dev mode with /dev-books.json (the demo account has one): its books stand in for
     // the whole market, and an item it hasn't got has nobody selling.
     const kept = await devBooks();
-    if (kept) return kept[slug] ?? [];
+    if (kept) return bookIn(kept[slug] ?? []);
     const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform, Crossplay: "true" } });
-    return (await res.json()).data;
+    return bookIn((await res.json()).data);
   },
   create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean; type?: "sell" | "buy" }): Promise<MyOrder> =>
     inTauri ? invoke("market_create", { order }) : devNoop().then(() => ({ id: `dev-${Date.now()}`, itemId: order.itemId, type: order.type ?? "sell", platinum: order.platinum, quantity: order.quantity, rank: order.rank ?? null, subtype: order.subtype ?? null, visible: true, updatedAt: null })),

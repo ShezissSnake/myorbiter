@@ -67,7 +67,9 @@ take from the Foundry recipes.
   its ranks (a maxed listing takes the 21 unranked it was fused from), a listed set takes its
   parts' copies, and parts listed on their own leave fewer sets to make (`freeToList`). The plan
   counts them against the listings as it leaves them; the last check against the listings as they
-  are, hidden ones included.
+  are, hidden ones included. The listing form's "You can spare N" and the spare count in Orders'
+  New listing are cut to the last check's count (`spareNow` in `listGuard.ts`), so neither offers
+  copies the check would then refuse; Inventory's "can spare" stays what is held beyond what is kept.
 - **"Only sets my relics drop"** means sets whose every part drops from a relic the player holds,
   so the set can be cracked again (not "sets that aren't vaulted").
 - **Ayatan: empty sculptures only.** Filled ones would need each sculpture's star slots, which the

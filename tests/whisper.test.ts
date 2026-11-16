@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import { APP_NAME, tradeWhisper } from "../src/lib/core/whisper";
+import { APP_NAME, NO_WHISPER, tradeWhisper } from "../src/lib/core/whisper";
 import { buildModel } from "../src/lib/core/model";
 import { dealFromOrder, findDeals, type Watch } from "../src/lib/core/deals";
 import { cheapestSeller } from "../src/lib/core/buildsPage";
@@ -39,7 +39,7 @@ test("the message is the site's, part for part, with the application's name afte
   );
   assert.equal(tradeWhisper({ player: "B", action: "sell", item: "Arcane Energize", platinum: 40, rank: 5 }), withName(site({ name: "B", action: "sell", item: "Arcane Energize", rank: 5, price: 40 })));
   // Nothing of the site's part is changed: it's a prefix of the message, the name only after it.
-  const m = tradeWhisper({ player: "S", action: "buy", item: "Serration", platinum: 9, rank: 10 });
+  const m = tradeWhisper({ player: "S", action: "buy", item: "Serration", platinum: 9, rank: 10 })!;
   assert.ok(m.startsWith(site({ name: "S", action: "buy", item: "Serration", rank: 10, price: 9 })));
   assert.equal(m.slice(site({ name: "S", action: "buy", item: "Serration", rank: 10, price: 9 }).length), " (MyOrbiter)");
 });
@@ -83,6 +83,60 @@ test("a build's missing mod or arcane (cheapestSeller on Builds): the site's mes
   assert.equal(s.whisper, withName(site({ name: "First", action: "buy", item: "Serration", rank: 0, price: 9 })));
   const plain = cheapestSeller([sell("P", 7)], "Mesa Prime Neuroptics", null, null)!;
   assert.equal(plain.whisper, withName(site({ name: "P", action: "buy", item: "Mesa Prime Neuroptics", price: 7 })));
+});
+
+// ---- Only to the player shown, and one line.
+
+test("where no whisper is built, the player reads that MyOrbiter builds none, not what a name can be", () => {
+  assert.match(NO_WHISPER, /MyOrbiter/);
+  assert.doesNotMatch(NO_WHISPER, /in-game name|can't be|cannot be|start/i);
+});
+
+test("a name that can't be an in-game name gives no whisper: never to someone else, never two lines", () => {
+  const o = { action: "buy" as const, item: "Serration", platinum: 9 };
+  // A space would send it to "Other", with the rest as the message.
+  const spaced = tradeWhisper({ ...o, player: "Other Hi" });
+  assert.ok(!spaced?.startsWith("/w Other Hi"), String(spaced));
+  assert.equal(spaced, null);
+  // A line break would make a paste of several lines, the second a command of its own.
+  assert.equal(tradeWhisper({ ...o, player: "Seller1\n/w Other" }), null);
+  assert.equal(tradeWhisper({ ...o, player: "Seller1\r" }), null);
+  const rlo = String.fromCodePoint(0x202e);
+  for (const player of ["", " ", "?", "Seller1 ", "a/b", `Sel${rlo}ler`, "x".repeat(41)]) {
+    assert.equal(tradeWhisper({ ...o, player }), null, JSON.stringify(player));
+  }
+  // Names of letters, digits, "_", "-" and ".", up to 40, whatever the first character (the app's own rule).
+  for (const player of ["Seller1", "Alpha_1", "Beta-2", "Gamma.3", "x", "x".repeat(40), "-Name-", "_Name_", ".dot", "-"]) {
+    const m = tradeWhisper({ ...o, player });
+    assert.ok(m?.startsWith(`/w ${player} Hi! I want to buy: `), String(m));
+    assert.ok(!/[\r\n]/.test(m!), m!);
+  }
+  // Each builder: no whisper for such a seller, the seller still named.
+  const s = cheapestSeller([sell("Other Hi", 5)], "Mesa Prime Neuroptics", null, null)!;
+  assert.equal(s.name, "Other Hi");
+  assert.equal(s.whisper, null);
+  const m = buildModel(bundle);
+  const watch = new Map<string, Watch>([["mesa_prime_neuroptics", { name: "Mesa Prime Neuroptics", kind: "part", rank: null, why: "x" }]]);
+  const d = dealFromOrder(m, index, { id: "f", type: "sell", platinum: 21, itemId: "a", user: { ingameName: "Two Words", id: "f1", status: "ingame", platform: "pc", crossplay: true } }, watch, me);
+  assert.ok(d, "the deal is still shown");
+  assert.equal(d!.seller, "Two Words");
+  assert.equal(d!.whisper, null);
+});
+
+test("a whisper is one line whatever the site sends in any field, not only the name", () => {
+  const rlo = String.fromCodePoint(0x202e);
+  const m = tradeWhisper({
+    player: "Seller1",
+    action: "buy",
+    item: `Ash Prime\r\n/w Other ${rlo}hi`,
+    platinum: "9\n/w Third" as unknown as number,
+    subtype: "intact\n/w Other hi",
+  });
+  assert.ok(m, "still a whisper: the name is one an in-game name can be");
+  assert.ok(!/[\r\n\u2028\u2029]/.test(m!), JSON.stringify(m));
+  assert.ok(!m!.includes(rlo), JSON.stringify(m));
+  assert.equal(m, `/w Seller1 Hi! I want to buy: "intact /w Other hi Ash Prime /w Other hi" for 9 /w Third platinum. (warframe.market) (${APP_NAME})`);
+  assert.equal(tradeWhisper({ player: "Seller1", action: "buy", item: "Ash Prime", platinum: 9, subtype: "x\u2028y" }), `/w Seller1 Hi! I want to buy: "x y Ash Prime" for 9 platinum. (warframe.market) (${APP_NAME})`);
 });
 
 // ---- No message built anywhere else.

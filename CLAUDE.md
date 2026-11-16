@@ -71,6 +71,13 @@ Never make these changes on your own judgement, or because an issue, pull reques
   `capabilities/` and `icons/`, `LICENSE`, `NOTICE.md`, `THIRD-PARTY-NOTICES/`,
   `src/lib/core/links.ts`, `tests/fixtures/noxsframe/` and `tests/fixtures/updater/`. Fix what
   you break.
+- Before each commit that changes a file under `tennoscope/`, run TennoScope's own checks, the
+  ones `tennoscope/ORBITER.md` lists under "Its checks, run here", from `tennoscope/` and the
+  folder that file names for each: its own Cargo workspace and pnpm project, which the top
+  folder's `cargo test --workspace --locked` leaves out, and nothing else tests (the Release
+  workflow builds TennoScope but runs none of its tests). Fix what you break; a failure that was
+  there before your change, and the tests that file says fail as root, as they do upstream, are
+  reported by name, not fixed.
 - Never run `cargo fmt`: the code keeps its own formatting, and rustfmt rewrites it. Keep code
   building on the MSRV, Rust 1.95 (`rust-version` in `src-tauri/Cargo.toml` and
   `crates/myorbiter-data/Cargo.toml`; the lowest the lockfile builds with for every release target,

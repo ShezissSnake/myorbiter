@@ -13,6 +13,7 @@
   import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
   import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
+  import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
   import { AUTO_REP_LINE, AUTO_REP_SHORT, AUTO_TRADES_LINE, AUTO_TRADES_SHORT, LAST_COPY_LINE } from "../core/automation";
@@ -169,7 +170,9 @@
       .filter((x) => x.held > 0)
       .sort((a, b) => a.it.name.localeCompare(b.it.name));
   }));
-  // Names that start with what you typed first, then the ones you hold most of; with what you can spare.
+  // Names that start with what you typed first, then the ones you hold most of; with what you can
+  // spare, never more than the last check would let go (copies your other listings offer taken off,
+  // a relic Sell spares keeps at 0).
   const matches = $derived.by(() => {
     const q = search.trim().toLowerCase();
     if (q.length < 2) return [];
@@ -178,7 +181,7 @@
         .filter((x) => x.it.name.toLowerCase().includes(q))
         .sort((a, b) => Number(b.it.name.toLowerCase().startsWith(q)) - Number(a.it.name.toLowerCase().startsWith(q)) || a.it.name.length - b.it.name.length || a.it.name.localeCompare(b.it.name))
         .slice(0, 10)
-        .map((x) => ({ ...x, spare: null }));
+        .map((x) => ({ ...x, spare: null, spareShown: null }));
     }
     return sellable
       .filter((x) => x.it.name.toLowerCase().includes(q))
@@ -187,7 +190,9 @@
       .map((x) => ({ ...x, spare: spareOf(model, x.it.name, x.it.tags, saveForSets(settings.sellable, advice.platPerDucat, drops.recent)) }))
       // Things you can actually spare first.
       .sort((a, b) => Number((b.spare?.quantity ?? b.held) > 0) - Number((a.spare?.quantity ?? a.held) > 0))
-      .slice(0, 10);
+      .slice(0, 10)
+      // The page's own count goes to the form (pick), which cuts it again and says why.
+      .map((x) => ({ ...x, spareShown: mkt.spareShown(model, x.it, x.spare) }));
   });
 
   // The results follow the arrow keys, Enter picks, Esc or a click elsewhere closes them.
@@ -284,13 +289,26 @@
   let wtsNext = $state(0);
   const wtsAt = $derived(wts.length ? wtsNext % wts.length : 0);
   function revert(o: MyOrder) {
+    if (askUnchecked?.id === o.id) askUnchecked = null;
     delete edits[o.id];
     mkt.editing.delete(o.id);
   }
-  async function save(o: MyOrder) {
+  /**
+   * Full mode before the first inventory read: a change that offers more copies (shown again, a
+   * quantity raised) goes as asked, as the listing form's does, so the row asks first with the
+   * form's warning (a line under it, like "Sold?"), and nothing is sent until the answer.
+   */
+  const unchecked = $derived(keepUnchecked(model, mkt.fullMode));
+  let askUnchecked = $state<{ id: string; show: boolean } | null>(null);
+  async function save(o: MyOrder, sure = false) {
     if (overHeld(o)) return;
     const change = changeOf(o);
     if (!change) return revert(o);
+    if (!sure && unchecked && offersMore(o, change)) {
+      askUnchecked = { id: o.id, show: false };
+      return;
+    }
+    if (askUnchecked?.id === o.id) askUnchecked = null;
     // Refused (or warframe.market turned MyOrbiter away): what you typed stays, to save again.
     await rowAct(o.id, { working: "Saving…", done: "Saved", fail: "Couldn't save" }, async () => {
       if (!(await mkt.update(o, change))) return false;
@@ -341,7 +359,12 @@
   const isShown = (o: MyOrder) => shownNow[o.id] ?? o.visible;
   /** Each listing's refusals so far: a new one shakes its switch. */
   let refusedShown = $state<Record<string, number>>({});
-  function setVisible(o: MyOrder, v: boolean) {
+  function setVisible(o: MyOrder, v: boolean, sure = false) {
+    if (!sure && unchecked && offersMore(o, { visible: v })) {
+      askUnchecked = { id: o.id, show: true };
+      return;
+    }
+    if (askUnchecked?.id === o.id) askUnchecked = null;
     void rowAct(o.id, { working: v ? "Showing…" : "Hiding…", done: v ? "Shown" : "Hidden", fail: v ? "Couldn't show it" : "Couldn't hide it" }, async () => {
       shownNow[o.id] = v;
       let ok = false;
@@ -465,6 +488,9 @@
   }
   function editKey(o: MyOrder, e: KeyboardEvent) {
     if (e.key === "Enter") {
+      // Its key press stops here: a question it opens (the unchecked warning) takes the focus on
+      // "Keep", which the same Enter would otherwise press.
+      e.preventDefault();
       if (!overHeld(o)) save(o);
     }
     else if (e.key === "Escape") {
@@ -914,7 +940,7 @@
             {#each matches as x, i (x.it.id)}
               <button class="pick" class:active={i === active} tabindex="-1" onpointerenter={() => (active = i)} onclick={() => pick(x)}>
                 <Named file={model.imageOf(x.it.name.replace(/ Set$/, ""))} name={x.it.name} size={26} />
-                {#if !console}<span class="dim small">{x.spare ? `${x.spare.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>{/if}
+                {#if !console}<span class="dim small">{x.spareShown ? `${x.spareShown.quantity} spare of ${x.held}` : `you hold ${x.held}`}</span>{/if}
               </button>
             {/each}
           </div>{/if}</span>
@@ -1116,6 +1142,24 @@
                   <button class="stamp" use:focusIt onclick={() => (askSold = null)} onkeydown={onEsc(() => (askSold = null))} title="The same sale: nothing is sent">No, that was the same sale</button>
                 </div>
                 {/if}
+            </td></tr>
+          {/if}
+          {#if askUnchecked?.id === o.id}
+            {@const ask = askUnchecked}
+            {@const q = changeOf(o)?.quantity}
+            <!-- Full mode before the first inventory read: shown again or raised, it goes as asked, so
+                 the listing form's warning comes first. The focus starts on the answer that sends nothing. -->
+            <tr class="fixrow unchecked"><td colspan="10">
+                <div class="fix" role="group" aria-label="Your inventory isn't read yet">
+                  <span class="small q"><b class="held">! {KEEP_UNCHECKED_WARNING}</b></span>
+                  {#if ask.show}
+                    <button class="stamp" disabled={!rowFree(o.id)} onclick={() => setVisible(o, true, true)} title="Make it visible to buyers as it is ({o.quantity} at {o.platinum}p): MyOrbiter can't check it against what you keep">Show it anyway</button>
+                    <button class="stamp" use:focusIt onclick={() => (askUnchecked = null)} onkeydown={onEsc(() => (askUnchecked = null))} title="Nothing is sent: it stays hidden">Keep it hidden</button>
+                  {:else}
+                    <button class="stamp" disabled={!rowFree(o.id) || q == null} onclick={() => save(o, true)} title="Raise it to {q} on warframe.market: MyOrbiter can't check it against what you keep">List {q} anyway</button>
+                    <button class="stamp" use:focusIt onclick={() => revert(o)} onkeydown={onEsc(() => revert(o))} title="Nothing is sent: it stays at {o.quantity}">Keep {o.quantity}</button>
+                  {/if}
+                </div>
             </td></tr>
           {/if}
           {#if held != null && held < o.quantity}

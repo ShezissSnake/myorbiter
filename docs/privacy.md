@@ -116,7 +116,9 @@ MyOrbiter reads Warframe's `EE.log` (read only) every 2 seconds, every 10 while 
 game isn't running, and not at all for console players. The first read goes through the log from
 the start of the game session; each one after takes only what the game added. On Linux it finds the
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
-included) under each library's Proton prefix for Warframe, and looks again every minute; on Windows
+included) under each library's Proton prefix for Warframe, takes only a log your user owns (one
+another user on the PC owns is passed over, and MyOrbiter's log says so in a line), and looks again
+every minute; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
 else).
 
@@ -352,8 +354,73 @@ github.com's page does with what you type or paste there before you press Submit
 it may keep, for one) is github.com's and wasn't audited. Technical details are
 included unless you untick them, and you can read them in full first: the version, commit and build
 date, channel, system and architecture, the page open, TennoScope's state, whether Full mode is on,
-and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids, your
-user name in paths and players' names hidden.
+and the last 50 lines of MyOrbiter's log, with sign-ins, e-mail and IP addresses, account ids and
+players' names hidden. Paths are cleaned by their shape: the folder names in the paths of the
+shapes MyOrbiter recognises are hidden, wherever they point (`/mnt/[drive]/[folder]/Warframe/EE.log`).
+Those shapes are `/a/b`, `\a\b`, `~/a`, `~name/a`, `$HOME/a` and `%USERPROFILE%\a` (any variable),
+`D:\a` and `D:/a`, `\\?\D:\a`, a network share (`\\computer\share`, `\\?\UNC\computer\share`,
+`//computer/share`, `smb://computer/share`, `file://computer/share`) and `file:///` addresses, with
+either slash, bare or in quotes. A user name becomes `[user]`, a drive's label `[drive]`, a
+computer's name `[host]`, Steam's account number `[id]`, any other folder `[folder]`; the file's
+name, the root (`/`, `D:`, `~`, a variable) and the folders the system, Steam, Proton, the game and
+MyOrbiter make stay. A folder or user name with spaces in it is hidden whole when a slash follows
+it, except under a bare `drive_c\users` (below) or after a `: `, `{` or backtick inside it
+(`/srv/Name: Other/x` becomes `/srv/[folder]: Other/x`). A last name that is hidden, with spaces or
+not, takes the words after it with it, unless it is a folder name whose first word is one of those
+kept folders, a number or a file's name: up to the end of the sentence (`. `, `, `, `; ` and ` (`
+included), a mark such as `:`, `>` or `|`, or the next path, except after a user name under
+`C:\Users\` written with backslashes (below), and except that a `. `, `, ` or `; ` straight after a
+one-word user name under a home folder does not end it, as the home rule keeps the mark in the name
+(`/home/name, has 30p` becomes `/home/[user]`). So a word too many may be hidden, prices and
+amounts included (`/home/name has 30p` becomes `/home/[user]`), and none of those words is kept as
+the file's name. A later slash on the line takes the words before it as folder names, a file's
+name and a price among them (`couldn't read D:\Games\Warframe\EE.log, retrying 1/3` becomes
+`couldn't read D:\Games\Warframe\[folder]/3`), and a price written like `~name/a` is read as one
+(`costs ~50p/each` becomes `costs ~[user]/[folder]`). The marks, shapes and cases this page names are examples, not whole lists: another
+mark inside a name can leave the words after it as written, or a name can take more words with it
+than named here. Left as written: the words after a sure end or a mark inside such a last name, such
+as `. `, `, `, `; `, ` (`, `: `, `{`, a backtick, `"`, `?`, `*`, `}`, `)`, a lone `~`, `/` or `\`
+after a space, or `(`, `,` or `;` with no space before it (`D:\Games\Name A. Other` becomes
+`D:\Games\[folder]. Other`, `D:\Games\Name, Other` becomes `D:\Games\[folder], Other`,
+`D:\Games\Name(Old) Other` becomes `D:\Games\[folder](Old) Other`, `/home/Name A. Other` becomes
+`/home/[user]. Other`), in most shapes: not under `C:\Users\` with backslashes (except after `: `),
+not in quotes, not with a slash after the name (except after `: `, `{` or a backtick), and not for a
+`. `, `, ` or `; ` straight after a one-word user name under a home folder, where those words, and a
+price among them, are hidden; after a user name under `C:\Users\` (or `C:\Documents and Settings\`,
+or `file:///C:\Users\`) written with backslashes and with no backslash after it, the words up to the
+next `:`, slash or quote go with it, the next path's drive letter included, so that path's last
+folder name stays when it has only one (`C:\Users\Name to E:\Other` becomes
+`C:\Users\[user]:\Other`); a last folder name whose first word is a kept folder, a number or a
+file's name, with no slash after it (`D:\Games\Dev Name`, `~/Steam Name`, `D:\Games\2024 Name`),
+as it can't be told from a kept folder followed by other words; the words after the first of a user
+name under a `drive_c\users` that is not inside a longer path, which is a relative path, with or
+without a slash after it (`drive_c/users/Name Other` becomes `drive_c/users/[user] Other`,
+`drive_c/users/Name Other/x` becomes `drive_c/users/[user] Other/x`, `drive_c/users/O'Name` becomes
+`drive_c/users/[user]'Name`); a name with an apostrophe in a path in single quotes
+(`'D:\a\O'Name'`), where the apostrophe reads as the closing quote; a path after a quote that never
+closes, whose last name runs to the end of the line and is kept when it ends in a file's name
+(`"/mnt/Name see EE.log`); `~` with a name that has spaces in it (`~Name Other/x`); the folder
+names of a path glued to a `,`, `;`, `=` or bracket after a last name with spaces, which that name
+takes up to the path's drive letter (`/home/Name Other,D:\Folder\Name` becomes
+`/home/[user]:\Folder\Name`); after a warframe.market profile address's player name
+(`/profile/`, `/chat/with/`, `/orders/user/` and the like), a `file:///` path glued to the name,
+which is read with it (`https://warframe.market/profile/Name,file:///srv/Folder/x` becomes
+`https://warframe.market/profile/[player]///srv/Folder/x`), and a path glued to a second name after it, or to the name
+by `=` or `[` (`/profile/Name, Other,D:/Folder/x` becomes `/[folder]/[player]:/Folder/x`); in
+such an address (a profile, user, orders, review or chat address), a word written as a variable
+before a slash and glued by a mark to the player's name, which is kept as a variable, whatever the
+word, though it may be part of the name
+(`https://warframe.market/profile/Name,$Word/x` becomes
+`https://warframe.market/profile/[player],$Word/[folder]`); and
+`//computer/share` straight after `://`, which reads as an address.
+Encoded slashes count only as `%2F` at the start of a path (`%2Fa%2Fb`) and as `%2F` or `%5C` after
+a drive letter: an encoded share, `~`, variable or whole address (`%5C%5Ccomputer`, `~%2Fa`,
+`file%3A%2F%2F…`) passes as written. Also left as written: a lone `/word` or `\word`, `D:word`, a
+relative path (`./a/b`), `~name` with nothing after it, a path broken over two lines, and an address's path (`/v2/…`, `/api/…`,
+after `GET` and the like). A path of an unusual shape can pass, which is why the report is shown to
+you in full before anything is sent: read it first. The prices of listings and sales are kept,
+except those that go with a hidden name or are read as part of a path, as above: they are public on warframe.market and help
+find a repricing fault.
 
 ## Links
 
@@ -468,8 +535,18 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 - `~/.local/share/dev.myorbiter.app/logs/` (`%LOCALAPPDATA%\dev.myorbiter.app\logs`): its log,
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
-  errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
+  errors. Readable only by you on Linux. Before a line is written, these are cut out: a JWT
+  (`eyJ…`); the word after "Bearer", "JWT" or "token", or after a Cookie or Authorization header,
+  and in a Cookie header each `name=value` after a pair that ends in `;` (`a=1; b=2`, no space
+  before the `;`); the value of a `key=value` pair that is the word's first (its key all that comes
+  before the `=`) or follows a `?`, `&` or `;` (a quoted one to its closing quote; after a `?`, `&`
+  or `;` to the word's end; otherwise to the line's end, with the rest of the line, since such a
+  value can hold a space), or of a JSON pair with a key of up to 64 characters (an object or a list
+  to its closing bracket, on whatever line, or with none to the end of what is written; a bracket
+  inside its strings not counted), whose key contains token,
+  password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook address, its
+  slashes escaped (`\/`) or not. A secret written another way (`password: x` in plain text, a key such as `api_key`,
+  another site's webhook address) isn't caught (nothing MyOrbiter writes there is meant to hold one, though another player's chat line in a notification can), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing

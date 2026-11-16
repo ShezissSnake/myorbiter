@@ -131,6 +131,87 @@ test("Helminth by ability number; shards and Helminth on a weapon are noted, not
   assert.ok(w.notes.some((n) => /warframes only/.test(n)));
 });
 
+test("a pasted line built to make the Helminth pattern backtrack reads in well under a second", () => {
+  // "helminth " then "a on " over and over, ending in "!": each start tries each " on ", and the
+  // second name then runs to the "!" and fails.
+  for (const size of [200, 5_000, 20_000]) {
+    const line = `helminth ${"a on ".repeat(Math.ceil(size / 5))}`.slice(0, size - 1) + "!";
+    assert.equal(line.length, size);
+    const t0 = performance.now();
+    parsePaste(line, item(P.rhino), CAT, { now: NOW });
+    const ms = performance.now() - t0;
+    console.log(`${size} characters: ${ms.toFixed(1)} ms`);
+    assert.ok(ms < 1000, `${size} characters: ${Math.round(ms)} ms`);
+  }
+  // The same, cut by commas into stretches of the longest length the pattern reads.
+  const stretch = `${"a on ".repeat(40)}`.slice(0, 199) + "!";
+  const line = `helminth ${Array(100).fill(stretch).join(",")}`;
+  const t0 = performance.now();
+  parsePaste(line, item(P.rhino), CAT, { now: NOW });
+  const ms = performance.now() - t0;
+  console.log(`${line.length} characters in stretches of 200: ${ms.toFixed(1)} ms`);
+  assert.ok(ms < 1000, `${line.length} characters in stretches: ${Math.round(ms)} ms`);
+});
+
+test("a long run of spaces after a rank, a forma count or a shard, or of question marks, reads in well under a second", () => {
+  // Each pattern once had two runs of spaces side by side, so a line of spaces was tried every way
+  // it can be split in two: a 20,000-character line took about half a second.
+  const lines: [string, string][] = [
+    ["a rank", "r" + " ".repeat(19_998) + "x"],
+    ["a forma count", "1" + " ".repeat(19_998) + "!"],
+    ["a shard", "crimson shard:" + " ".repeat(19_985) + ","],
+    ["a loose shard", "Shards: crimson:" + " ".repeat(19_983) + ","],
+    ["a label", "aura" + " ".repeat(19_995) + "x"],
+    // Not spaces: a run of "?" read as a name's end marks, tried from each of its characters.
+    ["a run of question marks", "?".repeat(19_998) + "zq"],
+  ];
+  for (const [what, line] of lines) {
+    assert.equal(line.length, 20_000);
+    const t0 = performance.now();
+    parsePaste(line, item(P.rhino), CAT, { now: NOW });
+    const ms = performance.now() - t0;
+    console.log(`${what}, 20,000 characters: ${ms.toFixed(1)} ms`);
+    assert.ok(ms < 250, `${what}: ${Math.round(ms)} ms`);
+  }
+});
+
+test("a name with marks after it reads as the name", () => {
+  const r = parsePaste("Serration?!\nSplit Chamber...\nVital Sense…", item(P.braton), CAT, { now: NOW });
+  assert.deepEqual(r.build.mods.filter(Boolean), [{ path: P.serration }, { path: P.splitChamber }, { path: P.vitalSense }]);
+});
+
+test("a rank, a forma count and a shard read the same with spaces around their parts", () => {
+  const r = parsePaste("Serration r  :  10\nSplit Chamber rank 5\n2 x  Forma\n3 Umbra Forma\nCrimson Archon Shard :  Ability Strength\nAzure shard (Health)", item(P.braton), CAT, { now: NOW });
+  assert.deepEqual(r.build.mods.filter(Boolean), [{ path: P.serration, rank: 10 }, { path: P.splitChamber, rank: 5 }]);
+  const w = parsePaste("Crimson Archon Shard :  Ability Strength\nAzure Archon Shard - Health  \n2 x  Forma", item(P.rhino), CAT, { now: NOW });
+  assert.deepEqual(w.build.shards, [{ colour: "crimson", tauforged: false, stat: "Ability Strength" }, { colour: "azure", tauforged: false, stat: "Health" }]);
+  assert.equal(w.build.forma, 2);
+  const s = parsePaste("Shards: crimson : Ability Strength, azure", item(P.rhino), CAT, { now: NOW });
+  assert.deepEqual(s.build.shards, [{ colour: "crimson", tauforged: false, stat: "Ability Strength" }, { colour: "azure", tauforged: false }]);
+});
+
+test("a whole build on one long line keeps its Helminth", () => {
+  const line = "Rhino build for steel path, all mods maxed: Steel Charge, Primed Continuity, Intensify, Umbral Vitality, Umbral Fiber, Umbral Intensify, Streamline, Adaptation, Iron Shrapnel, Arcane Energize, Arcane Grace, Roar replacing Rhino Stomp, 5 Forma";
+  assert.ok(line.length > 200);
+  const r = parsePaste(line, item(P.rhino), CAT, { now: NOW });
+  assert.deepEqual(r.build.helminth, { ability: "Roar", replaces: "Rhino Stomp" });
+  assert.ok(!r.unmatched.some((u) => /roar|stomp/i.test(u.text)), JSON.stringify(r.unmatched));
+});
+
+test("a very long paste is read up to its first 20,000 characters, and says so", () => {
+  // Ranks are taken out one by one, the line rebuilt each time: a paste of hundreds of thousands
+  // of characters would take seconds.
+  const text = "Vitality\n" + "r 1 ".repeat(50_000);
+  const t0 = performance.now();
+  const r = parsePaste(text, item(P.rhino), CAT, { now: NOW });
+  const ms = performance.now() - t0;
+  assert.ok(ms < 1000, `${text.length} characters: ${Math.round(ms)} ms`);
+  assert.deepEqual(r.build.mods.filter(Boolean), [{ path: P.vitality }]);
+  assert.ok(r.notes.includes("Only the first 20,000 characters were read."), r.notes.join(" | "));
+  // A paste of that size or less has no such note.
+  assert.ok(!parsePaste("Vitality", item(P.rhino), CAT, { now: NOW }).notes.some((n) => /first 20,000/.test(n)));
+});
+
 test("Necramechs get twelve slots, and a gear kind can be given for what the catalog can't say", () => {
   const r = parsePaste("Necramech Vitality", item(P.voidrig), CAT, { now: NOW });
   assert.equal(r.build.kind, "necramech");

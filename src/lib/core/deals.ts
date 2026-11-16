@@ -73,8 +73,8 @@ export interface Deal {
   usual: number;
   seller: string;
   why: string;
-  /** What warframe.market's "Buy" copies: paste it in game chat. */
-  whisper: string;
+  /** What warframe.market's "Buy" copies: paste it in game chat. Null for a name MyOrbiter builds no whisper for (core/whisper.ts). */
+  whisper: string | null;
 }
 
 export function findDeals(m: Model, index: MarketIndex, books: Record<string, BookOrder[] | undefined>, watch: Watch[], me: Me): Deal[] {

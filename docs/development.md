@@ -100,17 +100,18 @@ skipped until `npm run dev-bundle` and `npm run dev-data` have run. Property tes
 
 ## Sending a change
 
-Work on a branch named `work/<short-slug>` from the latest `main`, run `npm test` and the type
-check above before each commit, and `cargo test` as well when the commit changes a file the Rust
-tests or build read (a `.rs` file, a `Cargo.toml` or `Cargo.lock`, `src-tauri/`'s configuration,
+Work on a branch named `work/<short-slug>` from the latest `main`, run `npm test` and the type check
+above before each commit, and `cargo test` as well when the commit changes a file the Rust tests or
+build read (a `.rs` file, a `Cargo.toml` or `Cargo.lock`, `src-tauri/`'s configuration,
 `capabilities/` and `icons/`, `LICENSE`, `NOTICE.md`, `THIRD-PARTY-NOTICES/`,
 `src/lib/core/links.ts`, the fixtures under `tests/fixtures/noxsframe/` and
-`tests/fixtures/updater/`); run `node scripts/site.mjs --check --offline` when the site or a
-download link changed; and push the branch to `origin`, which is the GitHub repository
-(`git@github.com:ShezissSnake/myorbiter.git`). The change comes in as a pull request on GitHub,
-opened as a draft until it has been looked over; nothing is pushed to `main` directly. GitLab
-builds nothing any more (it keeps builds 0.2.100 to 0.2.119 and the fallback update feed), so
-nothing is sent there.
+`tests/fixtures/updater/`); run TennoScope's own checks when the commit changes a file under
+`tennoscope/` (`tennoscope/ORBITER.md` lists them, under "Its checks, run here"); run
+`node scripts/site.mjs --check --offline` when the site or a download link changed; and push the
+branch to `origin`, which is the GitHub repository (`git@github.com:ShezissSnake/myorbiter.git`).
+The change comes in as a pull request on GitHub, opened as a draft until it has been looked over;
+nothing is pushed to `main` directly. GitLab builds nothing any more (it keeps builds 0.2.100 to
+0.2.119 and the fallback update feed), so nothing is sent there.
 
 ## App icon
 
