@@ -802,7 +802,7 @@ impl Client {
             }
         };
         let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))?;
-        // What went up, beside the request line: the window logs why ("[listing]" lines).
+        // What went up, beside the request line: the window logs why ("[ui-listing]" lines).
         log::info!(target: "myorbiter::market", "{}", created_line(&order.id, new, kind));
         Ok(order)
     }

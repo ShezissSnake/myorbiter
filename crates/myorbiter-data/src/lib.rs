@@ -602,14 +602,14 @@ fn read_relics(path: &Path) -> Result<Vec<Value>, DataError> {
     Ok(out)
 }
 
-/// For the tests: a planted named pipe, and a read that may block on one.
-#[cfg(test)]
+/// For the tests: a planted named pipe, and a read that may block on one (Unix only, as are the
+/// tests that use them).
+#[cfg(all(test, unix))]
 pub(crate) mod test_support {
     use std::path::Path;
     use std::time::Duration;
 
     /// A named pipe at `path`: opening it to read waits for a writer that never comes.
-    #[cfg(unix)]
     pub fn fifo(path: &Path) {
         assert!(std::process::Command::new("mkfifo").arg(path).status().expect("mkfifo").success(), "mkfifo {}", path.display());
     }
@@ -642,6 +642,7 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
     use super::*;
+    #[cfg(unix)]
     use crate::test_support::within;
 
     /// A folder the player was talked into choosing as the data folder: a named pipe or a link to
