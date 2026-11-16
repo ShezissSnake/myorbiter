@@ -9,14 +9,18 @@
 // (`approvedFor`), and to the account and platform whose listing it is. When that listing is gone
 // from a read of its own account's listings that succeeded (sold out, deleted, or made again under
 // a new id), its approval ends, and a new listing's own price is its approved price, whoever made
-// it. A failed read ends nothing, a hidden listing is still there, a listing seen again in the same
-// run gets back what it had, and a read under another account or platform ends and moves nothing
-// of this one's: not its approvals, not the per-key prices they hold.
+// it, unless a per-key price from before holds it (below). A failed read ends nothing, a hidden
+// listing is still there, a listing read again under the same id on its own account and platform
+// gets back what it had, after a restart too (`approvedGone`), and a read under another account or
+// platform ends and moves nothing of this one's: not its approvals, not the per-key prices they
+// hold.
 //
 // `approved` stays as older builds saved and read it, one price per listing key; this build keeps
 // it as each key's price for a step back. A price there that no approval of this build agrees with
 // was saved before listings were told apart (or by an older build after a step back): it goes to
-// every listing up for that key, and stays for an older build whether one is up or not.
+// every listing up for that key, higher or lower than the listing's own price, and stays for an
+// older build whether one is up or not, until a price set or approved here for a listing of that
+// key replaces it.
 
 /** The share of your last approved price an unattended pass may lower a listing to. */
 export const AUTO_FLOOR_SHARE = 0.7;
@@ -40,7 +44,7 @@ const cutWords = AUTO_LEAST_KEPT === 0.5 ? "never more than halves a price" : `n
  */
 const limits = (how: string) =>
   `On its own it never lowers a price under ${percent(AUTO_FLOOR_SHARE)} of the one you last set or approved for that listing in MyOrbiter (${how}; a price changed on warframe.market's website doesn't move it): it stops there and says so, and that mark never holds back a raise. ` +
-  "The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it. " +
+  "The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again. " +
   `It ${cutWords} (that waits for you to press Reprice), never goes under a listing's own floor (the one in its row, a relic's crack value, a prime part's ducats) or your minimum price, and raises a listing that sits under one of them to at least that at once`;
 export const AUTO_LIMITS = limits("listing it, typing it, pressing Reprice, or a Sell spares line that changes it");
 /** The same for a console, where there is no Sell spares. */
@@ -95,7 +99,7 @@ export type WithApprovedFor = { approved: Record<string, number>; approvedFor?: 
  */
 export type ApprovedGone = Record<string, Approval & { by: string; at: number }>;
 export const GONE_KEPT = 500;
-/** Saved ended approvals, kept only where whole: a key, a whole positive price, whose, and when. One without whose (saved by an earlier build of this change) is never given back. */
+/** Saved ended approvals, kept only where whole: a key, a whole positive price, whose, and when. One without whose is never given back. */
 export function approvedGoneOf(raw: unknown): ApprovedGone {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: ApprovedGone = {};

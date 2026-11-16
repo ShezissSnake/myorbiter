@@ -65,8 +65,22 @@ test("its floors are a listing's own and the minimum, never Orders' Floor share 
   }
 });
 
-test("what it says of approvals is the rule: they belong to the listing, and a new one starts from its own price", () => {
-  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it/);
+test("what it says of approvals is the rule: they belong to the listing, and a new one starts from its own price unless an earlier version saved one for the item", async () => {
+  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again\./);
+  // A listing made on the website at 60p, the market at 41p, nothing saved for the item: its own
+  // 60p holds it at 42p.
+  const pass = async (saved: Record<string, number>) => {
+    h.mine = [order(60, "w")];
+    h.book = [seller(40), seller(41)];
+    h.sent = [];
+    await timedPass(settings(saved));
+    return h.sent;
+  };
+  assert.deepEqual(await pass({}), [["w", 42]], logText());
+  // An earlier version saved 50p for the item: that holds it instead, lower than its own (41p).
+  assert.deepEqual(await pass({ "it||": 50 }), [["w", 41]], logText());
+  // It saved 100p: held at 70p, higher than its own, so a 60p listing is left where it is.
+  assert.deepEqual(await pass({ "it||": 100 }), [], logText());
   assert.match(AUTO_LIMITS, /a Sell spares line that changes it/);
   assert.doesNotMatch(AUTO_LIMITS_CONSOLE, /Sell spares/);
 });

@@ -178,6 +178,12 @@ test("an ended approval comes back only to its own account and platform, under i
     assert.equal(owned(s).a?.platinum, 75, label);
     assert.equal(owned(s).a?.legacy, undefined, label);
   }
+  // What an earlier build of this change kept (`approvedEnded`, without whose): never read.
+  const s = settings({}, { approvedEnded: { a: { key: "it||", platinum: 100, at: T0 } } });
+  mkt.items = [h.it];
+  h.mine = [order(75, "a")];
+  await mkt.refresh(s);
+  assert.equal(owned(s).a?.platinum, 75);
 });
 
 test("the first account ends 600 listings of its own: the latest 500 are kept as ended, and the other account's entries stay", async () => {
