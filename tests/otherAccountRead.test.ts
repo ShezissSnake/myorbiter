@@ -9,7 +9,7 @@ import { h, me, mkt, order, seller, settings, timedPass, logText, asAccount, ME,
 import { GONE_KEPT, settleApprovals } from "../src/lib/core/approved";
 import { market, type MarketSettings } from "../src/lib/backend";
 
-type Owned = Record<string, { key: string; platinum: number; by?: string }>;
+type Owned = Record<string, { key: string; platinum: number; by?: string; legacy?: true }>;
 const owned = (s: MarketSettings) => (s as MarketSettings & { approvedFor?: Owned }).approvedFor ?? {};
 const x = { ...h.it, id: "x", slug: "x", gameRef: "/x", name: "X" };
 
