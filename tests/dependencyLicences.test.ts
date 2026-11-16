@@ -326,33 +326,42 @@ const cssPlugin = (deps: string[]) => {
   return { plugin, watched, run: () => plugin.transform.handler.call(context, "@import 'x';", "/r/src/app.css") };
 };
 
-test("a package whose style only comes in through a CSS @import is in the page", async () => {
-  const css = cssPlugin(["/r/node_modules/fakecss/x.css", "/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", "/r/src/theme.css", "/r/src/logo.svg"]);
+test("a package whose style or file only comes in through a CSS @import or url() is in the page", async () => {
+  const css = cssPlugin(["/r/node_modules/fakecss/x.css", "/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", "/r/src/theme.css",
+    "/r/src/logo.svg", "/r/node_modules/fakefont/f.woff2"]);
   const r = pageRecorder("/r", { vite: "/r/node_modules/vite", rolldown: null });
   const hooks = r.plugin;
   hooks.configResolved({ plugins: [{ name: "vite:something" }, css.plugin] });
+  hooks.transform("", "/r/src/app.css");
   await css.run();
   hooks.generateBundle({}, {});
   assert.deepEqual(r.failures, []);
   assert.deepEqual([...r.rendered].map(([d, how]) => [d, [...how]]), [
     ["/r/node_modules/fakecss", ["css"]],
     ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["css"]],
+    ["/r/node_modules/fakefont", ["asset"]],
   ]);
   assert.deepEqual([...r.unknown], []);
   // Vite still sees every file it reported, and the plugin keeps its filter.
-  assert.equal(css.watched.length, 4);
+  assert.equal(css.watched.length, 5);
   assert.ok(css.plugin.transform.filter);
 });
 
-test("a style @imported from outside the page and every package stops it, and so does a Vite without its CSS plugin", async () => {
-  const css = cssPlugin(["/elsewhere/shared.css"]);
+test("a file a style pulls in from outside the page and every package stops it, and so does a Vite whose CSS plugin isn't heard", async () => {
+  const css = cssPlugin(["/elsewhere/shared.css", "/elsewhere/font.woff2"]);
   const r = pageRecorder("/r");
   r.plugin.configResolved({ plugins: [css.plugin] });
   await css.run();
-  assert.deepEqual([...r.unknown], ["/elsewhere/shared.css"]);
+  assert.deepEqual([...r.unknown], ["/elsewhere/shared.css", "/elsewhere/font.woff2"]);
   const bare = pageRecorder("/r");
   bare.plugin.configResolved({ plugins: [{ name: "vite:build" }] });
   assert.match(bare.failures.join("\n"), /Vite's CSS plugin \(vite:css\) isn't where this looks for it/);
+  // Found, but never called: the styles went through some other way.
+  const silent = pageRecorder("/r");
+  silent.plugin.configResolved({ plugins: [cssPlugin([]).plugin] });
+  silent.plugin.transform("", "/r/src/app.css");
+  silent.plugin.generateBundle({}, {});
+  assert.match(silent.failures.join("\n"), /without the CSS plugin this listens to/);
 });
 
 test("pnpm-lock.yaml's resolutions are read per package", () => {

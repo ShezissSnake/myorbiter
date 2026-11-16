@@ -188,9 +188,10 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
   version (a new version of a crate listed there stops it too).
 
 It stops as well when the page's packages aren't installed; when the page holds a module, or a
-style pulls in a file with `@import`, that is neither the page's own nor a package's; when
-cargo's answer has a line the script can't read, or no crate at all; and when the script is given
-an argument it doesn't know. It never passes by leaving a package out.
+style pulls in a file (with `@import` or `url()`), that is neither the page's own nor a package's;
+when Vite compiles the page's styles without the CSS plugin the script listens to; when cargo's
+answer has a line the script can't read, or no crate at all; and when the script is given an
+argument it doesn't know. It never passes by leaving a package out.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
@@ -212,8 +213,8 @@ an argument it doesn't know. It never passes by leaving a package out.
 - A source that isn't the registry: the dependency goes back to a published version.
 - The page not installed, or a module of no known package: the build steps before it changed;
   `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. Vite's
-  CSS plugin not found, or a line of cargo's it can't read: an upgrade of Vite or cargo changed
-  what the script reads, and the script follows it.
+  CSS plugin not found or not heard, or a line of cargo's it can't read: an upgrade of Vite or
+  cargo changed what the script reads, and the script follows it.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:

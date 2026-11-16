@@ -426,18 +426,22 @@ const STYLE = /\.(css|scss|sass|less|styl|stylus|pcss|postcss|sss)$/;
  * The Vite plugin that records what goes into the page (the page's own build, run again):
  * - every module of a chunk with code in it;
  * - every style file Vite compiles (`transform`);
- * - every file a style pulls in with `@import`, which Vite inlines without a module or a transform
- *   of its own: Vite's CSS plugin reports those with `addWatchFile`, which this listens to;
+ * - every file a style pulls in, with `@import` or a `url()` Vite inlines as a data: URL, which has
+ *   no module, transform or emitted file of its own: Vite's CSS plugin reports those with
+ *   `addWatchFile`, which this listens to;
  * - every file the build emits, by the file it came from.
  * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
  * helpers; one that is neither the page's own (under `root`) nor a package's is `unknown`. When
- * Vite's CSS plugin isn't there to listen to, `failures` says so, and the page isn't read.
+ * Vite's CSS plugin isn't there to listen to, or styles went through without it being heard,
+ * `failures` says so, and the page isn't read.
  */
 export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
   const norm = (p) => p.replace(/\\/g, "/");
   const rendered = new Map();
   const unknown = new Set();
   const failures = [];
+  let styles = 0; // style files this plugin saw go through the build
+  let heard = 0; // calls of Vite's CSS plugin heard
   const mark = (dir, how) => {
     if (!rendered.has(dir)) rendered.set(dir, new Set());
     rendered.get(dir).add(how);
@@ -459,9 +463,10 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
         return;
       }
       const listened = function (code, id, ...rest) {
+        heard++;
         const context = new Proxy(this, {
           get(target, key) {
-            if (key === "addWatchFile") return (f) => { if (STYLE.test(norm(f))) file(f, "css"); return target.addWatchFile(f); };
+            if (key === "addWatchFile") return (f) => { file(f, STYLE.test(norm(f.split("?")[0])) ? "css" : "asset"); return target.addWatchFile(f); };
             const v = Reflect.get(target, key);
             return typeof v === "function" ? v.bind(target) : v;
           },
@@ -472,10 +477,18 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
     },
     transform(_code, id) {
       const clean = norm(id.split("?")[0]);
-      if (STYLE.test(clean) && (clean.startsWith("/") || /^[A-Za-z]:\//.test(clean))) file(clean, "css");
+      if (STYLE.test(clean) && (clean.startsWith("/") || /^[A-Za-z]:\//.test(clean))) {
+        styles++;
+        file(clean, "css");
+      }
       return null;
     },
     generateBundle(_o, bundle) {
+      // Styles went through the build, but Vite's CSS plugin was never heard: what they pulled in
+      // is unknown, so the page isn't read.
+      if (styles > 0 && heard === 0 && failures.length === 0) {
+        failures.push("Vite compiled the page's styles without the CSS plugin this listens to, so what they pull in can't be read");
+      }
       for (const f of Object.values(bundle)) {
         if (f.type === "chunk") {
           for (const [rawId, m] of Object.entries(f.modules ?? {})) {
