@@ -3,7 +3,7 @@
 export const REPO: string;
 export const ALLOWED_FILE: string;
 export const NO_TEXT_FILE: string;
-export const PROGRAMS: Record<"myorbiter" | "tennoscope", { name: string; cargo: string; pkg: string; out: string; page: { root: string; config: string; lock: "npm" | "pnpm"; install: string } }>;
+export const PROGRAMS: Record<"myorbiter" | "tennoscope", { name: string; cargo: string; pkg: string; out: string; page: { root: string; config: string; lock: "npm" | "pnpm"; install: string; tools: string[]; commands: string[] } }>;
 export const TARGETS: Record<string, string>;
 
 export type Tree = { id: string; with?: string } | { or: Tree[] } | { and: Tree[] };
@@ -45,19 +45,36 @@ export function packageDir(id: string): string | null;
 export function pnpmResolutions(text: string): Map<string, string>;
 export function readRust(program: "myorbiter" | "tennoscope", target: string, repo?: string): Package[];
 export const PREPROCESSORS: string[];
-export function pageRecorder(root: string, helpers?: { vite: string | null; rolldown: string | null }): {
+export function frameFile(line: string): string;
+export function callerOf(stack: string): string;
+export function filesUnder(path: string): string[];
+export function knownTools(root: string, names: string[]): Set<string>;
+export interface BuildListener {
+  read(path: string, stack: string, how?: "read" | "copy"): void;
+  loaded(file: string, byHook?: boolean): void;
+  worker(what: string): void;
+  command(line: string): void;
+}
+export function pageRecorder(
+  root: string,
+  helpers?: { vite: string | null; rolldown: string | null },
+  known?: { tools: Set<string>; commands: string[] },
+): BuildListener & {
   plugin: {
     name: string;
     enforce: "pre";
     config(config: { worker?: { plugins?: () => unknown[] } }): void;
+    configResolved(config: { publicDir?: string; build?: { copyPublicDir?: boolean } }): void;
     transform(code: string, id: string): null;
     generateBundle(options: unknown, bundle: Record<string, unknown>): void;
   };
-  read(path: string, stack: string): void;
-  rendered: Map<string, Set<"js" | "css" | "asset" | "file">>;
+  config(files: string[]): void;
+  rendered: Map<string, Set<"js" | "css" | "asset" | "file" | "config" | "public">>;
   unknown: Set<string>;
   unheard(): string[];
+  stops(): string[];
+  hooks(): number;
 };
-export function listenToReads(onRead: (path: string, stack: string) => void): () => void;
+export function listenToBuild(listener: BuildListener): () => void;
 export function readPage(program: "myorbiter" | "tennoscope", repo?: string): Promise<{ packages: Package[]; failures: string[] }>;
 export function main(argv: string[], env?: Record<string, string | undefined>): Promise<number>;

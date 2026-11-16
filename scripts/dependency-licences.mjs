@@ -23,27 +23,40 @@
 // macros and test-only crates are not), and the npm packages whose code, CSS or files the page's
 // Vite build writes into the page. The program's own workspace crates are left out.
 import { createHash } from "node:crypto";
-import { spawnSync } from "node:child_process";
+import childProcess, { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import { syncBuiltinESMExports } from "node:module";
+import * as nodeModule from "node:module";
+import workerThreads from "node:worker_threads";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SELF = fileURLToPath(import.meta.url).replace(/\\/g, "/");
 export const ALLOWED_FILE = "scripts/dependency-licences-allowed.txt";
 export const NO_TEXT_FILE = "scripts/dependency-licences-no-text.json";
 
 export const PROGRAMS = {
   myorbiter: {
     name: "MyOrbiter", cargo: ".", pkg: "myorbiter",
-    page: { root: ".", config: "vite.config.ts", lock: "npm", install: "npm ci" },
+    page: {
+      root: ".", config: "vite.config.ts", lock: "npm", install: "npm ci",
+      // The build's known tools: what may run while the page builds, with every package they use
+      // (knownTools). Added to by hand, in the same change that adds a tool to the page's build.
+      tools: ["vite", "@sveltejs/vite-plugin-svelte", "svelte"],
+      // The processes it may start: vite.config.ts's build stamp.
+      commands: ["git log -1 --format=%h%x20%cs"],
+    },
     out: "THIRD-PARTY-NOTICES/dependencies",
   },
   tennoscope: {
     name: "TennoScope", cargo: "tennoscope", pkg: "tennoscope",
-    page: { root: "tennoscope/app", config: "tennoscope/app/vite.config.ts", lock: "pnpm", install: "pnpm install --frozen-lockfile in tennoscope/app" },
+    page: {
+      root: "tennoscope/app", config: "tennoscope/app/vite.config.ts", lock: "pnpm", install: "pnpm install --frozen-lockfile in tennoscope/app",
+      tools: ["vite", "vitest", "@vitejs/plugin-react"],
+      commands: [],
+    },
     out: "vendor/tennoscope/THIRD-PARTY-NOTICES/dependencies",
   },
 };
@@ -423,54 +436,205 @@ function npmSource(prog, repo, dir, name, version) {
   return "registry";
 }
 
+const { registerHooks, syncBuiltinESMExports } = nodeModule;
 const STYLE = /\.(css|scss|sass|less|styl|stylus|pcss|postcss|sss)$/;
 /** CSS preprocessors that read what a style imports in a thread or process of their own. */
 export const PREPROCESSORS = ["sass", "sass-embedded", "less", "stylus"];
 
+const norm = (p) => p.replace(/\\/g, "/");
+/** A path as the disk has it, every link followed; the path as given when there is no such file. */
+const real = (p) => {
+  try {
+    return norm(realpathSync(p));
+  } catch {
+    return norm(p);
+  }
+};
+
 /**
- * What goes into the page, recorded while the page's own build runs again. Two listeners:
+ * The file a stack frame's code is in: "at f (file:///a/b.js:1:2)" and "at /a/b.js:1:2" give
+ * "/a/b.js", "at f (node:fs:4:5)" gives "node:fs" (Node's own code), and a frame that names no
+ * file ("at new Promise (<anonymous>)", "at async Promise.all (index 0)", an eval) gives "".
+ */
+export function frameFile(line) {
+  const t = line.trim();
+  const loc = (/\(([^()]*)\)$/.exec(t)?.[1] ?? /^at (?:async )?([^()\s][^()]*)$/.exec(t)?.[1] ?? "").replace(/:\d+:\d+$/, "");
+  if (/^node:[\w/.-]+$/.test(loc)) return loc;
+  if (loc.startsWith("file://")) {
+    try {
+      return norm(fileURLToPath(loc));
+    } catch {
+      return "";
+    }
+  }
+  return /^(\/|[A-Za-z]:[\\/])/.test(loc) ? norm(loc) : "";
+}
+
+/** The file of the first frame of a stack that names one: the code that made the call. */
+export const callerOf = (stack) => stack.split("\n").map(frameFile).find(Boolean) ?? "";
+
+/**
+ * Every file under a folder (or the file itself), links followed as a copy follows them, each by
+ * the path it is reached by. Nothing is opened: only names and kinds are read.
+ */
+export function filesUnder(path) {
+  const out = [];
+  const seen = new Set();
+  const walk = (dir) => {
+    const r = real(dir);
+    if (seen.has(r)) return;
+    seen.add(r);
+    for (const e of readdirSync(dir).sort()) {
+      const p = join(dir, e);
+      let st;
+      try {
+        st = statSync(p);
+      } catch {
+        continue; // a link to nothing: copied as nothing
+      }
+      if (st.isDirectory()) walk(p);
+      else if (st.isFile()) out.push(p);
+    }
+  };
+  let st = null;
+  try {
+    st = statSync(path);
+  } catch {
+    return out;
+  }
+  if (st.isDirectory()) walk(path);
+  else if (st.isFile()) out.push(path);
+  return out;
+}
+
+/** The folder of a package as Node finds it from `from`: node_modules/<name> there or above. */
+function findPackage(from, name) {
+  for (let d = resolve(from); ; d = dirname(d)) {
+    if (existsSync(join(d, "node_modules", name, "package.json"))) return real(join(d, "node_modules", name));
+    if (dirname(d) === d) return null;
+  }
+}
+
+/**
+ * The build's known tools and every package one of them uses: the real folders of `names` as Node
+ * finds them from the page's folder, and of their `dependencies` and `optionalDependencies` as
+ * Node finds those from each package's own folder, all the way down. Peer dependencies aren't
+ * followed: a tool's peer is a choice of the page (a CSS preprocessor among them), not the tool's.
+ */
+export function knownTools(root, names) {
+  const found = new Set();
+  const queue = names.map((n) => findPackage(root, n)).filter(Boolean);
+  while (queue.length) {
+    const dir = queue.pop();
+    if (found.has(dir)) continue;
+    found.add(dir);
+    const pj = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
+    for (const n of Object.keys({ ...pj.dependencies, ...pj.optionalDependencies })) {
+      const d = findPackage(dir, n);
+      if (d) queue.push(d);
+    }
+  }
+  return found;
+}
+
+/**
+ * What goes into the page, recorded while the page's own build runs again; and everything the
+ * build does that this script can't follow, so that the build stops on it.
  * - `plugin`, a Vite plugin, sees every module of a chunk with code in it, every style module, and
- *   every file the build emits, by the file it came from; in the page's build and in every worker
- *   Vite builds for it.
- * - `read(path, stack)` is called for every file the build reads through Node's `fs` (readPage
- *   listens to `fs` while the build runs; `stack` starts at the frame that called `fs`). Every
- *   file of a package read that way is taken to be in the page: a style's `@import` (a page's
+ *   every file the build emits, by the file it came from, in the page's build and in every worker
+ *   Vite builds for it; and the page's public folder, which a build copies as it is.
+ * - `read(path, stack)` is called for every file the build reads by name through Node's `fs`, a
+ *   copy or a link of a file made with it, and every file under a folder `cp` copies (`stack`
+ *   starts at the frame that called `fs`). Every file of a package read that way is taken to be in
+ *   the page, by the path given and by the path the disk has: a style's `@import` (a page's
  *   stylesheet, a component's `<style>`, a CSS module's `composes`), a file a style, the code or
  *   index.html inlines as a data: URL, an asset, what the page's config reads. But for two
- *   readers: a tool of the build (code in a package) reading a package.json, to find a package's
- *   files, and Node's loader reading a tool's code to run it (the caller is the loader, not code
- *   it runs).
+ *   readers: one of the known tools (`known.tools`, the real folders of the build's own tools and
+ *   the packages they use) reading a package's package.json, to find a package's files; and
+ *   Node's loader reading code to run it, which is `loaded` instead. Any other code reading a
+ *   package's package.json stops the build.
+ * - `loaded(file)` is called for every module Node loads while the build runs (and every native
+ *   addon): one that is neither one of the known tools' nor the page's own stops the build, since
+ *   what its code puts into the page can't be followed.
+ * - `config(files)` takes the files the page's config is bundled from: a package's file there is
+ *   in the page (the config holds it), and a file outside the page that is no package's stops it.
+ * - `worker(what)` and `command(line)`: a thread started during the build stops it (what it reads
+ *   isn't heard), and so does a process, unless its command line is one of `known.commands`.
  * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
  * helpers; a module that is neither the page's own (under `root`) nor a package's is `unknown`.
  * `unheard()` names each file the build emitted as a file of its own (not its code, styles or
  * HTML) without having read it through `fs`: Vite then reads files where `read` isn't called, and
- * a file it inlines that way would go unseen.
+ * a file it inlines that way would go unseen. `stops()` names the rest of what stops the build.
  */
-export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
-  const norm = (p) => p.replace(/\\/g, "/");
+export function pageRecorder(root, helpers = { vite: null, rolldown: null }, known = { tools: new Set(), commands: [] }) {
   const rendered = new Map();
   const unknown = new Set();
   const heard = new Set();
   const emitted = new Set();
+  const stopped = new Map(); // what stops the build, once each (the config is loaded twice)
+  const stop = (key, why) => {
+    if (!stopped.has(key)) stopped.set(key, why);
+  };
+  let hooked = 0;
   const mark = (dir, how) => {
     if (!rendered.has(dir)) rendered.set(dir, new Set());
     rendered.get(dir).add(how);
   };
-  const read = (path, stack) => {
-    const clean = norm(path);
-    heard.add(clean);
-    const dir = packageDir(clean);
-    if (!dir) return;
-    const caller = norm(stack.split("\n")[0] ?? "");
-    // The file the calling code is in: "at f (file:///a/b.js:1:2)", "at /a/b.js:1:2".
-    const where = /(?:file:\/\/)?(\/?[A-Za-z]:\/[^():]*|\/[^():]*):\d+:\d+\)?$/.exec(caller)?.[1]?.replace(/^\/(?=[A-Za-z]:\/)/, "") ?? "";
-    // A tool of the build (a package's own code) reading a package.json, to find a package's files.
-    if (clean.slice(dir.length) === "/package.json" && packageDir(where)) return;
-    // Node's loader reading a tool's own code to run it.
-    if (/^\s*at .*node:internal\/modules\//.test(caller)) return;
-    // One of fs's functions calling another (readFileSync opens the file): the first call counted.
-    if (/^\s*at .*\(node:(fs|internal\/fs\/[^:]*):\d+:\d+\)$/.test(caller)) return;
-    mark(dir, "file");
+  const inPage = (p) => p === root || p.startsWith(`${root}/`);
+  // A package of the path as given, and of the path the disk has (a link into a package).
+  const packagesOf = (path) => [...new Set([packageDir(norm(path)), packageDir(real(path))].filter(Boolean))];
+  const toolsOwn = (file) => {
+    const d = packageDir(real(file));
+    return !!d && known.tools.has(real(d));
+  };
+  const loaded = (file, byHook = false) => {
+    if (byHook) hooked++;
+    const r = real(file);
+    const dir = packageDir(r) ?? packageDir(norm(file));
+    if (dir ? !known.tools.has(real(dir)) : !inPage(r)) {
+      stop(`load ${dir ? real(dir) : r}`, `the build loaded ${dir ? `the package in ${real(dir)}` : r}, which is none of the build's known tools nor a package one of them uses, so what its code puts into the page can't be followed`);
+    }
+  };
+  const read = (path, stack, how = "read") => {
+    const given = norm(path);
+    heard.add(given);
+    heard.add(real(path));
+    const dirs = packagesOf(path);
+    if (!dirs.length) return;
+    // A copy, a link or a move: what it makes can be read anywhere, so the file is in the page.
+    if (how === "copy") {
+      for (const d of dirs) mark(d, "file");
+      return;
+    }
+    const caller = callerOf(stack);
+    // Node's loader reading code to run it (or a package.json to find it).
+    if (caller.startsWith("node:internal/modules/")) {
+      if (!/\/package\.json$/.test(given)) loaded(path);
+      return;
+    }
+    if (dirs.some((d) => given === `${d}/package.json` || real(path) === `${d}/package.json`)) {
+      // One of the known tools finding a package's files, called by no code but theirs and Node's
+      // (the page's config calling a tool to read it is a reader too); any other stops the build.
+      const all = stack.split("\n").map(frameFile).filter(Boolean);
+      const mine = all.indexOf(SELF); // this script running the build, and what runs this script
+      const frames = mine < 0 ? all : all.slice(0, mine);
+      const other = frames.find((f) => !f.startsWith("node:") && !toolsOwn(f));
+      if (caller && !caller.startsWith("node:") && toolsOwn(caller) && !other) return;
+      stop(`${dirs[0]}/package.json`, `${dirs[0]}/package.json is read by ${other ?? (caller || "code that names no file")}, which is none of the build's known tools, so where it goes can't be followed`);
+      return;
+    }
+    for (const d of dirs) mark(d, "file");
+  };
+  const config = (files) => {
+    for (const f of files) {
+      const dirs = packagesOf(f);
+      for (const d of dirs) mark(d, "config");
+      if (!dirs.length && !inPage(real(f))) stop(real(f), `the page's config is built from ${real(f)}, a file outside the page that is no package's`);
+    }
+  };
+  const worker = (what) => stop(`thread ${what}`, `the build started a thread (${what}), whose reads this script doesn't hear`);
+  const command = (line) => {
+    if (!known.commands.includes(line)) stop(`process ${line}`, `the build started a process this script doesn't know, whose reads it doesn't hear: ${line}`);
   };
   const transform = (_code, id) => {
     const clean = norm(id.split("?")[0]);
@@ -500,60 +664,147 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
     }
   };
   // A worker is a build of its own: the same listener goes into it.
-  const worker = { name: "dependency-licences:worker", enforce: "pre", transform, generateBundle: (_o, bundle) => walk(bundle) };
+  const workerPlugin = { name: "dependency-licences:worker", enforce: "pre", transform, generateBundle: (_o, bundle) => walk(bundle) };
   const plugin = {
     name: "dependency-licences",
     enforce: "pre",
-    config(config) {
-      const own = config.worker?.plugins;
-      config.worker = { ...config.worker, plugins: () => [...(typeof own === "function" ? own() : []), worker] };
+    config(c) {
+      const own = c.worker?.plugins;
+      c.worker = { ...c.worker, plugins: () => [...(typeof own === "function" ? own() : []), workerPlugin] };
+    },
+    // The public folder is copied into the download as it is, by a build that writes (this one
+    // doesn't): each file of a package there, or linked from there, is in the page.
+    configResolved(c) {
+      if (!c.publicDir || c.build?.copyPublicDir === false) return;
+      for (const f of filesUnder(c.publicDir)) for (const d of packagesOf(f)) mark(d, "public");
     },
     transform,
     generateBundle: (_o, bundle) => walk(bundle),
   };
   const unheard = () => [...emitted].filter((f) => !heard.has(f)).sort();
-  return { plugin, read, rendered, unknown, unheard };
+  const stops = () => [...stopped.values()].sort();
+  return { plugin, read, loaded, config, worker, command, rendered, unknown, unheard, stops, hooks: () => hooked };
 }
 
-// Node's fs, listened to: the functions a build reads a file by name with call `reading` while it
-// is set. Put in once, before the page's build loads anything, so no tool holds the functions
-// from before; they stay in, and call nothing when no build runs.
-let reading = null;
+// Node, listened to while a build runs (`build`, a recorder, is set): `fs`'s functions that read
+// a file by name, copy it or link it; Node's loader (every module it loads, and native addons);
+// threads and processes. Put in once, before the page's build loads anything, so no tool holds
+// the functions from before; they stay in, and call nothing when no build runs.
+let build = null;
 let listening = false;
+const STOPS_AT = /^node:(fs|internal\/fs\/.*)$/;
 function listenOnce() {
   if (listening) return;
   listening = true;
   const toPath = (p) => (typeof p === "string" ? resolve(p) : p instanceof URL ? fileURLToPath(p) : Buffer.isBuffer(p) ? resolve(p.toString()) : null);
-  for (const [obj, names] of [[fs, ["readFileSync", "readFile", "createReadStream", "openSync", "open"]], [fs.promises, ["readFile", "open"]]]) {
-    for (const name of names) {
-      const orig = obj[name];
-      obj[name] = function (p, ...rest) {
-        const path = reading ? toPath(p) : null;
-        if (path) {
-          const limit = Error.stackTraceLimit;
-          Error.stackTraceLimit = 50;
-          // From the frame that called fs on: the first line is the caller.
-          const stack = (new Error().stack ?? "").split("\n").slice(2).join("\n");
-          Error.stackTraceLimit = limit;
-          reading(path, stack);
-        }
-        return orig.call(this, p, ...rest);
-      };
+  const inCall = []; // paths of the calls listened to that are running now
+  const streams = new Map(); // createReadStream's paths, until its stream opens the file
+  // The stack from the frame that called `fn` on, one "at <function> (<file>:<line>:<column>)" a
+  // frame, by the files that run (a source map never moves a frame into another file).
+  const stackFrom = (fn) => {
+    const o = {};
+    const limit = Error.stackTraceLimit;
+    const prepare = Error.prepareStackTrace;
+    Error.stackTraceLimit = 50;
+    Error.prepareStackTrace = (_e, sites) => sites
+      .map((s) => `    at ${s.getFunctionName() ?? "<function>"} (${s.getFileName() ?? "<anonymous>"}:${s.getLineNumber()}:${s.getColumnNumber()})`)
+      .join("\n");
+    try {
+      Error.captureStackTrace(o, fn);
+      return String(o.stack);
+    } finally {
+      Error.stackTraceLimit = limit;
+      Error.prepareStackTrace = prepare;
     }
+  };
+  // how: "read" (the first argument is a file read), "copy" (a file copied, linked or moved), "tree"
+  // (a file or a folder copied whole).
+  const wrap = (obj, name, how) => {
+    const orig = obj[name];
+    if (typeof orig !== "function") return;
+    const listened = function (p, ...rest) {
+      const path = build ? toPath(p) : null;
+      if (!path) return orig.call(this, p, ...rest);
+      const stack = stackFrom(listened);
+      const caller = callerOf(stack);
+      if (STOPS_AT.test(caller) && inCall.some((c) => path === c || path.startsWith(c + sep))) {
+        // fs's own code inside a call already heard (readFileSync opening its file, cpSync copying
+        // a file of the folder it copies).
+      } else if (caller === "node:internal/fs/streams" && streams.get(path) > 0) {
+        streams.set(path, streams.get(path) - 1); // the stream createReadStream made, opening its file
+      } else {
+        // Anything else is heard, fs's own code too: `new fs.ReadStream` opens its file later, from
+        // fs's stream code, and that open is all there is to hear of it.
+        for (const f of how === "tree" ? filesUnder(path) : [path]) build.read(f, stack, how === "read" ? "read" : "copy");
+        if (name === "createReadStream") streams.set(path, (streams.get(path) ?? 0) + 1);
+      }
+      inCall.push(path);
+      try {
+        return orig.call(this, p, ...rest);
+      } finally {
+        inCall.pop();
+      }
+    };
+    obj[name] = listened;
+  };
+  for (const name of ["readFileSync", "readFile", "createReadStream", "openSync", "open", "openAsBlob"]) wrap(fs, name, "read");
+  for (const name of ["copyFileSync", "copyFile", "linkSync", "link", "renameSync", "rename"]) wrap(fs, name, "copy");
+  for (const name of ["cpSync", "cp"]) wrap(fs, name, "tree");
+  for (const name of ["readFile", "open"]) wrap(fs.promises, name, "read");
+  for (const name of ["copyFile", "link", "rename"]) wrap(fs.promises, name, "copy");
+  wrap(fs.promises, "cp", "tree");
+  // Processes: heard by their command line, once (execSync starts its process through spawnSync).
+  let inProcess = 0;
+  for (const name of ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]) {
+    const orig = childProcess[name];
+    childProcess[name] = function (cmd, ...rest) {
+      if (build && !inProcess) {
+        const args = Array.isArray(rest[0]) ? rest[0] : [];
+        build.command(/^exec(Sync)?$/.test(name) ? String(cmd) : [String(cmd), ...args].join(" "));
+      }
+      inProcess++;
+      try {
+        return orig.call(this, cmd, ...rest);
+      } finally {
+        inProcess--;
+      }
+    };
   }
+  const Worker = workerThreads.Worker;
+  workerThreads.Worker = class extends Worker {
+    constructor(what, ...rest) {
+      if (build) build.worker(String(what).split("\n")[0].slice(0, 80));
+      super(what, ...rest);
+    }
+  };
+  const dlopen = process.dlopen;
+  process.dlopen = function (module, file, ...rest) {
+    if (build) build.loaded(String(file));
+    return dlopen.call(this, module, file, ...rest);
+  };
+  // Every module Node loads, by import or require: told by Node itself, not inferred from fs.
+  registerHooks?.({
+    load(url, context, next) {
+      if (build && !url.startsWith("node:")) build.loaded(url.startsWith("file:") ? fileURLToPath(url) : url, true);
+      return next(url, context);
+    },
+  });
   syncBuiltinESMExports();
 }
 
 /**
- * Calls `onRead(path, stack)` for every file read by name through Node's `fs` (readFile,
- * readFileSync, createReadStream, open, openSync, and fs.promises' readFile and open) until the
- * returned function is called.
+ * Hears what a build does while it runs, for `recorder` (a pageRecorder): `read` for every file
+ * read by name through Node's `fs` (readFile, readFileSync, createReadStream and the stream
+ * fs.ReadStream opens, open, openSync, openAsBlob, and fs.promises' readFile and open), copied
+ * (copyFile, cp, in each form; cp's every file) or linked or moved (link, rename); `loaded` for
+ * every module Node loads and every native addon; `worker` and `command` for every thread and
+ * process started; until the returned function is called.
  */
-export function listenToReads(onRead) {
+export function listenToBuild(recorder) {
   listenOnce();
-  reading = onRead;
+  build = recorder;
   return () => {
-    if (reading === onRead) reading = null;
+    if (build === recorder) build = null;
   };
 }
 
@@ -562,7 +813,8 @@ export function listenToReads(onRead) {
  * the page's own config, writing nothing, and every module, style and file it puts into the page
  * is traced to its package. Returns { packages, failures }: a page whose packages aren't
  * installed, a page with a CSS preprocessor installed, a module in the page that is neither the
- * page's own nor a package's, or a file the build emitted without reading it through `fs`, fails.
+ * page's own nor a package's, a file the build emitted without reading it through `fs`, and
+ * anything the build does that the script can't follow (pageRecorder's `stops`), fails.
  */
 export async function readPage(program, repo = REPO) {
   const prog = PROGRAMS[program];
@@ -571,30 +823,40 @@ export async function readPage(program, repo = REPO) {
   if (!existsSync(join(viteLink, "package.json"))) {
     return { packages: [], failures: [`${prog.name}'s page: its packages aren't installed (${prog.page.install}), so they can't be read`] };
   }
-  // Found as Node finds a package: in node_modules of the page's folder or any folder above it.
+  const viteDir = realpathSync(viteLink);
+  // Found as Vite finds one: in node_modules of the page's folder or any folder above it, then of
+  // Vite's own folder or any above it (pnpm's hidden node_modules/.pnpm/node_modules among them).
   const above = [];
-  for (let d = resolve(root); ; d = dirname(d)) {
-    above.push(d);
-    if (dirname(d) === d) break;
+  for (const from of [resolve(root), join(viteDir, "dist", "node")]) {
+    for (let d = from; ; d = dirname(d)) {
+      above.push(d);
+      if (dirname(d) === d) break;
+    }
   }
   const preprocessors = PREPROCESSORS.filter((p) => above.some((d) => existsSync(join(d, "node_modules", p, "package.json"))));
   if (preprocessors.length) {
     return { packages: [], failures: [`${prog.name}'s page: a CSS preprocessor is installed for it (${preprocessors.join(", ")}), which reads what a style imports where this script can't see, so the page can't be read`] };
   }
-  const viteDir = realpathSync(viteLink);
-  const norm = (p) => p.replace(/\\/g, "/");
+  if (typeof registerHooks !== "function") {
+    return { packages: [], failures: [`${prog.name}'s page: this Node (${process.version}) has no module.registerHooks, so the script can't hear what the build loads`] };
+  }
   const helpers = { vite: norm(viteDir), rolldown: existsSync(join(viteDir, "..", "rolldown")) ? norm(realpathSync(join(viteDir, "..", "rolldown"))) : null };
   const rootN = norm(realpathSync(root));
-  const recorder = pageRecorder(rootN, helpers);
+  const recorder = pageRecorder(rootN, helpers, { tools: knownTools(root, prog.page.tools), commands: prog.page.commands });
   const outDir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   const cwd = process.cwd();
-  // Listening starts before Vite is loaded, so no part of it holds fs's functions from before.
-  const stopListening = listenToReads(recorder.read);
+  const configFile = join(repo, prog.page.config);
+  // Listening starts before Vite is loaded, so no part of it holds Node's functions from before.
+  const stopListening = listenToBuild(recorder);
   try {
     const vite = await import(pathToFileURL(join(viteDir, "dist", "node", "index.js")).href);
     process.chdir(root);
+    // The files the config is bundled from (read by Vite's bundler, not through fs).
+    const env = { command: "build", mode: "production", isSsrBuild: false, isPreview: false };
+    const loadedConfig = await vite.loadConfigFromFile(env, configFile, realpathSync(root), "warn");
+    recorder.config(loadedConfig?.dependencies ?? []);
     await vite.build({
-      root: realpathSync(root), configFile: join(repo, prog.page.config), mode: "production", logLevel: "warn",
+      root: realpathSync(root), configFile, mode: "production", logLevel: "warn",
       build: { write: false, outDir, emptyOutDir: false }, plugins: [recorder.plugin],
     });
   } finally {
@@ -606,7 +868,9 @@ export async function readPage(program, repo = REPO) {
   const failures = [
     ...recorder.unheard().map((f) => `${prog.name}'s page: the build emitted ${shown(f)} without reading it through Node's fs, where this script listens, so a file it inlines could go unseen`),
     ...[...recorder.unknown].sort().map((id) => `${prog.name}'s page: a module of no known package is in the page: ${shown(id)}`),
+    ...recorder.stops().map((s) => `${prog.name}'s page: ${s.split(rootN).join("<page>")}`),
   ];
+  if (recorder.hooks() === 0) failures.push(`${prog.name}'s page: Node told the script of no module loaded during the build, its config's included, so what the build loads wasn't heard`);
   const packages = [];
   const seen = new Set();
   for (const d of recorder.rendered.keys()) {
@@ -623,6 +887,7 @@ export async function readPage(program, repo = REPO) {
   }
   return { packages, failures };
 }
+
 
 // ------------------------------------------------------------------ the command
 

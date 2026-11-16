@@ -4,12 +4,15 @@
 // release build does, writing nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import fs, { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { Worker } from "node:worker_threads";
 import {
-  ALLOWED_FILE, NO_TEXT_FILE, PREPROCESSORS, checkList, gate, licenceAllowed, main, packageDir, pageRecorder, parseCargoTree,
-  parseExpression, pnpmResolutions, readAllowed, readPage, readRust, renderList, type NoTextEntry, type Package,
+  ALLOWED_FILE, NO_TEXT_FILE, PREPROCESSORS, PROGRAMS, callerOf, checkList, frameFile, gate, knownTools, licenceAllowed, listenToBuild, main,
+  packageDir, pageRecorder, parseCargoTree, parseExpression, pnpmResolutions, readAllowed, readPage, readRust, renderList,
+  type NoTextEntry, type Package,
 } from "../scripts/dependency-licences.mjs";
 
 const allowed = readAllowed(readFileSync(ALLOWED_FILE, "utf8"));
@@ -310,8 +313,20 @@ test("a page module's package folder, with npm's layout, pnpm's and Windows path
 
 // ---------------------------------------------------------------- what the page's build reads
 
-test("a file of a package read through fs is in the page; a tool finding its files and Node loading a tool are not", () => {
-  const r = pageRecorder("/r");
+test("the file a stack frame's code is in, Node's own code, or none", () => {
+  assert.equal(frameFile("    at x (file:///r/node_modules/vite/dist/node/chunks/node.js:1:1)"), "/r/node_modules/vite/dist/node/chunks/node.js");
+  assert.equal(frameFile("    at /r/vite.config.ts:3:9"), "/r/vite.config.ts");
+  assert.equal(frameFile("    at async file:///r/a%20b/c.mjs:3:9"), "/r/a b/c.mjs");
+  assert.equal(frameFile("    at f (C:\\r\\node_modules\\x\\i.js:1:2)"), "C:/r/node_modules/x/i.js");
+  assert.equal(frameFile("    at Object.readFileSync (node:fs:444:35)"), "node:fs");
+  assert.equal(frameFile("    at ReadStream.open (node:internal/fs/streams:150:12)"), "node:internal/fs/streams");
+  assert.equal(frameFile("    at new Promise (<anonymous>)"), "");
+  assert.equal(frameFile("    at async Promise.all (index 0)"), "");
+  assert.equal(callerOf("    at Array.map (<anonymous>)\n    at f (file:///r/x.js:1:1)"), "/r/x.js");
+});
+
+test("a file of a package read through fs is in the page; a known tool finding its files is not, and any other reader of a package.json, or a package Node loads that is no known tool's, stops it", () => {
+  const r = pageRecorder("/r", { vite: null, rolldown: null }, { tools: new Set(["/r/node_modules/vite", "/r/node_modules/vitefu"]), commands: [] });
   // The stack from the frame that called fs on.
   const builder = "    at x (file:///r/node_modules/vite/dist/node/chunks/node.js:1:1)";
   const loader = "    at getSourceSync (node:internal/modules/esm/load:45:17)\n    at defaultLoadSync (node:internal/modules/esm/load:161:34)";
@@ -322,22 +337,100 @@ test("a file of a package read through fs is in the page; a tool finding its fil
   r.read("C:\\r\\node_modules\\winpkg\\f.woff2", builder);
   r.read("/r/node_modules/resolved-only/package.json", builder);
   r.read("/r/node_modules/crawled-only/package.json", "    at readJson (file:///r/node_modules/vitefu/src/index.js:303:30)");
-  // fs's own functions calling each other: the outer call is the one counted.
-  r.read("/r/node_modules/a-tool/dist/other.js", "    at Object.readFileSync (node:fs:444:35)\n    at obj.<computed> [as readFileSync] (file:///x.mjs:1:1)");
-  r.read("/r/node_modules/a-tool/dist/index.js", loader);
-  r.read("/r/node_modules/.modules.yaml", builder);
+  // fs's own code with no outer call heard: `new fs.ReadStream` opening its file.
+  r.read("/r/node_modules/fakestream/x.txt", "    at ReadStream.open (node:internal/fs/streams:150:12)\n    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)");
+  // Node's loader: a known tool's code, the config, and a package that is no known tool's.
+  r.read("/r/node_modules/vite/dist/node/index.js", loader);
   r.read("/r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs", loader);
+  r.read("/r/node_modules/a-tool/dist/index.js", loader);
+  r.loaded("/r/node_modules/vitefu/src/index.js", true);
+  r.read("/r/node_modules/.modules.yaml", builder);
   r.read("/r/node_modules/fakedef/x.txt", config);
-  // A package.json read by anything but Vite's resolver: the config, putting it into the page.
+  // A package.json read by anything but the known tools: the config, a package that is no known
+  // tool's, a known tool the config called.
   r.read("/r/node_modules/fakepj/package.json", config);
+  r.read("/r/node_modules/fakepjread/package.json", "    at transform (file:///r/node_modules/fakeplugin/index.js:4:20)");
+  r.read("/r/node_modules/fakepjcalled/package.json", `${builder}\n    at file:///r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs:3:9`);
+  // A package.json copied (cpSync of a package's folder): it is in the page.
+  r.read("/r/node_modules/fakecopied/package.json", config, "copy");
   r.read("/r/src/app.css", builder);
   assert.deepEqual([...r.rendered].map(([d, how]) => [d, [...how]]), [
     ["/r/node_modules/fakesv", ["file"]],
     ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["file"]],
     ["C:/r/node_modules/winpkg", ["file"]],
+    ["/r/node_modules/fakestream", ["file"]],
     ["/r/node_modules/fakedef", ["file"]],
-    ["/r/node_modules/fakepj", ["file"]],
+    ["/r/node_modules/fakecopied", ["file"]],
   ]);
+  assert.deepEqual(r.stops().map((s) => s.replace(/,.*/, "")), [
+    "/r/node_modules/fakepj/package.json is read by /r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs",
+    "/r/node_modules/fakepjcalled/package.json is read by /r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs",
+    "/r/node_modules/fakepjread/package.json is read by /r/node_modules/fakeplugin/index.js",
+    "the build loaded the package in /r/node_modules/a-tool",
+  ]);
+  assert.equal(r.hooks(), 1);
+});
+
+test("a thread, a process it doesn't know and a config built from a file outside the page stop the build", () => {
+  const r = pageRecorder("/r", { vite: null, rolldown: null }, { tools: new Set(), commands: ["git log -1"] });
+  r.command("git log -1");
+  r.config(["/r/vite.config.ts", "/r/node_modules/fakerel/index.js"]);
+  assert.deepEqual(r.stops(), []);
+  r.config(["/elsewhere/shared.ts"]);
+  r.command("cat node_modules/x/y.txt");
+  r.worker("w.js");
+  assert.deepEqual([...r.rendered.keys()], ["/r/node_modules/fakerel"]);
+  assert.deepEqual(r.stops().map((s) => s.replace(/,.*/, "")), [
+    "the build started a process this script doesn't know",
+    "the build started a thread (w.js)",
+    "the page's config is built from /elsewhere/shared.ts",
+  ]);
+});
+
+test("fs's reads, copies and links are heard once each, by the code that called them; threads and processes too", { skip: process.platform === "win32" }, async () => {
+  const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  const pkg = join(dir, "node_modules", "fakefs");
+  mkdirSync(join(pkg, "sub"), { recursive: true });
+  for (const f of ["a.txt", "b.txt", "c.txt", "d.txt", "e.txt", "f.txt", "sub/g.txt"]) writeFileSync(join(pkg, f), f);
+  symlinkSync(join(pkg, "f.txt"), join(dir, "link.txt"));
+  const heard: string[] = [];
+  const events: string[] = [];
+  const stop = listenToBuild({
+    read: (path: string, stack: string, how = "read") => heard.push(`${path.slice(dir.length + 1)} ${how} ${callerOf(stack).endsWith("dependencyLicences.test.ts") ? "test" : callerOf(stack)}`),
+    loaded: () => {},
+    worker: (what: string) => events.push(`worker ${what}`),
+    command: (line: string) => events.push(`command ${line}`),
+  });
+  try {
+    readFileSync(join(pkg, "a.txt"), "utf8");
+    readFileSync(join(pkg, "a.txt"));
+    // fs.ReadStream's constructor, as a config can call it (its types name only the options).
+    const ReadStream = fs.ReadStream as unknown as new (path: string) => fs.ReadStream;
+    await new Promise((ok) => new ReadStream(join(pkg, "b.txt")).on("close", ok).resume());
+    await new Promise((ok) => fs.createReadStream(join(pkg, "c.txt")).on("close", ok).resume());
+    copyFileSync(join(pkg, "d.txt"), join(dir, "d-copy.txt"));
+    await fs.promises.copyFile(join(pkg, "e.txt"), join(dir, "e-copy.txt"));
+    fs.linkSync(join(pkg, "e.txt"), join(dir, "e-link.txt"));
+    fs.cpSync(join(pkg, "sub"), join(dir, "sub-copy"), { recursive: true });
+    readFileSync(join(dir, "link.txt"));
+    execFileSync("true", ["made-up"]);
+    await new Promise((ok) => new Worker("1", { eval: true }).on("exit", ok));
+  } finally {
+    stop();
+    rmSync(dir, { recursive: true, force: true });
+  }
+  assert.deepEqual(heard, [
+    "node_modules/fakefs/a.txt read test",
+    "node_modules/fakefs/a.txt read test",
+    "node_modules/fakefs/b.txt read node:internal/fs/streams",
+    "node_modules/fakefs/c.txt read test",
+    "node_modules/fakefs/d.txt copy test",
+    "node_modules/fakefs/e.txt copy test",
+    "node_modules/fakefs/e.txt copy test",
+    "node_modules/fakefs/sub/g.txt copy test",
+    "link.txt read test",
+  ]);
+  assert.deepEqual(events, ["command true made-up", "worker 1"]);
 });
 
 test("a file the build emits without having read it through fs is named: what it inlines could go unseen", () => {
@@ -367,7 +460,7 @@ test("a worker the page's build makes gets the same listener", () => {
 
 // A made-up page with made-up GPL-3.0 packages, built with the repository's own Vite (and Svelte,
 // for a component's style): the page's real build, run again by readPage as a release build does.
-const pageBuild = async (files: Record<string, string>, svelte = false) => {
+const pageBuild = async (files: Record<string, string>, svelte = false, links: Record<string, string> = {}) => {
   const repo = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   const nm = join(repo, "node_modules");
   mkdirSync(nm);
@@ -382,6 +475,11 @@ const pageBuild = async (files: Record<string, string>, svelte = false) => {
       writeFileSync(join(nm, m[1], "LICENSE"), `${m[1]}: a made-up licence text\n`);
       lock.packages[`node_modules/${m[1]}`] = { version: "1.0.0", resolved: `https://registry.npmjs.org/${m[1]}/-/${m[1]}-1.0.0.tgz` };
     }
+  }
+  // Links in the page's folder, each to a path in the page's folder, or to a folder elsewhere.
+  for (const [path, target] of Object.entries(links)) {
+    mkdirSync(join(repo, path, ".."), { recursive: true });
+    symlinkSync(target.startsWith("/") ? target : join(repo, target), join(repo, path));
   }
   writeFileSync(join(repo, "package.json"), '{"type":"module"}\n');
   writeFileSync(join(repo, "package-lock.json"), JSON.stringify(lock));
@@ -465,7 +563,7 @@ test("a package a worker of the page imports is in the page", unix, async () => 
   assert.deepEqual(r.failures, []);
 });
 
-test("a package's file the page's own config reads into the page is in the page", unix, async () => {
+test("a package's file the page's own config reads into the page is in the page; a package.json it reads stops the build", unix, async () => {
   const r = await pageBuild({
     "src/main.js": "console.log(__MADE_UP__, __MADE_UP_VERSION__);\n",
     "node_modules/fakedef/x.txt": "made-up words\n",
@@ -474,8 +572,124 @@ test("a package's file the page's own config reads into the page is in the page"
       '  __MADE_UP__: JSON.stringify(readFileSync("node_modules/fakedef/x.txt", "utf8")),\n' +
       '  __MADE_UP_VERSION__: JSON.stringify(JSON.parse(readFileSync("node_modules/fakepj/package.json", "utf8")).version),\n} };\n',
   });
-  assert.deepEqual(r.made, ["fakedef 1.0.0 GPL-3.0", "fakepj 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.made, ["fakedef 1.0.0 GPL-3.0"]);
+  assert.equal(r.failures.length, 1);
+  assert.match(r.failures[0], /node_modules\/fakepj\/package\.json is read by .*vite\.config\.ts\.timestamp.*, which is none of the build's known tools/);
+});
+
+test("a package's file the config reads through fs.ReadStream's constructor, or through a link in the page's folder, is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(__STREAM__, __LINKED__);\n",
+    "node_modules/fakestream/x.txt": "made-up stream\n",
+    "node_modules/fakesymcfg/x.txt": "made-up link\n",
+    "vite.config.ts": 'import fs from "node:fs";\n' +
+      'const stream = await new Promise((ok) => { let s = ""; new fs.ReadStream("node_modules/fakestream/x.txt", "utf8").on("data", (d) => (s += d)).on("end", () => ok(s)); });\n' +
+      'export default { define: { __STREAM__: JSON.stringify(stream), __LINKED__: JSON.stringify(fs.readFileSync("src/linked.txt", "utf8")) } };\n',
+  }, false, { "src/linked.txt": "node_modules/fakesymcfg/x.txt" });
+  assert.deepEqual(r.made, ["fakestream 1.0.0 GPL-3.0", "fakesymcfg 1.0.0 GPL-3.0"]);
   assert.deepEqual(r.failures, []);
+});
+
+test("a package's files a plugin copies into the output, or copies and then reads the copy, are in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(1);\n",
+    "node_modules/fakecopy/x.txt": "made-up copy\n",
+    "node_modules/fakecp/x.txt": "made-up folder\n",
+    "node_modules/fakeemitcp/x.txt": "made-up copy read\n",
+    "node_modules/fakelinkcp/x.txt": "made-up hard link\n",
+    "vite.config.ts": 'import { copyFileSync, cpSync, linkSync, mkdirSync, readFileSync, rmSync } from "node:fs";\nimport { join } from "node:path";\n' +
+      "let out = \"\";\nexport default { plugins: [{ name: \"made-up-copier\",\n" +
+      "  configResolved(c) { out = c.build.outDir; },\n" +
+      '  generateBundle() { const t = join(process.cwd(), "made-up-tmp"); mkdirSync(t, { recursive: true });\n' +
+      '    copyFileSync("node_modules/fakeemitcp/x.txt", join(t, "e.txt")); linkSync("node_modules/fakelinkcp/x.txt", join(t, "l.txt"));\n' +
+      '    this.emitFile({ type: "asset", fileName: "copied.txt", source: readFileSync(join(t, "e.txt"), "utf8") + readFileSync(join(t, "l.txt"), "utf8") }); rmSync(t, { recursive: true }); },\n' +
+      '  closeBundle() { mkdirSync(out, { recursive: true }); copyFileSync("node_modules/fakecopy/x.txt", join(out, "x.txt")); cpSync("node_modules/fakecp", join(out, "cp"), { recursive: true }); },\n' +
+      "}] };\n",
+  });
+  assert.deepEqual(r.made, ["fakecopy 1.0.0 GPL-3.0", "fakecp 1.0.0 GPL-3.0", "fakeemitcp 1.0.0 GPL-3.0", "fakelinkcp 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a thread started during the build stops it", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(__THREAD__);\n",
+    "node_modules/fakethread/x.txt": "made-up thread\n",
+    "vite.config.ts": 'import { Worker } from "node:worker_threads";\n' +
+      "const text = await new Promise((ok) => { const w = new Worker('require(\"node:worker_threads\").parentPort.postMessage(require(\"node:fs\").readFileSync(\"node_modules/fakethread/x.txt\", \"utf8\"))', { eval: true }); w.on(\"message\", (m) => { ok(m); w.terminate(); }); });\n" +
+      "export default { define: { __THREAD__: JSON.stringify(text) } };\n",
+  });
+  assert.deepEqual(r.made, []);
+  assert.equal(r.failures.length, 1);
+  assert.match(r.failures[0], /the build started a thread \(require\("node:worker_threads"\).*whose reads this script doesn't hear/);
+});
+
+test("a process the build starts stops it, unless it is one the page's build is known to start", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(__CAT__);\n",
+    "node_modules/fakecat/x.txt": "made-up process\n",
+    "vite.config.ts": 'import { execSync } from "node:child_process";\n' +
+      'export default { define: { __CAT__: JSON.stringify(execSync("cat node_modules/fakecat/x.txt", { encoding: "utf8" })) } };\n',
+  });
+  assert.deepEqual(r.made, []);
+  assert.deepEqual(r.failures.map((f) => f.replace(/^MyOrbiter's page: /, "")), [
+    "the build started a process this script doesn't know, whose reads it doesn't hear: cat node_modules/fakecat/x.txt",
+  ]);
+  // MyOrbiter's own config starts one, its build stamp.
+  assert.match(readFileSync("vite.config.ts", "utf8"), new RegExp(`execSync\\("${PROGRAMS.myorbiter.page.commands[0]}"`));
+});
+
+test("a public folder that is a package's, or holds a link into one, is in the page", unix, async () => {
+  const dir = await pageBuild({
+    "src/main.js": "console.log(1);\n",
+    "node_modules/fakepubdir/p.txt": "made-up public folder\n",
+    "vite.config.ts": 'export default { publicDir: "node_modules/fakepubdir" };\n',
+  });
+  assert.deepEqual(dir.made, ["fakepubdir 1.0.0 GPL-3.0"]);
+  assert.deepEqual(dir.failures, []);
+  const linked = await pageBuild({
+    "src/main.js": "console.log(1);\n",
+    "public/own.txt": "the page's own\n",
+    "node_modules/fakepub/p.txt": "made-up public file\n",
+    "node_modules/fakepubtree/d/q.txt": "made-up public folder\n",
+  }, false, { "public/p.txt": "node_modules/fakepub/p.txt", "public/tree": "node_modules/fakepubtree" });
+  assert.deepEqual(linked.made, ["fakepub 1.0.0 GPL-3.0", "fakepubtree 1.0.0 GPL-3.0"]);
+  assert.deepEqual(linked.failures, []);
+});
+
+test("a package the build loads that is no known tool's stops it: the config's import or require, a plugin, a link outside the page; a package's file bundled into the config is in the page", unix, async () => {
+  const outside = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  writeFileSync(join(outside, "package.json"), JSON.stringify({ name: "fakeout", version: "1.0.0", license: "GPL-3.0", type: "module", main: "index.js" }));
+  writeFileSync(join(outside, "index.js"), 'export const out = "made-up outside";\n');
+  try {
+    const r = await pageBuild({
+      "src/main.js": "console.log(__LOADED__, __REQUIRED__, __BUNDLED__, __REL__, __OUT__);\n",
+      "node_modules/fakeloaded/index.js": 'export const text = "made-up loaded";\n',
+      "node_modules/fakerequired/data.json": '{"m":"made-up required"}\n',
+      "node_modules/fakebundled/d.json": '{"m":"made-up bundled"}\n',
+      "node_modules/fakerel/index.js": 'export const rel = "made-up relative";\n',
+      "node_modules/fakeplugin/index.js": 'export default () => ({ name: "made-up-plugin" });\n',
+      "vite.config.ts": 'import { text } from "fakeloaded";\nimport plugin from "fakeplugin";\nimport { createRequire } from "node:module";\n' +
+        'import bundled from "fakebundled/d.json" with { type: "json" };\nimport { rel } from "./node_modules/fakerel/index.js";\nimport { out } from "fakeout";\n' +
+        'const required = createRequire(import.meta.url)("fakerequired/data.json");\n' +
+        "export default { plugins: [plugin()], define: { __LOADED__: JSON.stringify(text), __REQUIRED__: JSON.stringify(required.m), __BUNDLED__: JSON.stringify(bundled.m), __REL__: JSON.stringify(rel), __OUT__: JSON.stringify(out) } };\n",
+    }, false, { "node_modules/fakeout": outside });
+    assert.deepEqual(r.made, ["fakebundled 1.0.0 GPL-3.0", "fakerel 1.0.0 GPL-3.0"]);
+    const loaded = r.failures.map((f) => / loaded (?:the package in )?(\S+?),/.exec(f)?.[1]?.replace(/.*\/node_modules\//, "").replace(/.*\/(dependency-licences-[^/]+)\/index\.js$/, "outside")).sort();
+    assert.deepEqual(loaded, ["fakeloaded", "fakeplugin", "fakerequired", "outside"]);
+    assert.equal(r.failures.length, 4);
+  } finally {
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("the build's known tools are the page's own, with every package they use, and peer dependencies left to the page", () => {
+  const tools = knownTools(process.cwd(), PROGRAMS.myorbiter.page.tools);
+  const has = (name: string) => [...tools].some((d) => d.endsWith(`/node_modules/${name}`));
+  for (const name of ["vite", "@sveltejs/vite-plugin-svelte", "svelte", "rolldown", "lightningcss", "vitefu", "acorn"]) assert.ok(has(name), name);
+  // A page's own packages that no tool uses, and the preprocessors (a peer of Vite's), are not tools.
+  for (const name of ["@fontsource/ibm-plex-mono", "@tauri-apps/api", "sass", "less"]) assert.ok(!has(name), name);
+  assert.deepEqual(PROGRAMS.tennoscope.page.tools, ["vite", "vitest", "@vitejs/plugin-react"]);
+  assert.match(readFileSync("tennoscope/app/vite.config.ts", "utf8"), /from 'vitest\/config'\nimport react from '@vitejs\/plugin-react'\n/);
 });
 
 test("a page with a CSS preprocessor installed stops: it reads what a style imports out of sight", unix, async () => {
@@ -490,6 +704,29 @@ test("a page with a CSS preprocessor installed stops: it reads what a style impo
     assert.ok(PREPROCESSORS.includes("sass-embedded"));
   } finally {
     rmSync(repo, { recursive: true, force: true });
+  }
+});
+
+test("under pnpm's layout, a CSS preprocessor only another package depends on stops it too, where Vite would find it", unix, async () => {
+  // A made-up pnpm layout: the page's node_modules/vite links into the hidden store; a preprocessor
+  // that only another package depends on sits beside Vite in its store folder, or in the store's
+  // shared node_modules/.pnpm/node_modules, both found from Vite's own folder, not the page's.
+  for (const [where, name] of [["node_modules/.pnpm/node_modules", "sass"], ["node_modules/.pnpm/vite@8.3.5/node_modules", "less"]]) {
+    const repo = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+    const app = join(repo, "tennoscope", "app");
+    const store = join(app, "node_modules", ".pnpm", "vite@8.3.5", "node_modules", "vite");
+    mkdirSync(join(store, "dist", "node"), { recursive: true });
+    writeFileSync(join(store, "package.json"), '{"name":"vite","version":"8.3.5"}');
+    symlinkSync(store, join(app, "node_modules", "vite"));
+    mkdirSync(join(app, where, name), { recursive: true });
+    writeFileSync(join(app, where, name, "package.json"), `{"name":"${name}","version":"1.0.0"}`);
+    try {
+      const page = await readPage("tennoscope", repo);
+      assert.deepEqual(page.packages, []);
+      assert.deepEqual(page.failures, [`TennoScope's page: a CSS preprocessor is installed for it (${name}), which reads what a style imports where this script can't see, so the page can't be read`]);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   }
 });
 
