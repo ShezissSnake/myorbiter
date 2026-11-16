@@ -61,12 +61,13 @@ Not shown to the guard, and left to the checks' browser, which resolves no name 
 - speculation-rules prefetch and prerender (`<script type=speculationrules>`);
 - a connection or name lookup made ahead of any request (`<link rel=preconnect>`, `dns-prefetch`).
 
-In probes that rule held each of these, and none was counted, so a run with one would pass. An
-address written as numbers, other than `127.0.0.1`, was not probed against that rule. The demo's
-pages cause none of these today.
+None of these is counted, so a run with one would pass. In probes that rule held the redirects
+and the speculation rules (with it off, they reached another host); a preconnect made no
+connection with the rule on or off. Not probed: `dns-prefetch`, and an address written as
+numbers, other than `127.0.0.1`, against that rule. The demo's pages use none of these today.
 
 A picture the cache lacks is not fetched: the run lists it by address and fails, and keeps its
-address for the fill step. That step is the one part that fetches: by GET, from those two hosts
+address for the fill step. That step is the one part written to fetch: by GET, from those two hosts
 only, only addresses shaped as the demo's are, a few at a time, each with a time and size limit.
 It is run by hand:
 

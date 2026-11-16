@@ -22,9 +22,11 @@
 // - speculation-rules prefetch and prerender (`<script type=speculationrules>`);
 // - a connection or name lookup made ahead of any request (`<link rel=preconnect>`,
 //   `dns-prefetch`).
-// In probes the launch rule held each of these, and none of them was counted: a run with one
-// passes. Not probed: an address written as numbers, other than 127.0.0.1, against the launch
-// rule. The demo's pages cause none of these today.
+// None of them is counted: a run with one passes. In probes the launch rule held the redirects
+// and the speculation rules (with it off, they reached another host); a preconnect made no
+// connection with the rule on or off. Not probed: `dns-prefetch`, and an address written as
+// numbers, other than 127.0.0.1, against the launch rule. The demo's pages use none of these
+// today.
 //
 // No printed line names the home folder, the repository's folder, this cache's, Playwright's
 // browsers' (when PLAYWRIGHT_BROWSERS_PATH is set) or the temporary folder (when it isn't /tmp):
@@ -34,11 +36,11 @@
 // Node before this helper loads, and that error prints its full path. Another path an error names
 // is not hidden.
 //
-// A request the cache can't answer is refused and its address kept in the cache's wanted list.
-// One step, run by hand, fetches what that list holds and the cache hasn't got, by GET, from those
-// two hosts only and only addresses of the two shapes the demo uses (SHAPES), a few at a time with
-// a pause, each with a time limit and a size limit, and is the only part of the checks that
-// contacts a host:
+// A picture request the guard is shown and the cache can't answer is refused and its address kept
+// in the cache's wanted list. One step, run by hand, fetches what that list holds and the cache
+// hasn't got, by GET, from those two hosts only and only addresses of the two shapes the demo uses
+// (SHAPES), a few at a time with a pause, each with a time limit and a size limit, and is the only
+// part of the checks written to fetch:
 //
 //   node scripts/picture-cache.mjs --fill
 //
@@ -69,7 +71,7 @@ export const SHAPES = {
 };
 /** The fill step, as a run's messages name it. */
 export const FILL = "node scripts/picture-cache.mjs --fill";
-/** Chromium resolves no host name but localhost: whatever no route answers can't leave the machine. */
+/** Chromium resolves no host name but localhost: what the head comment leaves to it is held by this. */
 export const LAUNCH_ARGS = ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE localhost"];
 /** The fill step's limits for one address: the time to the end of its body, and the body's size. */
 const FETCH_MS = 30_000;
