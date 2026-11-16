@@ -41,7 +41,50 @@ Or use the invented account in `demo/` (the one in the screenshots), with no dat
 (`demo/dev-worldstate.json`) and asks no world-state service, so the screenshots
 (`npm run screenshots`), the help pictures and their check (`npm run screenshots -- --only help
 [--check]`) and the sweep (`npm run sweep`) see the same world on every run, online or not; each of
-them stops and counts any world-state request, and fails if there was one.
+them stops and counts a world-state request its pages' routes are shown, and fails if there was
+one.
+
+Those checks are built to contact no host. The item pictures the demo's pages show (WFCD's, from
+raw.githubusercontent.com) and Rivens' weekly file (www-static.warframe.com) come from a cache
+outside the repository, `myorbiter-check-pictures` in `$XDG_CACHE_HOME` (by default `~/.cache`).
+The checks' guard (`scripts/picture-cache.mjs`) is shown the requests and `WebSocket` objects of
+a page, its frames and the windows it opens, through Playwright's routes: one to `localhost` goes
+through, a picture or the riven file is answered from the cache, and one to another host is
+refused, counted and fails the run. Before a page's own scripts run, the ones taken of what could
+reach the network past a route (a worker, a shared worker, a service worker, WebTransport, a peer
+connection) are taken from it, and using one is refused, counted and fails the run too; the
+checks' pages use none. A run that refused none ends with `requests outside this machine, 0`.
+
+Not shown to the guard, and left to the checks' browser, which resolves no name but `localhost`:
+
+- a redirect from `localhost` that the browser follows (a route sees only a request's first
+  address);
+- speculation-rules prefetch and prerender (`<script type=speculationrules>`);
+- a socket opened with `WebSocketStream` (Playwright's WebSocket routing replaces only the
+  `WebSocket` constructor);
+- a connection or name lookup made ahead of any request (`<link rel=preconnect>`, `dns-prefetch`).
+
+None of these is counted, so a run with one would pass. In probes that rule held the redirects,
+the speculation rules and the `WebSocketStream` (with it off, they reached another host); a
+preconnect made no connection with the rule on or off. Not probed: `dns-prefetch`; an address
+written as numbers, other than `127.0.0.1`, against that rule; a proxy (none is passed at launch,
+so one from the environment or the desktop could carry these past the rule); reports the browser
+sends by itself (`Report-To`, `NEL`, a CSP `report-uri`); and a page icon on another host. The
+demo's pages use none of these today.
+
+A picture the cache lacks is not fetched: the run lists it by address and fails, and keeps its
+address for the fill step. That step is the one part written to fetch: by GET, from those two hosts
+only, only addresses shaped as the demo's are, a few at a time, each with a time and size limit.
+It is run by hand:
+
+```fish
+node scripts/picture-cache.mjs --fill
+```
+
+Each check shows pictures of its own, so on a new machine each one can need a fill: run the check
+(it lists what it lacks), fill, and run it again. Nothing in the cache expires. To renew it (WFCD
+changed a picture, or a new week's riven file is wanted), delete the folder, run each check once,
+fill, and run them again.
 
 ## Tests
 

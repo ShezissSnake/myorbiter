@@ -74,8 +74,12 @@ cd - && node scripts/demo-data.mjs /tmp/wfcd/package
 api.warframestat.us answers, with invented values (see "The world state" above). Edit it directly;
 keep its times as of `meta.json`'s `now`.
 
-Still read from the network in the demo: item pictures (raw.githubusercontent.com). Without the
-network they are left blank and everything else is the same.
+Still read from the network in the demo: item pictures (raw.githubusercontent.com) and, on Rivens,
+Digital Extremes' weekly riven file (www-static.warframe.com). Without the network the pictures are
+left blank, Rivens lacks its "Traded in game" figures, and everything else is the same. The
+screenshots, the help pictures, their check and the sweep read both from a cache on disk instead,
+and are built to contact no host (`docs/development.md` says what that holds and what it leaves
+to the browser).
 
 ## @wfcd/items's licence
 
