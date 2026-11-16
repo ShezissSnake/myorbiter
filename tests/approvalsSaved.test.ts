@@ -46,6 +46,15 @@ test("a step back: the saved file still holds every approval per key, as an olde
   assert.deepEqual(raw.market.floors["ay||"], 20, "the empty sculpture's floor, read by an older build for every Anasa listing, as before");
 });
 
+test("a floor typed on a relic row with no refinement, and the keys that mark its raise, come back after a save and a start", async () => {
+  const s = withApprovals();
+  const floors = { "r||": 45, "r||intact": 45, "r||#raised": 45, "r||#before": 30 };
+  s.market.floors = { ...floors };
+  saveSettings(() => joinSettings(JSON.stringify(lightSettings(s)), {}));
+  await flushSettings();
+  assert.deepEqual((await loadSettings()).market.floors, floors);
+});
+
 test("the approvals of listings a read ended come back after a save and a start", async () => {
   const s = withApprovals();
   const gone = { a: { key: "it||", platinum: 100, by: "me|pc", at: 1 } };
