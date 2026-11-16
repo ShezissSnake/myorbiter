@@ -310,21 +310,33 @@ test("a page module's package folder, with npm's layout, pnpm's and Windows path
 
 // ---------------------------------------------------------------- what the page's build reads
 
-test("a file of a package read through fs is in the page; its package.json and Node loading a tool are not", () => {
+test("a file of a package read through fs is in the page; a tool finding its files and Node loading a tool are not", () => {
   const r = pageRecorder("/r");
-  const builder = "Error\n    at x (file:///r/node_modules/vite/dist/node/chunks/node.js:1:1)";
-  const loader = "Error\n    at getSourceSync (node:internal/modules/esm/load:45:17)";
+  // The stack from the frame that called fs on.
+  const builder = "    at x (file:///r/node_modules/vite/dist/node/chunks/node.js:1:1)";
+  const loader = "    at getSourceSync (node:internal/modules/esm/load:45:17)\n    at defaultLoadSync (node:internal/modules/esm/load:161:34)";
+  // A config read while Node runs it: the reader is the config, with Node's loader only below it.
+  const config = "    at file:///r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs:3:9\n    at ModuleJob.run (node:internal/modules/esm/module_job:271:25)";
   r.read("/r/node_modules/fakesv/s.css", builder);
   r.read("/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", builder);
   r.read("C:\\r\\node_modules\\winpkg\\f.woff2", builder);
   r.read("/r/node_modules/resolved-only/package.json", builder);
+  r.read("/r/node_modules/crawled-only/package.json", "    at readJson (file:///r/node_modules/vitefu/src/index.js:303:30)");
+  // fs's own functions calling each other: the outer call is the one counted.
+  r.read("/r/node_modules/a-tool/dist/other.js", "    at Object.readFileSync (node:fs:444:35)\n    at obj.<computed> [as readFileSync] (file:///x.mjs:1:1)");
   r.read("/r/node_modules/a-tool/dist/index.js", loader);
   r.read("/r/node_modules/.modules.yaml", builder);
+  r.read("/r/node_modules/.vite-temp/vite.config.ts.timestamp-1.mjs", loader);
+  r.read("/r/node_modules/fakedef/x.txt", config);
+  // A package.json read by anything but Vite's resolver: the config, putting it into the page.
+  r.read("/r/node_modules/fakepj/package.json", config);
   r.read("/r/src/app.css", builder);
   assert.deepEqual([...r.rendered].map(([d, how]) => [d, [...how]]), [
     ["/r/node_modules/fakesv", ["file"]],
     ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["file"]],
     ["C:/r/node_modules/winpkg", ["file"]],
+    ["/r/node_modules/fakedef", ["file"]],
+    ["/r/node_modules/fakepj", ["file"]],
   ]);
 });
 
@@ -374,9 +386,11 @@ const pageBuild = async (files: Record<string, string>, svelte = false) => {
   writeFileSync(join(repo, "package.json"), '{"type":"module"}\n');
   writeFileSync(join(repo, "package-lock.json"), JSON.stringify(lock));
   if (!files["index.html"]) writeFileSync(join(repo, "index.html"), '<!doctype html><html><body><script type="module" src="/src/main.js"></script></body></html>\n');
-  writeFileSync(join(repo, "vite.config.ts"), svelte
-    ? 'import { svelte } from "@sveltejs/vite-plugin-svelte";\nexport default { plugins: [svelte()] };\n'
-    : "export default {};\n");
+  if (!files["vite.config.ts"]) {
+    writeFileSync(join(repo, "vite.config.ts"), svelte
+      ? 'import { svelte } from "@sveltejs/vite-plugin-svelte";\nexport default { plugins: [svelte()] };\n'
+      : "export default {};\n");
+  }
   if (svelte) writeFileSync(join(repo, "svelte.config.js"), 'import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\nexport default { preprocess: vitePreprocess() };\n');
   try {
     const page = await readPage("myorbiter", repo);
@@ -448,6 +462,19 @@ test("a package a worker of the page imports is in the page", unix, async () => 
     "node_modules/fakeworker/index.js": 'export const work = () => "made-up " + Math.random();\n',
   });
   assert.deepEqual(r.made, ["fakeworker 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a package's file the page's own config reads into the page is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(__MADE_UP__, __MADE_UP_VERSION__);\n",
+    "node_modules/fakedef/x.txt": "made-up words\n",
+    "node_modules/fakepj/index.js": "export {};\n",
+    "vite.config.ts": 'import { readFileSync } from "node:fs";\nexport default { define: {\n' +
+      '  __MADE_UP__: JSON.stringify(readFileSync("node_modules/fakedef/x.txt", "utf8")),\n' +
+      '  __MADE_UP_VERSION__: JSON.stringify(JSON.parse(readFileSync("node_modules/fakepj/package.json", "utf8")).version),\n} };\n',
+  });
+  assert.deepEqual(r.made, ["fakedef 1.0.0 GPL-3.0", "fakepj 1.0.0 GPL-3.0"]);
   assert.deepEqual(r.failures, []);
 });
 

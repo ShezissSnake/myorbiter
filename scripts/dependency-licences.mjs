@@ -384,7 +384,7 @@ export function packageDir(id) {
   if (i < 0) return null;
   const rest = clean.slice(i + "/node_modules/".length).split("/");
   const n = rest[0].startsWith("@") ? 2 : 1;
-  if (rest.length <= n || rest[0] === ".pnpm") return null;
+  if (rest.length <= n || rest[0].startsWith(".")) return null; // .pnpm, .vite-temp: not a package
   return clean.slice(0, i + "/node_modules/".length) + rest.slice(0, n).join("/");
 }
 
@@ -433,10 +433,13 @@ export const PREPROCESSORS = ["sass", "sass-embedded", "less", "stylus"];
  *   every file the build emits, by the file it came from; in the page's build and in every worker
  *   Vite builds for it.
  * - `read(path, stack)` is called for every file the build reads through Node's `fs` (readPage
- *   listens to `fs` while the build runs). Every file of a package read that way, but for its
- *   package.json and what Node itself loads as code to run the build (seen in `stack`), is taken
- *   to be in the page: a style's `@import` (a page's stylesheet, a component's `<style>`, a CSS
- *   module's `composes`), a file a style, the code or index.html inlines as a data: URL, an asset.
+ *   listens to `fs` while the build runs; `stack` starts at the frame that called `fs`). Every
+ *   file of a package read that way is taken to be in the page: a style's `@import` (a page's
+ *   stylesheet, a component's `<style>`, a CSS module's `composes`), a file a style, the code or
+ *   index.html inlines as a data: URL, an asset, what the page's config reads. But for two
+ *   readers: a tool of the build (code in a package) reading a package.json, to find a package's
+ *   files, and Node's loader reading a tool's code to run it (the caller is the loader, not code
+ *   it runs).
  * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
  * helpers; a module that is neither the page's own (under `root`) nor a package's is `unknown`.
  * `unheard()` names each file the build emitted as a file of its own (not its code, styles or
@@ -458,8 +461,15 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
     heard.add(clean);
     const dir = packageDir(clean);
     if (!dir) return;
-    if (clean.slice(dir.length) === "/package.json") return; // what a resolver reads to find files
-    if (/node:internal\/modules\//.test(stack)) return; // Node loading a tool's own code
+    const caller = norm(stack.split("\n")[0] ?? "");
+    // The file the calling code is in: "at f (file:///a/b.js:1:2)", "at /a/b.js:1:2".
+    const where = /(?:file:\/\/)?(\/?[A-Za-z]:\/[^():]*|\/[^():]*):\d+:\d+\)?$/.exec(caller)?.[1]?.replace(/^\/(?=[A-Za-z]:\/)/, "") ?? "";
+    // A tool of the build (a package's own code) reading a package.json, to find a package's files.
+    if (clean.slice(dir.length) === "/package.json" && packageDir(where)) return;
+    // Node's loader reading a tool's own code to run it.
+    if (/^\s*at .*node:internal\/modules\//.test(caller)) return;
+    // One of fs's functions calling another (readFileSync opens the file): the first call counted.
+    if (/^\s*at .*\(node:(fs|internal\/fs\/[^:]*):\d+:\d+\)$/.test(caller)) return;
     mark(dir, "file");
   };
   const transform = (_code, id) => {
@@ -522,7 +532,8 @@ function listenOnce() {
         if (path) {
           const limit = Error.stackTraceLimit;
           Error.stackTraceLimit = 50;
-          const stack = new Error().stack ?? "";
+          // From the frame that called fs on: the first line is the caller.
+          const stack = (new Error().stack ?? "").split("\n").slice(2).join("\n");
           Error.stackTraceLimit = limit;
           reading(path, stack);
         }

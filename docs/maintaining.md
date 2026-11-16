@@ -192,9 +192,10 @@ the page when its code is in the page's code (or a worker's), when one of its st
 into the page, when the build emits one of its files, or when the build reads one of its files
 through Node's `fs` while it runs. That last one takes in what a style `@import`s or `composes`
 from, in a stylesheet or a component's `<style>`, and every small file Vite inlines as a `data:`
-address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`). A
-package's `package.json`, read to find its files, and what Node loads as code to run the build
-aren't counted. Each package found is listed and gated like any other.
+address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`), or
+whatever the page's own config reads. Two readers aren't counted: a tool of the build (Vite, a
+plugin) reading a package's `package.json` to find its files, and Node's loader reading a tool's
+code to run it. Each package found is listed and gated like any other.
 
 It stops as well when:
 
