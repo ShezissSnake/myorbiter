@@ -61,6 +61,7 @@ import synergies from "../../data/loadout-synergies.json";
 import { idealRiven, rivenFit, rivensFor, type IdealRiven, type RivenFit, type RivenMarketData } from "./riven";
 import { availabilityOf, availabilityRank, hardDonorOf, type Availability } from "./availability";
 import { modFits } from "./gear";
+import { entryFor } from "./match";
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -145,6 +146,11 @@ export interface Suggestion extends Build {
   /** Display names, parallel to the paths above, so a page can show them without a lookup. */
   names: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] };
   upgrades: Upgrade[];
+  /**
+   * The aura or stance shown in its slot though the player doesn't own it: marked as not owned, and
+   * the capacity it would add is left out of `capacity` (tierOf's `uncounted` does the same).
+   */
+  uncounted: ("aura" | "stance")[];
   note: string;
   /** Warframes only: what goes around the build (shards, Helminth, support weapons, arcanes, companion, Focus). */
   loadout?: Loadout;
@@ -282,12 +288,16 @@ export type Owned = Map<string, number>;
 
 // The catalog repeats some names: the starter copies (/Beginner/, /Intermediate/), unreleased
 // /Expert/ copies of ordinary mods (Primed mods also live under /Expert/, under their own names),
-// Focus and Railjack nodes. The canonical copy is the plain one; these are the two exceptions.
-const CANONICAL: Record<string, string> = {
-  Adaptation: "/Lotus/Upgrades/Mods/Warframe/AvatarResistanceOnDamageMod",
-  "Pressure Point": "/Lotus/Upgrades/Mods/Melee/WeaponMeleeDamageMod",
-};
-const SECONDARY_COPY = /\/(Beginner|Intermediate|Expert)\//;
+// copies kept for a system of their own (the Nemesis Adaptation), entries the game doesn't show
+// (a second Pressure Point), Focus and Railjack nodes. Which one a name means is match.ts's rule
+// (entryFor), the same as for pasted builds and the editor.
+
+/**
+ * The aura a New player suggestion shows when the player owns none and the one the frame wants is
+ * not a New player's: new players have access to it (its availability is an override in
+ * mod-availability.json, since no drop table lists it).
+ */
+export const STARTER_AURA = "Dreamer's Bond";
 
 export function modIndex(catalog: CatalogItem[]): ModIndex {
   const byName = new Map<string, CatalogItem>();
@@ -295,15 +305,17 @@ export function modIndex(catalog: CatalogItem[]): ModIndex {
   const stances = new Map<string, CatalogItem[]>();
   const auras: CatalogItem[] = [];
   let utilityKnown = false;
-  const rank = (x: CatalogItem) => (CANONICAL[x.name] === x.uniqueName ? -1 : SECONDARY_COPY.test(x.uniqueName) ? 1 : 0);
+  const same = new Map<string, CatalogItem[]>();
   for (const x of catalog) {
     if (x.category !== "Mods" && x.category !== "Arcanes") continue;
     if (x.type === "Focus Way" || x.type === "Plexus Mod" || x.type === "Railjack Mod") continue;
     byPath.set(x.uniqueName, x);
     if (x.isUtility === true) utilityKnown = true;
-    const had = byName.get(x.name);
-    if (!had || rank(x) < rank(had)) byName.set(x.name, x);
+    const list = same.get(x.name);
+    if (list) list.push(x);
+    else same.set(x.name, [x]);
   }
+  for (const [name, list] of same) byName.set(name, entryFor(list)!);
   for (const x of byName.values()) {
     if (x.type !== "Stance Mod" || !x.compatName) continue;
     const list = stances.get(x.compatName) ?? [];
@@ -1250,11 +1262,16 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     if (!upgrades.some((u) => u.path === m.uniqueName)) upgrades.push({ name: m.name, path: m.uniqueName, replaces, reason });
   };
 
-  // Aura(s), stance, exilus: owned only; the better ones become upgrades.
+  // Aura(s), stance, exilus: an owned one is used and counted; the better ones become upgrades. An
+  // aura or stance slot nothing owned fills shows the one to get, marked as not owned, and the
+  // capacity it would add is left out until it is owned (`uncounted`): the mods fit without it.
   const slotPols = Array.from({ length: layout.mods }, (_, k) => polarityOf(item.polarities?.[k]));
   const rawAura = item.aura as unknown;
   const auraPols: (Polarity | null)[] = Array.isArray(rawAura) ? rawAura.map(polarityOf) : [polarityOf(rawAura)];
   const auras: { mod: CatalogItem; why: string; pol: Polarity | null }[] = [];
+  let unownedAura: { mod: CatalogItem; why: string } | null = null;
+  let unownedStance: { mod: CatalogItem; why: string } | null = null;
+  const notCounted = (m: CatalogItem, slot: Polarity | null) => ` It isn't in your inventory yet, so the capacity it adds isn't counted: ${bonusIn(m, m.maxRank ?? 0, slot)} more once you have it.`;
   const usable = (m: CatalogItem) => owned.has(m.uniqueName) && allowedAt(m, tier);
   if (layout.aura && info) {
     const a = frameAura(info, variant);
@@ -1275,7 +1292,16 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
         : `${m.name}: an aura you hold, for the capacity it adds (${bonusIn(m, m.maxRank ?? 0, auraPols[k] ?? null)} in this slot); ${a.chain[0]} would suit the frame better.`;
       auras.push({ mod: m, why, pol: auraPols[k] ?? null });
     }
-    if (best && !owned.has(best.uniqueName)) addUpgrade(best, auras[0]?.mod.name ?? null, a.why);
+    if (auras.length) {
+      if (best && !owned.has(best.uniqueName)) addUpgrade(best, auras[0].mod.name, a.why);
+    } else if (best) {
+      // None owned: the one the frame wants, shown in its slot (so not also an upgrade).
+      unownedAura = { mod: best, why: `${a.why}${notCounted(best, slotPol)}` };
+    } else if (tier === "low") {
+      // A new player's slot would stay empty: Dreamer's Bond, the aura new players have access to.
+      const starter = index.byName.get(STARTER_AURA);
+      if (starter && allowedAt(starter, tier)) unownedAura = { mod: starter, why: `${STARTER_AURA}: an aura new players have access to, and any aura adds capacity.${notCounted(starter, slotPol)}` };
+    }
   }
   let stance: { mod: CatalogItem; why: string } | null = null;
   const stanceSlot = polarityOf(item.stancePolarity);
@@ -1285,7 +1311,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     const mine = all.filter((m) => owned.has(m.uniqueName));
     const on = (m: CatalogItem) => (stanceSlot && matches(stanceSlot, modPolarity(m)) ? ` It matches the stance slot's ${POL_NAME[stanceSlot]} polarity, so it adds twice the capacity.` : "");
     if (mine.length) stance = { mod: mine[0], why: `A ${meleeClass} stance: pick whichever you like to play; it mostly adds capacity.${on(mine[0])}` };
-    else if (all[0]) addUpgrade(all[0], null, `Any ${meleeClass} stance: it adds capacity and combos.${on(all[0])}`);
+    else if (all[0]) unownedStance = { mod: all[0], why: `Any ${meleeClass} stance: it adds capacity and combos.${on(all[0])}${notCounted(all[0], stanceSlot)}` };
   }
   let exilus: { mod: CatalogItem; why: string } | null = null;
   if (doubled && layout.exilus) {
@@ -1509,20 +1535,25 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     reasons: { mods: modReasons, arcanes: arcaneReasons },
     names: { mods: modNames, arcanes: arcaneNames },
     upgrades,
+    uncounted: [],
     note: "",
     tags: [...variant.tags],
     variant: { id: variant.id, label: variant.label },
   };
-  if (auras[0]) {
-    s.aura = { path: auras[0].mod.uniqueName };
-    s.reasons.aura = auras[0].why;
-    s.names.aura = auras[0].mod.name;
+  const shownAura = auras[0] ?? unownedAura;
+  if (shownAura) {
+    s.aura = { path: shownAura.mod.uniqueName };
+    s.reasons.aura = shownAura.why;
+    s.names.aura = shownAura.mod.name;
   }
-  if (stance) {
-    s.stance = { path: stance.mod.uniqueName };
-    s.reasons.stance = stance.why;
-    s.names.stance = stance.mod.name;
+  const shownStance = stance ?? unownedStance;
+  if (shownStance) {
+    s.stance = { path: shownStance.mod.uniqueName };
+    s.reasons.stance = shownStance.why;
+    s.names.stance = shownStance.mod.name;
   }
+  if (!auras[0] && unownedAura) s.uncounted.push("aura");
+  if (!stance && unownedStance) s.uncounted.push("stance");
   if (exilus) {
     s.exilus = { path: exilus.mod.uniqueName };
     s.reasons.exilus = exilus.why;
@@ -2119,7 +2150,7 @@ export function suggestionNames(): string[] {
     add(frameExilus(frame).chain);
     add(frameArcanes(frame).chain);
   }
-  add(["Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge"]);
+  add(["Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge", STARTER_AURA]);
   const fakeSentinel = { category: "Sentinels", uniqueName: "", name: "" } as CatalogItem;
   const fakeBeast = { category: "Pets", uniqueName: "", name: "" } as CatalogItem;
   for (const p of [...companionPicks(fakeSentinel), ...companionPicks(fakeBeast), ...archwingPicks(), ...necramechPicks({ name: "Bonewidow", uniqueName: "" } as CatalogItem), ...necramechPicks({ name: "Voidrig", uniqueName: "" } as CatalogItem)]) add(p.chain);

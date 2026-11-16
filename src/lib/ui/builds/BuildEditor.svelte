@@ -9,7 +9,7 @@
   import type { Model } from "../../core/model";
   import type { CatalogItem } from "../../core/types";
   import { heldCount } from "../../core/model";
-  import { arcaneFits, matchName, modFits, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
+  import { matchName, nameIndex, newBuildId, SHARD_COLOURS, slotLayout, slotNames, tierOf, type Build, type BuildMod, type BuildShard, type GearKind, type ShardColour, type Unmatched } from "../../core/builds";
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
   import ModGrid from "./ModGrid.svelte";
@@ -66,25 +66,10 @@
   // svelte-ignore state_referenced_locally
   let note = $state(build.source === "orbiter" ? "" : (build.note ?? ""));
 
-  // What each slot's list offers: the names that fit this item, by kind of slot.
-  const names = (() => {
-    const out: Record<Role, Set<string>> = { aura: new Set(), exilus: new Set(), stance: new Set(), mod: new Set(), arcane: new Set() };
-    for (const list of idx.byName.values()) {
-      const c = list.find((x) => !/\/(PvPMods|Beginner|Intermediate|Expert\/.*Beginner)\//.test(x.uniqueName)) ?? list[0];
-      if (c.category === "Arcanes") {
-        if (layout.arcanes && arcaneFits(c, item, kind).fits !== false) out.arcane.add(c.name);
-        continue;
-      }
-      if (modFits(c, item, kind).fits === false) continue;
-      if ((c.compatName ?? "").toUpperCase() === "AURA") out.aura.add(c.name);
-      else if (c.type === "Stance Mod") out.stance.add(c.name);
-      else {
-        out.mod.add(c.name);
-        out.exilus.add(c.name);
-      }
-    }
-    return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, [...v].sort()])) as Record<Role, string[]>;
-  })();
+  // What each slot's list offers: the names that fit this item, by kind of slot, each read as the
+  // entry the name means (the same rule as pasting and MyOrbiter's suggestions).
+  // svelte-ignore state_referenced_locally
+  const names = slotNames(idx, item, kind, layout.arcanes > 0);
   const listId = (r: Role) => `be-${r}`;
 
   function commit(s: Slot) {

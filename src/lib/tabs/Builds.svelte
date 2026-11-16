@@ -189,7 +189,7 @@
   const savedAll = $derived(pick ? buildsFor(settings.builds, pick).filter((b) => !isOverframe(b)) : []);
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
-  // MyOrbiter's suggestions: from the mods you hold, for each tier, in the variant picked on its card.
+  // MyOrbiter's suggestions: from the mods you hold (an aura or stance to get shown, uncounted), for each tier, in the variant picked on its card.
   const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
   const owns = $derived(ownedFrom(rows));
   /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */
@@ -236,6 +236,8 @@
     }
   });
   const suggested = $derived(Object.fromEntries(Object.entries(suggestions).map(([t, s]) => [t, toBuild(s, now) as unknown as Build])) as Partial<Record<Tier, Build>>);
+  /** A suggestion's aura or stance the player doesn't own: shown, not counted (by the build shown). */
+  const uncountedOf = $derived(new Map(TIERS.flatMap((t) => (suggested[t] && suggestions[t]?.uncounted.length ? [[suggested[t]!, suggestions[t]!.uncounted] as const] : []))));
 
   // A network source's builds (Nox's Frame, when it's on): read once per item, on choosing it, with
   // no age limit (the page hides old ones itself, so "show" needs no second read).
@@ -297,7 +299,7 @@
   const tiers = new WeakMap<Build, TierResult>();
   const tierFor = (b: Build): TierResult => {
     let t = tiers.get(b);
-    if (!t && item && kind) tiers.set(b, (t = tierOf(b, item, model.catalogByUnique, kind)));
+    if (!t && item && kind) tiers.set(b, (t = tierOf(b, item, model.catalogByUnique, kind, { uncounted: uncountedOf.get(b) })));
     return t!;
   };
   let reportsOf = $state.raw(new WeakMap<Build, MissingReport>());

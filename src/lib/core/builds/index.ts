@@ -53,9 +53,9 @@
 
 export * from "./types";
 export { gearKindOf, slotLayout, modFits, arcaneFits, arcaneNeedsAdapter, rankWith, usesReactor, doublerName, doublerShort, FORTY_BY_FORMA, NECRAMECH_RANK, type SlotLayout } from "./gear";
-export { normName, nameIndex, matchName, suggest, type NameIndex, type Matched, type Unmatched, type MatchResult, type MatchVia } from "./match";
+export { normName, nameIndex, matchName, suggest, entryFor, entryPenalty, rankEntries, slotNames, type NameSlot, type NameIndex, type Matched, type Unmatched, type MatchResult, type MatchVia } from "./match";
 export { parsePaste, type PasteResult, type PasteOptions, type ReadName, type SlotRole } from "./parse";
-export { tierOf, capacityOf, tierAllows, tierOfAvailability, drainIn, bonusIn, matches, TIERS, TIER_LABEL, CAPACITY_LABEL, TIER_AVAILABILITY, type Tier, type TierResult, type TierLimit, type CapacityResult, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
+export { tierOf, capacityOf, tierAllows, tierOfAvailability, drainIn, bonusIn, matches, TIERS, TIER_LABEL, CAPACITY_LABEL, TIER_AVAILABILITY, type Tier, type TierResult, type TierLimit, type CapacityResult, type CountOptions, type FormaStep, type SlotDrain, type SlotRef } from "./capacity";
 export { availability, availabilityOf, availableAt, availabilityRank, laterOf, sourceLevel, dropsLevel, hardDonorOf, AVAILABILITIES, AVAILABILITY_LABEL, AVAILABILITY_SOURCES, type Availability, type AvailabilityInfo, type AvailabilityRule } from "./availability";
 export { TAGS, NOX_TAGS, TAG_FAMILY, TAG_FAMILIES, familyOfTag, byFamily, canonicalTag, tagsInText, onlyTags, type TagFamily } from "./tags";
 export { missing, bestCopy, endoCost, ENDO_BASE, PATHS, SHARD_PATH, shardPath, type MissingReport, type MissingLine, type MissingKind, type Have } from "./missing";

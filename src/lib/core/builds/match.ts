@@ -95,8 +95,22 @@ export interface Unmatched {
 
 export type MatchResult = Matched | Unmatched;
 
-/** Which of a name's catalog entries is meant: the plain PvE one, the Flawed one when asked. */
-function penalty(c: CatalogItem, flawed: boolean): number {
+// ---------------------------------------------------------------- which entry a name means
+
+// The one rule for "which catalog entry does this name mean", used wherever a name becomes a path:
+// pasted text and the editor (matchName), the editor's list of names, and MyOrbiter's suggestions
+// (suggest.ts's modIndex). Lower is likelier the one players mean.
+
+/**
+ * A stat line left as the game's raw label, not written out for players ("+120% COMBO COUNT
+ * CHANCE"): an entry the game doesn't show. The item data has two "Pressure Point" entries, the
+ * plain one (top rank 5) and `WeaponMeleeDamageOnHeavyKillMod` (top rank 10), and this line is the
+ * only field that tells the second apart.
+ */
+const RAW_LABEL = /^[+-]?\d[\d.]*%? [A-Z]{2,}(?: [A-Z]{2,})+$/;
+
+/** How unlikely an entry is to be the one a name means: the plain PvE one 0, the Flawed one when asked. */
+export function entryPenalty(c: CatalogItem, flawed = false): number {
   const u = c.uniqueName;
   let p = 0;
   if (/\/PvPMods\//.test(u)) p += 100;
@@ -104,12 +118,29 @@ function penalty(c: CatalogItem, flawed: boolean): number {
   if (/\/Intermediate\//.test(u)) p += 40;
   if (/\/Expert\//.test(u)) p += 30;
   if (c.excludeFromCodex) p += 5;
-  // Placeholder text ("|ARMOUR| Armor"): an entry the game hasn't released.
-  if ((c.maxStats ?? []).some((x) => /\|[A-Z_]+\|/.test(x))) p += 20;
+  // Placeholder text ("|ARMOUR| Armor") or a raw label: an entry the game hasn't released or doesn't show.
+  if ((c.maxStats ?? []).some((x) => /\|[A-Z_]+\|/.test(x) || RAW_LABEL.test(x.trim()))) p += 20;
   // Copies kept for a system of their own (the Sentient "Nemesis" Adaptation, the Tau one).
   if (/\/(Nemesis|Tau)\//.test(u)) p += 3;
   return p;
 }
+
+/**
+ * Same-name entries, likeliest first: by entryPenalty; between equals, the one the player holds
+ * (`held`), then the shortest path, then the path's order.
+ */
+export function rankEntries<T extends CatalogItem>(list: readonly T[], opts: { flawed?: boolean; held?: (path: string) => number } = {}): T[] {
+  const flawed = opts.flawed ?? false;
+  const held = opts.held ?? (() => 0);
+  return [...list].sort((a, b) => entryPenalty(a, flawed) - entryPenalty(b, flawed) || Number(held(b.uniqueName) > 0) - Number(held(a.uniqueName) > 0) || a.uniqueName.length - b.uniqueName.length || a.uniqueName.localeCompare(b.uniqueName));
+}
+
+/** The entry a name means among same-name entries (see rankEntries), or undefined for none. */
+export function entryFor<T extends CatalogItem>(list: readonly T[], opts: { flawed?: boolean; held?: (path: string) => number } = {}): T | undefined {
+  return rankEntries(list, opts)[0];
+}
+
+const penalty = entryPenalty;
 
 function fitOf(c: CatalogItem, item: CatalogItem, kind: GearKind) {
   return c.category === "Arcanes" ? arcaneFits(c, item, kind) : modFits(c, item, kind);
@@ -160,8 +191,9 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
     const why = fitOf(found[0], item, kind).why;
     return { ok: false, text, reason: "wrong-gear", why, suggestions: suggest(key, idx, item, kind, want) };
   }
-  // The plain PvE one; between equals, the one you hold, then the shortest path.
-  fitting.sort((a, b) => penalty(a.c, flawed) - penalty(b.c, flawed) || Number(held(b.c.uniqueName) > 0) - Number(held(a.c.uniqueName) > 0) || a.c.uniqueName.length - b.c.uniqueName.length || a.c.uniqueName.localeCompare(b.c.uniqueName));
+  // The plain PvE one; between equals, the one you hold, then the shortest path (rankEntries).
+  const order = rankEntries(fitting.map((x) => x.c), { flawed, held });
+  fitting.sort((a, b) => order.indexOf(a.c) - order.indexOf(b.c));
   const pick = fitting[0];
   const best = penalty(pick.c, flawed);
   const notes: string[] = [];
@@ -178,6 +210,29 @@ export function matchName(text: string, idx: NameIndex, item: CatalogItem, kind:
     alternatives: fitting.slice(1).filter((x) => penalty(x.c, flawed) === best).map((x) => x.c.uniqueName),
     ...(notes.length ? { note: notes.join("; ") } : {}),
   };
+}
+
+/** A slot the editor offers names for. */
+export type NameSlot = "aura" | "stance" | "mod" | "arcane";
+
+/**
+ * What each of the editor's slots offers for an item: the names that fit it, each read as the entry
+ * the name means (entryFor), sorted. `arcanes`: whether the item takes arcanes at all.
+ */
+export function slotNames(idx: NameIndex, item: CatalogItem, kind: GearKind, arcanes: boolean): Record<NameSlot, string[]> {
+  const out: Record<NameSlot, Set<string>> = { aura: new Set(), stance: new Set(), mod: new Set(), arcane: new Set() };
+  for (const list of idx.byName.values()) {
+    const c = entryFor(list)!;
+    if (c.category === "Arcanes") {
+      if (arcanes && arcaneFits(c, item, kind).fits !== false) out.arcane.add(c.name);
+      continue;
+    }
+    if (modFits(c, item, kind).fits === false) continue;
+    if ((c.compatName ?? "").toUpperCase() === "AURA") out.aura.add(c.name);
+    else if (c.type === "Stance Mod") out.stance.add(c.name);
+    else out.mod.add(c.name);
+  }
+  return Object.fromEntries(Object.entries(out).map(([k, v]) => [k, [...v].sort()])) as Record<NameSlot, string[]>;
 }
 
 /** Edit distance, stopping early past `max`. */
@@ -209,7 +264,7 @@ export function suggest(key: string, idx: NameIndex, item: CatalogItem, kind: Ge
     const d = distance(key, k, max);
     const shared = k.split(" ").filter((w) => words.has(w)).length;
     if (d > max && !shared) continue;
-    const c = fitting.sort((a, b) => penalty(a, false) - penalty(b, false))[0];
+    const c = entryFor(fitting)!;
     scored.push({ name: c.name, path: c.uniqueName, score: d <= max ? d : 10 - shared });
   }
   return scored
