@@ -398,12 +398,19 @@ test("names and chats: a path on the line takes no rule's anchor, bracket or rea
     ["buyer: file:///mnt/Kestrel Disk/x", "buyer: file:///mnt/[drive]/[folder]"],
     ["buyer: Quillon-file:///srv/a/x", "buyer: [player]-file:///srv/[folder]/[folder]"],
     // A name that ends in smb or file glued to "://" is a name, hidden whole as main hides it, and
-    // so is a one-letter word before a scheme, which the rule doesn't take alone.
+    // so is a scheme word not in lower case ("SMB://"). A one-letter word before a scheme, which
+    // the rule doesn't take alone, alone or as the last name of a list, hides the whole match too.
     ["buyer: Xfile://box/s", "buyer: [player]://box/s"],
     ["buyer: Vexfile://box/s", "buyer: [player]://box/s"],
     ["/w Qsmb://box/s", "/w [player]://box/s"],
     ["traded with Kfile:///srv/a/x", "traded with [player]:///srv/a/x"],
     ["3 people whispered you: D.smb://Hostqar/share/Folderzed", "3 people whispered you: [players]://Hostqar/share/Folderzed"],
+    ["3 people whispered you: Vexmora, X.smb://box/s", "3 people whispered you: [players]://box/s"],
+    ["3 people whispered you: Kestrel, Bryn_2, Q-file:///srv/a/x", "3 people whispered you: [players]:///srv/a/x"],
+    ["3 people whispered you (Vexmora, D.smb://box/s)", "3 people whispered you ([players]://box/s)"],
+    ["people whispered you · Vexmora,C.file://box/s", "people whispered you · [players]://box/s"],
+    ["buyer: SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
+    ["buyer: Vexmora.SMB://Hostqar/share/Folderzed", "buyer: [player]://Hostqar/share/Folderzed"],
   ];
   for (const [line, want] of cases) {
     assert.equal(redact(line), want, line);

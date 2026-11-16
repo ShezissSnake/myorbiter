@@ -94,13 +94,14 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
 /** Where a name rule's match from `at` to `end` runs into a path's root: the root's start (also
  *  when the match ends on the mark the root needs before it, "/profile/Name,//host"), or the
  *  start of the `smb` or `file` it ends in when `://` follows (`file:///…` has no root of its own
- *  around the scheme), as a word of its own, as PATH_START reads a scheme: in "Xfile://" or
- *  "Vexfile://" it is the end of a name, hidden whole. Null when it doesn't. */
+ *  around the scheme), as a word of its own and in lower case, as PATH_START reads a scheme: in
+ *  "Xfile://", "Vexfile://" or "SMB://" it is a name or the end of one, hidden whole. Null when it
+ *  doesn't. */
 function rootCut(s: string, roots: readonly (readonly [number, number])[], at: number, end: number): number | null {
   const root = roots.find(([a, b]) => (end > a && end <= b) || (end === a && end > at && /[\s"'(=[,;<>:`{|]/.test(s[end - 1])));
   if (root) return Math.max(root[0], at);
   if (s.startsWith("://", end)) {
-    const scheme = /\b(?:smb|file)$/i.exec(s.slice(at, end));
+    const scheme = /\b(?:smb|file)$/.exec(s.slice(at, end));
     if (scheme) return at + scheme.index;
   }
   return null;
@@ -146,6 +147,9 @@ export function redact(text: string, opts: RedactOptions = {}): string {
           return before.length - at > lead.length ? (to as (...x: unknown[]) => string)(...(m as unknown[])) : whole;
         }
         end = at + again[0].length;
+        // A word the re-read left out before the root ("people whispered you: Name, X.smb://…",
+        // a one-letter last name) would show: the whole match is hidden instead, as main does.
+        if (/[\p{L}\p{N}_]/u.test(before.slice(end))) return (to as (...x: unknown[]) => string)(...(m as unknown[]));
         args = [...again, at, before];
       }
       return whole;
