@@ -25,6 +25,10 @@
 //     matter, Adaptation and Rolling Guard for tanks.
 //  3. Takes the first owned mod of each pick, fits them into the tier's capacity (fit()), and
 //     lists the better mods the player doesn't own as upgrades.
+//  4. Has the card's count (capacity.ts's tierOf) judge the result: while that doesn't fit it at
+//     the tier it was made for, the least valued mods are lowered a rank at a time (down to a
+//     third), and if that isn't enough, the least valued mod goes. The capacity, Forma and polarities the
+//     suggestion states are that count's, so its note, its card and its tab say the same.
 //
 // Every suggestion says it is MyOrbiter's (`source: "orbiter"`), gives a one-line reason per slot,
 // and ends with an honest note.
@@ -60,7 +64,12 @@ import frameRoles from "../../data/frame-roles.json";
 import synergies from "../../data/loadout-synergies.json";
 import { idealRiven, rivenFit, rivensFor, type IdealRiven, type RivenFit, type RivenMarketData } from "./riven";
 import { availabilityOf, availabilityRank, hardDonorOf, type Availability } from "./availability";
-import { modFits } from "./gear";
+import { meleeClassOf, modFits, takesNoBuild } from "./gear";
+import { entryFor } from "./match";
+import { tierOf } from "./capacity";
+import type { Build as SavedBuild } from "./types";
+
+export { meleeClassOf };
 
 // ---------------------------------------------------------------- local stand-ins for ./types
 
@@ -91,6 +100,7 @@ export interface Build {
   importedAt: number;
   note?: string;
   tags?: string[];
+  madeFor?: Tier;
 }
 
 // ---------------------------------------------------------------- public shapes
@@ -137,6 +147,7 @@ export interface Suggestion extends Build {
   tier: Tier;
   /** Weapons: crit, status, hybrid or base. Warframes: the curated roles ("strength + range"). */
   focus: string;
+  /** The capacity as its card counts it (the aura or stance not owned yet left out) and the drain. */
   capacity: { max: number; used: number };
   /** Forma spent on polarities (included in `forma`), and how many of them are Umbra Forma. */
   formaSlots: number;
@@ -145,6 +156,11 @@ export interface Suggestion extends Build {
   /** Display names, parallel to the paths above, so a page can show them without a lookup. */
   names: { aura?: string; exilus?: string; stance?: string; mods: (string | null)[]; arcanes: string[] };
   upgrades: Upgrade[];
+  /**
+   * The aura or stance shown in its slot though the player doesn't own it: marked as not owned, and
+   * the capacity it would add is left out of `capacity` (tierOf's `uncounted` does the same).
+   */
+  uncounted: ("aura" | "stance")[];
   note: string;
   /** Warframes only: what goes around the build (shards, Helminth, support weapons, arcanes, companion, Focus). */
   loadout?: Loadout;
@@ -282,12 +298,16 @@ export type Owned = Map<string, number>;
 
 // The catalog repeats some names: the starter copies (/Beginner/, /Intermediate/), unreleased
 // /Expert/ copies of ordinary mods (Primed mods also live under /Expert/, under their own names),
-// Focus and Railjack nodes. The canonical copy is the plain one; these are the two exceptions.
-const CANONICAL: Record<string, string> = {
-  Adaptation: "/Lotus/Upgrades/Mods/Warframe/AvatarResistanceOnDamageMod",
-  "Pressure Point": "/Lotus/Upgrades/Mods/Melee/WeaponMeleeDamageMod",
-};
-const SECONDARY_COPY = /\/(Beginner|Intermediate|Expert)\//;
+// copies kept for a system of their own (the Nemesis Adaptation), entries the game doesn't show
+// (a second Pressure Point), Focus and Railjack nodes. Which one a name means is match.ts's rule
+// (entryFor), the same as for pasted builds and the editor.
+
+/**
+ * The aura a New player suggestion shows when the player owns none and the one the frame wants is
+ * not a New player's: new players have access to it (its availability is an override in
+ * mod-availability.json, since no drop table lists it).
+ */
+export const STARTER_AURA = "Dreamer's Bond";
 
 export function modIndex(catalog: CatalogItem[]): ModIndex {
   const byName = new Map<string, CatalogItem>();
@@ -295,15 +315,17 @@ export function modIndex(catalog: CatalogItem[]): ModIndex {
   const stances = new Map<string, CatalogItem[]>();
   const auras: CatalogItem[] = [];
   let utilityKnown = false;
-  const rank = (x: CatalogItem) => (CANONICAL[x.name] === x.uniqueName ? -1 : SECONDARY_COPY.test(x.uniqueName) ? 1 : 0);
+  const same = new Map<string, CatalogItem[]>();
   for (const x of catalog) {
     if (x.category !== "Mods" && x.category !== "Arcanes") continue;
     if (x.type === "Focus Way" || x.type === "Plexus Mod" || x.type === "Railjack Mod") continue;
     byPath.set(x.uniqueName, x);
     if (x.isUtility === true) utilityKnown = true;
-    const had = byName.get(x.name);
-    if (!had || rank(x) < rank(had)) byName.set(x.name, x);
+    const list = same.get(x.name);
+    if (list) list.push(x);
+    else same.set(x.name, [x]);
   }
+  for (const [name, list] of same) byName.set(name, entryFor(list)!);
   for (const x of byName.values()) {
     if (x.type !== "Stance Mod" || !x.compatName) continue;
     const list = stances.get(x.compatName) ?? [];
@@ -342,7 +364,8 @@ export function heldFrom(inventory: InventoryRow[]): Held {
 // ---------------------------------------------------------------- what the item is
 
 /** The kind of gear (the same rules as gear.ts's gearKindOf, plus exalted weapons), or null. */
-export function gearKindOf(item: Pick<CatalogItem, "category" | "type" | "productCategory">): GearKind | null {
+export function gearKindOf(item: Pick<CatalogItem, "uniqueName" | "category" | "type" | "productCategory">): GearKind | null {
+  if (takesNoBuild(item)) return null;
   const { category: cat, type: t, productCategory: pc } = item;
   if (t === "Exalted Weapon") return "exalted";
   if (t === "Necramech" || pc === "MechSuits") return "necramech";
@@ -620,159 +643,7 @@ function weaponPicks(item: CatalogItem, cls: WeaponClass, focus: Focus, meleeCla
   }
 }
 
-// ---------------------------------------------------------------- melee class (for the stance)
-
-// The catalog doesn't say a melee weapon's class, so the stance comes from this: folders in the
-// weapon's path that name one clearly, then a short list of popular weapons whose folders don't.
-const MELEE_FOLDER: Record<string, string> = {
-  Polearms: "Polearms",
-  Polearm: "Polearms",
-  Staff: "Staves",
-  Hammer: "Hammers",
-  Whip: "Whips",
-  Whips: "Whips",
-  Glaive: "Glaives",
-  Glaives: "Glaives",
-  Nunchaku: "Nunchaku",
-  Tonfa: "Tonfas",
-  Warfan: "Warfans",
-  Gunblade: "Gunblade",
-  Scythe: "Scythes",
-  HeavyScythe: "Heavy Scythe",
-  DualDagger: "Dual Daggers",
-  DualDaggers: "Dual Daggers",
-  Dagger: "Daggers",
-  Claws: "Claws",
-  GrineerClaws: "Claws",
-  Gauntlet: "Fists",
-  Fist: "Fists",
-  SwordsAndBoards: "Sword And Shield",
-  LongSword: "Swords",
-  DualShortSword: "Dual Swords",
-  GreatSword: "Heavy Blade",
-  Nikana: "Nikanas",
-  Tonfas: "Tonfas",
-  CrpTonfa: "Tonfas",
-  DualKamas: "Dual Swords",
-  PrimeDualKamas: "Dual Swords",
-  InfWarfan: "Warfans",
-  InfBoomerang: "Glaives",
-  GrnBoomerang: "Glaives",
-  GrineerCombatKnife: "Daggers",
-  GrnTrident: "Polearms",
-  GrineerHalberd: "Polearms",
-  GrineerJetPoweredPolearm: "Hammers",
-  KickAndPunch: "Sparring",
-  GrnSparring: "Sparring",
-  PersianMachete: "Machetes",
-  Maces: "Hammers",
-  InfEmbolistScythe: "Scythes",
-  InfTransformClaw: "Claws",
-};
-const MELEE_NAME: Record<string, string> = {
-  Gram: "Heavy Blade",
-  Galatine: "Heavy Blade",
-  Scindo: "Heavy Blade",
-  Paracesis: "Heavy Blade",
-  Zenistar: "Heavy Blade",
-  Nikana: "Nikanas",
-  "Dragon Nikana": "Nikanas",
-  Skiajati: "Nikanas",
-  Tatsu: "Two-Handed Nikana",
-  "Broken War": "Swords",
-  "Dakra Prime": "Swords",
-  Cronus: "Swords",
-  "Jaw Sword": "Swords",
-  Krohkur: "Swords",
-  Destreza: "Rapiers",
-  Lacera: "Blade And Whip",
-  "Ceti Lacera": "Blade And Whip",
-  Atterax: "Whips",
-  Lesion: "Polearms",
-  Ripkas: "Claws",
-  Venka: "Claws",
-  Kogake: "Sparring",
-  Hirudo: "Sparring",
-  "Coda Hirudo": "Sparring",
-  Ankyros: "Fists",
-  Tekko: "Fists",
-  Fragor: "Hammers",
-  Volnus: "Hammers",
-  "Kuva Shildeg": "Hammers",
-  "Arca Titron": "Hammers",
-  "Ack & Brunt": "Sword And Shield",
-  "Silva & Aegis": "Sword And Shield",
-  "Cobra & Crane": "Sword And Shield",
-  "Tenet Agendus": "Sword And Shield",
-  "Tenet Grigori": "Scythes",
-  "Kuva Ghoulsaw": "Assault Saw",
-  Ghoulsaw: "Assault Saw",
-  "Dual Zoren": "Dual Swords",
-  "Twin Basolk": "Dual Swords",
-  "Dual Ichor": "Dual Swords",
-  Orthos: "Polearms",
-  Guandao: "Polearms",
-  Reaper: "Scythes",
-  Bo: "Staves",
-  Tipedo: "Staves",
-  Kronen: "Tonfas",
-  Ninkondi: "Nunchaku",
-  Fang: "Dual Daggers",
-  Redeemer: "Gunblade",
-  Stropha: "Gunblade",
-  Sarpa: "Gunblade",
-  Vastilok: "Gunblade",
-  War: "Heavy Blade",
-  Pennant: "Heavy Blade",
-  Sarofang: "Heavy Blade",
-  "Tenet Exec": "Heavy Blade",
-  "Broken Scepter": "Staves",
-  "Mk1-Bo": "Staves",
-  "Mk1-Furax": "Fists",
-  "Dark Sword": "Swords",
-  "Dark Split-Sword": "Dual Swords",
-  "Dex Dakra": "Swords",
-  "Dex Nikana": "Nikanas",
-  "Heat Sword": "Swords",
-  "Plasma Sword": "Swords",
-  "Pangolin Sword": "Swords",
-  Pangolin: "Swords",
-  Mire: "Swords",
-  "Coda Mire": "Swords",
-  "Nami Skyla": "Dual Swords",
-  "Dual Keres": "Dual Swords",
-  "Dual Kamas": "Dual Swords",
-  "Dual Raza": "Dual Swords",
-  "Dual Cleavers": "Dual Swords",
-  "Twin Krohkur": "Dual Swords",
-  Okina: "Dual Daggers",
-  Karyst: "Daggers",
-  "Rakta Dark Dagger": "Daggers",
-  Endura: "Rapiers",
-  Kama: "Machetes",
-  Machete: "Machetes",
-  Halikar: "Glaives",
-  "Coda Pathocyst": "Glaives",
-  "Coda Caustacyst": "Scythes",
-  "Coda Motovore": "Hammers",
-  "Sancti Magistar": "Hammers",
-  "Synoid Heliocor": "Hammers",
-  "Telos Boltace": "Tonfas",
-  "Secura Lecta": "Whips",
-  "Vaykor Sydon": "Polearms",
-  Korumm: "Polearms",
-};
-const stem = (name: string) => name.replace(/\s+(Prime|Wraith|Vandal)$/, "").replace(/^Prisma\s+/, "");
-
-/** The melee class for stances ("Heavy Blade"), or null when MyOrbiter can't tell. */
-export function meleeClassOf(item: CatalogItem): string | null {
-  const byName = MELEE_NAME[item.name] ?? MELEE_NAME[stem(item.name)];
-  if (byName) return byName;
-  const parts = item.uniqueName.split("/");
-  const at = parts.indexOf("Melee");
-  const folder = at >= 0 ? parts[at + 1] : undefined;
-  return folder ? MELEE_FOLDER[folder] ?? null : null;
-}
+// The melee class (for the stance) is gear.ts's meleeClassOf, which also says what a class's mods fit.
 
 // ---------------------------------------------------------------- warframes
 
@@ -1250,11 +1121,16 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     if (!upgrades.some((u) => u.path === m.uniqueName)) upgrades.push({ name: m.name, path: m.uniqueName, replaces, reason });
   };
 
-  // Aura(s), stance, exilus: owned only; the better ones become upgrades.
+  // Aura(s), stance, exilus: an owned one is used and counted; the better ones become upgrades. An
+  // aura or stance slot nothing owned fills shows the one to get, marked as not owned, and the
+  // capacity it would add is left out until it is owned (`uncounted`): the mods fit without it.
   const slotPols = Array.from({ length: layout.mods }, (_, k) => polarityOf(item.polarities?.[k]));
   const rawAura = item.aura as unknown;
   const auraPols: (Polarity | null)[] = Array.isArray(rawAura) ? rawAura.map(polarityOf) : [polarityOf(rawAura)];
   const auras: { mod: CatalogItem; why: string; pol: Polarity | null }[] = [];
+  let unownedAura: { mod: CatalogItem; why: string } | null = null;
+  let unownedStance: { mod: CatalogItem; why: string } | null = null;
+  const notCounted = (m: CatalogItem, slot: Polarity | null) => ` It isn't in your inventory yet, so the capacity it adds isn't counted: ${bonusIn(m, m.maxRank ?? 0, slot)} more once you have it.`;
   const usable = (m: CatalogItem) => owned.has(m.uniqueName) && allowedAt(m, tier);
   if (layout.aura && info) {
     const a = frameAura(info, variant);
@@ -1275,7 +1151,16 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
         : `${m.name}: an aura you hold, for the capacity it adds (${bonusIn(m, m.maxRank ?? 0, auraPols[k] ?? null)} in this slot); ${a.chain[0]} would suit the frame better.`;
       auras.push({ mod: m, why, pol: auraPols[k] ?? null });
     }
-    if (best && !owned.has(best.uniqueName)) addUpgrade(best, auras[0]?.mod.name ?? null, a.why);
+    if (auras.length) {
+      if (best && !owned.has(best.uniqueName)) addUpgrade(best, auras[0].mod.name, a.why);
+    } else if (best) {
+      // None owned: the one the frame wants, shown in its slot (so not also an upgrade).
+      unownedAura = { mod: best, why: `${a.why}${notCounted(best, slotPol)}` };
+    } else if (tier === "low") {
+      // A new player's slot would stay empty: Dreamer's Bond, the aura new players have access to.
+      const starter = index.byName.get(STARTER_AURA);
+      if (starter && allowedAt(starter, tier)) unownedAura = { mod: starter, why: `${STARTER_AURA}: an aura new players have access to, and any aura adds capacity.${notCounted(starter, slotPol)}` };
+    }
   }
   let stance: { mod: CatalogItem; why: string } | null = null;
   const stanceSlot = polarityOf(item.stancePolarity);
@@ -1285,7 +1170,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     const mine = all.filter((m) => owned.has(m.uniqueName));
     const on = (m: CatalogItem) => (stanceSlot && matches(stanceSlot, modPolarity(m)) ? ` It matches the stance slot's ${POL_NAME[stanceSlot]} polarity, so it adds twice the capacity.` : "");
     if (mine.length) stance = { mod: mine[0], why: `A ${meleeClass} stance: pick whichever you like to play; it mostly adds capacity.${on(mine[0])}` };
-    else if (all[0]) addUpgrade(all[0], null, `Any ${meleeClass} stance: it adds capacity and combos.${on(all[0])}`);
+    else if (all[0]) unownedStance = { mod: all[0], why: `Any ${meleeClass} stance: it adds capacity and combos.${on(all[0])}${notCounted(all[0], stanceSlot)}` };
   }
   let exilus: { mod: CatalogItem; why: string } | null = null;
   if (doubled && layout.exilus) {
@@ -1381,8 +1266,6 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
       polarize(bestPol);
     }
   }
-  const formaSlots = forma;
-  if (doubled && FORTY_BY_FORMA(item.name)) forma = Math.max(forma, 5);
 
   // Still over: keep the first k mods for the k that's worth most, lowering the least valuable
   // ones a rank at a time (down to a third of their ranks) until they fit. A mod's worth is its
@@ -1415,7 +1298,7 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
       if (used() > capacity) placed.pop();
     }
   }
-  const capacityBound = placed.length < Math.min(layout.mods, owners.length);
+  let capacityBound = placed.length < Math.min(layout.mods, owners.length);
 
   // Slot order, with Toxin and Cold ahead of Heat so they combine into Viral.
   let { at } = assign(placed, pols);
@@ -1501,33 +1384,98 @@ export function suggest(item: CatalogItem, tier: Tier, owned: Owned, index: ModI
     forma,
     source: "orbiter",
     importedAt: now,
+    madeFor: tier,
     tier,
     focus,
     capacity: { max: capacity, used: finalUsed },
-    formaSlots,
+    formaSlots: forma,
     umbraForma: umbra,
     reasons: { mods: modReasons, arcanes: arcaneReasons },
     names: { mods: modNames, arcanes: arcaneNames },
     upgrades,
+    uncounted: [],
     note: "",
     tags: [...variant.tags],
     variant: { id: variant.id, label: variant.label },
   };
-  if (auras[0]) {
-    s.aura = { path: auras[0].mod.uniqueName };
-    s.reasons.aura = auras[0].why;
-    s.names.aura = auras[0].mod.name;
+  const shownAura = auras[0] ?? unownedAura;
+  if (shownAura) {
+    s.aura = { path: shownAura.mod.uniqueName };
+    s.reasons.aura = shownAura.why;
+    s.names.aura = shownAura.mod.name;
   }
-  if (stance) {
-    s.stance = { path: stance.mod.uniqueName };
-    s.reasons.stance = stance.why;
-    s.names.stance = stance.mod.name;
+  const shownStance = stance ?? unownedStance;
+  if (shownStance) {
+    s.stance = { path: shownStance.mod.uniqueName };
+    s.reasons.stance = shownStance.why;
+    s.names.stance = shownStance.mod.name;
   }
+  if (!auras[0] && unownedAura) s.uncounted.push("aura");
+  if (!stance && unownedStance) s.uncounted.push("stance");
   if (exilus) {
     s.exilus = { path: exilus.mod.uniqueName };
     s.reasons.exilus = exilus.why;
     s.names.exilus = exilus.mod.name;
   }
+  // The card's count judges it: while that doesn't fit it at this tier (its own Forma plan can
+  // differ from the one above), the least valued mods are lowered a rank at a time, down to a
+  // third of their ranks, as above; if that isn't enough, they keep their ranks and the least
+  // valued mod goes instead, its slot left empty.
+  const judge = () => tierOf(toBuild(s, now) as unknown as SavedBuild, item, index.byPath, kind, { uncounted: s.uncounted });
+  const judged = (x: ReturnType<typeof judge>) => x.fits && x.tier === tier && x.forma <= MAX_FORMA;
+  let t = judge();
+  const byWorth = placed.map((_, i) => at[i]).reverse();
+  if (!judged(t)) {
+    const was = { mods: [...s.mods], reasons: [...s.reasons.mods] };
+    for (const slot of byWorth) {
+      const m = s.mods[slot];
+      const c = m && index.byPath.get(m.path);
+      if (!m || !c) continue;
+      const max = c.maxRank ?? 0;
+      const why = (s.reasons.mods[slot] ?? "").replace(/ Rank \d+ of \d+, to fit \d+ capacity\.$/, "");
+      for (let rank = (m.rank ?? max) - 1; rank >= Math.ceil(max / 3) && !judged(t); rank--) {
+        s.mods[slot] = { path: m.path, rank };
+        s.reasons.mods[slot] = `${why} Rank ${rank} of ${max}, to fit ${t.capacity} capacity.`;
+        t = judge();
+      }
+      if (judged(t)) break;
+    }
+    if (!judged(t)) {
+      s.mods = was.mods;
+      s.reasons.mods = was.reasons;
+      t = judge();
+    }
+  }
+  for (const slot of byWorth) {
+    if (judged(t)) break;
+    if (!s.mods[slot]) continue;
+    s.mods[slot] = null;
+    s.names.mods[slot] = null;
+    s.reasons.mods[slot] = null;
+    capacityBound = true;
+    t = judge();
+  }
+  // What it states is that count's: the capacity, the Forma, each slot's polarity under its plan,
+  // and the figures in the slots' reasons (what an aura or stance adds, the capacity a mod was
+  // lowered to fit).
+  s.capacity = { max: t.capacity, used: t.drain };
+  for (const k of ["aura", "stance"] as const) {
+    const x = t.slots.find((y) => y.slot === k);
+    const why = s.reasons[k];
+    if (x && why) s.reasons[k] = why.replace(/: \d+ more once you have it\.$/, `: ${-x.drain} more once you have it.`).replace(/\(\d+ in this slot\)/, `(${-x.drain} in this slot)`);
+  }
+  s.reasons.mods = s.reasons.mods.map((r) => r?.replace(/to fit \d+ capacity\.$/, `to fit ${t.capacity} capacity.`) ?? r);
+  s.forma = t.forma;
+  s.umbraForma = t.umbraForma;
+  s.formaSlots = t.formaPlan.filter((f) => f.polarity).length;
+  const polAt = (k: "aura" | "exilus" | "stance" | number) => t.slots.find((x) => x.slot === k)?.polarity ?? null;
+  s.polarities = {
+    // An empty slot keeps the item's own polarity: no Forma goes there.
+    mods: s.mods.map((m, i) => (m ? polAt(i + 1) : (slotPols[i] ?? null))),
+    ...(layout.aura ? { aura: s.aura ? polAt("aura") : (auraPols[0] ?? null) } : {}),
+    ...(layout.exilus ? { exilus: s.exilus ? polAt("exilus") : exilusPol } : {}),
+    ...(layout.stance ? { stance: s.stance ? polAt("stance") : stanceSlot } : {}),
+  };
   s.note = noteFor(item, kind, tier, info, cls, wFocus, meleeClass, layout, s, capacityBound) + orderNote + variantNote(variant, variants);
   const loadout = loadoutFor(item, tier, owned, index, held);
   if (loadout) s.loadout = loadout;
@@ -1586,7 +1534,7 @@ function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo 
   }
   parts.push(invest);
   const empty = s.mods.filter((m) => !m).length;
-  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: ${s.capacity.max} capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod MyOrbiter would put there; see the upgrades.`);
+  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: the capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod MyOrbiter would put there; see the upgrades.`);
   return parts.join(" ");
 }
 
@@ -2097,6 +2045,7 @@ export function toBuild(s: Suggestion, now = Date.now()): Build {
     importedAt: now,
     note: s.note,
   };
+  if (s.madeFor) b.madeFor = s.madeFor;
   if (s.tags.length) b.tags = [...s.tags];
   if (s.aura) b.aura = s.aura;
   if (s.exilus) b.exilus = s.exilus;
@@ -2119,7 +2068,7 @@ export function suggestionNames(): string[] {
     add(frameExilus(frame).chain);
     add(frameArcanes(frame).chain);
   }
-  add(["Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge"]);
+  add(["Corrosive Projection", "Energy Siphon", "Growing Power", "Steel Charge", STARTER_AURA]);
   const fakeSentinel = { category: "Sentinels", uniqueName: "", name: "" } as CatalogItem;
   const fakeBeast = { category: "Pets", uniqueName: "", name: "" } as CatalogItem;
   for (const p of [...companionPicks(fakeSentinel), ...companionPicks(fakeBeast), ...archwingPicks(), ...necramechPicks({ name: "Bonewidow", uniqueName: "" } as CatalogItem), ...necramechPicks({ name: "Voidrig", uniqueName: "" } as CatalogItem)]) add(p.chain);

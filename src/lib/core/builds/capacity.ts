@@ -27,13 +27,21 @@
 //   (warframes); a non-Umbra mod in one is counted as mismatched (unverified, the cautious reading).
 // - The exilus slot needs an adapter and drains like any slot. Arcanes, shards and Helminth take
 //   no capacity.
+// - Only an aura adds capacity in the aura slot, and only a stance in the stance slot: another mod
+//   there (a pasted build can put one) is said and left out. Mods past the item's mod slots are
+//   said and left out too.
+//
+// MyOrbiter's own suggestion (`madeFor`, the tier it was made for) is counted as that tier has it:
+// from Intermediate on with the Catalyst or Reactor the suggestion comes with, and its tier read as
+// at least the one it was made for, so its card, its note and its tab say the same. Only a build
+// whose source is still MyOrbiter's counts so: a player's edited copy is the player's own.
 //
 // Which physical slot carries an innate polarity isn't in the catalog, only how many of each; mods
 // can go in any slot, so only the counts matter. Slot numbers in the reasons are the build's own
 // order (its first mod is slot 1).
 
 import type { CatalogItem } from "../types";
-import { arcaneNeedsAdapter, doublerName, doublerShort, FORTY_BY_FORMA, rankWith, slotLayout } from "./gear";
+import { arcaneNeedsAdapter, doublerName, doublerShort, FORTY_BY_FORMA, modRole, rankWith, slotLayout } from "./gear";
 import { polarityOf, POLARITY_LABEL, POLARITY_SYMBOL, type Build, type BuildMod, type GearKind, type Polarity } from "./types";
 import { AVAILABILITY_LABEL, availability, availabilityRank, hardDonorOf, type Availability } from "./availability";
 
@@ -50,7 +58,11 @@ const TIER_RANK: Record<Tier, number> = { low: 0, medium: 1, high: 2 };
 
 /** One thing that lifts a build above New player, and the tier it needs. */
 export interface TierLimit {
-  kind: "mod" | "arcane" | "doubler" | "forma" | "umbraForma" | "exilusAdapter" | "arcaneAdapter" | "shards" | "helminth";
+  /**
+   * unknown: mods or arcanes MyOrbiter doesn't know, so the tier can't be told (counted as Veteran,
+   * first of all); suggestion: MyOrbiter's suggestion read as the tier it was made for.
+   */
+  kind: "unknown" | "suggestion" | "mod" | "arcane" | "doubler" | "forma" | "umbraForma" | "exilusAdapter" | "arcaneAdapter" | "shards" | "helminth";
   tier: Tier;
   /** What it is: a mod's name, "an Orokin Reactor", "2 Forma". */
   what: string;
@@ -81,6 +93,13 @@ export interface SlotDrain {
   polarity: Polarity | null;
   /** Drain (negative for the capacity an aura or stance adds). */
   drain: number;
+  /** An aura or stance shown but not counted (not owned yet): `drain` is what it would add. */
+  uncounted?: boolean;
+}
+
+/** What a capacity count leaves out: the aura or stance of a suggestion the player doesn't own yet. */
+export interface CountOptions {
+  uncounted?: readonly ("aura" | "stance")[];
 }
 
 export interface TierResult {
@@ -110,6 +129,11 @@ export interface TierResult {
   reasons: string[];
   /** Mods in the build MyOrbiter doesn't know (left out of the count). */
   unknown: string[];
+  /**
+   * The tier can't be told: a mod or arcane MyOrbiter doesn't know is all that puts it at Veteran
+   * (what it knows would rate lower). Shown as "Can't tell", listed under Veteran.
+   */
+  unsure: boolean;
 }
 
 /** A mod's drain in a slot of `slot` polarity (null: none). */
@@ -182,7 +206,7 @@ interface Plan {
   forma: FormaStep[];
 }
 
-function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilus: Piece | null; stance: Piece | null }, base: number) {
+function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilus: Piece | null; stance: Piece | null }, base: number, uncounted: readonly ("aura" | "stance")[] = []) {
   const slots = assign(plan.slotPols, pieces.mods);
   let drain = 0;
   const out: SlotDrain[] = [];
@@ -202,6 +226,10 @@ function evaluate(plan: Plan, pieces: { mods: Piece[]; aura: Piece | null; exilu
     const p = pieces[k];
     if (!p) continue;
     const b = bonusIn(p.cost, p.pol, plan[k]);
+    if (uncounted.includes(k)) {
+      out.push({ slot: k, path: p.path, name: p.name, polarity: plan[k], drain: -b, uncounted: true });
+      continue;
+    }
     capacity += b;
     out.push({ slot: k, path: p.path, name: p.name, polarity: plan[k], drain: -b });
   }
@@ -215,15 +243,22 @@ const slotWord = (s: SlotRef) => (s === "any" ? "any slot" : typeof s === "numbe
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** What capacity alone needs: TierResult without the progression part (tier is capacityTier). */
-export type CapacityResult = Omit<TierResult, "capacityTier" | "limits">;
+export type CapacityResult = Omit<TierResult, "capacityTier" | "limits" | "unsure">;
 
 /**
  * What capacity alone needs on an item, and why: low (fits without a Catalyst/Reactor), medium
  * (needs one), high (Catalyst plus the fewest Forma, worked out greedily by capacity freed, and
- * adapters). `catalog`: the model's catalogByUnique. `kind` defaults to the build's.
+ * adapters). `catalog`: the model's catalogByUnique. `kind` defaults to the build's. A build is
+ * counted as written; `opts.uncounted` is only for MyOrbiter's own suggestion, whose aura or stance
+ * the player doesn't own yet: shown, its capacity left out and named in the reasons. A suggestion
+ * made for Intermediate or Veteran (`build.madeFor`) is counted with its Catalyst or Reactor.
  */
-export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): CapacityResult {
+/** The tier MyOrbiter's own suggestion was made for; none for any other build, a copy included. */
+const madeForOf = (build: Build) => (build.source === "orbiter" ? build.madeFor : undefined);
+
+export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind, opts: CountOptions = {}): CapacityResult {
   const layout = slotLayout(kind);
+  const uncounted = opts.uncounted ?? [];
   const unknown: string[] = [];
   const piece = (m: BuildMod | null | undefined, at: Piece["at"]) => {
     if (!m) return null;
@@ -232,12 +267,22 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     return p;
   };
   const mods = build.mods.slice(0, layout.mods).map((m, i) => piece(m, i)).filter((p): p is Piece => !!p);
+  // Only an aura adds capacity in the aura slot, only a stance in the stance slot.
+  const misplaced: string[] = [];
+  const inOwnSlot = (p: Piece | null, k: "aura" | "stance") => {
+    if (!p || modRole(catalog.get(p.path)!) === k) return p;
+    misplaced.push(`${p.name} in the ${k} slot isn't ${k === "aura" ? "an aura" : "a stance"}: it adds no capacity.`);
+    return null;
+  };
   const pieces = {
     mods,
-    aura: layout.aura ? piece(build.aura, "aura") : null,
+    aura: layout.aura ? inOwnSlot(piece(build.aura, "aura"), "aura") : null,
     exilus: piece(build.exilus, "exilus"),
-    stance: layout.stance ? piece(build.stance, "stance") : null,
+    stance: layout.stance ? inOwnSlot(piece(build.stance, "stance"), "stance") : null,
   };
+  const extra = build.mods.slice(layout.mods).filter((m): m is BuildMod => !!m);
+  // MyOrbiter's suggestion for Intermediate or Veteran comes with the Catalyst or Reactor.
+  const withDoubler = madeForOf(build) === "medium" || madeForOf(build) === "high";
   const innate = (item.polarities ?? []).map(polarityOf).slice(0, layout.mods);
   const startPlan: Plan = {
     slotPols: Array.from({ length: Math.max(layout.mods, mods.length) }, (_, i) => innate[i] ?? null),
@@ -256,7 +301,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     const out: string[] = [];
     // "with the Steel Charge aura on its Madurai slot": what the aura or stance adds, doubled on its own polarity.
     const bonusPart = (k: "aura" | "stance") => {
-      const p = pieces[k];
+      const p = uncounted.includes(k) ? null : pieces[k];
       const pol = r.slots.find((x) => x.slot === k)?.polarity ?? null;
       return p ? `the ${p.name} ${k}${pol && p.pol && matches(p.pol, pol) ? ` on its ${POLARITY_LABEL[pol]} slot` : ""}` : "";
     };
@@ -264,11 +309,12 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     const auraPart = bonuses.length ? ` with ${bonuses.join(" and ")}` : "";
     const adapters = [r.exilusAdapter ? "an Exilus Adapter" : "", r.arcaneAdapter ? `an Arcane Adapter (${kind === "melee" ? "Melee" : kind === "archgun" ? "Archgun" : kind === "secondary" ? "Secondary" : "Primary"})` : ""].filter(Boolean);
     if (tier === "low") out.push(`Fits in ${r.rank}${auraPart}: drain ${r.drain} of ${r.capacity}.`);
+    else if (tier === "medium" && fitsBare) out.push(`With ${doubler}, as MyOrbiter's suggestion has it: drain ${r.drain} of ${r.capacity}${auraPart} (it would fit in ${r.capacity - r.rank} without one).`);
     else if (tier === "medium") out.push(`Needs ${doubler}: drain ${r.drain}, capacity ${r.capacity - r.rank} without it and ${r.capacity} with it${auraPart}.`);
     else {
       const needs = [r.catalyst ? doubler : "", r.forma ? plural(r.forma, "Forma", "Forma") : "", ...adapters].filter(Boolean);
       const list = needs.length > 1 ? `${needs.slice(0, -1).join(", ")} and ${needs[needs.length - 1]}` : needs[0] ?? "nothing more";
-      out.push(r.fits ? `Needs ${list}.` : `Doesn't fit even with ${list}: drain ${r.drain} of ${r.capacity}, ${r.drain - r.capacity} over.`);
+      out.push(r.fits ? `${fitsBare ? "With" : "Needs"} ${list}.` : `Doesn't fit even with ${list}: drain ${r.drain} of ${r.capacity}, ${r.drain - r.capacity} over.`);
       if (r.formaPlan.length) {
         // One line per polarity: "Madurai (V) for Serration (slot 2), Split Chamber (slot 5)".
         const by = new Map<string, FormaStep[]>();
@@ -281,16 +327,25 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
       }
       if (r.umbraForma) out.push(r.umbraForma === 1 ? "One of them is an Umbra Forma." : `${r.umbraForma} of them are Umbra Forma.`);
     }
+    // A suggestion's aura or stance the player doesn't own: what the capacity becomes once they do.
+    const left = r.slots.filter((x) => x.uncounted);
+    if (left.length) {
+      const more = left.reduce((n, x) => n - x.drain, 0);
+      const names = left.map((x) => `${x.name} (${x.slot === "aura" ? "aura" : "stance"})`).join(" and ");
+      out.push(`${names} not owned yet, so not counted: capacity ${r.capacity}, ${r.capacity + more} once you have ${left.length === 1 ? "it" : "them"}.`);
+    }
     if (fortyByForma) out.push(`Rank 40 needs five Forma (two ranks each): ${r.rank} counted.`);
     if (layout.stance && pieces.stance && item.stancePolarity == null) out.push("The stance slot's own polarity isn't in MyOrbiter's data: counted as none.");
     if (unknown.length) out.push(`${plural(unknown.length, "mod")} MyOrbiter doesn't know left out of the count.`);
+    out.push(...misplaced);
+    if (extra.length) out.push(`${plural(extra.length, "mod")} past the ${layout.mods} mod slots left out: ${extra.map((m) => catalog.get(m.path)?.name ?? m.path.split("/").pop()).join(", ")}.`);
     return out;
   };
 
   const at = (catalyst: boolean, plan: Plan) => {
     const formaN = plan.forma.length;
     const rank = rankWith(item, kind, fortyByForma ? formaN : 0);
-    const e = evaluate(plan, pieces, rank * (catalyst ? 2 : 1));
+    const e = evaluate(plan, pieces, rank * (catalyst ? 2 : 1), uncounted);
     return { e, rank };
   };
   const result = (tier: Tier, catalyst: boolean, plan: Plan, withAdapters: boolean): CapacityResult => {
@@ -314,7 +369,11 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
 
   // Without the Catalyst, then with it, before any Forma. Adapters make it high whatever it takes.
   const adapters = exilusAdapter || arcaneAdapter;
-  for (const catalyst of [false, true]) {
+  const bare = at(false, startPlan).e;
+  // Counted with a doubler it doesn't need (MyOrbiter's suggestion): the reasons say so.
+  let fitsBare = false;
+  for (const catalyst of withDoubler ? [true] : [false, true]) {
+    if (catalyst && withDoubler) fitsBare = bare.drain <= bare.capacity;
     const { e } = at(catalyst, startPlan);
     if (e.drain <= e.capacity) return result(adapters ? "high" : catalyst ? "medium" : "low", catalyst, startPlan, adapters);
   }
@@ -344,7 +403,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     }
     // The aura or stance slot to its mod's polarity.
     for (const k of ["aura", "stance"] as const) {
-      const p = pieces[k];
+      const p = uncounted.includes(k) ? null : pieces[k];
       const now = plan[k];
       if (!p?.pol || p.pol === "universal" || p.pol === "umbra" || (now && matches(p.pol, now))) continue;
       const gain = p.cost * 2 - bonusIn(p.cost, p.pol, now) + rankGain;
@@ -357,6 +416,7 @@ export function capacityOf(build: Build, item: CatalogItem, catalog: ReadonlyMap
     if (!best) break;
     plan = best.plan;
   }
+  fitsBare = false;
   return result("high", true, plan, true);
 }
 
@@ -367,29 +427,35 @@ const a = (n: number, one: string, many = `${one}s`) => (n === 1 ? `a${/^[AEIOU]
 /**
  * The tier a build needs: the lowest one whose rules it meets (see the top of this file), from what
  * capacity needs and from each mod's and arcane's availability. `catalog`: the model's
- * catalogByUnique. `kind` defaults to the build's.
+ * catalogByUnique. `kind` defaults to the build's; `opts` as for capacityOf.
  */
-export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind): TierResult {
-  const cap = capacityOf(build, item, catalog, kind);
+export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<string, CatalogItem>, kind: GearKind = build.kind, opts: CountOptions = {}): TierResult {
+  const cap = capacityOf(build, item, catalog, kind, opts);
   const limits: TierLimit[] = [];
   const add = (l: TierLimit) => limits.push(l);
   const doubler = doublerName(kind);
 
   // Capacity: a doubler or regular Forma are Intermediate, Umbra Forma Veteran.
-  if (cap.catalyst) add({ kind: "doubler", tier: "medium", what: doubler, why: `drain ${cap.drain} is over the ${cap.rank} it has without one` });
+  // MyOrbiter's suggestion is counted with the doubler it comes with: whether its mods need it.
+  const spare = !!madeForOf(build) && cap.catalyst && !cap.formaPlan.length && !capacityOf({ ...build, madeFor: undefined }, item, catalog, kind, opts).catalyst;
+  if (cap.catalyst) add({ kind: "doubler", tier: "medium", what: doubler, why: spare ? "MyOrbiter's suggestion comes with one, though its mods fit without it" : `drain ${cap.drain} is over the ${cap.rank} it has without one` });
   const plain = cap.forma - cap.umbraForma;
   if (plain > 0) add({ kind: "forma", tier: "medium", what: a(plain, "Forma", "Forma"), why: "to fit the mods" });
   if (cap.umbraForma > 0) add({ kind: "umbraForma", tier: "high", what: a(cap.umbraForma, "Umbra Forma", "Umbra Forma"), why: "for its Umbral mods" });
   if (build.exilus) add({ kind: "exilusAdapter", tier: "medium", what: "an Exilus Adapter", why: "for its exilus mod" });
   if (cap.arcaneAdapter) add({ kind: "arcaneAdapter", tier: "high", what: "an Arcane Adapter", why: "Steel Path Honors sells them", source: "https://wiki.warframe.com/w/The_Steel_Path" });
 
-  // Mods and arcanes by availability.
+  // Mods and arcanes by availability. One MyOrbiter doesn't know can't be rated: see below.
   const seen = new Set<string>();
+  const unknownNames: string[] = [];
   const each = (m: BuildMod | null | undefined, kind2: "mod" | "arcane") => {
     if (!m || seen.has(m.path)) return;
     seen.add(m.path);
     const c = catalog.get(m.path);
-    if (!c) return;
+    if (!c) {
+      unknownNames.push(m.path.split("/").pop() || m.path);
+      return;
+    }
     const av = availability(c);
     if (av.level === "new") return;
     add({ kind: kind2, tier: tierOfAvailability(av.level), what: c.name, why: av.why, path: m.path, ...(av.source ? { source: av.source } : {}) });
@@ -406,11 +472,25 @@ export function tierOf(build: Build, item: CatalogItem, catalog: ReadonlyMap<str
   }
 
   limits.sort((x, y) => TIER_RANK[y.tier] - TIER_RANK[x.tier]);
-  const tier: Tier = !cap.fits ? "high" : limits[0]?.tier ?? "low";
+  const known: Tier = !cap.fits ? "high" : limits[0]?.tier ?? "low";
+  // MyOrbiter's suggestion reads as the tier it was made for, even when what it holds needs less
+  // (a Veteran suggestion from the mods a player holds can be all Intermediate mods).
+  const floor = madeForOf(build);
+  if (floor && TIER_RANK[floor] > TIER_RANK[known]) limits.unshift({ kind: "suggestion", tier: floor, what: `MyOrbiter's ${TIER_LABEL[floor]} suggestion`, why: `what it holds needs only ${TIER_LABEL[known]}` });
+  // A mod or arcane MyOrbiter doesn't know (renamed or removed by a game update): it could be
+  // anything, so the build is never rated lower for it. Listed under Veteran; "can't tell" when
+  // what MyOrbiter knows rates lower.
+  const rated: Tier = limits[0]?.tier ?? known;
+  const unsure = unknownNames.length > 0 && rated !== "high";
+  if (unknownNames.length) limits.unshift({ kind: "unknown", tier: "high", what: unknownNames.join(", "), why: unsure ? `so MyOrbiter can't tell its tier: listed under ${TIER_LABEL.high}` : "left out of the count" });
+  const tier: Tier = !cap.fits || unknownNames.length ? "high" : rated;
   const lead =
     limits.length === 0 ? [`${TIER_LABEL.low}: basic mods only, and it fits without a ${doublerShort(kind)}.`]
-    : limits.map((l) => `${l.kind === "mod" || l.kind === "arcane" ? `Uses ${l.what} (${l.why})` : `Needs ${l.what} (${l.why})`}, which is ${TIER_LABEL[l.tier]}.`);
-  return { ...cap, tier, capacityTier: cap.tier, limits, reasons: [...lead, ...cap.reasons] };
+    : limits.map((l) =>
+        l.kind === "unknown" ? `${unknownNames.length === 1 ? "A mod" : `${unknownNames.length} mods`} MyOrbiter doesn't know (${l.what}), ${l.why}.`
+        : l.kind === "suggestion" ? `${l.what}: ${l.why}, read as ${TIER_LABEL[l.tier]}.`
+        : `${l.kind === "mod" || l.kind === "arcane" ? `Uses ${l.what} (${l.why})` : `Needs ${l.what} (${l.why})`}, which is ${TIER_LABEL[l.tier]}.`);
+  return { ...cap, tier, capacityTier: cap.tier, limits, reasons: [...lead, ...cap.reasons], unsure };
 }
 
 /** Whether a tier allows an availability level. */

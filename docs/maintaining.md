@@ -274,15 +274,23 @@ npm run screenshots -- --only site
 ```
 
 Playwright is one of the project's development dependencies, but `npm install` downloads no
-browser: the script's first step does (`playwright install chromium`, into Playwright's own cache
-folder, once). Then it starts the demo dev server (`npm run dev:demo`'s, on port 1431 so a running
-one on 1421 isn't in the way; `npm run screenshots -- --port <n>` picks another), stops if anything
+browser: `npx playwright install chromium` does, into Playwright's own cache folder, once (the
+script stops with that hint when it isn't there). The script starts the demo dev server
+(`npm run dev:demo`'s, on port 1431 so a running one on 1421 isn't in the way;
+`npm run screenshots -- --port <n>` picks another), stops if anything
 else answers on that port or the server isn't the demo one, opens each page in Chromium, and
 writes the WebP files over the ones in the repository. It needs ImageMagick (`magick`) too. The
 demo's order books, price histories and world state (fissures, Baro, the clocks and the rest) are
 files in `demo/`, so Home and Current fissure show the same world on every run, online or not
-(`demo/README.md`); any request to a world-state service is stopped and counted, and fails the run.
-Nothing but GET requests would reach warframe.market. In a clone whose
+(`demo/README.md`); a request to a world-state service that the page's routes are shown is stopped
+and counted, and fails the run.
+It is built to contact no host: the item pictures come from the checks' picture cache, a request
+or `WebSocket` off this machine that the checks' guard is shown (warframe.market's included) is
+refused and fails the run, and a picture the cache lacks fails the run until
+`node scripts/picture-cache.mjs --fill` has fetched it (`docs/development.md` says what the guard
+is shown, and what is left to the browser's launch rule). A run fails so only at its end, when it
+has already written the pictures it took, some of them without their item art: after the fill,
+take them again (the help pictures too). In a clone whose
 `node_modules` is a link to another folder, Vite refuses to serve the fonts and the pictures come
 out in fallback fonts: run it where `node_modules` is a real folder.
 

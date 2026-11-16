@@ -110,6 +110,11 @@ export interface Build {
   /** What it's for, as its source labels it ("Steel Path", "Farming"), or as the user tags it. */
   tags?: string[];
   note?: string;
+  /**
+   * MyOrbiter's suggestion: the tier it was made for (low New player, medium Intermediate, high
+   * Veteran). It is counted as that tier has it (capacity.ts) and reads as that tier.
+   */
+  madeFor?: "low" | "medium" | "high";
 }
 
 /** A fresh id for a build. */
@@ -206,6 +211,12 @@ export function sanitizeBuild(v: unknown): Build | null {
   }
   const note = str(o.note, MAX_TEXT);
   if (note) b.note = note;
+  // MyOrbiter's suggestion: the tier it was made for; one saved before this was kept says it in its title.
+  if (b.source === "orbiter") {
+    const was = /^(?:MyO|o)rbiter's suggestion \((New player|Intermediate|Veteran)\b/.exec(b.title ?? "")?.[1];
+    const madeFor = o.madeFor === "low" || o.madeFor === "medium" || o.madeFor === "high" ? o.madeFor : was === "New player" ? "low" : was === "Intermediate" ? "medium" : was === "Veteran" ? "high" : undefined;
+    if (madeFor) b.madeFor = madeFor;
+  }
   return b;
 }
 
