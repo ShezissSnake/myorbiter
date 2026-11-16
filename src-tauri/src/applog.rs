@@ -162,8 +162,19 @@ pub fn from_ui(level: &str, area: &str, message: &str) {
     if repeats > 0 {
         log::info!(target: "myorbiter::ui", "(the line before came {repeats} more time{} within a minute)", if repeats == 1 { "" } else { "s" });
     }
+    log::log!(target: &ui_target(area), level, "{message}");
+}
+
+/// The log target of a line from the window in `area`: `ui`, or `ui-<area>` (`[ui-notice]` in the
+/// file). Never one of the Rust side's own (`market`, `updates`): the page can't write a line that
+/// reads as what MyOrbiter did on warframe.market.
+fn ui_target(area: &str) -> String {
     let area: String = area.chars().filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_').take(24).collect();
-    log::log!(target: &format!("myorbiter::{}", if area.is_empty() { "ui" } else { &area }), level, "{message}");
+    if area.is_empty() || area == "ui" {
+        "myorbiter::ui".to_string()
+    } else {
+        format!("myorbiter::ui-{area}")
+    }
 }
 
 fn now() -> u64 {
@@ -383,6 +394,20 @@ mod tests {
         assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
         assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted] and sessionid=[redacted] and nonce=[redacted]");
         assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
+    }
+
+    #[test]
+    fn the_windows_lines_never_pass_for_the_rust_sides_own() {
+        // `from_ui("info", "market", "x")` must not log under `myorbiter::market`, where the Rust
+        // side writes what it did on warframe.market.
+        assert_ne!(ui_target("market"), "myorbiter::market");
+        for area in ["market", "updates", "app", "tennoscope", "notify", "panic", "ee_log"] {
+            assert_eq!(ui_target(area), format!("myorbiter::ui-{area}"));
+        }
+        assert_eq!(ui_target(""), "myorbiter::ui");
+        assert_eq!(ui_target("ui"), "myorbiter::ui");
+        assert_eq!(ui_target("[market][INFO]\n"), "myorbiter::ui-marketINFO");
+        assert_eq!(ui_target("::"), "myorbiter::ui");
     }
 
     #[test]

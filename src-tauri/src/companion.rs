@@ -331,19 +331,22 @@ struct Seen {
 
 impl Seen {
     fn of(running: bool, report: &Result<serde_json::Value, NoReport>) -> Seen {
+        // Any process of the player's can write the file: each text is one line of at most 200
+        // characters, control characters made spaces, so none can start a log line of its own.
+        let text = |v: &serde_json::Value| -> String { v.as_str().unwrap_or("").chars().take(200).map(|c| if c.is_control() { ' ' } else { c }).collect() };
         let state = |r: &serde_json::Value, part: &str| {
             let h = &r["health"][part];
-            h["state"].as_str().map(|s| (s.to_string(), h["message"].as_str().unwrap_or("").chars().take(200).collect()))
+            h["state"].is_string().then(|| (text(&h["state"]), text(&h["message"])))
         };
         match report {
             Ok(r) => Seen {
                 running,
                 report: Some(Ok(())),
-                access: r["setup"]["access_mode"].as_str().map(str::to_string),
+                access: r["setup"]["access_mode"].is_string().then(|| text(&r["setup"]["access_mode"])),
                 game: r["game_running"].as_bool(),
                 reader: state(r, "game_reader"),
                 catalog: state(r, "catalog"),
-                refused: r["last_error"]["at"].as_u64().map(|at| (at, r["last_error"]["message"].as_str().unwrap_or("").chars().take(200).collect())),
+                refused: r["last_error"]["at"].as_u64().map(|at| (at, text(&r["last_error"]["message"]))),
             },
             Err(why) => Seen { running, report: running.then(|| Err(why.clone())), ..Seen::default() },
         }
@@ -1240,6 +1243,24 @@ mod tests {
         assert_eq!(refused.changes(&full), ["TennoScope's game reader: failed (permission denied while reading Warframe process 12)", "TennoScope's item data: failed (No valid WFCD catalog is available)", "TennoScope turned a request down: access mode is already changing"]);
         // It ends: said, and nothing about a report it can't write.
         assert_eq!(Seen::of(false, &Err(NoReport::NoFile)).changes(&refused), ["TennoScope isn't running"]);
+    }
+
+    #[test]
+    fn a_status_file_can_not_start_a_line_of_its_own() {
+        // Any process of the player's can write the status file: a line break in one of its texts
+        // would write a line of its choosing into MyOrbiter's log.
+        let forged = "x\n[2026-11-04][10:00:00][market][INFO] PATCH /v2/order/1: ok\r[app]";
+        let seen = Seen::of(true, &Ok(serde_json::json!({ "at": 1, "setup": { "access_mode": forged }, "game_running": true, "health": { "game_reader": { "state": forged, "message": forged }, "catalog": { "state": forged, "message": forged } }, "last_error": { "at": 5, "message": forged } })));
+        let lines = seen.changes(&Seen::default());
+        assert_eq!(lines.len(), 7, "{lines:?}");
+        for line in &lines {
+            assert!(!line.contains(|c: char| c.is_control()), "{line:?}");
+        }
+        assert!(lines.contains(&"TennoScope turned a request down: x [2026-11-04][10:00:00][market][INFO] PATCH /v2/order/1: ok [app]".to_string()), "{lines:?}");
+        // Each text stays short, as the messages already were.
+        let long = "y".repeat(5000);
+        let seen = Seen::of(true, &Ok(serde_json::json!({ "at": 1, "setup": { "access_mode": long }, "health": { "game_reader": { "state": long, "message": long } } })));
+        assert!(seen.changes(&Seen::default()).iter().all(|l| l.chars().count() < 500), "{:?}", seen.changes(&Seen::default()));
     }
 
     #[test]
