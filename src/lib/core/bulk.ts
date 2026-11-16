@@ -1239,6 +1239,27 @@ export function neverHeld(rules: Pick<SparesRules, "neverSell"> | null | undefin
   return by.length ? { self: false, by, isSet } : null;
 }
 
+/** The entries that hold it back, by name: "Bronco Prime Barrel", "A and B". */
+export const neverNames = (h: NeverHeld) => andList(h.by.map((b) => b.name));
+
+/**
+ * What Sell again takes off the never-sell list, by name, said before the click: the entry itself,
+ * or for a set held back by a part (a part by its set) that part (or set).
+ */
+export function sellAgainTakes(h: NeverHeld, item: string): string {
+  return h.self ? `Take ${item} off the never-sell list` : `Take ${neverNames(h)} off the never-sell list, so ${item} can be sold too`;
+}
+
+/**
+ * The words of a plan line Apply doesn't send because the never-sell list holds its item back
+ * (toApply): a change to your listing ("You hold 2 now") is left as you listed it. Null for a line
+ * that isn't such a change.
+ */
+export function unsentWhy(a: BulkAction, heldBack: boolean): string | null {
+  if (!heldBack || a.type !== "update") return null;
+  return `${a.why}; never sold, so Apply doesn't change it: ${AS_LISTED}`;
+}
+
 /** Why the never-sell list holds it back, for the plan and the last check. */
 export function neverWhy(h: NeverHeld): string {
   if (h.self) return NEVER_WHY;

@@ -1,6 +1,7 @@
 <script lang="ts">
   import NeverSoldTag from "./spares/NeverSoldTag.svelte";
   import type { SparesRules } from "../core/sparesRules";
+  import { neverTest } from "../core/bulk";
   import { scrim } from "./scrim";
   // Ctrl+K: find anything by name from any page. Gear opens its details; a prime part its item's
   // details; a relic, mod or arcane opens its page searched for it; anything else warframe.market
@@ -23,12 +24,14 @@
 
   // spares: Sell spares' choices, for a match that's on the never-sell list ("Never sold · Sell again").
   let { open = $bindable(false), model, go, spares = null, onsellagain = () => {} }: { open: boolean; model: Model; go: (tab: string) => void; spares?: SparesRules | null; onsellagain?: (ids: string[]) => void } = $props();
-  const never = $derived(new Set(spares?.neverSell.map((n) => n.id) ?? []));
-  /** The warframe.market item a match trades as (gear as its set), when it's never sold. */
+  // On the list itself or across a set: a part of a never-sell set, a set with a never-sell part.
+  const never = $derived(neverTest(spares, model, mkt.index));
+  /** The warframe.market item a match trades as (gear as its set), when the never-sell list holds it back, and what holds it. */
   const neverOf = (name: string) => {
-    if (!never.size || !mkt.index) return null;
+    if (!spares?.neverSell.length || !mkt.index) return null;
     const it = mkt.index.byName.get(name.toLowerCase()) ?? mkt.index.byName.get(`${name} set`.toLowerCase());
-    return it && never.has(it.id) ? it : null;
+    const held = it ? never(it) : null;
+    return it && held ? { name: it.name, held } : null;
   };
 
   interface Hit {
@@ -133,7 +136,7 @@
                 <span class="n">{h.name}</span>
                 <span class="k">{#if kindSlot(h.kind)}<span class="ki"><Icon name="kind-{kindSlot(h.kind)}" size={12} stroke={1.4} /></span>{:else if kindIcon(h.kind, h.name)}<GameIcon name={kindIcon(h.kind, h.name)!} size={12} />{/if}{h.kind}</span>
               </button>
-              {#if ns && spares}<span class="ns"><NeverSoldTag name={ns.name} onsellagain={() => onsellagain([ns.id])} /></span>{/if}
+              {#if ns && spares}<span class="ns"><NeverSoldTag name={ns.name} held={ns.held} onsellagain={() => onsellagain(ns.held.by.map((b) => b.id))} /></span>{/if}
             </li>
           {/each}
         </ul>

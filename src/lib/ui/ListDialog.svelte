@@ -8,7 +8,7 @@
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
-  import { aboveDucats, catOfItem, ducatWorth, minimumForItem, neverHeld, neverWhy } from "../core/bulk";
+  import { aboveDucats, catOfItem, ducatWorth, minimumForItem, neverHeld, neverNames, neverWhy, sellAgainTakes } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked } from "../core/listGuard";
   import { mkt } from "../marketStore.svelte";
   import { proxy } from "../proxy.svelte";
@@ -215,7 +215,7 @@
               <span class="dim">Nobody is selling this in game right now: set the price yourself.</span>
             {/if}
             {#if median != null}<span class="dim">Daily median <P v={median} dim /></span>{/if}
-            {#if d.available != null}<span class="dim">You can spare {d.available}</span>{/if}
+            {#if d.available != null}<span class="dim spare">You can spare {d.available}{d.spareWhy ?? ""}</span>{/if}
           </div>
 
           {#if badNumber}<p class="err small">{badNumber}</p>
@@ -230,7 +230,11 @@
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}
           {#if unchecked && !repriceOnly}<p class="warn small unchecked">{KEEP_UNCHECKED_WARNING}</p>{/if}
-          {#if neverSold && !repriceOnly}<p class="warn small never">{never && !never.self ? `${neverWhy(never)}, so MyOrbiter won't list it.` : "On your never-sell list (Sell spares), so MyOrbiter won't list it."} <button type="button" class="link" title="Take it off the never-sell list: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>{/if}
+          {#if neverSold && never && !repriceOnly}
+            <!-- Across a set, the line and the button name the entry Sell again takes off: the part (or set) on the list, not this one. -->
+            {#if never.self}<p class="warn small never">On your never-sell list (Sell spares), so MyOrbiter won't list it. <button type="button" class="link" title="{sellAgainTakes(never, d.name)}: it can be listed here, and Sell spares lists it again when it's spare" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button></p>
+            {:else}<p class="warn small never">{neverWhy(never)}, so MyOrbiter won't list it. <button type="button" class="link" title="{sellAgainTakes(never, d.name)}: then it can be listed here" onclick={(e) => { pulse(e.currentTarget.parentElement!); sellAgain(); }}>Sell again</button> takes {neverNames(never)} off the list.</p>{/if}
+          {/if}
 
           {#if existing}
             <label class="merge small">
