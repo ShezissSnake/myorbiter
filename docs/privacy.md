@@ -116,7 +116,9 @@ MyOrbiter reads Warframe's `EE.log` (read only) every 2 seconds, every 10 while 
 game isn't running, and not at all for console players. The first read goes through the log from
 the start of the game session; each one after takes only what the game added. On Linux it finds the
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
-included) under each library's Proton prefix for Warframe, and looks again every minute; on Windows
+included) under each library's Proton prefix for Warframe, takes only a log your user owns (one
+another user on the PC owns is passed over, and MyOrbiter's log says so in a line), and looks again
+every minute; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
 else).
 
@@ -516,8 +518,18 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 - `~/.local/share/dev.myorbiter.app/logs/` (`%LOCALAPPDATA%\dev.myorbiter.app\logs`): its log,
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
-  errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
+  errors. Readable only by you on Linux. Before a line is written, these are cut out: a JWT
+  (`eyJ…`); the word after "Bearer", "JWT" or "token", or after a Cookie or Authorization header,
+  and in a Cookie header each `name=value` after a pair that ends in `;` (`a=1; b=2`, no space
+  before the `;`); the value of a `key=value` pair that is the word's first (its key all that comes
+  before the `=`) or follows a `?`, `&` or `;` (a quoted one to its closing quote; after a `?`, `&`
+  or `;` to the word's end; otherwise to the line's end, with the rest of the line, since such a
+  value can hold a space), or of a JSON pair with a key of up to 64 characters (an object or a list
+  to its closing bracket, on whatever line, or with none to the end of what is written; a bracket
+  inside its strings not counted), whose key contains token,
+  password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook address, its
+  slashes escaped (`\/`) or not. A secret written another way (`password: x` in plain text, a key such as `api_key`,
+  another site's webhook address) isn't caught (nothing MyOrbiter writes there is meant to hold one, though another player's chat line in a notification can), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing

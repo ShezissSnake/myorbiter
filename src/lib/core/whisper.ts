@@ -14,6 +14,8 @@
 // with the ayatan part "({cyan} cyan, {amber} amber)" (app.order.clipboard.stars), and the
 // application's name after it, apart, so the site's part stays exactly as the site writes it.
 
+import { stripHidden } from "./untrusted";
+
 /** The name the terms ask a copy/paste message to include. */
 export const APP_NAME = "MyOrbiter";
 
@@ -45,13 +47,28 @@ function stars(cyan: number | null | undefined, amber: number | null | undefined
   return `(${given(cyan) ? `${cyan} cyan` : ""}${given(amber) ? `, ${amber} amber` : ""})`;
 }
 
-/** The site's copy/paste message for this order, then the application's name. */
-export function tradeWhisper(o: WhisperOrder): string {
+/**
+ * Whether MyOrbiter builds a whisper to `name`: 1 to 40 letters, digits, "_", "-" and "." (MyOrbiter's
+ * own rule, not the game's or the site's). A space would address the whisper to another player,
+ * the rest of the name read as the message, and a line break would make a paste of several lines.
+ */
+export const isInGameName = (name: string): boolean => /^[A-Za-z0-9_.-]{1,40}$/.test(name);
+
+/** What's shown where a whisper would be, for a name `isInGameName` turns down. */
+export const NO_WHISPER = "No whisper: MyOrbiter doesn't build one for this name.";
+
+/**
+ * The site's copy/paste message for this order, then the application's name. Null for a name
+ * `isInGameName` turns down: no whisper then, never one to someone else. Always one line, whatever the site sent in any field (a variant, an item name, a price):
+ * hidden characters taken out and every run of whitespace, line breaks too, made one space.
+ */
+export function tradeWhisper(o: WhisperOrder): string | null {
+  if (!isInGameName(o.player)) return null;
   const ayatan = stars(o.cyanStars, o.amberStars);
   const site =
     `/w ${o.player} Hi! I want to ${o.action}: ` +
     `${given(o.perTrade) && o.perTrade > 1 ? `x${o.perTrade} ` : ""}` +
     `"${o.subtype ? `${o.subtype} ` : ""}${o.item}${given(o.rank) ? ` (rank ${o.rank})` : ""}${ayatan ? ` ${ayatan}` : ""}"` +
     ` for ${o.platinum} platinum. (warframe.market)`;
-  return `${site} (${APP_NAME})`;
+  return stripHidden(`${site} (${APP_NAME})`).replace(/\s+/g, " ");
 }
