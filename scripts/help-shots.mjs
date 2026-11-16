@@ -12,6 +12,10 @@
 // the window), then exits 1 if there was any. A step that matches nothing stops that picture's
 // check there, so it is the one miss listed for that picture.
 //
+// Item pictures come from the picture cache, and the cache's guard refuses the rest it is shown
+// off this machine (scripts/picture-cache.mjs says what it is shown, and what it leaves to the
+// browser's launch rule).
+//
 // Pictures are taken at twice the window's pixels and kept at most MAX_W pixels wide, at the
 // highest WebP quality that keeps them under MAX_BYTES.
 
@@ -21,6 +25,7 @@ import { join } from "node:path";
 import { pictures } from "../src/lib/help/index.ts";
 import { pageById } from "../src/lib/pages.ts";
 import { stopWorldState } from "./no-world-state.mjs";
+import { guard, hidePaths } from "./picture-cache.mjs";
 
 const MAX_W = 1200;
 const MAX_BYTES = 60 * 1024;
@@ -63,7 +68,7 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
         await reach(p, x.shot, where);
         for (const miss of await missing(p, x.shot)) misses.push(`${where}: ${miss}`);
       } catch (e) {
-        misses.push(e.message);
+        misses.push(hidePaths(e.message));
       }
       console.log(`checked ${where}`);
       continue;
@@ -101,9 +106,10 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
 async function openApp(browser, url, w, h, shot = {}) {
   const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
-  await p.route(/warframe\.market/, (r) => (r.request().method() === "GET" ? r.continue() : r.abort()));
+  // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
+  await guard(p);
   await stopWorldState(p);
-  p.on("pageerror", (e) => console.error(`help: ${e.message}`));
+  p.on("pageerror", (e) => console.error(`help: ${hidePaths(e.message)}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the
   // Full mode question seen, calm motion so nothing is caught half-way.
   // A start-up dialog's window: the Full mode question not asked yet. A first start's: TennoScope
@@ -386,7 +392,7 @@ async function mark(p, shot, where) {
 /** The PNG as WebP, at most MAX_W wide, at the best quality under MAX_BYTES. Returns its bytes. */
 function toWebp(png, file) {
   for (const q of [82, 74, 66, 58, 50, 42]) {
-    execFileSync("magick", [png, "-resize", `${MAX_W}x>`, "-strip", "-quality", String(q), "-define", "webp:method=6", file]);
+    execFileSync("magick", [png, "-resize", `${MAX_W}x>`, "-strip", "-quality", String(q), "-define", "webp:method=6", file], { stdio: ["ignore", "ignore", "pipe"] });
     const bytes = statSync(file).size;
     if (bytes <= MAX_BYTES) return bytes;
   }

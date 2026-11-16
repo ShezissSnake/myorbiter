@@ -1,7 +1,10 @@
 // The demo has a world state of its own (demo/dev-worldstate.json): the pictures, the help-picture
-// check and the sweep ask no world-state service. Each window they open stops any request to one
-// and counts it, so a run says how many there were and fails on any. Every host the windows asked
-// is counted too, so a run shows what it reached.
+// check and the sweep ask no world-state service. Each window they open stops a request to one
+// that the page's routes are shown and counts it, so a run says how many there were and fails on
+// any. Every host the windows asked is counted too, so a run shows what its pages asked for. What
+// the cache's guard is shown and doesn't let through (localhost, `data:`, `blob:`) is answered
+// from the cache or refused, and the picture cache's line (scripts/picture-cache.mjs) says how
+// many; what it leaves to the browser's launch rule is in neither count.
 
 /** api.warframestat.us, and the game's own world-state file. */
 const WORLD_STATE = /warframestat\.us|worldState\.php/i;
@@ -10,7 +13,7 @@ export const worldStateAsked = { count: 0 };
 /** Requests by host, every window of the run together. */
 export const hostsAsked = new Map();
 
-/** Stops and counts every world-state request the page `p` makes, and counts its requests by host. */
+/** Stops and counts a world-state request the page `p`'s routes are shown, and counts its requests by host. */
 export async function stopWorldState(p) {
   p.on("request", (r) => {
     let host = "?";
