@@ -7,9 +7,9 @@ test("csv: fields with commas and quotes are quoted", () => {
   assert.equal(field(null), "");
 });
 
-test("csv: a text cell holding a ';' stays one cell in a sheet split on ';', so it can't open as a formula", () => {
-  // A sheet that splits on ";" (common where "," is the decimal mark) would read "=1+1" as a
-  // cell of its own; quoted, the whole name is one cell of text.
+test("csv: a text cell holding a ';' is written quoted", () => {
+  // Unquoted, a sheet that splits on ";" (common where "," is the decimal mark) could read "=1+1"
+  // as a cell of its own. This checks the text written, not how a spreadsheet opens it.
   assert.equal(field("ExamplePlayer;=1+1"), '"ExamplePlayer;=1+1"');
   assert.equal(field("a;b"), '"a;b"');
   assert.equal(field("2× Serration R10; Mesa Prime Set"), '"2× Serration R10; Mesa Prime Set"');

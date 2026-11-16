@@ -37,8 +37,9 @@ export function stripHidden(s: string): string {
 
 /**
  * A one-line field from outside: a string, cleaned of hidden characters, its whitespace folded to
- * single spaces, trimmed and cut to `max` characters (by code point, so an emoji is never split).
- * Null when it isn't a string or nothing is left.
+ * single spaces, trimmed and cut to `max` characters (by code point, so no code point is split in
+ * half; an emoji made of several code points can still be cut between them). Null when it isn't a
+ * string or nothing is left.
  */
 export function cleanLine(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;

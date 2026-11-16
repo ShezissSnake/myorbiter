@@ -203,8 +203,9 @@ fn civil_from_days(z: i64) -> (i64, u32, u32) {
 }
 
 /// What every line goes through before it's written, and again before it goes into a report (a
-/// line written before a rule was added is covered too): no sign-in (`redact`), no home folder's
-/// name (`tilde`).
+/// line written before a rule that reads one line was added is covered too; a report reads the
+/// file a line at a time, so a JSON value over several lines that an older build wrote is cut to
+/// its first line's end): no sign-in (`redact`), no home folder's name (`tilde`).
 fn private(line: &str) -> String {
     let line = redact(line);
     match home() {
@@ -315,7 +316,9 @@ pub fn redact(s: &str) -> String {
         // A JWT, whole or cut short after its second part (a line cut at its length limit).
         let is_jwt = |w: &str| w.find("eyJ").is_some_and(|i| w[i..].contains('.'));
         let jwt = is_jwt(word);
-        if let Some(at) = webhook_at(word).filter(|_| word.to_ascii_lowercase().contains("discord")) {
+        // A word a head hides (after "Bearer", "Authorization:", a Cookie header) goes whole below,
+        // the address with it, so it isn't read for one here.
+        if let Some(at) = webhook_at(word).filter(|_| !hide_next && word.to_ascii_lowercase().contains("discord")) {
             let start = word[..at].rfind("http").unwrap_or(0);
             // A secret pair or a JWT before the address in the same word goes by its own rule
             // below, which takes the address with it.
@@ -323,7 +326,6 @@ pub fn redact(s: &str) -> String {
             if secret_pair(before).is_none() && !is_jwt(before) {
                 out.push_str(before);
                 out.push_str("[redacted webhook]");
-                hide_next = false;
                 continue;
             }
         }
@@ -559,7 +561,7 @@ fn secret_key(k: &str) -> bool {
 // ---------------------------------------------------------------- for a bug report
 
 /// The last `lines` lines of MyOrbiter's log, oldest first, each passed through `redact` again (a
-/// line written before a rule was added is covered too). When the current file holds fewer, the
+/// line written before a rule that reads one line was added is covered too). When the current file holds fewer, the
 /// rest come from the end of the one before it. The page redacts them further before showing them
 /// in a report (src/lib/core/redact.ts), and nothing leaves the computer unless the player sends it.
 pub fn tail(lines: usize) -> Vec<String> {
@@ -746,6 +748,22 @@ mod tests {
         // Text with no secret before the address stays.
         assert_eq!(redact("(see https://discord.com/api/webhooks/1/zzz999)"), "(see [redacted webhook]");
         assert_eq!(redact("url=https://discord.com/api/webhooks/1/zzz999"), "url=[redacted webhook]");
+    }
+
+    #[test]
+    fn a_webhook_address_in_the_word_after_a_head_goes_with_that_word() {
+        // The word after "Bearer", "Authorization:" or a Cookie header is hidden whole, address and
+        // all, and a Cookie header's later pairs after it.
+        assert_eq!(cut_once("Bearer abc123,https://discord.com/api/webhooks/1/zzz999", "abc123 zzz999"), "Bearer [redacted]");
+        assert_eq!(cut_once("Authorization: abc123,https://discord.com/api/webhooks/1/zzz999", "abc123 zzz999"), "Authorization: [redacted]");
+        assert_eq!(cut_once("Authorization: Bearer abc123,https://discord.com/api/webhooks/1/zzz999 y", "abc123 zzz999"), "Authorization: Bearer [redacted] y");
+        assert_eq!(cut_once("Bearer https://discord.com/api/webhooks/1/zzz999", "zzz999"), "Bearer [redacted]");
+        assert_eq!(cut_once("Cookie: hook=https://discord.com/api/webhooks/1/zzz999; sid=def456", "zzz999 def456"), "Cookie: [redacted] [redacted]");
+        assert_eq!(cut_once("Cookie: a=abc123,https://discord.com/api/webhooks/1/zzz999; sid=def456", "abc123 zzz999 def456"), "Cookie: [redacted] [redacted]");
+        // An address in a later pair goes with its pair, as before.
+        assert_eq!(cut_once("Cookie: a=1; b=https://discord.com/api/webhooks/1/zzz999; c=3", "zzz999"), "Cookie: [redacted] [redacted] [redacted]");
+        // A quote mark inside the address ends the quoted value there, as before.
+        assert_eq!(cut_once("x token='a,https://discord.com/api/webhooks/1/zz'z99 y", "discord"), "x token='[redacted]'z99 y");
     }
 
     #[test]
@@ -944,6 +962,8 @@ mod fuzz {
                 format!("{{\"session\":{{\"a\":\"}}]\",\"b\":\"{secret}\"}}}}"),
                 format!("https:\\/\\/discord.com\\/api\\/webhooks\\/123\\/{secret}"),
                 format!("Cookie:{}a={}; sid={secret}", gap(&mut r).replace('\n', " "), r.word(4)),
+                format!("Bearer{}{secret},https://discord.com/api/webhooks/1/{}", gap(&mut r), r.word(6)),
+                format!("Cookie:{}hook=https://discord.com/api/webhooks/1/{}; sid={secret}", gap(&mut r).replace('\n', " "), r.word(6)),
             ];
             let mut text = String::new();
             for _ in 0..r.below(4) {
