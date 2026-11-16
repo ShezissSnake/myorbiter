@@ -301,7 +301,7 @@ pub fn redact(s: &str) -> String {
         let lower = bare.to_ascii_lowercase();
         // A JWT, whole or cut short after its second part (a line cut at its length limit).
         let jwt = word.find("eyJ").is_some_and(|i| word[i..].contains('.'));
-        if let Some(at) = word.find("/api/webhooks/").filter(|_| word.contains("discord")) {
+        if let Some(at) = webhook_at(word).filter(|_| word.contains("discord")) {
             let start = word[..at].rfind("http").unwrap_or(0);
             out.push_str(&word[..start]);
             out.push_str("[redacted webhook]");
@@ -324,6 +324,13 @@ pub fn redact(s: &str) -> String {
             hide_next = false;
             continue;
         }
+        // JSON: `{"password":"x"}`, or `"password":` with its value in the next word.
+        let (json, value_next) = json_secrets(word);
+        if json.is_some() || value_next {
+            out.push_str(json.as_deref().unwrap_or(word));
+            hide_next = value_next;
+            continue;
+        }
         if let Some((k, v)) = word.split_once('=').filter(|(k, _)| secret_key(k)) {
             out.push_str(k);
             out.push_str(if v.is_empty() { "=" } else { "=[redacted]" });
@@ -335,6 +342,64 @@ pub fn redact(s: &str) -> String {
         out.push_str(word);
     }
     out
+}
+
+/// The JSON pairs in `word` whose key names a secret (`secret_key`), each value cut out
+/// (`{"password":"[redacted]"}`), or None when there's none; and whether the word ends with such a
+/// key's colon, its value in the next word (`{"password": "x"}`).
+fn json_secrets(word: &str) -> (Option<String>, bool) {
+    let mut out = String::with_capacity(word.len());
+    let mut rest = word;
+    let mut changed = false;
+    while let Some(i) = rest.find("\":") {
+        let key = rest[..i].rfind('"').map(|s| &rest[s + 1..i]);
+        out.push_str(&rest[..i + 2]);
+        rest = &rest[i + 2..];
+        if !key.is_some_and(secret_key) {
+            continue;
+        }
+        if rest.is_empty() {
+            return (changed.then_some(out), true);
+        }
+        let end = json_value_end(rest);
+        out.push_str(if rest.starts_with('"') { "\"[redacted]\"" } else { "[redacted]" });
+        rest = &rest[end..];
+        changed = true;
+    }
+    out.push_str(rest);
+    (changed.then_some(out), false)
+}
+
+/// Where the JSON value at the start of `s` ends: after its closing quote (escaped quotes passed
+/// over), or at the next `,`, `}` or `]`.
+fn json_value_end(s: &str) -> usize {
+    let Some(body) = s.strip_prefix('"') else {
+        return s.find([',', '}', ']']).unwrap_or(s.len());
+    };
+    let mut escaped = false;
+    for (i, c) in body.char_indices() {
+        if escaped {
+            escaped = false;
+        } else if c == '\\' {
+            escaped = true;
+        } else if c == '"' {
+            return i + 2;
+        }
+    }
+    s.len()
+}
+
+/// Where a webhook address's path starts in `word`: `/api/webhooks/`, or with an API version,
+/// `/api/v10/webhooks/`.
+fn webhook_at(word: &str) -> Option<usize> {
+    word.match_indices("/api/").map(|(i, _)| i).find(|&i| {
+        let rest = &word[i + "/api/".len()..];
+        let rest = rest.strip_prefix('v').map_or(rest, |r| {
+            let digits = r.len() - r.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+            if digits > 0 { r[digits..].strip_prefix('/').unwrap_or(rest) } else { rest }
+        });
+        rest.starts_with("webhooks/")
+    })
 }
 
 /// A key in `key=value` whose value is a sign-in or a session: a token, password, secret, cookie,
@@ -394,6 +459,29 @@ mod tests {
         assert_eq!(redact("Cookie: JWT=abc; other"), "Cookie: [redacted] other");
         assert_eq!(redact("got password=hunter2 and sessionid=xyz and nonce=12"), "got password=[redacted] and sessionid=[redacted] and nonce=[redacted]");
         assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
+    }
+
+    /// docs/privacy.md: "Anything shaped like a token, password or webhook address is cut out
+    /// before it's written".
+    #[test]
+    fn any_webhook_address_and_a_json_password_are_cut_out() {
+        // A webhook address of any API version.
+        assert_eq!(redact("https://discord.com/api/v10/webhooks/1/abc"), "[redacted webhook]");
+        assert_eq!(redact("posting to https://discord.com/api/v9/webhooks/123/abc_DEF failed"), "posting to [redacted webhook] failed");
+        assert_eq!(redact("(https://ptb.discord.com/api/v10/webhooks/1/x)"), "([redacted webhook]");
+        assert_eq!(redact("see https://example.com/api/v10/webhooks/1/x"), "see https://example.com/api/v10/webhooks/1/x", "only Discord's");
+        assert_eq!(redact("https://discord.com/api/v10/users/1"), "https://discord.com/api/v10/users/1", "not a webhook");
+        // A JSON pair with no space, and with one.
+        let r = redact(r#"{"password":"hunter2"}"#);
+        assert_ne!(r, r#"{"password":"hunter2"}"#);
+        assert!(!r.contains("hunter2"), "{r}");
+        assert_eq!(r, r#"{"password":"[redacted]"}"#);
+        assert_eq!(redact(r#"body {"email":"a@example.invalid","password":"p\"w,d}","remember":true}"#), r#"body {"email":"a@example.invalid","password":"[redacted]","remember":true}"#);
+        assert_eq!(redact(r#"{"token":12345,"x":1}"#), r#"{"token":[redacted],"x":1}"#);
+        let r = redact(r#"{"password": "hunter2"}"#);
+        assert!(!r.contains("hunter2"), "{r}");
+        // Other pairs stay.
+        assert_eq!(redact(r#"{"name":"Mesa Prime Set","platinum":120}"#), r#"{"name":"Mesa Prime Set","platinum":120}"#);
     }
 
     #[test]
@@ -556,6 +644,10 @@ mod fuzz {
                 jwt.clone(),
                 half_jwt.clone(),
                 format!("https://discord.com/api/webhooks/123/{secret}"),
+                format!("https://discord.com/api/v10/webhooks/123/{secret}"),
+                format!("{{\"password\":\"{secret}\"}}"),
+                format!("{{\"email\":\"x\",\"token\":\"{secret}\"}}"),
+                format!("{{\"password\": \"{secret}\"}}"),
             ];
             let mut text = String::new();
             for _ in 0..r.below(4) {

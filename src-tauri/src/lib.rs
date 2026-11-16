@@ -538,7 +538,7 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
     // name, or over a file, and a name taken means the next number.
     for n in 1..1000 {
         let path = if n == 1 { dir.join(format!("myorbiter-{what}-{day}.csv")) } else { dir.join(format!("myorbiter-{what}-{day}-{n}.csv")) };
-        match fs::OpenOptions::new().write(true).create_new(true).open(&path) {
+        match create_export(&path) {
             Ok(f) => {
                 write_whole(&path, f, text.as_bytes()).map_err(|e| e.to_string())?;
                 return Ok(path.display().to_string());
@@ -548,6 +548,19 @@ fn export_file(app: tauri::AppHandle, what: String, text: String, day: Option<St
         }
     }
     Err("too many exports of that name today".into())
+}
+
+/// A new export file at `path`, never one already there. Only the player can read it (0600 on
+/// Unix), as the log: it names the same trade partners.
+fn create_export(path: &Path) -> std::io::Result<fs::File> {
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)
 }
 
 /// Writes all of `bytes` to `out`, the file just made at `path`, or removes the file: a disk that
@@ -2323,6 +2336,23 @@ mod tests {
         let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).unwrap();
         write_whole(&path, file, text.as_bytes()).unwrap();
         assert_eq!(fs::read_to_string(&path).unwrap(), text, "a whole one stays");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// An export names trade partners, as the log does: only the player can read it, as the log.
+    #[cfg(unix)]
+    #[test]
+    fn an_export_is_readable_by_the_player_only() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("myorbiter-export-mode-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("myorbiter-trades-2026-11-02.csv");
+        let file = create_export(&path).unwrap();
+        write_whole(&path, file, b"date,partner\n").unwrap();
+        assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o777, 0o600);
+        // Never over a file already there.
+        assert_eq!(create_export(&path).unwrap_err().kind(), std::io::ErrorKind::AlreadyExists);
         let _ = fs::remove_dir_all(&dir);
     }
 
