@@ -62,7 +62,8 @@ check above before each commit, and `cargo test` as well when the commit changes
 tests or build read (a `.rs` file, a `Cargo.toml` or `Cargo.lock`, `src-tauri/`'s configuration,
 `capabilities/` and `icons/`, `LICENSE`, `NOTICE.md`, `THIRD-PARTY-NOTICES/`,
 `src/lib/core/links.ts`, the fixtures under `tests/fixtures/noxsframe/` and
-`tests/fixtures/updater/`); run `node scripts/site.mjs --check --offline` when the site or a
+`tests/fixtures/updater/`); run TennoScope's own checks when the commit changes a file under
+`tennoscope/` (`tennoscope/ORBITER.md`, "Its checks, run here"); run `node scripts/site.mjs --check --offline` when the site or a
 download link changed; and push the branch to `origin`, which is the GitHub repository
 (`git@github.com:ShezissSnake/myorbiter.git`). The change comes in as a pull request on GitHub,
 opened as a draft until it has been looked over; nothing is pushed to `main` directly. GitLab

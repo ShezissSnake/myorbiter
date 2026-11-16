@@ -126,7 +126,8 @@ from a branch cut at Beta's build, without becoming Experimental's build:
    `beta-fix/<name>` by a pull request into that branch.
 3. **The fix** on `beta-fix/<name>`, tested as for `main` (`npm test`, `npm run check -- --threshold
    error`, and `cargo test --workspace --locked` from the top folder when the fix changes a file the
-   Rust tests or build read: `docs/development.md`, *Sending a change*, lists them). A fix that
+   Rust tests or build read: `docs/development.md`, *Sending a change*, lists them; and TennoScope's own
+   checks when it changes a file under `tennoscope/`). A fix that
    `main` needs too goes into `main` by its own pull request.
 4. **Release run:** Run workflow, *Use workflow from* `beta-fix/<name>`, *task* `release`,
    *windows* ticked, ***experimental* unticked**. *Sign the updater downloads* fails unless
