@@ -2932,7 +2932,11 @@
   }
   const checkNav = () => {
     const n = navScroller();
+    const was = untrack(() => railScrolls);
     railScrolls = !!n && n === railEl;
+    // A zoom took the page across the short-page rule: the other box scrolls now, from where it
+    // was left, so the open page is brought into its view again.
+    if (railScrolls !== was) keepOpenInView();
     navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
     navAbove = !!n && n.scrollTop > 4;
   };
