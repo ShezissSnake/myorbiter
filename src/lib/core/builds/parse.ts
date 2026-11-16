@@ -279,10 +279,11 @@ export function parsePaste(text: string, item: CatalogItem, catalog: ReadonlyMap
           if (ownWords.some((w) => runText.includes(` ${w} `))) continue;
           // Only tag words ("Steel Path nuke"): what the build is for, not a mod.
           if (onlyTags(chunk.slice(r[0].start, r[r.length - 1].end))) continue;
-          // Without the filler at either end, or a trailing "?" or "!".
+          // Without the filler at either end, or a trailing "?" or "!". The look-behind starts the
+          // run of marks only at its first one, so a long run is read once, not from each mark.
           const first = r.findIndex((t) => !FILLER.has(t.norm));
           const last = r.length - 1 - [...r].reverse().findIndex((t) => !FILLER.has(t.norm));
-          const textRun = chunk.slice(r[first].start, r[last].end).trim().replace(/[?!.…]+$/, "");
+          const textRun = chunk.slice(r[first].start, r[last].end).trim().replace(/(?<![?!.…])[?!.…]+$/, "");
           const m = matchName(textRun, idx, item, kind, "any", opts.held);
           if (!m.ok) unmatched.push(m);
           else spans.push({ from: toks.indexOf(r[0]), to: toks.indexOf(r[r.length - 1]) + 1, m });

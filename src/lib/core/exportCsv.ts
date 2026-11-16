@@ -2,8 +2,8 @@
 import type { Sale, TradeLogEntry } from "../backend";
 
 /**
- * One CSV field: quoted when it holds a comma, a quote, a line break or a `;` (a spreadsheet that
- * splits on `;` would otherwise make what follows it a cell of its own), quotes doubled. Text that
+ * One CSV field: quoted when it holds a comma, a quote, a line break or a `;`, quotes doubled (how
+ * a spreadsheet that splits on `;` reads such a quoted cell isn't checked here). Text that
  * starts with `=`, `+`, `-`, `@`, a tab or a carriage return (a trade partner's name, an item's)
  * would be a formula in a spreadsheet that opens the file: it gets a `'` in front, so it opens as
  * text. Numbers the app writes are numbers, and stay as they are.

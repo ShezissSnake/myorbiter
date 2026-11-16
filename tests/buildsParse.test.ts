@@ -153,7 +153,7 @@ test("a pasted line built to make the Helminth pattern backtrack reads in well u
   assert.ok(ms < 1000, `${line.length} characters in stretches: ${Math.round(ms)} ms`);
 });
 
-test("a long run of spaces after a rank, a forma count or a shard reads in well under a second", () => {
+test("a long run of spaces after a rank, a forma count or a shard, or of question marks, reads in well under a second", () => {
   // Each pattern once had two runs of spaces side by side, so a line of spaces was tried every way
   // it can be split in two: a 20,000-character line took about half a second.
   const lines: [string, string][] = [
@@ -162,6 +162,8 @@ test("a long run of spaces after a rank, a forma count or a shard reads in well 
     ["a shard", "crimson shard:" + " ".repeat(19_985) + ","],
     ["a loose shard", "Shards: crimson:" + " ".repeat(19_983) + ","],
     ["a label", "aura" + " ".repeat(19_995) + "x"],
+    // Not spaces: a run of "?" read as a name's end marks, tried from each of its characters.
+    ["a run of question marks", "?".repeat(19_998) + "zq"],
   ];
   for (const [what, line] of lines) {
     assert.equal(line.length, 20_000);
@@ -171,6 +173,11 @@ test("a long run of spaces after a rank, a forma count or a shard reads in well 
     console.log(`${what}, 20,000 characters: ${ms.toFixed(1)} ms`);
     assert.ok(ms < 250, `${what}: ${Math.round(ms)} ms`);
   }
+});
+
+test("a name with marks after it reads as the name", () => {
+  const r = parsePaste("Serration?!\nSplit Chamber...\nVital Sense…", item(P.braton), CAT, { now: NOW });
+  assert.deepEqual(r.build.mods.filter(Boolean), [{ path: P.serration }, { path: P.splitChamber }, { path: P.vitalSense }]);
 });
 
 test("a rank, a forma count and a shard read the same with spaces around their parts", () => {

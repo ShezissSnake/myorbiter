@@ -57,7 +57,10 @@ export function cleanBlock(v: unknown, max: number): string | null {
   return chars.length > max ? chars.slice(0, max).join("").trimEnd() : s;
 }
 
-/** `s` cut to its first `max` characters by code point, so an emoji is never split in half. */
+/**
+ * `s` cut to its first `max` characters by code point, so no character is split in half. An emoji
+ * made of several code points (a flag, a skin tone, a joined family) can still be cut between them.
+ */
 export const cutChars = (s: string, max: number): string => {
   const chars = [...s];
   return chars.length > max ? chars.slice(0, max).join("") : s;
