@@ -187,11 +187,29 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
 - ships no licence text and isn't in `scripts/dependency-licences-no-text.json` by name and
   version (a new version of a crate listed there stops it too).
 
-It stops as well when the page's packages aren't installed; when the page holds a module, or a
-style pulls in a file (with `@import` or `url()`), that is neither the page's own nor a package's;
-when Vite compiles the page's styles without the CSS plugin the script listens to; when cargo's
-answer has a line the script can't read, or no crate at all; and when the script is given an
-argument it doesn't know. It never passes by leaving a package out.
+**How the page is read.** The page's own Vite build is run again, writing nothing. A package is in
+the page when its code is in the page's code (or a worker's), when one of its styles is compiled
+into the page, when the build emits one of its files, or when the build reads one of its files
+through Node's `fs` while it runs. That last one takes in what a style `@import`s or `composes`
+from, in a stylesheet or a component's `<style>`, and every small file Vite inlines as a `data:`
+address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`). A
+package's `package.json`, read to find its files, and what Node loads as code to run the build
+aren't counted. Each package found is listed and gated like any other.
+
+It stops as well when:
+
+- the page's packages aren't installed;
+- a CSS preprocessor (`sass`, `sass-embedded`, `less` or `stylus`) is installed for the page: it
+  reads what a style imports in a thread or process of its own, where the script doesn't listen;
+- the page holds a module that is neither the page's own nor a package's;
+- the build emits a file of its own (not its code, styles or HTML) without reading it through
+  Node's `fs`. This check sees only that: that Vite still reads the files it emits where the script
+  listens, as it reads the files it inlines. A page that emits no such file gives it nothing to
+  check;
+- cargo's answer has a line the script can't read, or no crate at all;
+- the script is given an argument it doesn't know.
+
+It never passes by leaving a package out.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
@@ -202,19 +220,21 @@ argument it doesn't know. It never passes by leaving a package out.
   back or replaced.
 - A crate with no licence text of its own: an entry for it, by name, version and licence, goes into
   `scripts/dependency-licences-no-text.json`, with the maintainer's yes like any licence file. An
-  entry can hold one of two things today. `text` names, by its SHA-256 (and `from`, the package
-  that must ship it), a file another package of the same build ships unchanged: for a licence with
-  no line of its own to fill (Apache-2.0, BSL-1.0), that licence's standard text; the build stops
-  if no package of it ships that file. Or `text` is `null`: the download carries no text for the
-  crate, and its list says so, naming its licence and the repository its manifest names. A text is
-  never written by hand. Carrying upstream's own file for a crate (its copyright line, for MIT or
-  BSD) has no place in that file yet: it needs a change to the script, to read the file from the
-  repository with where it came from.
+  entry can hold one of two things today. `text` names, by its SHA-256, a file another package of
+  the same build ships unchanged, with an optional `from` naming the one package it must come from
+  (without it, any package of the build that ships those bytes): for a licence with no line of its
+  own to fill (Apache-2.0, BSL-1.0), that licence's standard text; the build stops if no package of
+  it ships that file. Or `text` is `null`: the download carries no text for the crate, and its list
+  says so, naming its licence and the repository its manifest names. A text is never written by
+  hand. Carrying upstream's own file for a crate (its copyright line, for MIT or BSD) has no place
+  in that file yet: it needs a change to the script, to read the file from the repository with
+  where it came from.
 - A source that isn't the registry: the dependency goes back to a published version.
 - The page not installed, or a module of no known package: the build steps before it changed;
-  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. Vite's
-  CSS plugin not found or not heard, or a line of cargo's it can't read: an upgrade of Vite or
-  cargo changed what the script reads, and the script follows it.
+  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. A file
+  emitted without being read through `fs`, or a line of cargo's it can't read: an upgrade of Vite
+  or cargo changed how they read, and the script follows it. A CSS preprocessor: following what
+  it imports is a change to the script.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:

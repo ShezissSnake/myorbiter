@@ -1,14 +1,15 @@
 // scripts/dependency-licences.mjs: the licence expressions, the allowed list, the gate, the list a
 // download carries, and the files the build reads. Made-up packages only: nothing here runs cargo
-// or Vite (a release build runs the script on the real ones); a stand-in cargo answers in its place.
+// (a stand-in answers in its place); made-up pages are built with the repository's own Vite, as a
+// release build does, writing nothing.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
 import {
-  ALLOWED_FILE, NO_TEXT_FILE, checkList, gate, licenceAllowed, main, packageDir, pageRecorder, parseCargoTree, parseExpression,
-  pnpmResolutions, readAllowed, readRust, renderList, type NoTextEntry, type Package,
+  ALLOWED_FILE, NO_TEXT_FILE, PREPROCESSORS, checkList, gate, licenceAllowed, main, packageDir, pageRecorder, parseCargoTree,
+  parseExpression, pnpmResolutions, readAllowed, readPage, readRust, renderList, type NoTextEntry, type Package,
 } from "../scripts/dependency-licences.mjs";
 
 const allowed = readAllowed(readFileSync(ALLOWED_FILE, "utf8"));
@@ -307,61 +308,162 @@ test("a page module's package folder, with npm's layout, pnpm's and Windows path
   assert.equal(packageDir("/r/node_modules/.pnpm/lock.yaml"), null);
 });
 
-// Vite's CSS plugin as the page's build has it: it inlines what a style @imports and reports each
-// file it pulled in with addWatchFile, with no module or transform of that file's own.
-const cssPlugin = (deps: string[]) => {
-  const watched: string[] = [];
-  const plugin = {
-    name: "vite:css",
-    transform: {
-      filter: { id: { include: /\.css$/ } },
-      async handler(this: { addWatchFile(f: string): void; environment: string }, code: string, _id: string) {
-        assert.equal(this.environment, "client", "the rest of the context is Vite's own");
-        for (const d of deps) this.addWatchFile(d);
-        return { code };
-      },
-    },
-  };
-  const context = { addWatchFile: (f: string) => { watched.push(f); }, environment: "client" };
-  return { plugin, watched, run: () => plugin.transform.handler.call(context, "@import 'x';", "/r/src/app.css") };
-};
+// ---------------------------------------------------------------- what the page's build reads
 
-test("a package whose style or file only comes in through a CSS @import or url() is in the page", async () => {
-  const css = cssPlugin(["/r/node_modules/fakecss/x.css", "/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", "/r/src/theme.css",
-    "/r/src/logo.svg", "/r/node_modules/fakefont/f.woff2"]);
-  const r = pageRecorder("/r", { vite: "/r/node_modules/vite", rolldown: null });
-  const hooks = r.plugin;
-  hooks.configResolved({ plugins: [{ name: "vite:something" }, css.plugin] });
-  hooks.transform("", "/r/src/app.css");
-  await css.run();
-  hooks.generateBundle({}, {});
-  assert.deepEqual(r.failures, []);
+test("a file of a package read through fs is in the page; its package.json and Node loading a tool are not", () => {
+  const r = pageRecorder("/r");
+  const builder = "Error\n    at x (file:///r/node_modules/vite/dist/node/chunks/node.js:1:1)";
+  const loader = "Error\n    at getSourceSync (node:internal/modules/esm/load:45:17)";
+  r.read("/r/node_modules/fakesv/s.css", builder);
+  r.read("/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", builder);
+  r.read("C:\\r\\node_modules\\winpkg\\f.woff2", builder);
+  r.read("/r/node_modules/resolved-only/package.json", builder);
+  r.read("/r/node_modules/a-tool/dist/index.js", loader);
+  r.read("/r/node_modules/.modules.yaml", builder);
+  r.read("/r/src/app.css", builder);
   assert.deepEqual([...r.rendered].map(([d, how]) => [d, [...how]]), [
-    ["/r/node_modules/fakecss", ["css"]],
-    ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["css"]],
-    ["/r/node_modules/fakefont", ["asset"]],
+    ["/r/node_modules/fakesv", ["file"]],
+    ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["file"]],
+    ["C:/r/node_modules/winpkg", ["file"]],
   ]);
-  assert.deepEqual([...r.unknown], []);
-  // Vite still sees every file it reported, and the plugin keeps its filter.
-  assert.equal(css.watched.length, 5);
-  assert.ok(css.plugin.transform.filter);
 });
 
-test("a file a style pulls in from outside the page and every package stops it, and so does a Vite whose CSS plugin isn't heard", async () => {
-  const css = cssPlugin(["/elsewhere/shared.css", "/elsewhere/font.woff2"]);
+test("a file the build emits without having read it through fs is named: what it inlines could go unseen", () => {
   const r = pageRecorder("/r");
-  r.plugin.configResolved({ plugins: [css.plugin] });
-  await css.run();
-  assert.deepEqual([...r.unknown], ["/elsewhere/shared.css", "/elsewhere/font.woff2"]);
-  const bare = pageRecorder("/r");
-  bare.plugin.configResolved({ plugins: [{ name: "vite:build" }] });
-  assert.match(bare.failures.join("\n"), /Vite's CSS plugin \(vite:css\) isn't where this looks for it/);
-  // Found, but never called: the styles went through some other way.
-  const silent = pageRecorder("/r");
-  silent.plugin.configResolved({ plugins: [cssPlugin([]).plugin] });
-  silent.plugin.transform("", "/r/src/app.css");
-  silent.plugin.generateBundle({}, {});
-  assert.match(silent.failures.join("\n"), /without the CSS plugin this listens to/);
+  r.read("/r/src/heard.svg", "Error");
+  r.plugin.generateBundle({}, {
+    "a.svg": { type: "asset", fileName: "assets/heard.svg", originalFileNames: ["src/heard.svg"] },
+    "b.svg": { type: "asset", fileName: "assets/unheard.svg", originalFileNames: ["src/unheard.svg"] },
+    // The page's styles and HTML name their entry, not a file read.
+    "c.css": { type: "asset", fileName: "assets/index.css", originalFileNames: ["index.html"] },
+    "index.html": { type: "asset", fileName: "index.html", originalFileNames: ["index.html"] },
+  });
+  assert.deepEqual(r.unheard(), ["/r/src/unheard.svg"]);
+});
+
+test("a worker the page's build makes gets the same listener", () => {
+  const r = pageRecorder("/r");
+  const config: { worker?: { plugins?: () => unknown[] } } = { worker: { plugins: () => ["the page's own"] } };
+  r.plugin.config(config);
+  const plugins = config.worker?.plugins?.() as unknown[];
+  assert.equal(plugins[0], "the page's own");
+  const worker = plugins[1] as { name: string; generateBundle(o: unknown, b: unknown): void };
+  assert.equal(worker.name, "dependency-licences:worker");
+  worker.generateBundle({}, { "w.js": { type: "chunk", modules: { "/r/node_modules/fakeworker/index.js": { renderedLength: 10 } } } });
+  assert.deepEqual([...r.rendered.keys()], ["/r/node_modules/fakeworker"]);
+});
+
+// A made-up page with made-up GPL-3.0 packages, built with the repository's own Vite (and Svelte,
+// for a component's style): the page's real build, run again by readPage as a release build does.
+const pageBuild = async (files: Record<string, string>, svelte = false) => {
+  const repo = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  const nm = join(repo, "node_modules");
+  mkdirSync(nm);
+  for (const p of svelte ? ["vite", "svelte", "@sveltejs"] : ["vite"]) symlinkSync(join(process.cwd(), "node_modules", p), join(nm, p));
+  const lock: { packages: Record<string, unknown> } = { packages: {} };
+  for (const [path, text] of Object.entries(files)) {
+    mkdirSync(join(repo, path, ".."), { recursive: true });
+    writeFileSync(join(repo, path), text);
+    const m = /^node_modules\/([^/]+)\//.exec(path);
+    if (m && !existsSync(join(nm, m[1], "package.json"))) {
+      writeFileSync(join(nm, m[1], "package.json"), JSON.stringify({ name: m[1], version: "1.0.0", license: "GPL-3.0", type: "module", main: "index.js" }));
+      writeFileSync(join(nm, m[1], "LICENSE"), `${m[1]}: a made-up licence text\n`);
+      lock.packages[`node_modules/${m[1]}`] = { version: "1.0.0", resolved: `https://registry.npmjs.org/${m[1]}/-/${m[1]}-1.0.0.tgz` };
+    }
+  }
+  writeFileSync(join(repo, "package.json"), '{"type":"module"}\n');
+  writeFileSync(join(repo, "package-lock.json"), JSON.stringify(lock));
+  if (!files["index.html"]) writeFileSync(join(repo, "index.html"), '<!doctype html><html><body><script type="module" src="/src/main.js"></script></body></html>\n');
+  writeFileSync(join(repo, "vite.config.ts"), svelte
+    ? 'import { svelte } from "@sveltejs/vite-plugin-svelte";\nexport default { plugins: [svelte()] };\n'
+    : "export default {};\n");
+  if (svelte) writeFileSync(join(repo, "svelte.config.js"), 'import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\nexport default { preprocess: vitePreprocess() };\n');
+  try {
+    const page = await readPage("myorbiter", repo);
+    const made = page.packages.filter((p) => p.name.startsWith("fake")).map((p) => `${p.name} ${p.version} ${p.licence}`).sort();
+    const stops = gate(page.packages.filter((p) => p.name.startsWith("fake")), allowed, noText).failures;
+    return { made, failures: page.failures, stops };
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
+};
+const unix = { skip: process.platform === "win32" };
+
+test("a package a stylesheet @imports, and one whose file its url() inlines, are in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": 'import "./app.css";\n',
+    "src/app.css": '@import "fakecss/x.css";\n@font-face{font-family:F;src:url("fakefont/f.woff2")}\nbody{font-family:F}\n',
+    "node_modules/fakecss/x.css": '@import "fakedeep/y.css";\n.x{color:red}\n',
+    "node_modules/fakedeep/y.css": ".y{color:blue}\n",
+    "node_modules/fakefont/f.woff2": "wOF2tinyfont",
+  });
+  assert.deepEqual(r.made, ["fakecss 1.0.0 GPL-3.0", "fakedeep 1.0.0 GPL-3.0", "fakefont 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+  assert.equal(r.stops.length, 3);
+});
+
+test("a package a component's <style> @imports is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": 'import { mount } from "svelte";\nimport App from "./App.svelte";\nmount(App, { target: document.body });\n',
+    "src/App.svelte": '<p class="fs">x</p>\n<style>\n  @import "fakesv/s.css";\n</style>\n',
+    "node_modules/fakesv/s.css": ".fs{color:#654321}\n",
+  }, true);
+  assert.deepEqual(r.made, ["fakesv 1.0.0 GPL-3.0"]);
+  assert.match(r.stops.join("\n"), /fakesv 1\.0\.0 \(npm package\): "GPL-3\.0" is not allowed/);
+});
+
+test("a package a CSS module composes from is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": 'import m from "./a.module.css";\nconsole.log(m.a);\n',
+    "src/a.module.css": '.a{composes: b from "fakecomp/c.module.css"; color: blue}\n',
+    "node_modules/fakecomp/c.module.css": ".b{color:#123456}\n",
+  });
+  assert.deepEqual(r.made, ["fakecomp 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a package's small file new URL(…, import.meta.url) inlines is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": 'console.log(new URL("../node_modules/fakemeta/a.svg", import.meta.url).href);\n',
+    "node_modules/fakemeta/a.svg": "<svg xmlns='http://www.w3.org/2000/svg' id='made-up'/>\n",
+  });
+  assert.deepEqual(r.made, ["fakemeta 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a package's small file index.html inlines is in the page", unix, async () => {
+  const r = await pageBuild({
+    "index.html": '<!doctype html><html><body><img src="/node_modules/fakehtmlimg/i.svg" alt=""><script type="module" src="/src/main.js"></script></body></html>\n',
+    "src/main.js": "console.log(1);\n",
+    "node_modules/fakehtmlimg/i.svg": "<svg xmlns='http://www.w3.org/2000/svg' id='made-up'/>\n",
+  });
+  assert.deepEqual(r.made, ["fakehtmlimg 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a package a worker of the page imports is in the page", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": 'new Worker(new URL("./w.js", import.meta.url), { type: "module" });\n',
+    "src/w.js": 'import { work } from "fakeworker";\nself.postMessage(work());\n',
+    "node_modules/fakeworker/index.js": 'export const work = () => "made-up " + Math.random();\n',
+  });
+  assert.deepEqual(r.made, ["fakeworker 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+test("a page with a CSS preprocessor installed stops: it reads what a style imports out of sight", unix, async () => {
+  const repo = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  mkdirSync(join(repo, "node_modules", "sass"), { recursive: true });
+  symlinkSync(join(process.cwd(), "node_modules", "vite"), join(repo, "node_modules", "vite"));
+  writeFileSync(join(repo, "node_modules", "sass", "package.json"), '{"name":"sass","version":"1.0.0"}');
+  try {
+    const page = await readPage("myorbiter", repo);
+    assert.deepEqual(page.packages, []);
+    assert.match(page.failures.join("\n"), /a CSS preprocessor is installed for it \(sass\)/);
+    assert.ok(PREPROCESSORS.includes("sass-embedded"));
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test("pnpm-lock.yaml's resolutions are read per package", () => {
@@ -485,8 +587,23 @@ test("the usage line and docs/maintaining.md name every argument it takes", asyn
     assert.ok(usage.includes(a), `usage: ${a}`);
     assert.ok(docs.includes(a), `docs: ${a}`);
   }
-  // What the no-text file can hold today, and what it can't.
+  // What the no-text file can hold today, and what it can't; `from` only when it's given.
   for (const words of ["`null`", "`from`", "needs a change to the script"]) assert.ok(docs.includes(words), words);
+  assert.match(docs, /optional `from`/);
+  assert.doesNotMatch(docs, /`from`, the package that must ship it\)/);
+});
+
+test("the messages name the allowed list and no-text file the run was given, and --check's own form", async () => {
+  const p = crate("made-up", "1.0.0", "GPL-3.0", { texts: [] });
+  assert.deepEqual(gate([p], allowed, noText, { allowed: "/tmp/other-allowed.txt", noText: "/tmp/other-no-text.json" }).failures, [
+    'made-up 1.0.0 (Rust crate): "GPL-3.0" is not allowed by /tmp/other-allowed.txt',
+    "made-up 1.0.0 (Rust crate): no licence text in its source, and none in /tmp/other-no-text.json",
+  ]);
+  assert.throws(() => readAllowed("mit or apache\n", "/tmp/other-allowed.txt"), /^Error: \/tmp\/other-allowed\.txt: "mit or apache"/);
+  // Without names, the repository's own files.
+  assert.match(gate([p], allowed, noText).failures[0], /not allowed by scripts\/dependency-licences-allowed\.txt$/);
+  await assert.rejects(main(["--check", "/tmp/x", "myorbiter"], { TAURI_ENV_TARGET_TRIPLE: "x86_64-unknown-linux-gnu" }),
+    /no target, or not one this builds for: \(none: --check takes the target after the program\)/);
 });
 
 // ---------------------------------------------------------------- where the builds run it

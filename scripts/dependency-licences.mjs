@@ -6,6 +6,7 @@
 // than the registry, or no licence text and nothing in scripts/dependency-licences-no-text.json.
 //
 //   node scripts/dependency-licences.mjs <myorbiter|tennoscope> [<target>] [--out <folder>]
+//       [--allowed <file>] [--no-text <file>]
 //   node scripts/dependency-licences.mjs --check <folder> <myorbiter|tennoscope> <target>
 //
 // The first form runs after the program is compiled, before it's packed: MyOrbiter's as Tauri's
@@ -23,6 +24,8 @@
 // Vite build writes into the page. The program's own workspace crates are left out.
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -95,13 +98,13 @@ export function parseExpression(text) {
 }
 
 /** The allowed list: one licence id, or "<id> WITH <exception>", per line; # starts a comment. */
-export function readAllowed(text) {
+export function readAllowed(text, name = ALLOWED_FILE) {
   const allowed = new Set();
   for (const raw of text.split("\n")) {
     const line = raw.trim();
     if (!line || line.startsWith("#")) continue;
     const m = /^([A-Za-z0-9][A-Za-z0-9.+-]*)(?: WITH ([A-Za-z0-9][A-Za-z0-9.+-]*))?$/.exec(line);
-    if (!m) throw new Error(`${ALLOWED_FILE}: "${line}" is neither a licence id nor "<id> WITH <exception>"`);
+    if (!m) throw new Error(`${name}: "${line}" is neither a licence id nor "<id> WITH <exception>"`);
     allowed.add(line);
   }
   return allowed;
@@ -115,14 +118,14 @@ export function treeAllowed(tree, allowed) {
 }
 
 /** { allowed: true } or { allowed: false, why }: an expression not understood is not allowed. */
-export function licenceAllowed(expression, allowed) {
+export function licenceAllowed(expression, allowed, name = ALLOWED_FILE) {
   let tree;
   try {
     tree = parseExpression(expression);
   } catch (e) {
     return { allowed: false, why: e.message };
   }
-  return treeAllowed(tree, allowed) ? { allowed: true } : { allowed: false, why: `"${expression}" is not allowed by ${ALLOWED_FILE}` };
+  return treeAllowed(tree, allowed) ? { allowed: true } : { allowed: false, why: `"${expression}" is not allowed by ${name}` };
 }
 
 // ------------------------------------------------------------------ the gate
@@ -138,7 +141,7 @@ export const isNotice = (name) => /^notice/i.test(name);
  * failures (one line per package, naming it) and, per package that ships no text, what the
  * download carries for it: { name, version, carry: { from, file, sha256 } | null, entry }.
  */
-export function gate(packages, allowed, noText) {
+export function gate(packages, allowed, noText, names = { allowed: ALLOWED_FILE, noText: NO_TEXT_FILE }) {
   const failures = [];
   const supplied = [];
   const byHash = new Map();
@@ -154,17 +157,17 @@ export function gate(packages, allowed, noText) {
     if (p.source !== "registry") why.push(`its source is not the registry: ${p.source}`);
     if (!p.licence) why.push(`no licence${p.licenceForm ? `: ${p.licenceForm}` : ""}`);
     else {
-      const a = licenceAllowed(p.licence, allowed);
+      const a = licenceAllowed(p.licence, allowed, names.allowed);
       if (!a.allowed) why.push(a.why);
     }
     if (!p.texts.some((t) => t.licence)) {
       const entry = p.kind === "rust" ? noText.crates.find((c) => c.name === p.name && c.version === p.version) : undefined;
-      if (!entry) why.push(`no licence text in its source, and none in ${NO_TEXT_FILE}`);
-      else if (entry.licence !== p.licence) why.push(`${NO_TEXT_FILE} has it as "${entry.licence}", its manifest says "${p.licence}"`);
+      if (!entry) why.push(`no licence text in its source, and none in ${names.noText}`);
+      else if (entry.licence !== p.licence) why.push(`${names.noText} has it as "${entry.licence}", its manifest says "${p.licence}"`);
       else if (entry.text === null) supplied.push({ name: p.name, version: p.version, carry: null, entry });
       else {
         const found = (byHash.get(entry.text.sha256) ?? []).find((h) => h.from !== p && (!entry.text.from || h.from.name === entry.text.from));
-        if (!found) why.push(`the text ${NO_TEXT_FILE} gives it (${entry.text.from ?? "any package"}, SHA-256 ${entry.text.sha256.slice(0, 12)}…) is in no package of this build`);
+        if (!found) why.push(`the text ${names.noText} gives it (${entry.text.from ?? "any package"}, SHA-256 ${entry.text.sha256.slice(0, 12)}…) is in no package of this build`);
         else supplied.push({ name: p.name, version: p.version, carry: { from: found.from, file: found.file, sha256: entry.text.sha256 }, entry });
       }
     }
@@ -421,101 +424,134 @@ function npmSource(prog, repo, dir, name, version) {
 }
 
 const STYLE = /\.(css|scss|sass|less|styl|stylus|pcss|postcss|sss)$/;
+/** CSS preprocessors that read what a style imports in a thread or process of their own. */
+export const PREPROCESSORS = ["sass", "sass-embedded", "less", "stylus"];
 
 /**
- * The Vite plugin that records what goes into the page (the page's own build, run again):
- * - every module of a chunk with code in it;
- * - every style file Vite compiles (`transform`);
- * - every file a style pulls in, with `@import` or a `url()` Vite inlines as a data: URL, which has
- *   no module, transform or emitted file of its own: Vite's CSS plugin reports those with
- *   `addWatchFile`, which this listens to;
- * - every file the build emits, by the file it came from.
+ * What goes into the page, recorded while the page's own build runs again. Two listeners:
+ * - `plugin`, a Vite plugin, sees every module of a chunk with code in it, every style module, and
+ *   every file the build emits, by the file it came from; in the page's build and in every worker
+ *   Vite builds for it.
+ * - `read(path, stack)` is called for every file the build reads through Node's `fs` (readPage
+ *   listens to `fs` while the build runs). Every file of a package read that way, but for its
+ *   package.json and what Node itself loads as code to run the build (seen in `stack`), is taken
+ *   to be in the page: a style's `@import` (a page's stylesheet, a component's `<style>`, a CSS
+ *   module's `composes`), a file a style, the code or index.html inlines as a data: URL, an asset.
  * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
- * helpers; one that is neither the page's own (under `root`) nor a package's is `unknown`. When
- * Vite's CSS plugin isn't there to listen to, or styles went through without it being heard,
- * `failures` says so, and the page isn't read.
+ * helpers; a module that is neither the page's own (under `root`) nor a package's is `unknown`.
+ * `unheard()` names each file the build emitted as a file of its own (not its code, styles or
+ * HTML) without having read it through `fs`: Vite then reads files where `read` isn't called, and
+ * a file it inlines that way would go unseen.
  */
 export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
   const norm = (p) => p.replace(/\\/g, "/");
   const rendered = new Map();
   const unknown = new Set();
-  const failures = [];
-  let styles = 0; // style files this plugin saw go through the build
-  let heard = 0; // calls of Vite's CSS plugin heard
+  const heard = new Set();
+  const emitted = new Set();
   const mark = (dir, how) => {
     if (!rendered.has(dir)) rendered.set(dir, new Set());
     rendered.get(dir).add(how);
   };
-  const file = (path, how) => {
-    const clean = norm(path.split("?")[0]);
-    if (packageDir(clean)) mark(packageDir(clean), how);
-    else if (!clean.startsWith(`${root}/`)) unknown.add(clean.replace(/^\0/, "\\0"));
+  const read = (path, stack) => {
+    const clean = norm(path);
+    heard.add(clean);
+    const dir = packageDir(clean);
+    if (!dir) return;
+    if (clean.slice(dir.length) === "/package.json") return; // what a resolver reads to find files
+    if (/node:internal\/modules\//.test(stack)) return; // Node loading a tool's own code
+    mark(dir, "file");
   };
+  const transform = (_code, id) => {
+    const clean = norm(id.split("?")[0]);
+    if (STYLE.test(clean) && packageDir(clean)) mark(packageDir(clean), "css");
+    return null;
+  };
+  const walk = (bundle) => {
+    for (const f of Object.values(bundle)) {
+      if (f.type === "chunk") {
+        for (const [rawId, m] of Object.entries(f.modules ?? {})) {
+          if (!(m.renderedLength > 0)) continue;
+          const id = norm(rawId);
+          if (id.startsWith("\0vite/") && helpers.vite) mark(helpers.vite, "js");
+          else if (/^\0?rolldown[:/]runtime/.test(id) && helpers.rolldown) mark(helpers.rolldown, "js");
+          else if (packageDir(id)) mark(packageDir(id), "js");
+          else if (id.startsWith("\0") || !id.startsWith(`${root}/`)) unknown.add(id.replace(/^\0/, "\\0"));
+        }
+      } else {
+        // The page's styles and HTML name the entry they were built for, not a file read.
+        const own = /\.(css|html|m?js|map)$/.test(f.fileName);
+        for (const o of f.originalFileNames ?? []) {
+          const abs = norm(o.startsWith("/") || /^[A-Za-z]:/.test(o) ? o : join(root, o));
+          if (packageDir(abs)) mark(packageDir(abs), "asset");
+          if (!own) emitted.add(abs);
+        }
+      }
+    }
+  };
+  // A worker is a build of its own: the same listener goes into it.
+  const worker = { name: "dependency-licences:worker", enforce: "pre", transform, generateBundle: (_o, bundle) => walk(bundle) };
   const plugin = {
     name: "dependency-licences",
     enforce: "pre",
-    configResolved(config) {
-      const css = config.plugins.find((p) => p.name === "vite:css");
-      const hook = css?.transform;
-      const handler = typeof hook === "function" ? hook : hook?.handler;
-      if (typeof handler !== "function") {
-        failures.push("Vite's CSS plugin (vite:css) isn't where this looks for it, so what the page's styles import can't be read");
-        return;
-      }
-      const listened = function (code, id, ...rest) {
-        heard++;
-        const context = new Proxy(this, {
-          get(target, key) {
-            if (key === "addWatchFile") return (f) => { file(f, STYLE.test(norm(f.split("?")[0])) ? "css" : "asset"); return target.addWatchFile(f); };
-            const v = Reflect.get(target, key);
-            return typeof v === "function" ? v.bind(target) : v;
-          },
-        });
-        return handler.call(context, code, id, ...rest);
-      };
-      css.transform = typeof hook === "function" ? listened : { ...hook, handler: listened };
+    config(config) {
+      const own = config.worker?.plugins;
+      config.worker = { ...config.worker, plugins: () => [...(typeof own === "function" ? own() : []), worker] };
     },
-    transform(_code, id) {
-      const clean = norm(id.split("?")[0]);
-      if (STYLE.test(clean) && (clean.startsWith("/") || /^[A-Za-z]:\//.test(clean))) {
-        styles++;
-        file(clean, "css");
-      }
-      return null;
-    },
-    generateBundle(_o, bundle) {
-      // Styles went through the build, but Vite's CSS plugin was never heard: what they pulled in
-      // is unknown, so the page isn't read.
-      if (styles > 0 && heard === 0 && failures.length === 0) {
-        failures.push("Vite compiled the page's styles without the CSS plugin this listens to, so what they pull in can't be read");
-      }
-      for (const f of Object.values(bundle)) {
-        if (f.type === "chunk") {
-          for (const [rawId, m] of Object.entries(f.modules ?? {})) {
-            if (!(m.renderedLength > 0)) continue;
-            const id = norm(rawId);
-            if (id.startsWith("\0vite/") && helpers.vite) mark(helpers.vite, "js");
-            else if (/^\0?rolldown[:/]runtime/.test(id) && helpers.rolldown) mark(helpers.rolldown, "js");
-            else if (packageDir(id)) mark(packageDir(id), "js");
-            else if (id.startsWith("\0") || !id.startsWith(`${root}/`)) unknown.add(id.replace(/^\0/, "\\0"));
-          }
-        } else {
-          for (const o of f.originalFileNames ?? []) {
-            const abs = norm(o.startsWith("/") || /^[A-Za-z]:/.test(o) ? o : join(root, o));
-            if (packageDir(abs)) mark(packageDir(abs), "asset");
-          }
-        }
-      }
-    },
+    transform,
+    generateBundle: (_o, bundle) => walk(bundle),
   };
-  return { plugin, rendered, unknown, failures };
+  const unheard = () => [...emitted].filter((f) => !heard.has(f)).sort();
+  return { plugin, read, rendered, unknown, unheard };
+}
+
+// Node's fs, listened to: the functions a build reads a file by name with call `reading` while it
+// is set. Put in once, before the page's build loads anything, so no tool holds the functions
+// from before; they stay in, and call nothing when no build runs.
+let reading = null;
+let listening = false;
+function listenOnce() {
+  if (listening) return;
+  listening = true;
+  const toPath = (p) => (typeof p === "string" ? resolve(p) : p instanceof URL ? fileURLToPath(p) : Buffer.isBuffer(p) ? resolve(p.toString()) : null);
+  for (const [obj, names] of [[fs, ["readFileSync", "readFile", "createReadStream", "openSync", "open"]], [fs.promises, ["readFile", "open"]]]) {
+    for (const name of names) {
+      const orig = obj[name];
+      obj[name] = function (p, ...rest) {
+        const path = reading ? toPath(p) : null;
+        if (path) {
+          const limit = Error.stackTraceLimit;
+          Error.stackTraceLimit = 50;
+          const stack = new Error().stack ?? "";
+          Error.stackTraceLimit = limit;
+          reading(path, stack);
+        }
+        return orig.call(this, p, ...rest);
+      };
+    }
+  }
+  syncBuiltinESMExports();
+}
+
+/**
+ * Calls `onRead(path, stack)` for every file read by name through Node's `fs` (readFile,
+ * readFileSync, createReadStream, open, openSync, and fs.promises' readFile and open) until the
+ * returned function is called.
+ */
+export function listenToReads(onRead) {
+  listenOnce();
+  reading = onRead;
+  return () => {
+    if (reading === onRead) reading = null;
+  };
 }
 
 /**
  * The npm packages in the program's page: its Vite build is run again, as `vite build` does with
  * the page's own config, writing nothing, and every module, style and file it puts into the page
  * is traced to its package. Returns { packages, failures }: a page whose packages aren't
- * installed, or a module in the page that is neither the page's own nor a package's, fails.
+ * installed, a page with a CSS preprocessor installed, a module in the page that is neither the
+ * page's own nor a package's, or a file the build emitted without reading it through `fs`, fails.
  */
 export async function readPage(program, repo = REPO) {
   const prog = PROGRAMS[program];
@@ -524,31 +560,48 @@ export async function readPage(program, repo = REPO) {
   if (!existsSync(join(viteLink, "package.json"))) {
     return { packages: [], failures: [`${prog.name}'s page: its packages aren't installed (${prog.page.install}), so they can't be read`] };
   }
+  // Found as Node finds a package: in node_modules of the page's folder or any folder above it.
+  const above = [];
+  for (let d = resolve(root); ; d = dirname(d)) {
+    above.push(d);
+    if (dirname(d) === d) break;
+  }
+  const preprocessors = PREPROCESSORS.filter((p) => above.some((d) => existsSync(join(d, "node_modules", p, "package.json"))));
+  if (preprocessors.length) {
+    return { packages: [], failures: [`${prog.name}'s page: a CSS preprocessor is installed for it (${preprocessors.join(", ")}), which reads what a style imports where this script can't see, so the page can't be read`] };
+  }
   const viteDir = realpathSync(viteLink);
-  const vite = await import(pathToFileURL(join(viteDir, "dist", "node", "index.js")).href);
   const norm = (p) => p.replace(/\\/g, "/");
   const helpers = { vite: norm(viteDir), rolldown: existsSync(join(viteDir, "..", "rolldown")) ? norm(realpathSync(join(viteDir, "..", "rolldown"))) : null };
   const rootN = norm(realpathSync(root));
-  const { plugin: recorder, rendered, unknown, failures: recorderFailures } = pageRecorder(rootN, helpers);
+  const recorder = pageRecorder(rootN, helpers);
   const outDir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   const cwd = process.cwd();
+  // Listening starts before Vite is loaded, so no part of it holds fs's functions from before.
+  const stopListening = listenToReads(recorder.read);
   try {
+    const vite = await import(pathToFileURL(join(viteDir, "dist", "node", "index.js")).href);
     process.chdir(root);
     await vite.build({
-      root, configFile: join(repo, prog.page.config), mode: "production", logLevel: "warn",
-      build: { write: false, outDir, emptyOutDir: false }, plugins: [recorder],
+      root: realpathSync(root), configFile: join(repo, prog.page.config), mode: "production", logLevel: "warn",
+      build: { write: false, outDir, emptyOutDir: false }, plugins: [recorder.plugin],
     });
   } finally {
+    stopListening();
     process.chdir(cwd);
     rmSync(outDir, { recursive: true, force: true });
   }
+  const shown = (id) => (id.startsWith(`${rootN}/`) ? relative(rootN, id) : id.replace(rootN, "<page>"));
   const failures = [
-    ...recorderFailures.map((f) => `${prog.name}'s page: ${f}`),
-    ...[...unknown].sort().map((id) => `${prog.name}'s page: a module of no known package is in the page: ${id.startsWith(`${rootN}/`) ? relative(root, id) : id.replace(rootN, "<page>")}`),
+    ...recorder.unheard().map((f) => `${prog.name}'s page: the build emitted ${shown(f)} without reading it through Node's fs, where this script listens, so a file it inlines could go unseen`),
+    ...[...recorder.unknown].sort().map((id) => `${prog.name}'s page: a module of no known package is in the page: ${shown(id)}`),
   ];
   const packages = [];
-  for (const d of rendered.keys()) {
+  const seen = new Set();
+  for (const d of recorder.rendered.keys()) {
     const dir = realpathSync(d);
+    if (seen.has(dir)) continue; // the same package by two paths (a link and its target)
+    seen.add(dir);
     const pj = JSON.parse(readFileSync(join(dir, "package.json"), "utf8"));
     const p = { kind: "npm", name: pj.name, version: pj.version, licence: null, licenceForm: null, source: "registry", texts: readTexts(dir) };
     if (typeof pj.license === "string" && /^SEE LICEN[CS]E IN /i.test(pj.license)) p.licenceForm = `"${pj.license}" in place of an expression`;
@@ -590,7 +643,8 @@ export async function main(argv, env = process.env) {
   const [program, targetArg] = args;
   const target = targetArg ?? (check ? undefined : env.TAURI_ENV_TARGET_TRIPLE);
   if (!PROGRAMS[program]) throw new Error(usage);
-  if (!TARGETS[target]) throw new Error(`no target, or not one this builds for: ${target ?? "(none: give it, or TAURI_ENV_TARGET_TRIPLE)"}`);
+  const none = check ? "(none: --check takes the target after the program)" : "(none: give it, or TAURI_ENV_TARGET_TRIPLE)";
+  if (!TARGETS[target]) throw new Error(`no target, or not one this builds for: ${target ?? none}`);
   const prog = PROGRAMS[program];
   if (check) {
     const problems = checkList(check, program, target);
@@ -601,7 +655,12 @@ export async function main(argv, env = process.env) {
     console.log(`dependencies: ${check} lists ${prog.name}'s packages for ${TARGETS[target]}, each text there`);
     return 0;
   }
-  const allowed = readAllowed(readFileSync(allowedFile, "utf8"));
+  // Named in every message as given, or as the repository's own when none is.
+  const names = {
+    allowed: opts["--allowed"] ?? ALLOWED_FILE,
+    noText: opts["--no-text"] ?? NO_TEXT_FILE,
+  };
+  const allowed = readAllowed(readFileSync(allowedFile, "utf8"), names.allowed);
   const noText = JSON.parse(readFileSync(noTextFile, "utf8"));
   const folder = resolve(REPO, out ?? prog.out);
   // Emptied first, so a list from an earlier build (the other system's) never goes with this one;
@@ -613,7 +672,7 @@ export async function main(argv, env = process.env) {
   const rust = readRust(program, target);
   const page = await readPage(program);
   const packages = [...rust, ...page.packages];
-  const { failures, supplied } = gate(packages, allowed, noText);
+  const { failures, supplied } = gate(packages, allowed, noText, names);
   failures.push(...page.failures);
   const where = folder.startsWith(REPO + sep) ? relative(REPO, folder).split(sep).join("/") : folder;
   console.log(`${prog.name} for ${TARGETS[target]} (${target}): ${rust.length} Rust crates, ${page.packages.length} npm packages in the page`);
@@ -628,7 +687,7 @@ export async function main(argv, env = process.env) {
     copyFileSync(from.path, join(folder, f.name));
   }
   writeFileSync(join(folder, "README.md"), list);
-  console.log(`licences allowed; the list and ${files.length} texts written to ${where}/ (${supplied.length} package(s) with no text of their own, as ${NO_TEXT_FILE} says)`);
+  console.log(`licences allowed; the list and ${files.length} texts written to ${where}/ (${supplied.length} package(s) with no text of their own, as ${names.noText} says)`);
   return 0;
 }
 
