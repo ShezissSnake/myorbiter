@@ -27,7 +27,7 @@
   import Seg from "../ui/Seg.svelte";
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import { marketUrl } from "../backend";
   import { info } from "../hover.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
@@ -153,7 +153,7 @@
     { key: "ratio", minor: true, label: "Duc/plat", value: (r) => (r.ducatsPerPlat == null ? null : Math.round(r.ducatsPerPlat * 10) / 10), align: "right", muted: true, title: "Ducats you get per platinum of market value" },
     { key: "verdict", label: "Best as", value: verdict, cell: verdictCell, defaultDesc: false },
     { key: "got", minor: true, label: "Got (30d)", value: (r) => drops.recent.get(r.name) ?? 0, align: "right", muted: true, title: "Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out" },
-    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => soldPerDay(r.tradesPerDay), sortValue: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many sell on warframe.market in a day, on average: <0.1 less than once in ten days" },
     { key: "avail", spare: true, label: "Vault", value: (r) => r.availability, cell: availCell, align: "center", defaultDesc: false },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
@@ -211,7 +211,7 @@
     <span title="Daily median on warframe.market"><span class="register">Price</span><P v={r.price} /></span>
     <span title="What Baro Ki'Teer gives for one"><span class="register">Ducats</span><P v={r.ducats} d /></span>
     <span title="Copies that turned up in your inventory in the last 30 days, from relics or anything else; trades left out"><span class="register">Got (30d)</span><b>{drops.recent.get(r.name) ?? 0}</b></span>
-    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sold/day</span><b>{Math.round(r.tradesPerDay * 10) / 10}</b></span>{/if}
+    {#if r.tradesPerDay != null}<span title="How many sell on warframe.market in a day, on average"><span class="register">Sold/day</span><b>{soldPerDay(r.tradesPerDay)}</b></span>{/if}
     <span title={VERDICT_TITLE[v]}><span class="register">Best as</span><b class="v-{v}">{LABEL[v]}</b></span>
   </div>
   <p class="small dim">

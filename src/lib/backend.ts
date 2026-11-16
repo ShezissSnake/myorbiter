@@ -491,8 +491,9 @@ export function discordFieldAction(value: string, event: "input" | "change" | "b
 }
 
 /**
- * The Discord address field emptied: the confirmed address leaves MyOrbiter's config folder.
- * `field` is the field's value; nothing is removed unless it is empty.
+ * The Discord address field emptied, or none saved at start (`discordAtStart`): the confirmed
+ * address leaves MyOrbiter's config folder. `field` is the field's value; nothing is removed unless
+ * it is empty.
  */
 export async function discordForget(field: string): Promise<void> {
   if (field.trim() !== "") return;
@@ -516,6 +517,31 @@ export async function discordAsk(
   if (now.trim() !== "") return "yes";
   await io.forget(now);
   return "emptied";
+}
+
+/**
+ * The Discord address at start, once the settings are read (`settingsReadWhole`); `fieldNow` reads
+ * the address in the settings. An address saved before MyOrbiter asked about them is asked about
+ * now (`discordAsk`). None saved (an empty or blank one, as the field treats it): the confirmed
+ * address's file, which an older MyOrbiter left when its field was emptied, is removed
+ * (`discordForget`, given the saved value, so the app refuses unless it is empty; no file there
+ * is no error). Settings that weren't read whole (they
+ * couldn't be read, or were damaged) are not "none saved": nothing is asked or removed. `io` is
+ * there for the tests.
+ */
+export async function discordAtStart(
+  fieldNow: () => string,
+  readWhole: boolean,
+  io: { confirm: (url: string) => Promise<boolean>; forget: (field: string) => Promise<void> } = { confirm: discordConfirm, forget: discordForget },
+): Promise<"asked" | "forgot" | "none"> {
+  if (!readWhole) return "none";
+  const url = fieldNow();
+  if (url.trim() === "") {
+    await io.forget(url);
+    return "forgot";
+  }
+  await discordAsk(url, fieldNow, io);
+  return "asked";
 }
 
 /** Posts a notification to your Discord webhook. */
@@ -1040,6 +1066,9 @@ export async function loadSettings(): Promise<Settings> {
   const base = defaultSettings();
   // A file that isn't a settings object at all (a number, a list, text): the usual settings.
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = null;
+  // Read whole: a settings object, or no file at all (a new install). Not when the file couldn't be
+  // read, was damaged (moved aside) or held something else: then the defaults stand in for it.
+  loadedWhole = loadFailed == null && (raw != null || fresh);
   // Schema 2: cracking alone became the default for Relics and Planner alike.
   if (raw && (raw.schema ?? 1) < 2 && raw.advice && typeof raw.advice === "object") raw.advice.squad = 1;
   // `view` was never used; settings saved before it went still carry it.
@@ -1242,6 +1271,8 @@ export async function flushSettings() {
 let saveFailed = false;
 /** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
 let loadFailed: string | null = null;
+/** Whether the settings at start came from a settings object, or there was no file (see loadSettings). */
+let loadedWhole = false;
 let saveListener: ((trouble: SaveTrouble | null) => void) | null = null;
 /** Told when saving settings fails (why, and whether it's because they couldn't be read), and when a save goes through again (null). */
 export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
@@ -1251,6 +1282,8 @@ export function onSaveTrouble(f: (trouble: SaveTrouble | null) => void) {
 export const settingsUnreadable = () => loadFailed != null;
 /** Why the saved settings couldn't be read at start, or null when they could. */
 export const settingsUnreadableWhy = () => loadFailed;
+/** Whether the saved settings were read whole at start, or there were none (a new install). */
+export const settingsReadWhole = () => loadedWhole;
 
 /**
  * Opens a link MyOrbiter has already checked (`openable` in core/links.ts) in your browser: the

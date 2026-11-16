@@ -28,7 +28,7 @@
   import Seg from "../ui/Seg.svelte";
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import ListButton from "../ui/ListButton.svelte";
   import { marketUrl } from "../backend";
   import { info } from "../hover.svelte";
@@ -149,9 +149,9 @@
     { key: "value", label: "Total", value: (r) => (r.setPrice == null ? null : r.setPrice * sellableOf(r)), align: "right", cell: totalCell },
     { key: "partsPrice", minor: true, label: "As parts", value: (r) => r.partsPrice, align: "right", cell: partsCell, title: "Selling the parts one by one" },
     { key: "more", label: "More as set", value: moreAsSet, align: "right", cell: moreCell, title: "What one set sells for over its parts sold one by one" },
-    { key: "faster", minor: true, label: "Sells faster", value: faster, align: "right", cell: fasterCell, title: "How many times as often the set sells as its slowest part: selling the parts waits on that one" },
+    { key: "faster", minor: true, label: "Sells faster", value: faster, align: "right", cell: fasterCell, title: "How many times as often the set sells as its slowest part: selling the parts waits on that one. ×<0.1: less than a tenth as often" },
     { key: "ducats", label: "Ducats", value: (r) => r.ducats, align: "right", cell: ducatCell },
-    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day" },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => soldPerDay(r.tradesPerDay), sortValue: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many of this set warframe.market completes per day: <0.1 less than once in ten days" },
     { key: "vault", label: "Vault", value: (r) => (r.vaulted ? 1 : 0), cell: vaultCell, align: "center" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ]);
@@ -205,7 +205,7 @@
   <span class="miss">{#each saveOf(r).missing as x, i (x.name)}<span class="mp" use:info={x.name} title="From {SAVE_SOURCE_LABEL[x.from]}{x.got ? ` · ${x.got} in the last 30 days` : ``}">{x.count > 1 ? `${x.count}× ` : ""}{x.name.replace(r.name + " ", "")}</span> <span class="from from-{x.from}">{FROM_SHORT[x.from]}{#if x.got}<span title="Copies that turned up in your inventory in the last 30 days, trades left out"> · got {x.got}</span>{/if}</span>{#if i < saveOf(r).missing.length - 1}<span class="sep">,</span>{/if}{/each}</span>
 {/snippet}
 {#snippet moreCell(r: SetRow)}{@const g = moreAsSet(r)}{#if g != null}<span class:pos={g > 0} class:neg={g <= 0}>{g > 0 ? "+" : ""}{g}p</span>{/if}{/snippet}
-{#snippet fasterCell(r: SetRow)}{@const f = faster(r)}{#if f != null}<span class="dim">×{f}</span>{/if}{/snippet}
+{#snippet fasterCell(r: SetRow)}{@const f = faster(r)}{#if f != null}<span class="dim">×{f === 0 ? "<0.1" : f}</span>{/if}{/snippet}
 {#snippet savePartsCell(r: SetRow)}<P v={Math.round(saveOf(r).partsPrice)} dim />{/snippet}
 {#snippet cracksCell(r: SetRow)}{@const c = easeOf(r).cracks}{#if c != null}<span class:easy={c <= 15}>≈{c}</span>{:else}<span class="dim">–</span>{/if}{/snippet}
 {#snippet oddsCell(r: SetRow)}{@const o = easeOf(r).odds}<span class:dim={o < 0.05}>{Math.round(o * 100)}%</span>{/snippet}

@@ -17,7 +17,7 @@
   import Seg from "../ui/Seg.svelte";
   import Stat from "../ui/Stat.svelte";
   import PageHead from "../ui/PageHead.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import ListButton from "../ui/ListButton.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import Thumb from "../ui/Thumb.svelte";
@@ -160,7 +160,7 @@
     { key: "sell", label: "Sell for", value: (x) => x.sellPlat, cell: sellCell, align: "right", title: "Priced as maxed arcanes: maxed copies at the max-rank price, loose ones at their share of one (a maxed arcane is 21 copies, 10 for one that maxes at R3) or their own price, whichever is less" },
     { key: "vosfor", label: "Dissolve for", value: (x) => x.vosfor, cell: vosforCell, align: "right", title: "Vosfor from Loid's Arcane Dissolution, and what it's worth through the best pack" },
     { key: "best", label: "Best as", value: (x) => x.verdict, sortValue: (x) => (x.verdict === "sell" ? (x.sellPlat ?? 0) : (x.dissolvePlat ?? 0)), cell: verdictCell },
-    { key: "trades", minor: true, label: "Sold/day", value: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true },
+    { key: "trades", minor: true, label: "Sold/day", value: (x) => soldPerDay(x.row.tradesPerDay), sortValue: (x) => (x.row.tradesPerDay == null ? null : Math.round(x.row.tradesPerDay * 10) / 10), align: "right", muted: true, title: "How many sold a day on warframe.market: <0.1 less than once in ten days" },
     { key: "list", label: "", value: () => null, cell: spareList, sortable: false, align: "right" },
   ];
 
@@ -179,7 +179,7 @@
     { key: "priceMax", label: "Max price", value: (r) => r.priceMax, align: "right", cell: maxCell },
     { key: "cost", label: "To finish", value: (r) => (r.complete ? null : r.costToFinish), align: "right", cell: costCell, defaultDesc: false, title: "Cheapest of buying the missing copies or one maxed copy" },
     ...(show !== "all" ? [] : [{ key: "spare", label: "Spare", value: (r: ArcaneRow) => r.extraSets * 1000 + leftover(r) || null, cell: rowSpare, align: "right", title: "Maxed copies beyond the one you keep, and loose unranked copies beyond what it needs" }] as Column<ArcaneRow>[]),
-    { key: "trades", minor: true, label: "Sold/day", value: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "Demand on warframe.market" },
+    { key: "trades", minor: true, label: "Sold/day", value: (r) => soldPerDay(r.tradesPerDay), sortValue: (r) => (r.tradesPerDay == null ? null : Math.round(r.tradesPerDay * 10) / 10), align: "right", muted: true, title: "Demand on warframe.market: how many sold a day, <0.1 less than once in ten days" },
     // Still collecting has nothing spare, so nothing to list.
     ...(show !== "all" ? [] : [{ key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" }] as Column<ArcaneRow>[]),
   ] as Column<ArcaneRow>[]));
@@ -243,7 +243,7 @@
       {#if !r.complete && r.costToFinish != null}<span title="Cheapest of buying the missing copies or one maxed copy"><span class="register">To finish</span><P v={r.costToFinish} /></span>{/if}
     </div>
     {#snippet foot()}
-      {#if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(r.tradesPerDay * 10) / 10} sold/day</span>{/if}
+      {#if r.tradesPerDay != null}<span class="dim small" title="How many times a day it trades on warframe.market">{soldPerDay(r.tradesPerDay)} sold/day</span>{/if}
       <span class="grow"></span>
       {@render listCell(r, true)}
     {/snippet}

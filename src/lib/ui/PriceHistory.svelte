@@ -4,6 +4,7 @@
   import { findItem } from "../core/market";
   import { daysFor, trend, trendWords, type Day } from "../core/priceTrend";
   import { mkt } from "../marketStore.svelte";
+  import { soldPerDay } from "./table";
   import TimeChart from "./TimeChart.svelte";
 
   let {
@@ -52,6 +53,8 @@
   const current = $derived(`${name}|${unique}|${rank}|${subtype}`);
   const t = $derived(days?.length ? trend(days) : null);
   const words = $derived(t ? trendWords(t) : null);
+  /** Sold a day, as a column shows it (whole from 10 up): one sale in the last 30 days reads in words, never "about 0". */
+  const pace = $derived(t == null || t.perDay >= 10 ? Math.round(t?.perDay ?? 0) : soldPerDay(t.perDay));
   const GOLD = "var(--chart-gold)";
   /** Cheap things to a tenth of a platinum, so 1.6p and 1.2p don't both read as 2p and 1p. */
   const p = (v: number) => (v < 10 ? Math.round(v * 10) / 10 : Math.round(v));
@@ -65,7 +68,7 @@
   <div class="ph">
     <TimeChart title={rank === 0 ? "Unranked copies sold for, last 90 days" : rank != null ? `Rank ${rank} sold for, last 90 days` : "Sold for, last 90 days"} since="in 90 days" at={days.map((d) => d.at)} series={[{ label: "Median", color: GOLD, values: days.map((d) => d.median) }, ...lines.map((l) => ({ label: l.label, color: l.color, values: (days ?? []).map(() => l.value) }))]} {height} empty="No trades in 90 days." single="Sold on one day in the last 90." />
     <p class="small">
-      {#if words}<b class:up={(t?.change ?? 0) >= 0.05} class:down={(t?.change ?? 0) <= -0.05}>{words}</b>{" · "}{/if}<span class="dim">about {t && t.perDay >= 10 ? Math.round(t.perDay) : Math.round((t?.perDay ?? 0) * 10) / 10} sold a day{t?.week != null ? ` · ${p(t.week)}p this week` : ""}{t?.month != null ? `, ${p(t.month)}p the month before` : ""}</span>
+      {#if words}<b class:up={(t?.change ?? 0) >= 0.05} class:down={(t?.change ?? 0) <= -0.05}>{words}</b>{" · "}{/if}<span class="dim">{pace === "<0.1" ? "sold less than once in ten days" : `about ${pace} sold a day`}{t?.week != null ? ` · ${p(t.week)}p this week` : ""}{t?.month != null ? `, ${p(t.month)}p the month before` : ""}</span>
     </p>
   </div>
 {:else if !known}
