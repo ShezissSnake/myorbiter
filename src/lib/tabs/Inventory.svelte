@@ -29,7 +29,7 @@
   import Icon from "../ui/Icon.svelte";
   import GameIcon, { kindIcon } from "../ui/GameIcon.svelte";
   import PriceHistory from "../ui/PriceHistory.svelte";
-  import { matches, type Column } from "../ui/table";
+  import { matches, soldPerDay, type Column } from "../ui/table";
   import NotNeeded from "../ui/NotNeeded.svelte";
   import { notNeeded, type GearCopy } from "../core/notNeeded";
   import Showcase, { type Exhibit } from "../ui/Showcase.svelte";
@@ -178,7 +178,7 @@
     { key: "worth", label: "Worth", value: (r) => worthOf(r), align: "right", cell: worthCell },
     { key: "sellable", label: "Spare sells for", value: (r) => sellable(r), align: "right", cell: sellableCell, title: "What your spare copies would bring: no more of each item than the market sells in a month, shared between its ranks or refinements (Spare value, row by row: the rows add up to it)" },
     { key: "ducats", label: "Ducats (all)", value: (r) => (r.ducats == null ? null : r.ducats * r.quantity), align: "right", cell: ducatCell, minor: true, title: "Ducats for every copy you hold: ducats each × copies" },
-    { key: "trades", spare: true, label: "Sold/day", value: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market" },
+    { key: "trades", spare: true, label: "Sold/day", value: (r) => soldPerDay(perDay(r)), sortValue: (r) => { const t = perDay(r); return t == null ? null : Math.round(t * 10) / 10; }, align: "right", muted: true, title: "How quickly it sells on warframe.market: how many sold a day, <0.1 less than once in ten days" },
     { key: "list", label: "", value: () => null, cell: listCell, sortable: false, align: "right" },
   ];
 </script>
@@ -213,7 +213,7 @@
   <!-- No footer at all when there's nothing for it: a resource with no market data. -->
   {#snippet foot()}
     {#if r.kind === "gear" && r.levels}{#if r.mastered}<span class="tag good flush">✓ mastered</span>{:else}<span class="tag mastery flush" title="Not mastered: rank it up for its mastery">level it</span>{/if}{/if}
-    {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{Math.round(perDay(r)! * 10) / 10} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
+    {#if perDay(r) != null}<span class="dim small" title="How many times a day it trades on warframe.market">{soldPerDay(perDay(r))} sold/day</span>{:else if r.kind !== "gear"}<span class="dim small" title="warframe.market's daily statistics have no trades of it">no recent sales</span>{/if}
     <span class="grow"></span>
     {@render listCell(r, true)}
   {/snippet}
