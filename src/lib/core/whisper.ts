@@ -45,8 +45,24 @@ function stars(cyan: number | null | undefined, amber: number | null | undefined
   return `(${given(cyan) ? `${cyan} cyan` : ""}${given(amber) ? `, ${amber} amber` : ""})`;
 }
 
-/** The site's copy/paste message for this order, then the application's name. */
-export function tradeWhisper(o: WhisperOrder): string {
+/**
+ * Whether `name` can be an in-game name: letters, digits, "_", "-" and ".", starting with a letter
+ * or digit, at most 40 characters (the rule warframe.market's profile addresses go by, market.rs's
+ * `user_slug`). A space would address the whisper to another player, the rest of the name read as
+ * the message, and a line break would make a paste of several lines.
+ */
+export const isInGameName = (name: string): boolean => /^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$/.test(name);
+
+/** What's shown where a whisper would be, for a name that can't be an in-game name. */
+export const NO_WHISPER = "No whisper: that name can't be an in-game name.";
+
+/**
+ * The site's copy/paste message for this order, then the application's name. Null when the
+ * player's name can't be an in-game name (`isInGameName`): no whisper then, never one to someone
+ * else.
+ */
+export function tradeWhisper(o: WhisperOrder): string | null {
+  if (!isInGameName(o.player)) return null;
   const ayatan = stars(o.cyanStars, o.amberStars);
   const site =
     `/w ${o.player} Hi! I want to ${o.action}: ` +

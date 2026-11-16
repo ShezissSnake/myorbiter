@@ -73,8 +73,8 @@ export interface Deal {
   usual: number;
   seller: string;
   why: string;
-  /** What warframe.market's "Buy" copies: paste it in game chat. */
-  whisper: string;
+  /** What warframe.market's "Buy" copies: paste it in game chat. Null when the seller's name can't be an in-game name. */
+  whisper: string | null;
 }
 
 export function findDeals(m: Model, index: MarketIndex, books: Record<string, BookOrder[] | undefined>, watch: Watch[], me: Me): Deal[] {

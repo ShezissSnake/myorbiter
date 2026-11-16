@@ -302,7 +302,8 @@ export interface Seller {
   platinum: number;
   /** In-game sellers at any price for the same rank. */
   sellers: number;
-  whisper: string;
+  /** The whisper to copy; null when the name can't be an in-game name (core/whisper.ts). */
+  whisper: string | null;
 }
 
 

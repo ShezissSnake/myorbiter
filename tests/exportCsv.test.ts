@@ -7,6 +7,25 @@ test("csv: fields with commas and quotes are quoted", () => {
   assert.equal(field(null), "");
 });
 
+test("csv: a cell that starts like a formula opens as text; numbers the app writes stay numbers", () => {
+  const f = field("=1+1");
+  assert.ok(!f.startsWith("="), f);
+  assert.equal(f, "'=1+1");
+  assert.equal(field("+rep"), "'+rep");
+  assert.equal(field("-dash"), "'-dash");
+  assert.equal(field("@SUM(A1)"), "'@SUM(A1)");
+  assert.equal(field("\t=1"), "'\t=1");
+  // Quoted as before when it also holds a comma or a quote.
+  assert.equal(field('=HYPERLINK("https://example.invalid","x")'), `"'=HYPERLINK(""https://example.invalid"",""x"")"`);
+  // The app's own numbers, negative ones too, and text that only holds such a character later.
+  assert.equal(field(-5), "-5");
+  assert.equal(field(0), "0");
+  assert.equal(field("Ack & Brunt"), "Ack & Brunt");
+  assert.equal(field("a=b"), "a=b");
+  const t = tradesCsv([{ key: "k", at: Date.UTC(2026, 9, 1), partner: "=cmd|' /C calc'!A0", offered: [{ name: "@x", rank: null, count: 1 }], received: [], platIn: 0, platOut: 5 }]);
+  assert.equal(t.trim().split("\n")[1], "2026-10-01T00:00:00Z,'=cmd|' /C calc'!A0,'@x,,0,5");
+});
+
 test("csv: sales and trades, oldest first", () => {
   const s = salesCsv([
     { at: Date.UTC(2026, 9, 2), item: "Serration", rank: 10, quantity: 1, platinum: 9 },
