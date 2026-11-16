@@ -517,8 +517,8 @@ mod tests {
         assert_eq!(redact("drop tables 3f2a (812 relics)"), "drop tables 3f2a (812 relics)");
     }
 
-    /// docs/privacy.md: "Anything shaped like a token, password or webhook address is cut out
-    /// before it's written".
+    /// docs/privacy.md: "Before a line is written, these are cut out: … the value of a `key=value`
+    /// pair, or of a JSON pair …; and a Discord webhook address."
     #[test]
     fn any_webhook_address_and_a_json_password_are_cut_out() {
         // A webhook address of any API version.

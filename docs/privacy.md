@@ -456,7 +456,7 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
   the value of a `key=value` pair, or of a JSON pair with a key of up to 64 characters, whose key
   contains token, password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook
   address. A secret written another way (`password: x` in plain text, a key such as `api_key`,
-  another site's webhook address) isn't caught (nothing MyOrbiter writes there holds one), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
+  another site's webhook address) isn't caught (nothing MyOrbiter writes there is meant to hold one, though another player's chat line in a notification can), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
