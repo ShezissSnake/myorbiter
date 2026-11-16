@@ -424,7 +424,8 @@ the report itself (after `/home/`, `/Users/`, `C:\Users\` and the other home fol
 `~name/`, but not by the folders a home holds; in a line, a name with spaces counts whole only with
 a slash after it, otherwise its first word does; a warframe.market chat's words are not read). The
 name is kept only while the report is made: never saved, logged or sent. It is never cut out of a longer word (`Name_2` and `Nameholm` stay as
-written), but a hyphen or a dot joins two words (`Name-PC` becomes `[user]-PC`). A name that is
+written), but a hyphen, a dot or `@` joins two words (`Name-PC` becomes `[user]-PC`,
+`name@desktop` becomes `[user]@desktop`); an e-mail address is hidden whole by its own rule. A name that is
 also a word a report needs is hidden only where the path rule hides a user name (`/home/deck/…`
 becomes `/home/[user]/…`), so the report keeps its words (`Steam Deck`): a name of fewer than 3
 characters, one with no letter (a number), the names systems and devices give an account (`deck`,

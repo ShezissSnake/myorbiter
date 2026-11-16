@@ -111,10 +111,9 @@ function knownAndRules(text: string, opts: RedactOptions): string {
   let s = text;
   const user = userPatterns(opts.user);
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
-  // Not one that is also this computer's user name: that one reads as the path rule's "[user]",
-  // below.
+  // One that is also this computer's user name reads as the path rule's "[user]".
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
-    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2 && !user.keys.has(n.toLowerCase())))].sort((a, b) => b.length - a.length).map((n) => [n, as] as const);
+    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, user.keys.has(n.toLowerCase()) ? "[user]" : as] as const);
   for (const [name, as] of [...named(opts.self, "[you]"), ...named(opts.others, "[player]")]) {
     s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
@@ -516,10 +515,10 @@ export function ordinaryName(name: string): boolean {
 
 /** A user name as a whole word, in any case: not inside a longer word (letters and digits of any
  *  script, and `_`, on either side; a hyphen or a dot joins two words, so `Name-PC` and `Name.local`
- *  hide it) and not beside `@` (an e-mail address, hidden whole later). An encoded slash, colon or
- *  space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words may be apart by any spaces or
- *  `%20`. */
-const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_@](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_@])`, "giu");
+ *  hide it, and so does `@`: `name@host`, `@name`; an e-mail address went whole before this runs).
+ *  An encoded slash, colon or space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words
+ *  may be apart by any spaces or `%20`. */
+const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
 
 /** The patterns that hide the user names in `list`, longest first: each name that isn't ordinary,
  *  whole, and each word of a name of several words that isn't ordinary on its own; and those names

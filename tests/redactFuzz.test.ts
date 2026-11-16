@@ -122,6 +122,8 @@ test("bug reports: this computer's user name, held or seen in a home folder, sur
       `"/mnt/${user} see EE.log`,
       one ? `~${user}/Games` : `~${user}/x`,
       `${user}-PC`,
+      `${casing(r, user)}@desktop:~$ ls`,
+      `@${user} hi`,
       `file:///C:/Users/${words.join("%20")}/x`,
     ];
     const pick = shapes.filter(() => r.bool(0.5));
@@ -131,7 +133,7 @@ test("bug reports: this computer's user name, held or seen in a home folder, sur
     const report = buildReport({ what: plant(r, pick.slice().reverse()), steps: casing(r, words[0]), expected: "ok" }, { version: "0.2.18", commit: "abc1234", buildDate: "", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log }, held ? { user: [user] } : {});
     const all = [report.title, report.what, report.steps, reportMarkdown(report)].join("\n");
     for (const w of [user, ...words]) {
-      const word = new RegExp(`(?<![\\p{L}\\p{N}_@])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_@])`, "iu");
+      const word = new RegExp(`(?<![\\p{L}\\p{N}_])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`, "iu");
       assert.ok(!word.test(all), `PROPERTY_SEED=${seed}: ${JSON.stringify(w)} survived in ${JSON.stringify(all.slice(0, 600))}`);
     }
   }, 1500);
@@ -141,8 +143,9 @@ test("redact: knowing this computer's user name never lets out what was hidden w
   forAll("user-secrets", (r, seed) => {
     const self = randomName(r);
     const other = randomName(r);
-    const user = randomName(r);
-    if ([self, other].some((n) => n.toLowerCase().includes(user.toLowerCase()) || user.toLowerCase().includes(n.toLowerCase()))) return;
+    // The user name: a name of its own, or the same as the in-game name or another player's.
+    const user = r.pick([randomName(r), randomName(r), self, other]);
+    if (user !== self && user !== other && [self, other].some((n) => n.toLowerCase().includes(user.toLowerCase()) || user.toLowerCase().includes(n.toLowerCase()))) return;
     for (const { text, must } of secrets(r, self, other)) {
       const glue = r.pick(["-", ".", "_", "", " ", "=", ":", "/"]);
       const t = r.pick([`${user}${glue}${text}`, `${text}${glue}${user}`, text.replace(/=|: /, (m) => `${m}${user}${glue}`)]);

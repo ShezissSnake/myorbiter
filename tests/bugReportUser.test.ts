@@ -93,11 +93,14 @@ test("user names: known, hidden bare in a log line's sentence, in any case, with
   assert.equal(redact("josé JOSÉ Josélito", { user: ["José"] }), "[user] [user] Josélito");
 });
 
-test("user names: never cut out of a longer word; a hyphen or a dot joins two words; an e-mail stays whole", () => {
+test("user names: never cut out of a longer word; a hyphen, a dot or @ joins two words; an e-mail goes whole", () => {
   const u = { user: ["Kestrin"] };
   assert.equal(redact("Kestrinholm xKestrin Kestrin_2 Kestrin2", u), "Kestrinholm xKestrin Kestrin_2 Kestrin2");
   assert.equal(redact("Kestrin-PC and Kestrin.local", u), "[user]-PC and [user].local");
   assert.equal(redact("kestrin@example.org and a.kestrin@example.org", u), "[email] and [email]");
+  // Beside "@" that isn't an e-mail address: a prompt's user@host, a mention.
+  assert.equal(redact("kestrin@desktop:~$ ls; @Kestrin hi", u), "[user]@desktop:~$ ls; @[user] hi");
+  assert.equal(redact("@Kestrin hi", { self: ["Kestrin"], user: ["Kestrin"] }), "@[user] hi");
   // Glued to a secret or an id, it never breaks one apart: what was hidden without the name stays so.
   for (const t of ["password=kestrin-secret123", "token=kestrin.abc123", "kestrin-0123456789abcdef0123", "Authorization: Bearer kestrin-xyz"]) {
     assert.equal(redact(t, u).replace("[user]", "kestrin"), redact(t).replace("[user]", "kestrin"), t);
