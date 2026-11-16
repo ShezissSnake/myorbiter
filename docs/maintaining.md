@@ -189,22 +189,42 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
 
 **How the page is read.** The page's own Vite build is run again, writing nothing. A package is in
 the page when its code is in the page's code (or a worker's), when one of its styles is compiled
-into the page, when the build emits one of its files, or when the build reads one of its files
-through Node's `fs` while it runs. That last one takes in what a style `@import`s or `composes`
-from, in a stylesheet or a component's `<style>`, and every small file Vite inlines as a `data:`
-address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`), or
-whatever the page's own config reads. Two readers aren't counted: a tool of the build (Vite, a
-plugin) reading a package's `package.json` to find its files, and Node's loader reading a tool's
-code to run it. Each package found is listed and gated like any other. What those two readers
-bring in is not seen: a package whose code the page's config or a plugin runs (Node's loader
-reads it) and whose output goes into the page, through `define` for example, or a `package.json`
-a plugin reads and writes into the page, isn't listed.
+into the page, when the build emits one of its files, when the page's config is bundled from one
+of its files, when one of its files is in the page's public folder (or linked from there), or
+when the build reads, copies, links or moves one of its files through Node's `fs` while it runs,
+by the path it is given or by the path a link leads to. That takes in what a style `@import`s or
+`composes` from, in a stylesheet or a component's `<style>`, every small file Vite inlines as a
+`data:` address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`),
+whatever the page's config reads (`fs.ReadStream` included), and what a plugin copies, into the
+output or elsewhere to read it there. Each package found is listed and gated like any other.
+
+Beside the page's own code and config, only the build's known tools may run while it builds: the
+short list in the script (`tools` of each program in `PROGRAMS`: Vite,
+`@sveltejs/vite-plugin-svelte` and Svelte for MyOrbiter; Vite, Vitest and `@vitejs/plugin-react`
+for TennoScope), with every package they use (their `dependencies` and `optionalDependencies`,
+all the way down). The list is added to by hand, in the same change that adds a tool to a page's
+build. Those tools reading a package's `package.json` to find its files is the one read that
+isn't counted; any other code reading one stops the build.
 
 It stops as well when:
 
 - the page's packages aren't installed;
-- a CSS preprocessor (`sass`, `sass-embedded`, `less` or `stylus`) is installed for the page: it
-  reads what a style imports in a thread or process of its own, where the script doesn't listen;
+- a CSS preprocessor (`sass`, `sass-embedded`, `less` or `stylus`) is installed for the page,
+  where Vite finds one: in `node_modules` of the page's folder or any folder above it, or of
+  Vite's own folder or any above it (pnpm's hidden `node_modules/.pnpm/node_modules` among them).
+  It reads what a style imports in a thread or process of its own, where the script doesn't
+  listen;
+- Node loads, while the build runs, a module that is neither the page's own nor one of the known
+  tools' (a package the config or a plugin imports or requires, a plugin that is a package, a
+  native addon): what its code puts into the page can't be followed. Node itself tells the script
+  what it loads (`module.registerHooks`); a Node without it, or a build in which Node told of no
+  load, stops it too;
+- code other than the known tools reads a package's `package.json`, or a known tool does so for
+  the config (the config is in the stack that called it);
+- the build starts a thread, or a process whose command line isn't one of the program's
+  `commands` in the script (MyOrbiter's config runs `git log` for its build stamp): what they read
+  isn't heard;
+- the page's config is bundled from a file outside the page that is no package's;
 - the page holds a module that is neither the page's own nor a package's;
 - the build emits a file of its own (not its code, styles or HTML) without reading it through
   Node's `fs`. This check sees only that: that Vite still reads the files it emits where the script
@@ -213,7 +233,14 @@ It stops as well when:
 - cargo's answer has a line the script can't read, or no crate at all;
 - the script is given an argument it doesn't know.
 
-It never passes by leaving out a package it has found.
+It never passes by leaving out a package it has found, and it stops on every reader above it
+doesn't know. What it lets through without following it: what the known tools' own code and files
+carry into the page when the config runs or reads them (Vite and Svelte are listed anyway, as
+the page holds their code; `@sveltejs/vite-plugin-svelte` isn't); a read made below Node's `fs`
+functions (by native code, apart from the modules the bundler reads, which the page's chunks
+show, or through Node's internal bindings); a module loaded in the same Node before the build
+started (the script runs in a process of its own, after only `cargo`); and a package linked from
+a folder inside the repository, whose modules are taken for the page's own.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
@@ -239,6 +266,11 @@ It never passes by leaving out a package it has found.
   emitted without being read through `fs`, or a line of cargo's it can't read: an upgrade of Vite
   or cargo changed how they read, and the script follows it. A CSS preprocessor: following what
   it imports is a change to the script.
+- A package loaded that is none of the known tools', or a `package.json` read by other code: when
+  it is a new tool of the page's build, it goes into `tools` in the same change that adds it;
+  otherwise the config or plugin stops loading or reading it. A thread, or a process the script
+  doesn't know: the config or plugin that starts it changes, or (a process whose output can't
+  carry a package's file) its command line goes into `commands` in the same change.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:
