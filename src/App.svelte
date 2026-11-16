@@ -7,6 +7,7 @@
   import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { tradeLineSale } from "./lib/core/soldMarks";
+  import { discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { watchlist } from "./lib/core/deals";
@@ -927,12 +928,15 @@
   $effect(() => {
     if (!mkt.pass) untrack(settleRepriced);
   });
-  /** The kinds you chose also go to your Discord webhook, unless notifications are paused. */
+  /**
+   * The kinds you chose also go to your Discord webhook, unless notifications are paused. As the
+   * text reads: a chat message or a name can't make a link or other Markdown there (`discordMessage`).
+   */
   function toDiscord(kind: NoticeKind, title: string, body: string) {
     const d = settings.notifyOptions.discord;
     const o = settings.notifyOptions;
     if (!d?.url || !d.kinds.includes(kind) || o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil)) return;
-    discordPost(d.url, `**${title}**${body ? `\n${body}` : ""}`).then(() => discordSent(null), discordSent);
+    discordPost(d.url, discordMessage(title, body)).then(() => discordSent(null), discordSent);
   }
   /**
    * Settings' test: a notification through the same route as the real ones (`popUp`: held, in the

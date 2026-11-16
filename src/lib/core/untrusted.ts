@@ -57,6 +57,27 @@ export function cleanBlock(v: unknown, max: number): string | null {
 }
 
 /**
+ * Text as Discord shows it as typed: every character its Markdown reads (emphasis, code, spoilers,
+ * masked links, `<…>` mentions, timestamps and emoji) and every line start that makes a heading,
+ * quote or list is escaped with a backslash, which Discord shows as the character alone. Someone
+ * else's chat message then can't draw a masked link (`[text](address)`) in the player's channel.
+ */
+export function discordText(s: string): string {
+  return s
+    .replace(/[\\*_~`|[\]<>]/g, "\\$&")
+    .replace(/^([ \t]*)([#+-])/gm, "$1\\$2")
+    .replace(/^([ \t]*\d+)\./gm, "$1\\.");
+}
+
+/**
+ * A notification as the Discord message it is posted as: the title in bold, the body under it,
+ * both as written (`discordText`). Mentions are turned off where it's posted (`discord_post`).
+ */
+export function discordMessage(title: string, body: string): string {
+  return `**${discordText(title)}**${body ? `\n${discordText(body)}` : ""}`;
+}
+
+/**
  * HTML comments, which a page that renders Markdown hides (an unfinished one hides the rest).
  * Taken out until none is left: removing one can join the text around it into another
  * ("<!<!-- x -->-- y -->"). Hidden characters inside "<!--" have to go first (stripHidden).
