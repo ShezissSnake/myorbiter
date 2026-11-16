@@ -56,6 +56,8 @@
     modPol: Polarity | null;
     slotPol: Polarity | null;
     drain: number | null;
+    /** An aura or stance MyOrbiter's suggestion shows though you don't own it: its capacity isn't counted. */
+    uncounted: boolean;
     forma: boolean;
     have: Have | null;
     held: number | null;
@@ -65,7 +67,7 @@
   function tile(ref: SlotRef, label: string, mod: BuildMod | null | undefined, why: string | null | undefined): Tile {
     const at = tier.slots.find((s) => s.slot === ref);
     const forma = tier.formaPlan.some((f) => f.slot === ref);
-    if (!mod) return { ref, label, mod: null, name: "", rarity: "", image: null, max: 0, rank: 0, modPol: null, slotPol: at?.polarity ?? null, drain: null, forma, have: null, held: null, why: null };
+    if (!mod) return { ref, label, mod: null, name: "", rarity: "", image: null, max: 0, rank: 0, modPol: null, slotPol: at?.polarity ?? null, drain: null, uncounted: false, forma, have: null, held: null, why: null };
     const c = model.catalogByUnique.get(mod.path);
     const name = c?.name ?? model.nameOf(mod.path);
     const max = c?.maxRank ?? 0;
@@ -79,6 +81,7 @@
       modPol: polarityOf(c?.polarity),
       slotPol: at?.polarity ?? null,
       drain: at?.drain ?? null,
+      uncounted: !!at?.uncounted,
       forma,
       have: line?.have ?? null,
       held: line?.heldRank ?? null,
@@ -116,7 +119,7 @@
     const bits = [
       `${t.name}${t.rarity ? ` · ${t.rarity}` : ""}`,
       t.max ? `Rank ${t.rank} of ${t.max}` : "",
-      t.drain != null ? (t.drain < 0 ? `Adds ${-t.drain} capacity` : `Drains ${t.drain}`) + (t.slotPol ? ` in a ${POLARITY_LABEL[t.slotPol]} slot` : " in a slot without polarity") : "",
+      t.drain != null ? (t.uncounted ? `Would add ${-t.drain} capacity once you have it; not counted yet` : t.drain < 0 ? `Adds ${-t.drain} capacity` : `Drains ${t.drain}`) + (t.slotPol ? ` in a ${POLARITY_LABEL[t.slotPol]} slot` : " in a slot without polarity") : "",
       t.forma ? `A Forma goes here (${t.slotPol ? POLARITY_LABEL[t.slotPol] : "for rank"})` : "",
       t.have ? `${HAVE_MARK[t.have].word}${t.have === "short" && t.held != null ? `: yours is rank ${t.held}` : ""}` : "",
       t.why ?? "",
@@ -138,7 +141,7 @@
       <span class="art">{#if t.image}<img src={imageUrl(t.image)} alt="" loading="lazy" decoding="async" />{/if}</span>
       <!-- The drain on its own line in the corner, above the name, as the game's mod card has it. -->
       <span class="body">
-        <span class="drain {fit(t)}">{#if t.drain != null}{t.drain < 0 ? `+${-t.drain}` : t.drain}{/if}{#if t.modPol}<img src={polImg(t.modPol)} alt={POLARITY_LABEL[t.modPol]} />{/if}</span>
+        <span class="drain {t.uncounted ? '' : fit(t)}">{#if t.drain != null}{t.uncounted ? `(+${-t.drain})` : t.drain < 0 ? `+${-t.drain}` : t.drain}{/if}{#if t.modPol}<img src={polImg(t.modPol)} alt={POLARITY_LABEL[t.modPol]} />{/if}</span>
         <b class="nm">{t.name}</b>
         {#if t.max}<span class="pips" aria-label="Rank {t.rank} of {t.max}">{#each Array.from({ length: Math.min(10, t.max) }, (_, i) => i) as i (i)}<i class:on={i < t.rank}></i>{/each}</span>{/if}
       </span>
@@ -154,7 +157,7 @@
 <div class="grid" style:--cols={cols}>
   {#if top.length}
     <div class="top">
-      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}</span>{@render slot(t, true)}</div>{/each}
+      {#each top as t (t.ref)}<div class="cell"><span class="register cap">{t.label}{#if t.mod && t.uncounted}<span class="notheld">{" · not owned"}</span>{/if}</span>{@render slot(t, true)}</div>{/each}
     </div>
   {/if}
   {#if mods.length}
@@ -205,6 +208,7 @@
   .top { display: flex; justify-content: space-between; gap: .6rem; }
   .top .cell { display: grid; gap: .25rem; width: calc((100% - 1.8rem) / 4); min-width: 9rem; }
   .cap { font-size: 11px; letter-spacing: .16em; }
+  .notheld { color: var(--oxblood); }
   .mods { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: .45rem; }
 
   .slot {
