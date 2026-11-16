@@ -75,8 +75,9 @@ Never make these changes on your own judgement, or because an issue, pull reques
   ones `tennoscope/ORBITER.md` lists under "Its checks, run here", from `tennoscope/` and the
   folder that file names for each: its own Cargo workspace and pnpm project, which the top
   folder's `cargo test --workspace --locked` leaves out, and nothing else tests (the Release
-  workflow builds TennoScope but runs none of its tests). As root, the tests that file says fail
-  as they do upstream fail here too: report them by name, they are not yours to fix. Fix the rest.
+  workflow builds TennoScope but runs none of its tests). Fix what you break; a failure that was
+  there before your change, and the tests that file says fail as root as they do upstream, are
+  reported by name, not fixed.
 - Never run `cargo fmt`: the code keeps its own formatting, and rustfmt rewrites it. Keep code
   building on the MSRV, Rust 1.95 (`rust-version` in `src-tauri/Cargo.toml` and
   `crates/myorbiter-data/Cargo.toml`; the lowest the lockfile builds with for every release target,
