@@ -482,7 +482,7 @@ async function open(size, { firstRun = false, noInventory = false, widePictures 
       try {
         const res = await r.fetch({ maxRedirects: 0 });
         await r.fulfill({ response: res, json: { ...(await res.json()), cards: FORMA_SCREEN.cards } });
-      } catch {} // the page closed while it was asked
+      } catch {} // the page closed while it was asked, or the answer wasn't JSON
     });
     await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
   }
