@@ -17,14 +17,14 @@
 // the server. Needs ImageMagick (`magick`) for the WebP files. The demo's order books, price
 // histories and world state are files in demo/ (demo/README.md), with their times moved up to the
 // moment they're served, so Home and Current fissure show the same world on every run, online or
-// not. No request goes to a world-state service: every one is stopped and counted, and a run that
-// saw any fails. It is built to contact no host: item pictures (and Rivens' weekly file) come
-// from the picture cache, a request or WebSocket off this machine that the cache's guard is shown
-// (warframe.market's included) is refused, counted and fails the run, and a picture the cache
-// lacks fails the run. scripts/picture-cache.mjs (whose --fill step fills the cache) says what its
-// guard is shown, what it leaves to the browser's launch rule, and what was probed. A run that
-// fails so has already written the
-// pictures it took, some without their item art: take them again once the check passes.
+// not. A request to a world-state service that the page's routes are shown is stopped and
+// counted, and a run that saw any fails. It is built to contact no host: item pictures (and
+// Rivens' weekly file) come from the picture cache, a request or `WebSocket` off this machine
+// that the cache's guard is shown (warframe.market's included) is refused, counted and fails the
+// run, and a picture the cache lacks fails the run. scripts/picture-cache.mjs (whose --fill step
+// fills the cache) says what its guard is shown, what it leaves to the browser's launch rule, and
+// what was probed. A run that fails so has already written the pictures it took, some without
+// their item art: take them again once the check passes.
 
 import { spawn, execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, statSync } from "node:fs";

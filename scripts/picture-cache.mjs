@@ -3,9 +3,9 @@
 // from www-static.warframe.com. The sweep (scripts/ui-sweep.mjs), the screenshots and the
 // help-picture check (scripts/screenshots.mjs, scripts/help-shots.mjs) are built to contact no
 // host. What the guard is shown, and what it does with it:
-// - Requests and WebSockets, through Playwright's routes on each page's browser context (so from
-//   the page, its frames and the windows it opens). One to localhost, `data:` or `blob:` goes
-//   through; a GET for an item picture or the riven file is answered from this cache, on disk
+// - Requests and `WebSocket` objects, through Playwright's routes on each page's browser context
+//   (so from the page, its frames and the windows it opens). One to localhost, `data:` or `blob:`
+//   goes through; a GET for an item picture or the riven file is answered from this cache, on disk
 //   outside the repository; any other is refused and counted.
 // - The constructors that reach the network past a route (Worker, SharedWorker, WebTransport,
 //   RTCPeerConnection, and registering a service worker), taken from each page and frame before
@@ -20,13 +20,15 @@
 // - a redirect from localhost that the browser follows (a route sees a request's first address
 //   only), the reward-screen route's answer included, as it passes a 3xx on;
 // - speculation-rules prefetch and prerender (`<script type=speculationrules>`);
+// - a socket opened with `WebSocketStream` (Playwright's WebSocket routing replaces only the
+//   `WebSocket` constructor);
 // - a connection or name lookup made ahead of any request (`<link rel=preconnect>`,
 //   `dns-prefetch`).
-// None of them is counted: a run with one passes. In probes the launch rule held the redirects
-// and the speculation rules (with it off, they reached another host); a preconnect made no
-// connection with the rule on or off. Not probed: `dns-prefetch`, and an address written as
-// numbers, other than 127.0.0.1, against the launch rule. The demo's pages use none of these
-// today.
+// None of them is counted: a run with one passes. In probes the launch rule held the redirects,
+// the speculation rules and the `WebSocketStream` (with it off, they reached another host); a
+// preconnect made no connection with the rule on or off. Not probed: `dns-prefetch`, and an
+// address written as numbers, other than 127.0.0.1, against the launch rule. The demo's pages use
+// none of these today.
 //
 // No printed line names the home folder, the repository's folder, this cache's, Playwright's
 // browsers' (when PLAYWRIGHT_BROWSERS_PATH is set) or the temporary folder (when it isn't /tmp):
@@ -198,17 +200,19 @@ const hostOf = (address) => {
 };
 /**
  * What a page could reach the network with past a route: Playwright routes requests (from a page,
- * its frames, its windows, a dedicated worker or a service worker) and WebSockets, but not what a
- * shared worker asks, a WebTransport session, a peer connection's packets, or a worker's own
- * sockets. The demo uses none of these, so each is taken from each page and frame before its own
- * scripts run: using one is refused, counted, and fails the run. (Vite's client asks for a shared worker
+ * its frames, its windows, a dedicated worker or a service worker) and `WebSocket` objects, but not
+ * what a shared worker asks, a WebTransport session, a peer connection's packets, a worker's own
+ * sockets, or a socket opened with `WebSocketStream`. The demo uses none of these. Each but
+ * `WebSocketStream` is taken from each page and frame before its own scripts run: using one is
+ * refused, counted, and fails the run. A `WebSocketStream` is left to the launch rule, uncounted
+ * (the head comment says what the probe showed). (Vite's client asks for a shared worker
  * only when its socket to the dev server has dropped.)
  */
 const TAKEN = ["Worker", "SharedWorker", "WebTransport", "RTCPeerConnection", "webkitRTCPeerConnection"];
 
 /**
  * Before anything else on the page `p`, on its browser context (each `browser.newPage` has its
- * own), so a window or frame it opens is held too: a request or WebSocket the routes are shown
+ * own), so a window or frame it opens is held too: a request or `WebSocket` the routes are shown
  * that isn't to this machine is answered from the cache or refused and counted, and the ways past
  * a route (TAKEN, and registering a service worker) are refused and counted. The page's own routes
  * come before its context's, so the world-state stop (scripts/no-world-state.mjs) and a view's own

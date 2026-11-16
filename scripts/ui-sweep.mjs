@@ -31,7 +31,7 @@
 // ImageMagick (`magick`). The world state is the demo's own (demo/dev-worldstate.json): a request
 // to a world-state service is stopped and counted, and fails the sweep (scripts/no-world-state.mjs).
 // The sweep is built to contact no host: item pictures (and Rivens' weekly file) come from the
-// picture cache, so their shapes are measured on the real pictures; a request or WebSocket off
+// picture cache, so their shapes are measured on the real pictures; a request or `WebSocket` off
 // this machine that the cache's guard is shown (warframe.market's included, from the page or a
 // frame or window it opens) is refused and counted, and fails the sweep; a picture the cache lacks
 // is listed by address and fails the sweep. scripts/picture-cache.mjs (whose --fill step fills the

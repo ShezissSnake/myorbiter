@@ -283,7 +283,7 @@ demo's order books, price histories and world state (fissures, Baro, the clocks 
 files in `demo/`, so Home and Current fissure show the same world on every run, online or not
 (`demo/README.md`); any request to a world-state service is stopped and counted, and fails the run.
 It is built to contact no host: the item pictures come from the checks' picture cache, a request
-or WebSocket off this machine that the checks' guard is shown (warframe.market's included) is
+or `WebSocket` off this machine that the checks' guard is shown (warframe.market's included) is
 refused and fails the run, and a picture the cache lacks fails the run until
 `node scripts/picture-cache.mjs --fill` has fetched it (`docs/development.md` says what the guard
 is shown, and what is left to the browser's launch rule). A run fails so only at its end, when it
