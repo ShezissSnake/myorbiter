@@ -1,14 +1,14 @@
 // scripts/dependency-licences.mjs: the licence expressions, the allowed list, the gate, the list a
 // download carries, and the files the build reads. Made-up packages only: nothing here runs cargo
-// or Vite (a release build runs the script on the real ones).
+// or Vite (a release build runs the script on the real ones); a stand-in cargo answers in its place.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { delimiter, join } from "node:path";
 import {
-  ALLOWED_FILE, NO_TEXT_FILE, checkList, gate, licenceAllowed, main, packageDir, parseCargoTree, parseExpression,
-  pnpmResolutions, readAllowed, renderList, type NoTextEntry, type Package,
+  ALLOWED_FILE, NO_TEXT_FILE, checkList, gate, licenceAllowed, main, packageDir, pageRecorder, parseCargoTree, parseExpression,
+  pnpmResolutions, readAllowed, readRust, renderList, type NoTextEntry, type Package,
 } from "../scripts/dependency-licences.mjs";
 
 const allowed = readAllowed(readFileSync(ALLOWED_FILE, "utf8"));
@@ -201,6 +201,21 @@ test("a new version of a listed crate, or a changed licence, stops the build", (
   assert.deepEqual(r.failures, ['made-up 1.0.0 (Rust crate): scripts/dependency-licences-no-text.json has it as "MIT", its manifest says "BSD-3-Clause"']);
 });
 
+test("clipboard-win's text is the one error-code ships, even when another crate ships the same file first", () => {
+  const file = JSON.parse(readFileSync(NO_TEXT_FILE, "utf8")) as { crates: NoTextEntry[] };
+  const e = file.crates.find((c) => c.name === "clipboard-win");
+  assert.ok(e?.text);
+  const boost = { file: "LICENSE-BOOST", sha256: e.text.sha256, licence: true };
+  const r = gate([
+    crate("ryu", "1.0.23", "Apache-2.0 OR BSL-1.0", { texts: [boost] }),
+    crate("error-code", "3.3.2", "BSL-1.0", { texts: [{ ...boost, file: "LICENSE" }] }),
+    crate("clipboard-win", "5.4.1", "BSL-1.0", { texts: [] }),
+  ], allowed, file);
+  assert.deepEqual(r.failures, []);
+  assert.equal(r.supplied[0].carry?.from.name, "error-code");
+  assert.equal(r.supplied[0].carry?.file, "LICENSE");
+});
+
 test("the no-text file names the 13 crates whose published source carries no text", () => {
   const file = JSON.parse(readFileSync(NO_TEXT_FILE, "utf8")) as { crates: NoTextEntry[] };
   assert.deepEqual(file.crates.map((c) => `${c.name} ${c.version}`).sort(), [
@@ -241,6 +256,46 @@ test("cargo tree's lines: registry, path and git sources, repeats and an empty l
   ]);
 });
 
+test("a line of cargo tree's it can't read stops it: no crate is left out unread", () => {
+  for (const line of ["gplcrate 1.0.0|GPL-3.0", "gplcrate@1.0.0|GPL-3.0", "gplcrate v1.0.0 GPL-3.0", "warning: something"]) {
+    assert.throws(() => parseCargoTree(`base64 v0.23.1|MIT OR Apache-2.0\n${line}\n`), /a line this script can't read/, line);
+  }
+});
+
+// A stand-in cargo on PATH: `metadata` answers with the program's own crate, `tree` with $FAKE_TREE.
+const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => {
+  const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  mkdirSync(join(dir, "bin"));
+  writeFileSync(join(dir, "bin", "cargo"),
+    '#!/bin/sh\nif [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; else cat "$FAKE_TREE"; fi\n');
+  chmodSync(join(dir, "bin", "cargo"), 0o755);
+  writeFileSync(join(dir, "tree.txt"), tree);
+  const saved = { PATH: process.env.PATH, FAKE_TREE: process.env.FAKE_TREE };
+  process.env.PATH = `${join(dir, "bin")}${delimiter}${saved.PATH}`;
+  process.env.FAKE_TREE = join(dir, "tree.txt");
+  try {
+    await run(dir);
+  } finally {
+    process.env.PATH = saved.PATH;
+    if (saved.FAKE_TREE === undefined) delete process.env.FAKE_TREE;
+    else process.env.FAKE_TREE = saved.FAKE_TREE;
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("the Rust half stops when cargo answers with a line it can't read, or with no crate", { skip: process.platform === "win32" }, async () => {
+  await withCargo("gplcrate 1.0.0|GPL-3.0\n", async (repo) => {
+    assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /a line this script can't read.*gplcrate 1\.0\.0\|GPL-3\.0/);
+  });
+  await withCargo("\n", async (repo) => {
+    assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /cargo tree gave no crate for MyOrbiter/);
+  });
+  // Only the program's own crate: nothing to list either.
+  await withCargo("myorbiter v0.1.0 (/home/user/orbiter/src-tauri)|GPL-3.0-only\n", async (repo) => {
+    assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /no crate/);
+  });
+});
+
 test("a page module's package folder, with npm's layout, pnpm's and Windows paths", () => {
   assert.equal(packageDir("/r/node_modules/svelte/src/index.js"), "/r/node_modules/svelte");
   assert.equal(packageDir("/r/node_modules/@fontsource/ibm-plex-mono/index.css?inline"), "/r/node_modules/@fontsource/ibm-plex-mono");
@@ -250,6 +305,54 @@ test("a page module's package folder, with npm's layout, pnpm's and Windows path
   assert.equal(packageDir("\0/r/node_modules/a/node_modules/b/x.js"), "/r/node_modules/a/node_modules/b");
   assert.equal(packageDir("/r/src/App.svelte"), null);
   assert.equal(packageDir("/r/node_modules/.pnpm/lock.yaml"), null);
+});
+
+// Vite's CSS plugin as the page's build has it: it inlines what a style @imports and reports each
+// file it pulled in with addWatchFile, with no module or transform of that file's own.
+const cssPlugin = (deps: string[]) => {
+  const watched: string[] = [];
+  const plugin = {
+    name: "vite:css",
+    transform: {
+      filter: { id: { include: /\.css$/ } },
+      async handler(this: { addWatchFile(f: string): void; environment: string }, code: string, _id: string) {
+        assert.equal(this.environment, "client", "the rest of the context is Vite's own");
+        for (const d of deps) this.addWatchFile(d);
+        return { code };
+      },
+    },
+  };
+  const context = { addWatchFile: (f: string) => { watched.push(f); }, environment: "client" };
+  return { plugin, watched, run: () => plugin.transform.handler.call(context, "@import 'x';", "/r/src/app.css") };
+};
+
+test("a package whose style only comes in through a CSS @import is in the page", async () => {
+  const css = cssPlugin(["/r/node_modules/fakecss/x.css", "/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep/y.css", "/r/src/theme.css", "/r/src/logo.svg"]);
+  const r = pageRecorder("/r", { vite: "/r/node_modules/vite", rolldown: null });
+  const hooks = r.plugin;
+  hooks.configResolved({ plugins: [{ name: "vite:something" }, css.plugin] });
+  await css.run();
+  hooks.generateBundle({}, {});
+  assert.deepEqual(r.failures, []);
+  assert.deepEqual([...r.rendered].map(([d, how]) => [d, [...how]]), [
+    ["/r/node_modules/fakecss", ["css"]],
+    ["/r/node_modules/.pnpm/deep@2.0.0/node_modules/deep", ["css"]],
+  ]);
+  assert.deepEqual([...r.unknown], []);
+  // Vite still sees every file it reported, and the plugin keeps its filter.
+  assert.equal(css.watched.length, 4);
+  assert.ok(css.plugin.transform.filter);
+});
+
+test("a style @imported from outside the page and every package stops it, and so does a Vite without its CSS plugin", async () => {
+  const css = cssPlugin(["/elsewhere/shared.css"]);
+  const r = pageRecorder("/r");
+  r.plugin.configResolved({ plugins: [css.plugin] });
+  await css.run();
+  assert.deepEqual([...r.unknown], ["/elsewhere/shared.css"]);
+  const bare = pageRecorder("/r");
+  bare.plugin.configResolved({ plugins: [{ name: "vite:build" }] });
+  assert.match(bare.failures.join("\n"), /Vite's CSS plugin \(vite:css\) isn't where this looks for it/);
 });
 
 test("pnpm-lock.yaml's resolutions are read per package", () => {
@@ -350,6 +453,31 @@ test("the command: --check on a whole list passes, an unknown program or target 
   await assert.rejects(main(["myorbiter", "aarch64-apple-darwin"]), /not one this builds for/);
   await assert.rejects(main(["myorbiter"], {}), /no target/);
   rmSync(dir, { recursive: true });
+});
+
+test("an argument it doesn't know stops it, before it reads anything", async () => {
+  for (const argv of [
+    ["myorbiter", "x86_64-unknown-linux-gnu", "--allowed scripts/other.txt"],
+    ["myorbiter", "x86_64-unknown-linux-gnu", "--allowed=scripts/other.txt"],
+    ["myorbiter", "x86_64-unknown-linux-gnu", "--dry-run"],
+    ["myorbiter", "-o", "/tmp/x"],
+  ]) await assert.rejects(main(argv), /no such argument/, argv.join(" "));
+  await assert.rejects(main(["myorbiter", "x86_64-unknown-linux-gnu", "--no-text"]), /--no-text needs a value/);
+  await assert.rejects(main(["myorbiter", "--out", "--allowed", "a.txt"]), /--out needs a value/);
+  await assert.rejects(main(["myorbiter", "--out", "a", "--out", "b"]), /--out given twice/);
+  await assert.rejects(main(["myorbiter", "x86_64-unknown-linux-gnu", "extra"]), /one program and one target at most/);
+  await assert.rejects(main(["--check", "/tmp/x", "myorbiter", "x86_64-unknown-linux-gnu", "--out", "y"]), /--check takes no other option/);
+});
+
+test("the usage line and docs/maintaining.md name every argument it takes", async () => {
+  const usage = await main([]).then(() => "", (e: Error) => e.message);
+  const docs = readFileSync("docs/maintaining.md", "utf8").split("## The dependencies' licences")[1].split("\n## ")[0];
+  for (const a of ["--out <folder>", "--allowed <file>", "--no-text <file>", "--check <folder>", "<target>"]) {
+    assert.ok(usage.includes(a), `usage: ${a}`);
+    assert.ok(docs.includes(a), `docs: ${a}`);
+  }
+  // What the no-text file can hold today, and what it can't.
+  for (const words of ["`null`", "`from`", "needs a change to the script"]) assert.ok(docs.includes(words), words);
 });
 
 // ---------------------------------------------------------------- where the builds run it

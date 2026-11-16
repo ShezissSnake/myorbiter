@@ -298,13 +298,17 @@ export function readTexts(dir, extra = []) {
   return texts.map((t) => ({ ...t, sha256: sha256(t.path) }));
 }
 
-/** `cargo tree --format '{p}|{l}'` lines: { name, version, source (null for the registry), licence }. */
+/**
+ * `cargo tree --format '{p}|{l}'` lines: { name, version, source (null for the registry), licence }.
+ * A line it can't read stops it, so no crate is left out of the list unread.
+ */
 export function parseCargoTree(text) {
   const seen = new Map();
   for (const raw of text.split("\n")) {
     const line = raw.replace(/ \(\*\)$/, "").trimEnd();
+    if (line === "") continue;
     const m = /^(\S+) v(\S+)(?: \((.*)\))?\|(.*)$/.exec(line);
-    if (!m) continue;
+    if (!m) throw new Error(`cargo tree printed a line this script can't read, so it can't list that crate: "${line}"`);
     const [, name, version, source, licence] = m;
     seen.set(`${name} ${version} ${source ?? ""}`, { name, version, source: source ?? null, licence: licence.trim() || null });
   }
@@ -366,6 +370,7 @@ export function readRust(program, target, repo = REPO) {
     p.texts = readTexts(dir, file ? [file] : []);
     packages.push(p);
   }
+  if (packages.length === 0) throw new Error(`cargo tree gave no crate for ${prog.name} (${target}), so there is nothing to list: every program here has some`);
   return packages;
 }
 
@@ -415,6 +420,84 @@ function npmSource(prog, repo, dir, name, version) {
   return "registry";
 }
 
+const STYLE = /\.(css|scss|sass|less|styl|stylus|pcss|postcss|sss)$/;
+
+/**
+ * The Vite plugin that records what goes into the page (the page's own build, run again):
+ * - every module of a chunk with code in it;
+ * - every style file Vite compiles (`transform`);
+ * - every file a style pulls in with `@import`, which Vite inlines without a module or a transform
+ *   of its own: Vite's CSS plugin reports those with `addWatchFile`, which this listens to;
+ * - every file the build emits, by the file it came from.
+ * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
+ * helpers; one that is neither the page's own (under `root`) nor a package's is `unknown`. When
+ * Vite's CSS plugin isn't there to listen to, `failures` says so, and the page isn't read.
+ */
+export function pageRecorder(root, helpers = { vite: null, rolldown: null }) {
+  const norm = (p) => p.replace(/\\/g, "/");
+  const rendered = new Map();
+  const unknown = new Set();
+  const failures = [];
+  const mark = (dir, how) => {
+    if (!rendered.has(dir)) rendered.set(dir, new Set());
+    rendered.get(dir).add(how);
+  };
+  const file = (path, how) => {
+    const clean = norm(path.split("?")[0]);
+    if (packageDir(clean)) mark(packageDir(clean), how);
+    else if (!clean.startsWith(`${root}/`)) unknown.add(clean.replace(/^\0/, "\\0"));
+  };
+  const plugin = {
+    name: "dependency-licences",
+    enforce: "pre",
+    configResolved(config) {
+      const css = config.plugins.find((p) => p.name === "vite:css");
+      const hook = css?.transform;
+      const handler = typeof hook === "function" ? hook : hook?.handler;
+      if (typeof handler !== "function") {
+        failures.push("Vite's CSS plugin (vite:css) isn't where this looks for it, so what the page's styles import can't be read");
+        return;
+      }
+      const listened = function (code, id, ...rest) {
+        const context = new Proxy(this, {
+          get(target, key) {
+            if (key === "addWatchFile") return (f) => { if (STYLE.test(norm(f))) file(f, "css"); return target.addWatchFile(f); };
+            const v = Reflect.get(target, key);
+            return typeof v === "function" ? v.bind(target) : v;
+          },
+        });
+        return handler.call(context, code, id, ...rest);
+      };
+      css.transform = typeof hook === "function" ? listened : { ...hook, handler: listened };
+    },
+    transform(_code, id) {
+      const clean = norm(id.split("?")[0]);
+      if (STYLE.test(clean) && (clean.startsWith("/") || /^[A-Za-z]:\//.test(clean))) file(clean, "css");
+      return null;
+    },
+    generateBundle(_o, bundle) {
+      for (const f of Object.values(bundle)) {
+        if (f.type === "chunk") {
+          for (const [rawId, m] of Object.entries(f.modules ?? {})) {
+            if (!(m.renderedLength > 0)) continue;
+            const id = norm(rawId);
+            if (id.startsWith("\0vite/") && helpers.vite) mark(helpers.vite, "js");
+            else if (/^\0?rolldown[:/]runtime/.test(id) && helpers.rolldown) mark(helpers.rolldown, "js");
+            else if (packageDir(id)) mark(packageDir(id), "js");
+            else if (id.startsWith("\0") || !id.startsWith(`${root}/`)) unknown.add(id.replace(/^\0/, "\\0"));
+          }
+        } else {
+          for (const o of f.originalFileNames ?? []) {
+            const abs = norm(o.startsWith("/") || /^[A-Za-z]:/.test(o) ? o : join(root, o));
+            if (packageDir(abs)) mark(packageDir(abs), "asset");
+          }
+        }
+      }
+    },
+  };
+  return { plugin, rendered, unknown, failures };
+}
+
 /**
  * The npm packages in the program's page: its Vite build is run again, as `vite build` does with
  * the page's own config, writing nothing, and every module, style and file it puts into the page
@@ -431,42 +514,9 @@ export async function readPage(program, repo = REPO) {
   const viteDir = realpathSync(viteLink);
   const vite = await import(pathToFileURL(join(viteDir, "dist", "node", "index.js")).href);
   const norm = (p) => p.replace(/\\/g, "/");
-  const rootN = norm(realpathSync(root));
   const helpers = { vite: norm(viteDir), rolldown: existsSync(join(viteDir, "..", "rolldown")) ? norm(realpathSync(join(viteDir, "..", "rolldown"))) : null };
-  const rendered = new Map(); // package dir -> how ("js", "css", "asset")
-  const unknown = new Set();
-  const mark = (dir, how) => {
-    if (!rendered.has(dir)) rendered.set(dir, new Set());
-    rendered.get(dir).add(how);
-  };
-  const recorder = {
-    name: "dependency-licences",
-    enforce: "pre",
-    transform(_code, id) {
-      const clean = norm(id.split("?")[0]);
-      if (/\.css$/.test(clean) && packageDir(clean)) mark(packageDir(clean), "css");
-      return null;
-    },
-    generateBundle(_o, bundle) {
-      for (const f of Object.values(bundle)) {
-        if (f.type === "chunk") {
-          for (const [rawId, m] of Object.entries(f.modules ?? {})) {
-            if (!(m.renderedLength > 0)) continue;
-            const id = norm(rawId);
-            if (id.startsWith("\0vite/")) mark(helpers.vite, "js");
-            else if (/^\0?rolldown[:/]runtime/.test(id) && helpers.rolldown) mark(helpers.rolldown, "js");
-            else if (packageDir(id)) mark(packageDir(id), "js");
-            else if (id.startsWith("\0") || !id.startsWith(`${rootN}/`)) unknown.add(id.replace(/^\0/, "\\0"));
-          }
-        } else {
-          for (const o of f.originalFileNames ?? []) {
-            const abs = norm(o.startsWith("/") || /^[A-Za-z]:/.test(o) ? o : join(root, o));
-            if (packageDir(abs)) mark(packageDir(abs), "asset");
-          }
-        }
-      }
-    },
-  };
+  const rootN = norm(realpathSync(root));
+  const { plugin: recorder, rendered, unknown, failures: recorderFailures } = pageRecorder(rootN, helpers);
   const outDir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   const cwd = process.cwd();
   try {
@@ -479,7 +529,10 @@ export async function readPage(program, repo = REPO) {
     process.chdir(cwd);
     rmSync(outDir, { recursive: true, force: true });
   }
-  const failures = [...unknown].sort().map((id) => `${prog.name}'s page: a module of no known package is in the page: ${id.startsWith(`${rootN}/`) ? relative(root, id) : id.replace(rootN, "<page>")}`);
+  const failures = [
+    ...recorderFailures.map((f) => `${prog.name}'s page: ${f}`),
+    ...[...unknown].sort().map((id) => `${prog.name}'s page: a module of no known package is in the page: ${id.startsWith(`${rootN}/`) ? relative(root, id) : id.replace(rootN, "<page>")}`),
+  ];
   const packages = [];
   for (const d of rendered.keys()) {
     const dir = realpathSync(d);
@@ -498,21 +551,32 @@ export async function readPage(program, repo = REPO) {
 
 /** Reads one program for one target, runs the gate and, when it passes, writes the list. */
 export async function main(argv, env = process.env) {
-  const args = [...argv];
-  const opt = (name) => {
-    const i = args.indexOf(name);
-    if (i < 0) return null;
-    const v = args[i + 1];
-    args.splice(i, 2);
-    return v;
-  };
-  const check = opt("--check");
-  const out = opt("--out");
-  const allowedFile = opt("--allowed") ?? join(REPO, ALLOWED_FILE);
-  const noTextFile = opt("--no-text") ?? join(REPO, NO_TEXT_FILE);
+  // Every argument is one this knows, or the run stops: one it doesn't (or an option without its
+  // value) would otherwise change nothing and let the run pass against what it didn't mean.
+  const programs = Object.keys(PROGRAMS).join("|");
+  const usage = `usage: dependency-licences.mjs <${programs}> [<target>] [--out <folder>] [--allowed <file>] [--no-text <file>]\n` +
+    `       dependency-licences.mjs --check <folder> <${programs}> <target>`;
+  const opts = {};
+  const args = [];
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (!a.startsWith("-")) { args.push(a); continue; }
+    if (!["--check", "--out", "--allowed", "--no-text"].includes(a)) throw new Error(`no such argument: "${a}"\n${usage}`);
+    if (a in opts) throw new Error(`${a} given twice\n${usage}`);
+    const v = argv[i + 1];
+    if (v === undefined || v === "" || v.startsWith("-")) throw new Error(`${a} needs a value\n${usage}`);
+    opts[a] = v;
+    i++;
+  }
+  if (args.length > 2) throw new Error(`one program and one target at most, not: ${args.join(" ")}\n${usage}`);
+  const check = opts["--check"] ?? null;
+  if (check && (opts["--out"] || opts["--allowed"] || opts["--no-text"])) throw new Error(`--check takes no other option\n${usage}`);
+  const out = opts["--out"] ?? null;
+  const allowedFile = opts["--allowed"] ?? join(REPO, ALLOWED_FILE);
+  const noTextFile = opts["--no-text"] ?? join(REPO, NO_TEXT_FILE);
   const [program, targetArg] = args;
-  const target = targetArg ?? env.TAURI_ENV_TARGET_TRIPLE;
-  if (!PROGRAMS[program]) throw new Error(`usage: dependency-licences.mjs <${Object.keys(PROGRAMS).join("|")}> [<target>] [--out <folder>]`);
+  const target = targetArg ?? (check ? undefined : env.TAURI_ENV_TARGET_TRIPLE);
+  if (!PROGRAMS[program]) throw new Error(usage);
   if (!TARGETS[target]) throw new Error(`no target, or not one this builds for: ${target ?? "(none: give it, or TAURI_ENV_TARGET_TRIPLE)"}`);
   const prog = PROGRAMS[program];
   if (check) {

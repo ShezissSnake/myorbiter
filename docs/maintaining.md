@@ -187,8 +187,10 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
 - ships no licence text and isn't in `scripts/dependency-licences-no-text.json` by name and
   version (a new version of a crate listed there stops it too).
 
-It stops as well when the page's packages aren't installed, or the page holds a module that is
-neither its own nor a package's. It never passes by leaving a package out.
+It stops as well when the page's packages aren't installed; when the page holds a module, or a
+style pulls in a file with `@import`, that is neither the page's own nor a package's; when
+cargo's answer has a line the script can't read, or no crate at all; and when the script is given
+an argument it doesn't know. It never passes by leaving a package out.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
@@ -197,19 +199,31 @@ neither its own nor a package's. It never passes by leaving a package out.
   maintainer's decision**, made after reading that licence; the list is
   `scripts/dependency-licences-allowed.txt`. Otherwise the dependency that brought it is changed
   back or replaced.
-- A crate with no licence text of its own: the text comes, unchanged, from upstream's own file or,
-  for a licence with no line of its own to fill (Apache-2.0, BSL-1.0), from the same licence's text
-  as another package of the build ships it; never written by hand. It goes into
-  `scripts/dependency-licences-no-text.json`, with the maintainer's yes like any licence file.
+- A crate with no licence text of its own: an entry for it, by name, version and licence, goes into
+  `scripts/dependency-licences-no-text.json`, with the maintainer's yes like any licence file. An
+  entry can hold one of two things today. `text` names, by its SHA-256 (and `from`, the package
+  that must ship it), a file another package of the same build ships unchanged: for a licence with
+  no line of its own to fill (Apache-2.0, BSL-1.0), that licence's standard text; the build stops
+  if no package of it ships that file. Or `text` is `null`: the download carries no text for the
+  crate, and its list says so, naming its licence and the repository its manifest names. A text is
+  never written by hand. Carrying upstream's own file for a crate (its copyright line, for MIT or
+  BSD) has no place in that file yet: it needs a change to the script, to read the file from the
+  repository with where it came from.
 - A source that isn't the registry: the dependency goes back to a published version.
 - The page not installed, or a module of no known package: the build steps before it changed;
-  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same.
+  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. Vite's
+  CSS plugin not found, or a line of cargo's it can't read: an upgrade of Vite or cargo changed
+  what the script reads, and the script follows it.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:
 `node scripts/dependency-licences.mjs myorbiter x86_64-unknown-linux-gnu` writes
-`THIRD-PARTY-NOTICES/dependencies/` (`--out <folder>` writes elsewhere; the folder is never
-committed).
+`THIRD-PARTY-NOTICES/dependencies/` (the folder is never committed). Without a target it takes
+`TAURI_ENV_TARGET_TRIPLE`, as Tauri sets it. Its other arguments: `--out <folder>` writes
+elsewhere; `--allowed <file>` and `--no-text <file>` read another allowed list or no-text file in
+place of the two in `scripts/` (to try a change before making it); and
+`--check <folder> <program> <target>` checks a list already written, with every text it names, as
+`ci/build.sh` does in the `.deb`. Any other argument stops it.
 
 **What the list doesn't cover**, as each list also says: the Rust standard library, which no
 lockfile names; code a package carries inside itself (for example the copy of `tslib` inside

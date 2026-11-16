@@ -44,5 +44,11 @@ export function parseCargoTree(text: string): { name: string; version: string; s
 export function packageDir(id: string): string | null;
 export function pnpmResolutions(text: string): Map<string, string>;
 export function readRust(program: "myorbiter" | "tennoscope", target: string, repo?: string): Package[];
+export function pageRecorder(root: string, helpers?: { vite: string | null; rolldown: string | null }): {
+  plugin: { name: string; enforce: "pre"; configResolved(config: { plugins: readonly { name: string; transform?: unknown }[] }): void; transform(code: string, id: string): null; generateBundle(options: unknown, bundle: Record<string, unknown>): void };
+  rendered: Map<string, Set<"js" | "css" | "asset">>;
+  unknown: Set<string>;
+  failures: string[];
+};
 export function readPage(program: "myorbiter" | "tennoscope", repo?: string): Promise<{ packages: Package[]; failures: string[] }>;
 export function main(argv: string[], env?: Record<string, string | undefined>): Promise<number>;

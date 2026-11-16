@@ -18,8 +18,8 @@
     },
     {
       "name": "clipboard-win", "version": "5.4.1", "licence": "BSL-1.0", "used": "BSL-1.0",
-      "text": { "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566" },
-      "why": "BSL-1.0's text has no line of its own to fill: its standard text, as another crate of the same build ships it."
+      "text": { "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566", "from": "error-code" },
+      "why": "BSL-1.0's text has no line of its own to fill: its standard text, as error-code, a crate it depends on, ships it."
     },
     {
       "name": "alloc-stdlib", "version": "0.3.0", "licence": "BSD-3-Clause", "text": null,
