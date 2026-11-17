@@ -353,7 +353,15 @@ class MarketStore {
   }
 
   async signOut() {
-    await market.signOut();
+    try {
+      await market.signOut();
+    } catch (e) {
+      // The words say what kept the sign-in and what to do (market.rs, TokenStore::clear). Kept
+      // where the next start finds it, the app stays signed in now too, and so does the page.
+      this.error = clean(e);
+      const account = await market.account();
+      if (account.linked) return;
+    }
     this.dropStatusTimer();
     this.statusAsked = null;
     this.status = null;

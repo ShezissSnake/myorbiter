@@ -60,6 +60,21 @@ test("listings count as read only once warframe.market answered; signing out for
   assert.equal(mkt.ordersAt, null);
 });
 
+test("a sign-out that couldn't be completed says so in plain words, and the account stays signed in", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  // As the app answers when the keyring kept the sign-in (lib.rs, market_sign_out).
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => ({ linked: true, backing: "keyring", profile: me, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /, "said, not swallowed");
+  assert.equal(mkt.linked, true, "still signed in, as at the next start");
+  assert.deepEqual(mkt.orders.map((o) => o.id), ["a"], "the listings stay shown");
+  assert.equal(mkt.ordersAt, 1);
+});
+
 test("Auto-match backs off while warframe.market doesn't answer, and says so once", async () => {
   const s = defaultMarketSettings();
   market.items = async () => [{ id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] }];
