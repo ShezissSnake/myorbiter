@@ -56,6 +56,22 @@ function secrets(r: Rng, self: string, other: string): { text: string; must: str
   ];
 }
 
+/** The user name itself (`name`, one word or more) where a rule reads it with what is around it: a
+ *  path whose root holds it (`~name/`, `$name/`, a variable), a folder of its own with a mark and
+ *  more glued to it, another player's name glued to it. Each with the text that went with it. */
+function userShapes(r: Rng, name: string): { text: string; must: string[] }[] {
+  const folder = randomName(r).replace(/[.]/g, "x");
+  const tail = randomName(r).replace(/[.]/g, "x");
+  const g = r.pick(["-", "."]);
+  const mark = r.pick([")", "),", ");", ")(", ",", ";", "(", ") ", ":", "'", "=", "]"]);
+  const u = casing(r, name);
+  return [
+    { text: r.pick([`~${u}/${folder}/x`, `copied to ~${u}/${folder} Stuff/notes/EE.log`, `$${u}/${folder}/x`, `\${${u}}/${folder}/x`, `%${u}%\\${folder}\\x`, `https://warframe.market/profile/K,$${u}/${folder}`, `https://warframe.market/profile/K,~${u}/${folder}/x`]), must: [folder] },
+    { text: r.pick([`buyer: ${u}${g}${tail}`, `Ash Prime Set: 20p from ${u}${g}${tail}`, `/w ${u}${g}${tail} hi`, `https://warframe.market/profile/${u}${g}${tail}`, `${tail}${g}${u} whispered you`, `sold Ash Prime Set to ${tail}${g}${u} for 20p`]), must: [tail] },
+    { text: r.pick([`(/home/${u}${mark}${folder}`, `C:\\Users\\${u}${mark}${folder} more. x`, `drive_c/users/${u}${mark}${folder}`, `Z:\\home\\${u}${mark}${folder}`, `/run/media/${u}${mark}${folder}/x`, `/mnt/x/${u}${mark}${folder}`, `smb://${u}${mark}${folder}`, `D:\\Games\\${u}${mark}${folder}`, `https://warframe.market/profile/${u}${mark}${folder}`, `buyer: ${u}${mark}${folder}`]), must: [folder] },
+  ];
+}
+
 /** Random text with the secrets placed in it, and hidden characters scattered (inside them too). */
 function plant(r: Rng, parts: string[]): string {
   const out: string[] = [];
@@ -157,6 +173,17 @@ test("redact: knowing this computer's user name never lets out what was hidden w
       assert.deepEqual(leaks(known, hidden), [], `PROPERTY_SEED=${seed}: ${JSON.stringify(t)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
       // An id or a long hex run that went stays gone.
       if (!/\b[0-9a-f]{16,}\b/i.test(without)) assert.ok(!/\b[0-9a-f]{16,}\b/i.test(known), `PROPERTY_SEED=${seed}: ${JSON.stringify(known)}`);
+    }
+    // The user name itself in a path's root or in another player's name: what went with it
+    // without the name known (the path's folders, the rest of the player's name) goes with it known.
+    // One word or several.
+    const name = r.bool(0.3) ? `${user} ${randomName(r)}` : user;
+    for (const { text, must } of userShapes(r, name)) {
+      const names = { self: [self], others: [other] };
+      const without = redact(text, names);
+      const known = redact(text, { ...names, user: r.pick([[name], [casing(r, name)]]) });
+      const hidden = must.filter((m) => m && !without.toLowerCase().includes(m.toLowerCase()));
+      assert.deepEqual(leaks(known, hidden), [], `PROPERTY_SEED=${seed}: ${JSON.stringify(text)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
     }
   }, 1500);
 });

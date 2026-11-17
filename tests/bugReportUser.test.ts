@@ -57,10 +57,10 @@ test("user names: known, hidden in a path of a shape the path rule leaves as wri
     ["Orren", "D:\\Games\\Dev Orren", "D:\\Games\\Dev Orren", "D:\\Games\\Dev [user]"],
     ["Orren Taskwell", "drive_c/users/Orren Taskwell", "drive_c/users/[user] Taskwell", "drive_c/users/[user]"],
     ["Orren Taskwell", "~Orren Taskwell/x", "~Orren Taskwell/x", "~[user]/x"],
-    ["Orren O'Taskwell", "'D:\\Games\\Orren O'Taskwell'", "'D:\\Games\\[folder]'Taskwell'", "'D:\\Games\\[user]'"],
-    ["Orren A. Taskwell", "C:/Users/Orren A. Taskwell", "C:/Users/[user]. Taskwell", "C:/Users/[user]"],
-    ["Orren Taskwell", "/home/Orren Taskwell,D:\\Kestrel\\Bryn", "/home/[user]:\\Kestrel\\Bryn", "/home/[user],D:\\[folder]\\[folder]"],
-    ["Orren", '"/mnt/Orren see EE.log', '"/mnt/Orren see EE.log', '"/mnt/[user]'],
+    ["Orren O'Taskwell", "'D:\\Games\\Orren O'Taskwell'", "'D:\\Games\\[folder]'Taskwell'", "'D:\\Games\\[user]'[user]'"],
+    ["Orren A. Taskwell", "C:/Users/Orren A. Taskwell", "C:/Users/[user]. Taskwell", "C:/Users/[user]. [user]"],
+    ["Orren Taskwell", "/home/Orren Taskwell,D:\\Kestrel\\Bryn", "/home/[user]:\\Kestrel\\Bryn", "/home/[user]:\\Kestrel\\Bryn"],
+    ["Orren", '"/mnt/Orren see EE.log', '"/mnt/Orren see EE.log', '"/mnt/[user] see EE.log'],
     ["Orren", "found ~orren here", "found ~orren here", "found ~[user] here"],
   ];
   for (const [user, text, alone, known] of gaps) {
@@ -69,6 +69,67 @@ test("user names: known, hidden in a path of a shape the path rule leaves as wri
     // The names step reads it the same way, whether a path is read or not.
     assert.ok(!hideNames(text, { user: [user] }).toLowerCase().includes(user.split(" ")[0].toLowerCase()), text);
   }
+});
+
+test("user names: known, a ~name/ or $name/ path still loses its folder names, as it does when the name isn't known", () => {
+  // Each: the text, as the path rule alone leaves it, then with the name known (the name hidden
+  // too where the path rule keeps it, as a variable's name).
+  const cases: [string, string, string][] = [
+    ["copied it to ~orrenvale/Brynwood Contract/notes/EE.log", "copied it to ~[user]/[folder]/[folder]/EE.log", "copied it to ~[user]/[folder]/[folder]/EE.log"],
+    ["~Orrenvale.x/Hushfolder/x", "~[user]/[folder]/[folder]", "~[user]/[folder]/[folder]"],
+    ["$Orrenvale/Hushfolder/x", "$Orrenvale/[folder]/[folder]", "$[user]/[folder]/[folder]"],
+    ["${Orrenvale}/Hushfolder/x", "${Orrenvale}/[folder]/[folder]", "${[user]}/[folder]/[folder]"],
+    ["%Orrenvale%\\Hushfolder\\x", "%Orrenvale%\\[folder]\\[folder]", "%[user]%\\[folder]\\[folder]"],
+    ["https://warframe.market/profile/K,$Orrenvale/Secretproj", "https://warframe.market/profile/[player],$Orrenvale/[folder]", "https://warframe.market/profile/[player],$[user]/[folder]"],
+    ["https://warframe.market/profile/K,~orrenvale/Secretproj/x", "https://warframe.market/profile/[player],~[user]/[folder]/[folder]", "https://warframe.market/profile/[player],~[user]/[folder]/[folder]"],
+  ];
+  for (const [text, alone, known] of cases) {
+    assert.equal(redact(text), alone, text);
+    assert.equal(redact(text, { user: ["orrenvale"] }), known, text);
+  }
+  // Learned from the line itself, with nothing held: the same.
+  const r = buildReport({ what: "copied it to ~orrenvale/Brynwood Contract/notes/EE.log", steps: "", expected: "" }, details([]), {});
+  assert.equal(r.what, "copied it to ~[user]/[folder]/[folder]/EE.log");
+});
+
+test("user names: a home folder, a folder or a profile with a mark glued to the user name loses what it loses when the name isn't known", () => {
+  for (const [user, text] of [
+    ["Orrenvale", "(/home/Orrenvale)-Brynwood x"],
+    ["Orrenvale", "(/home/Orrenvale),Brynwood"],
+    ["Orren Taskwell", "(/home/Taskwell;Brynwood"],
+    ["Orrenvale", "C:\\Users\\Orrenvale words. Brynwood"],
+    ["Orrenvale", "Z:\\home\\Orrenvale) Brynwood"],
+    ["Orren Taskwell", "copied to /mnt/x/Orren Taskwell);Brynwood"],
+    ["Orren Taskwell", "give //orren taskwell)(Brynwood) more +rep"],
+    ["Orrenvale", "https://warframe.market/profile/Orrenvale),Brynwood"],
+    ["Orrenvale", "https://warframe.market/profile/Orrenvale:Brynwood"],
+  ]) {
+    const alone = redact(text);
+    assert.ok(!alone.includes("Brynwood"), text);
+    const known = redact(text, { user: [user] });
+    assert.ok(!known.includes("Brynwood") && !/orren|taskwell/i.test(known), `${text} → ${known}`);
+  }
+});
+
+test("user names: another player's name found by its shape is hidden whole, also when it starts or ends with the user name", () => {
+  const u = { user: ["Orrenvale"] };
+  for (const [text, out] of [
+    ["buyer: Orrenvale-Alt", "buyer: [player]"],
+    ["Ash Prime Set: 20p from Orrenvale.Alt", "Ash Prime Set: 20p from [player]"],
+    ["/w Orrenvale-Alt hi", "/w [player] hi"],
+    ["https://warframe.market/profile/Orrenvale-Alt", "https://warframe.market/profile/[player]"],
+    ["Alt-Orrenvale whispered you", "[player] whispered you"],
+    ["3 people whispered you: Orrenvale-Alt, Kestrel", "3 people whispered you: [players]"],
+    ["sold Ash Prime Set to Alt.Orrenvale for 20p", "sold Ash Prime Set to [player] for 20p"],
+    ["Couldn't give Orrenvale-Alt +rep", "Couldn't give [player] +rep"],
+    ["/Users/Orrenvale-Alt/x/y", "/Users/[user]/[folder]/[folder]"],
+  ]) {
+    assert.equal(redact(text), out, text);
+    assert.equal(redact(text, u), out, text);
+  }
+  // The user name alone after such a mark stays [user]; outside such a line, [user]-PC as before.
+  assert.equal(redact("buyer: Orrenvale", u), "buyer: [user]");
+  assert.equal(redact("Orrenvale-PC froze", u), "[user]-PC froze");
 });
 
 test("user names: known, hidden bare in a log line's sentence, in any case, with spaces in it", () => {
@@ -192,6 +253,15 @@ test("user names: the privacy page, the dialog and the Guide say what is hidden,
   for (const w of ["deck", "admin", "guest", "user", "home", "steam", "games", "linux", "connected", "a", "42"]) assert.ok(ordinaryName(w), w);
   assert.equal(redact("Orrenvale_2 Orrenvaleholm Orrenvale-PC", { user: ["Orrenvale"] }), "Orrenvale_2 Orrenvaleholm [user]-PC");
   assert.equal(redact("Steam Deck /home/deck/x", { user: ["deck"] }), "Steam Deck /home/[user]/[folder]");
+  assert.match(para, /`~name\/a` becomes `~\[user\]\/\[folder\]`, `\$Name\/a` becomes `\$\[user\]\/\[folder\]`/);
+  assert.equal(redact("~orrenvale/a", { user: ["Orrenvale"] }), "~[user]/[folder]");
+  assert.equal(redact("$Orrenvale/a", { user: ["Orrenvale"] }), "$[user]/[folder]");
+  assert.match(para, /`buyer: Name-Alt` becomes `buyer: \[player\]`/);
+  assert.equal(redact("buyer: Orrenvale-Alt", { user: ["Orrenvale"] }), "buyer: [player]");
+  assert.match(para, /Knowing the name hides nothing less than not knowing it: every other rule reads it as it reads the name itself and takes with it what it takes with the name \(`\/home\/name\),more` becomes `\/home\/\[user\]`, as it does when the name isn't known\)\./);
+  for (const opts of [{}, { user: ["Orrenvale"] }, { self: ["Orrenvale"], user: ["Orrenvale"] }]) assert.equal(redact("/home/orrenvale),more", opts), "/home/[user]");
+  assert.match(para, /`AppData\\Roaming`, `AppData\\Local`, `AppData\\LocalLow` or `Library\/Application Support`/);
+  for (const sub of ["Roaming", "Local", "LocalLow"]) assert.deepEqual(homeNames([`D:\\Profiles\\Talqen\\AppData\\${sub}\\x`]), ["Talqen"], sub);
   const ui = readFileSync("src/lib/ui/BugReport.svelte", "utf8");
   assert.match(ui, /So is your user name on this computer, as your home folder's name, wherever it stands as a word, once MyOrbiter has seen that folder \(in the game log's or TennoScope's location, or in the report itself\); if it hasn't, or the name is an everyday word like deck or user, only in paths\./);
   const guide = readFileSync("src/lib/tabs/Guide.svelte", "utf8");

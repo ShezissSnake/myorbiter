@@ -35,6 +35,27 @@ export interface RedactOptions {
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+/** This computer's user name while the rules run: each of its letters and digits written as a plain
+ *  letter, its spaces and marks as they are ("Orren O'Hal" as "uQQQQ Q'QQQ"), so that each rule
+ *  reads it as it reads the name and takes with it what it takes with the name. It names no one and
+ *  is no folder the path rule keeps. */
+const standIn = (m: string) => m.replace(/%20|[\p{L}\p{M}\p{N}_]/gu, (c) => (c === "%20" ? c : "Q")).replace("Q", "u");
+/** A stand-in, whole. */
+const STAND_IN_WHOLE = /^uQ*(?:(?:%20|[^\p{L}\p{N}_])+Q+)*$/u;
+/** An in-game name (the player's, or another player's) that is also this computer's user name,
+ *  while the rules run: a mark every rule reads as it reads "[you]" or "[player]" (as long, in
+ *  brackets, and the second runs on in a path as "[player]" does); "[user]" at the end. */
+const SELF_USER = "[usr]";
+const OTHER_USER = "[plyusr]";
+/** The stand-ins left at the end, and what is left of one a rule took part of, written as "[user]"
+ *  (an encoded slash, colon or space before one is no letter, as for the name). */
+const unStandIn = (s: string) =>
+  s
+    .replaceAll(SELF_USER, "[user]")
+    .replaceAll(OTHER_USER, "[user]")
+    .replace(/\[user\](?:(?:\s|%20)+Q+)+(?![\p{L}\p{N}_])/gu, "[user]")
+    .replace(/(?<![\p{L}\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))uQ*(?:(?:%20|[\s'.-])+Q+)*(?![\p{L}\p{N}_])/gu, "[user]")
+    .replace(/(?<![\p{L}\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))Q{2,}(?![\p{L}\p{N}_])/gu, "[user]");
 /** A Warframe or warframe.market name: letters, digits, `_`, `-` and `.`, up to 24 (a platform mark may follow). */
 const NAME = "[A-Za-z0-9][A-Za-z0-9_.-]{1,23}";
 
@@ -104,34 +125,48 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
   // "partner": "Name", "buyer": Name, "seller=Name", "from_player": …
   [new RegExp(`(["']?\\b(?:partner|buyer|seller|player|ingame_?name|user(?:name)?)["']?\\s*[=:]\\s*["']?)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
 ];
+// Where one of them takes the user name's stand-in alone ("buyer: Name"), it reads "[user]", as the
+// name does everywhere else; with more of a name glued to it ("buyer: Name-Alt"), the rule's own
+// "[player]", as when the user name isn't known.
+for (const rule of NAME_LINES) {
+  const to = rule[1];
+  rule[1] = (...m) => {
+    const put = to(...m);
+    const lead = typeof m[1] === "string" ? m[1].length : 0;
+    return put.slice(lead) === "[player]" && STAND_IN_WHOLE.test(m[0].slice(lead)) ? `${put.slice(0, lead)}[user]` : put;
+  };
+}
 
 /** Known names, then the secrets, ids, this computer's user name and home folders: the steps before
  *  the names by their shape. */
-function knownAndRules(text: string, opts: RedactOptions): string {
+function knownAndRules(text: string, opts: RedactOptions): { s: string; stood: boolean } {
   let s = text;
   const user = userPatterns(opts.user);
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
-  // One that is also this computer's user name reads as the path rule's "[user]".
+  // One that is also this computer's user name reads as the path rule's "[user]" (through its mark,
+  // `SELF_USER` or `OTHER_USER`, which the later rules read as they read "[you]" or "[player]").
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
-    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, user.keys.has(n.toLowerCase()) ? "[user]" : as] as const);
+    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, user.keys.has(n.toLowerCase()) ? (as === "[you]" ? SELF_USER : OTHER_USER) : as] as const);
   for (const [name, as] of [...named(opts.self, "[you]"), ...named(opts.others, "[player]")]) {
     s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
   // This computer's user name after the secrets and ids, so it can't break one apart and leave the
-  // rest of it ("password=name-…"), and before the home folders, so those read a name with spaces
-  // whole.
+  // rest of it ("password=name-…"), and before the home folders. It is written as its stand-in
+  // (`standIn`), so every rule after this reads it as it reads the name itself and takes with it
+  // what it takes with the name ("buyer: Name-Alt", "/home/Name)…", "~Name/…"): knowing the name
+  // hides nothing less. The stand-in becomes "[user]" at the end (`unStandIn`).
   for (const [re, to] of [...SECRETS, ...IDS]) s = s.replace(re, to as never);
-  for (const re of user.patterns) s = s.replace(re, "[user]");
+  for (const re of user.patterns) s = s.replace(re, standIn);
   for (const [re, to] of HOMES) s = s.replace(re, to as never);
-  return s;
+  return { s, stood: user.patterns.length > 0 };
 }
 
 /** Known names, the rules before them (`knownAndRules`) and the rules for names and chats, each a plain replace and nothing else:
  *  what the names step hides when no path is read. The tests compare `redact` with it. */
 export function hideNames(text: string, opts: RedactOptions = {}): string {
-  let s = knownAndRules(text, opts);
+  let { s, stood } = knownAndRules(text, opts);
   for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
-  return s;
+  return stood ? unStandIn(s) : s;
 }
 
 /** A placeholder a rule for names wrote over the text from `at` to `end` (in the text the rules
@@ -215,7 +250,7 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   // them; only then is a placeholder whose text ran into a path's root given back that root
   // (rootTail), so no rule reads a text hideNames' rules don't, and every word a placeholder was
   // written over stays under it but a root's own.
-  const s = knownAndRules(text, opts);
+  const { s, stood } = knownAndRules(text, opts);
   const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
   const { text: named, from, hidden } = hideNamesMarked(s);
   const write = (tilde: boolean) => {
@@ -235,8 +270,8 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   const first = write(true);
   // A `~name` given back whose path wasn't cleaned (nothing after its slash, or read inside the
   // path before it) would show the user name: then every such root stays under its placeholder.
-  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return write(false).out;
-  return first.out;
+  const out = first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out)) ? write(false).out : first.out;
+  return stood ? unStandIn(out) : out;
 }
 
 // ---------------------------------------------------------------- paths
@@ -357,7 +392,7 @@ const PATH_AHEAD = /^(?:[A-Za-z]:[\\/%]|[~$%\\/]|\.{1,2}[\\/]|[A-Za-z][A-Za-z0-9
 /** Whether a last name (no spaces) would be hidden: then it may run on over spaces. A `[user]` or
  *  `[player]` an early rule left runs on too: those rules stop at a space ("/home/[user] Smith",
  *  "/profile/[player] Smith"). */
-const hiddenName = (t: string) => t === "[user]" || t === "[player]" || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
+const hiddenName = (t: string) => t === "[user]" || t === "[player]" || t === OTHER_USER || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
 
 /** Where the path whose names start at `from` ends. `quote`: the quote it is in, if any.
  *  `spacedFirst`: whether its first name may have spaces in it. */
@@ -415,11 +450,13 @@ function cleanFolder(name: string, before: string[], kind: PathKind, last: boole
   const low = name.toLowerCase();
   const prev = (before[before.length - 1] ?? "").toLowerCase();
   const prev2 = (before[before.length - 2] ?? "").toLowerCase();
+  // This computer's user name (its stand-in), as a folder or a computer's name of its own.
+  if (STAND_IN_WHOLE.test(name)) return "[user]";
   if (kind === "share" && before.length === 0) return "[host]";
   if (PLACEHOLDER.test(name) || name === "." || name === "..") return name;
   // A user's or player's name with a space in it, which an early rule cut at the space: all of it
   // is the name.
-  const cut = /^\[(user|player)\]\s/.exec(name);
+  const cut = /^\[(user|player|plyusr)\]\s/.exec(name);
   if (cut) return `[${cut[1]}]`;
   // The user name: under /home, /Users, C:\Users, and Wine's drive_c\users (where Proton's is steamuser).
   if (prev === "home" || prev === "users" || prev === "documents and settings") return low === "public" || low === "default" || low === "steamuser" ? name : "[user]";
@@ -516,6 +553,8 @@ export function ordinaryName(name: string): boolean {
 /** A user name as a whole word, in any case: not inside a longer word (letters and digits of any
  *  script, and `_`, on either side; a hyphen or a dot joins two words, so `Name-PC` and `Name.local`
  *  hide it, and so does `@`: `name@host`, `@name`; an e-mail address went whole before this runs).
+ *  The rules after it read it as a name (its stand-in), so another player's name by its shape that
+ *  holds it ("buyer: Name-Alt") goes whole as "[player]", and a `~name/` path loses its folders.
  *  An encoded slash, colon or space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words
  *  may be apart by any spaces or `%20`. */
 const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
@@ -550,7 +589,7 @@ const underHome = (rest: string[]) => {
  *  folder; each a whole path, saved in Settings or as found), by its shape: the folder after
  *  `/home`, `/var/home`, `/Users`, `C:\Users`, `C:\Documents and Settings`, Wine's `Z:\home`, a
  *  Wine prefix's `drive_c\users` (not Proton's `steamuser`) and `/run/media`, a `~name`, and the
- *  folder that holds `.local/share`, `.steam`, `.var/app`, `AppData\Roaming` or `Library/Application
+ *  folder that holds `.local/share`, `.steam`, `.var/app`, `AppData\Roaming` (or `Local`, `LocalLow`) or `Library/Application
  *  Support` (a home of another shape). A whole path's folder names may have spaces in them. */
 export function homeNames(paths: readonly (string | null | undefined)[]): string[] {
   const out: string[] = [];
