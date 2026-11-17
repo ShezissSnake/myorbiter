@@ -576,11 +576,12 @@ permissions).
 
 Signing out (Orders) removes the token from the keyring and the file, and the sign-in kept under
 the old name, `dev.orbiter.app` / `warframe.market`, if there is one. When the keyring refuses to
-let go of the token, or the file can't be deleted, MyOrbiter says so and stays signed in; when only
-the one under the old name stays, it signs out and says so. When no keyring answers, it signs out
-from the file and says that a sign-in kept in the keyring before, if there is one, stays there: one
-under `dev.myorbiter.app` would sign MyOrbiter in again at its next start, and one under
-`dev.orbiter.app` isn't read. A `market-token` in the old `dev.orbiter.app` config folder stays, as
+let go of the token or doesn't answer while it holds it, or the file can't be deleted, MyOrbiter
+says so and stays signed in; when only the one under the old name stays, it signs out and says so.
+When the sign-in in use was kept in the file and no keyring answers, or the keyring won't let go of
+what it holds, it signs out from the file and says that a sign-in kept in the keyring before, if
+there is one, stays there: one under `dev.myorbiter.app` would sign MyOrbiter in again at its next
+start, and one under `dev.orbiter.app` isn't read. A `market-token` in the old `dev.orbiter.app` config folder stays, as
 the old folders are only read.
 
 ### Removing what is kept
