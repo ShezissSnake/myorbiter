@@ -80,7 +80,8 @@ let SI: StandIn = NO_STAND_IN;
 /** The stand-in for `text`: letters the text doesn't hold, else letters that alone make none of its
  *  words; marks the text doesn't hold. */
 function standInFor(text: string): StandIn {
-  const words = text.split(/%(?:2[Ff0]|5[Cc]|3[Aa])|[^\p{L}\p{N}_]+/u).filter(Boolean);
+  // The encoded marks go first, so that `]%2FQ` gives the word `Q` as `un` reads it, not `2FQ`.
+  const words = text.replace(/%(?:2[Ff0]|5[Cc]|3[Aa])/g, " ").split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
   const pairs = (PAIRS ??= standInPairs());
   const [a, b] = pairs.find(([a, b]) => !text.includes(a) && !text.includes(b)) ?? pairs.find(([a, b]) => !onlyOf(a, b, words)) ?? pairs[0];
   const core = MARK_CORES.find((c) => !text.includes(`[${c}]`) && !text.includes(`[ply${c}]`)) ?? MARK_CORES[0];
@@ -186,8 +187,13 @@ function knownAndRules(text: string, opts: RedactOptions): { s: string; stood: b
   // `SI.self` or `SI.other`, which the later rules read as they read "[you]" or "[player]").
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
     [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, user.keys.has(n.toLowerCase()) ? (as === "[you]" ? SI.self : SI.other) : as] as const);
+  // `wrote` counts where the name went in as a mark or a stand-in.
+  let wrote = 0;
   for (const [name, as] of [...named(opts.self, "[you]"), ...named(opts.others, "[player]")]) {
-    s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
+    s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), () => {
+      if (as === SI.self || as === SI.other) wrote++;
+      return as;
+    });
   }
   // This computer's user name after the secrets and ids, so it can't break one apart and leave the
   // rest of it ("password=name-…"), and before the home folders. It is written as its stand-in
@@ -195,9 +201,12 @@ function knownAndRules(text: string, opts: RedactOptions): { s: string; stood: b
   // what it takes with the name ("buyer: Name-Alt", "/home/Name)…", "~Name/…"): knowing the name
   // hides nothing less. The stand-in becomes "[user]" at the end (`SI.un`).
   for (const [re, to] of [...SECRETS, ...IDS]) s = s.replace(re, to as never);
-  for (const re of user.patterns) s = s.replace(re, SI.standIn);
+  for (const re of user.patterns) s = s.replace(re, (m) => (wrote++, SI.standIn(m)));
+  // A text the name isn't in goes on as if no name were known: nothing of it is read as the
+  // stand-in or turned into "[user]", whatever letters it holds.
+  if (wrote === 0) SI = NO_STAND_IN;
   for (const [re, to] of HOMES) s = s.replace(re, to as never);
-  return { s, stood: user.patterns.length > 0 };
+  return { s, stood: wrote > 0 };
 }
 
 /** Known names, the rules before them (`knownAndRules`) and the rules for names and chats, each a plain replace and nothing else:

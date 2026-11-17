@@ -223,6 +223,22 @@ test("user names: a text without the name comes out as it does when the name isn
   // A text that holds every letter still keeps its own words.
   const every = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz Q QQ u uQ Z ZZ";
   assert.equal(redact(`${every} Orrenvale`, { user: ["Orrenvale"] }), `${every} [user]`);
+  // Every letter and short words after an encoded slash or space: the word after `]%2F` is `Q`.
+  // Every letter standing alone as a word, and runs of two.
+  const alone = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z";
+  const crowded = [
+    "sold Ash Prime Set to q%2F[usa]%2FQ) Brynwood-uQ/x/y",
+    "buyer: [plyusr]%20QZZ\\uQQQ.u",
+    "x XJ'[plyusa]%20Q) Zq",
+    "https://warframe.market/profile/[user]%2FQ%2FuQ",
+    `${alone} QZ ZQ QQ ZZ XJ uQ, /w QZ hi, buyer: ZZQ, /home/QZ/x, ~Q/a $ZZ/b`,
+  ].map((l) => `Rewards QZXJKVUBGHCqzxjkvubghc ABCDEFGHIJKLMNOPQRSTUVWXYZ noted ${alone}\n${l}`);
+  for (const line of crowded) {
+    for (const names of [{}, { others: ["Orrenvale"] }]) {
+      assert.equal(redact(line, { ...names, user: ["Orrenvale"] }), redact(line, names), line);
+      assert.equal(hideNames(line, { ...names, user: ["Orrenvale"] }), hideNames(line, names), line);
+    }
+  }
 });
 
 test("user names: a report hides in every field a name one line shows, and keeps it nowhere", () => {
