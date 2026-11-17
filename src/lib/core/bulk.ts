@@ -3,7 +3,7 @@
 // decided it. Pure: the store fetches order books and sends the changes (marketStore.planBulk /
 // applyBulk); the page shows each row's numbers (sparesPreview) and the plan.
 import { decide, type DucatOptions } from "./advice";
-import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, listingKey, referencePrice } from "./market";
+import { competitor, findItem, heldFor, marketValue, overAsked, type BookOrder, type FloorRule, type Me, type MarketIndex, type MarketItem, type MyOrder, hasStars, isPaused, ownFloor, referencePrice } from "./market";
 import { aboveCrack, allSetRows, gearSetRows, spareRows, type SellChoices, type SpareRow } from "./spares";
 import type { Model } from "./model";
 import { ANTIVIRUS_MOD, arcaneRows, copiesForRank, inventoryRows, LICH_KEEP_ALL, MOD_KEEP, modRows, modSpares, partRows, REQUIEM_MOD, saveForSets, savedLine, setRows, type ArcaneRow, type ModRow } from "./views";
@@ -654,9 +654,11 @@ export function cheapByMedian(m: Model, it: MarketItem, rank: number | null, min
 /** The price to ask: the cheapest seller in game, held at your floors; with nobody in game, the daily median. */
 export function priceFor(c: BulkContext, it: MarketItem, rank: number | null, subtype: string | null, book: BookOrder[], existing: MyOrder | null = null, keepAbove: number | null = null): { price: number | null; why: string; value: number | null } {
   const probe: MyOrder = { id: "", itemId: it.id, type: "sell", platinum: 0, quantity: 1, rank, subtype, visible: true, updatedAt: null };
-  // Your own floor for this listing: Orders keeps it under the listing's own key, whose variant
-  // may be unnamed (null) where the probe names the default one.
-  const floor0 = (existing && c.floors[listingKey(existing)]) ?? c.floors[listingKey(probe)] ?? c.floors[listingKey({ ...probe, subtype: null })] ?? null;
+  // Your own floor for this listing, read as repricing and Orders read it (ownFloor): Orders keeps
+  // it under the listing's own key, whose variant may be unnamed (null) where the probe names the
+  // default one.
+  const def = it.subtypes?.[0] ?? null;
+  const floor0 = (existing ? ownFloor(c.floors, existing, def) : null) ?? ownFloor(c.floors, probe, def);
   const relic = !!it.tags?.includes("relic");
   const rule: FloorRule = { floor: floor0, minShare: c.minShare, reference: referencePrice(c.model, it, rank, subtype), defaultSubtype: it.subtypes?.[0] ?? null };
   const comp = competitor(probe, book, c.me, rule.defaultSubtype ?? null);
@@ -776,9 +778,10 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
       continue;
     }
     planned.set(key, t.kind);
-    const existing = c.orders.find((o) => o.itemId === it.id && orderKey(o, it) === key) ?? null;
+    // Sell spares lists empty Ayatan sculptures only: a filled one's listing is a listing of its own.
+    const existing = c.orders.find((o) => o.itemId === it.id && orderKey(o, it) === key && !hasStars(o)) ?? null;
     if (existing) claimed.add(existing.id);
-    if (existing && (c.paused[listingKey(existing)] || !existing.visible)) {
+    if (existing && (isPaused(c.paused, existing) || !existing.visible)) {
       actions.push(existing.visible ? skip("Your listing is set to be left alone", PLAN_RULE.alone) : skip("Your listing is hidden: left as it is", PLAN_RULE.hidden));
       continue;
     }
@@ -869,7 +872,7 @@ export function bulkPlan(c: BulkContext, rules: PlanRules, targets: SellTarget[]
   // never more than you hold. Removed when you hold none, lowered when you hold fewer, else kept.
   // One that lists copies the keep rules would hold back is your call: it stays, and the plan says so.
   for (const o of c.orders) {
-    if (claimed.has(o.id) || !o.visible || c.paused[listingKey(o)]) continue;
+    if (claimed.has(o.id) || !o.visible || isPaused(c.paused, o)) continue;
     const it = c.index.byId.get(o.itemId);
     if (!it || !managed(it)) continue;
     const kind = kindOfItem(c.model, it)!;
@@ -1052,7 +1055,7 @@ export function fitLimit(c: BulkContext, managed: (it: MarketItem) => boolean, a
     if (removed.has(o.id)) continue;
     const it = c.index.byId.get(o.itemId);
     const kind = it ? kindOfItem(c.model, it) : null;
-    if (!it || !kind || !managed(it) || !o.visible || c.paused[listingKey(o)]) {
+    if (!it || !kind || !managed(it) || !o.visible || isPaused(c.paused, o)) {
       fixed++;
       continue;
     }
