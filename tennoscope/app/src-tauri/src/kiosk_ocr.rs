@@ -555,10 +555,10 @@ fn basket_quantity(text: &str) -> u32 {
             }
             if k < bytes.len() && matches!(bytes[k], b'X' | b'x' | b'K' | b'k') {
                 let after = k + 1;
-                if after >= bytes.len() || !bytes[after].is_ascii_lowercase() {
-                    if let Ok(count) = text[i..j].parse::<u32>() {
-                        return count;
-                    }
+                if (after >= bytes.len() || !bytes[after].is_ascii_lowercase())
+                    && let Ok(count) = text[i..j].parse::<u32>()
+                {
+                    return count;
                 }
             }
             i = j;

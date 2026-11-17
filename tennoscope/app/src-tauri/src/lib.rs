@@ -2024,13 +2024,13 @@ fn start_collection_prices(shared: SharedRuntime) {
             .unwrap_or_default();
         let cache = CollectionPriceCache::new(&app_data);
         let cached = cache.load_cached();
-        if let Some(table) = cached.as_ref() {
-            if let Ok(mut runtime) = shared.lock() {
-                let priced = table.len();
-                let date = table.dump_date().to_owned();
-                runtime.core.set_collection_prices(Arc::new(table.clone()));
-                let _ = runtime.core.record_collection_prices_ready(priced, date);
-            }
+        if let Some(table) = cached.as_ref()
+            && let Ok(mut runtime) = shared.lock()
+        {
+            let priced = table.len();
+            let date = table.dump_date().to_owned();
+            runtime.core.set_collection_prices(Arc::new(table.clone()));
+            let _ = runtime.core.record_collection_prices_ready(priced, date);
         }
         if !cached
             .as_ref()
@@ -2376,7 +2376,7 @@ pub fn run() {
                         if hidden {
                             tries += 1;
                         }
-                        if key != shown || (hidden && tries % 4 == 0) {
+                        if key != shown || (hidden && tries.is_multiple_of(4)) {
                             match &key {
                                 Some(_) => overlay_window::show_riven_overlay(&app),
                                 None => overlay_window::hide_riven_overlay(&app),
