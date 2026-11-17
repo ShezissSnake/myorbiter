@@ -32,7 +32,11 @@ const KEPT_IN_FILE: &str = "Not signed out: MyOrbiter couldn't delete its sign-i
 const OLD_NAME_KEPT: &str = "Signed out, but the sign-in kept under MyOrbiter's name before the rename is still in the system keyring (it is locked, or didn't answer). MyOrbiter doesn't read it; to remove it, delete dev.orbiter.app / warframe.market from the keyring by hand.";
 /// What the page shows when the sign-out happened with no keyring answering: what an entry kept
 /// there before would do, if there is one. A player without a keyring sees it at every sign-out.
-const NO_KEYRING_ANSWERED: &str = "Signed out. No system keyring answered, so a sign-in MyOrbiter kept in one before, if there is one, is still there: under dev.myorbiter.app / warframe.market it would sign MyOrbiter in again at its next start; under dev.orbiter.app (the name before the rename) it isn't read. Without a keyring on this computer there is nothing more to do; with one, sign out again while it runs.";
+const NO_KEYRING_ANSWERED: &str = "Signed out. No system keyring answered, so a sign-in MyOrbiter kept in one before, if there is one, is still there: under dev.myorbiter.app / warframe.market it would sign MyOrbiter in again at its next start; under dev.orbiter.app (the name before the rename) it isn't read. Without a keyring on this computer there is nothing more to do; with one, delete those entries from it by hand, or sign out again if MyOrbiter starts signed in.";
+/// What the page shows when the sign-out happened from the file while the keyring answered but
+/// wouldn't let an entry go (locked, or nowhere to keep one): what an entry kept there before would
+/// do, if there is one.
+const KEYRING_REFUSED: &str = "Signed out. The system keyring wouldn't let MyOrbiter remove a sign-in kept in it before, if there is one (it is locked, or has nowhere to keep one): under dev.myorbiter.app / warframe.market it would sign MyOrbiter in again at its next start; under dev.orbiter.app (the name before the rename) it isn't read. To remove them, unlock the keyring and delete those entries by hand, or sign out again if MyOrbiter starts signed in.";
 /// warframe.market's WebSocket: the live feed of new orders (feed.rs) and your status (presence.rs).
 const SOCKET: &str = "wss://ws.warframe.market/socket";
 /// The socket refuses connections that don't ask for this subprotocol.
@@ -472,14 +476,15 @@ impl TokenStore {
 
     /// Forgets the sign-in: the keyring's entry, then the file, then the entry kept under the name
     /// before the rename. Ok only when none is left; otherwise the words the page shows, what kept
-    /// it and what to do, with nothing more removed. Only `OLD_NAME_KEPT` and
-    /// `NO_KEYRING_ANSWERED` come after the sign-in in use is gone. The old folders aren't
+    /// it and what to do, with nothing more removed. Only `OLD_NAME_KEPT`, `NO_KEYRING_ANSWERED`
+    /// and `KEYRING_REFUSED` come after the sign-in in use is gone. The old folders aren't
     /// touched: they are only read (datamove.rs).
     pub fn clear(&self) -> Result<(), &'static str> {
         // Whether a keyring answered: where none does, the old name's entry can't be asked either.
         let mut answered = false;
-        // Signed out from the file without a keyring to ask: an entry kept there before may stay.
-        let mut unasked = false;
+        // Signed out from the file with the keyring's entry not removed: the words for what an
+        // entry kept there before would do, if there is one.
+        let mut unasked = None;
         if let Some(e) = self.entry() {
             match e.delete_credential() {
                 Ok(()) | Err(keyring::Error::NoEntry) => answered = true,
@@ -489,7 +494,14 @@ impl TokenStore {
                 // never sign out.
                 Err(keyring::Error::PlatformFailure(why)) if self.backing() != "keyring" => {
                     log::info!(target: "myorbiter::market", "sign-out: no keyring answered ({why}); the sign-in was in the file");
-                    unasked = true;
+                    unasked = Some(NO_KEYRING_ANSWERED);
+                }
+                // A keyring that answers but won't let go (locked, or no collection to look in),
+                // while the sign-in in use is the file's: the same, in its own words. Without this
+                // such a keyring would keep every sign-out from happening.
+                Err(why) if self.backing() != "keyring" => {
+                    log::info!(target: "myorbiter::market", "sign-out: the keyring refused ({why}); the sign-in was in the file");
+                    unasked = Some(KEYRING_REFUSED);
                 }
                 // A keyring that refused (locked, an unlock prompt dismissed), or one that held the
                 // sign-in and no longer answers: the entry may still be there.
@@ -513,13 +525,20 @@ impl TokenStore {
             match e.delete_credential() {
                 Ok(()) | Err(keyring::Error::NoEntry) => {}
                 Err(keyring::Error::PlatformFailure(_)) if !answered => {}
+                // `KEYRING_REFUSED` names this entry too.
+                Err(why) if unasked == Some(KEYRING_REFUSED) => {
+                    log::info!(target: "myorbiter::market", "sign-out: the keyring refused the entry under the old name too: {why}");
+                }
                 Err(why) => {
                     log::warn!(target: "myorbiter::market", "sign-out: the keyring's entry under the old name couldn't be removed: {why}");
                     return Err(OLD_NAME_KEPT);
                 }
             }
         }
-        if unasked { Err(NO_KEYRING_ANSWERED) } else { Ok(()) }
+        match unasked {
+            Some(words) => Err(words),
+            None => Ok(()),
+        }
     }
 
     pub fn backing(&self) -> &'static str {
@@ -568,11 +587,13 @@ pub struct Client {
     /// you to unlock the wallet, and startup runs on the main thread. Until it gives a settled
     /// answer, it's asked again at most once a minute.
     loaded: Mutex<Option<(bool, Instant)>>,
+    /// Signed out in this session: a later load never fills the slot again.
+    signed_out: std::sync::atomic::AtomicBool,
 }
 
 impl Client {
     pub fn new(store: TokenStore) -> Self {
-        Self { store, token: Mutex::new(None), loaded: Mutex::new(None) }
+        Self { store, token: Mutex::new(None), loaded: Mutex::new(None), signed_out: Default::default() }
     }
 
     /// The token slot, loaded from the store the first time.
@@ -586,8 +607,8 @@ impl Client {
             if due {
                 let (t, settled) = self.store.load_checked();
                 let mut slot = self.token.lock().unwrap_or_else(|e| e.into_inner());
-                // A token you signed in with meanwhile stays.
-                if slot.is_none() {
+                // A token you signed in with meanwhile stays, and so does a sign-out.
+                if slot.is_none() && !self.signed_out.load(std::sync::atomic::Ordering::SeqCst) {
                     *slot = t;
                 }
                 *loaded = Some((settled, Instant::now()));
@@ -759,9 +780,12 @@ impl Client {
         // Under the lock throughout, so a request still out can't put it back.
         let mut slot = self.slot();
         match self.store.clear() {
-            Err(words) if words != OLD_NAME_KEPT && words != NO_KEYRING_ANSWERED => Err(words.to_string()),
+            Err(words) if ![OLD_NAME_KEPT, NO_KEYRING_ANSWERED, KEYRING_REFUSED].contains(&words) => Err(words.to_string()),
             out => {
                 *slot = None;
+                // An entry a keyring kept before isn't loaded into this session when that keyring
+                // comes up later (`slot`): only the next start reads it, as the words say.
+                self.signed_out.store(true, std::sync::atomic::Ordering::SeqCst);
                 out.map_err(str::to_string)
             }
         }
@@ -1960,6 +1984,77 @@ mod tests {
         assert_eq!(c.sign_out(), Err(OLD_NAME_KEPT.to_string()));
         assert!(!c.linked());
         assert!(keyring.holds(old).is_some());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_keyring_that_refuses_while_the_sign_in_is_in_the_file_never_makes_a_sign_out_a_dead_end() {
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-refused-file", &keyring);
+        // The keyring took no write (locked, or nowhere to keep one): the sign-in is in the file.
+        keyring.refuse_writes(1);
+        let c = Client::new(store);
+        assert_eq!(c.store.save("abc").unwrap(), "file");
+        assert!(c.linked());
+        // It refuses every delete too, holding nothing under either name.
+        keyring.refuse_deletes(KEYRING_SERVICE, "locked");
+        keyring.refuse_deletes(crate::datamove::OLD_ID, "locked");
+        let out = c.sign_out();
+        assert!(!c.linked(), "sign-out {out:?}: the sign-in in use was the file's, which goes");
+        assert!(!dir.join(TOKEN_FILE).exists());
+        assert_eq!(out, Err(KEYRING_REFUSED.to_string()));
+        assert!(!Client::new(reopened(&dir, &keyring)).linked());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_keyring_that_refuses_while_the_sign_in_is_in_the_file_says_an_older_one_kept_there_may_come_back() {
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-refused-older", &keyring);
+        // The keyring took a sign-in, then refused a later one, which went to the file.
+        assert_eq!(store.save("old").unwrap(), "keyring");
+        keyring.refuse_writes(1);
+        assert_eq!(store.save("new").unwrap(), "file");
+        let c = Client::new(reopened(&dir, &keyring));
+        assert!(c.linked());
+        // At the sign-out the keyring is locked; at the next start it is open again.
+        keyring.refuse_deletes(KEYRING_SERVICE, "locked");
+        keyring.refuse_deletes(crate::datamove::OLD_ID, "locked");
+        let out = c.sign_out();
+        keyring.refused_deletes.lock().unwrap().clear();
+        let next = Client::new(reopened(&dir, &keyring)).token();
+        assert!(!c.linked(), "sign-out {out:?}: the sign-in in use was the file's, which goes");
+        // What the words say: the entry kept before is the one the next start finds.
+        assert_eq!(out, Err(KEYRING_REFUSED.to_string()));
+        assert_eq!(next.as_deref(), Some("old"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn after_a_sign_out_no_reload_signs_in_again_within_the_running_session() {
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-no-reload", &keyring);
+        keyring.put(KEYRING_SERVICE, "old");
+        let c = Client::new(store);
+        // At start no keyring answered and there was no file: not settled, asked again within a
+        // minute. Signed in meanwhile, kept in the file.
+        *c.loaded.lock().unwrap() = Some((false, Instant::now()));
+        keyring.refuse_writes(1);
+        assert_eq!(c.store.save("new").unwrap(), "file");
+        *c.slot() = Some("new".into());
+        keyring.refuse_deletes(KEYRING_SERVICE, "down");
+        assert_eq!(c.sign_out(), Err(NO_KEYRING_ANSWERED.to_string()));
+        // The keyring comes up, and the minute passes.
+        keyring.refused_deletes.lock().unwrap().clear();
+        {
+            let mut loaded = c.loaded.lock().unwrap();
+            if let Some((settled, at)) = *loaded {
+                *loaded = Some((settled, at.checked_sub(Duration::from_secs(61)).unwrap()));
+            }
+        }
+        assert_eq!(c.token(), None, "signed out until the next start, as the words say");
+        // The next start does find it, as the words say.
+        assert_eq!(Client::new(reopened(&dir, &keyring)).token().as_deref(), Some("old"));
         std::fs::remove_dir_all(&dir).ok();
     }
 
