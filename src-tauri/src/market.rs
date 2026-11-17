@@ -30,6 +30,9 @@ const KEPT_IN_KEYRING: &str = "Not signed out: MyOrbiter couldn't remove its sig
 const KEPT_IN_FILE: &str = "Not signed out: MyOrbiter couldn't delete its sign-in file (market-token in its config folder), so it would sign in with it again at its next start. Sign out again, or delete that file by hand with MyOrbiter closed.";
 /// What the page shows when the sign-out happened but the entry under the old name stayed.
 const OLD_NAME_KEPT: &str = "Signed out, but the sign-in kept under MyOrbiter's name before the rename is still in the system keyring (it is locked, or didn't answer). MyOrbiter doesn't read it; to remove it, delete dev.orbiter.app / warframe.market from the keyring by hand.";
+/// What the page shows when the sign-out happened with no keyring answering: what an entry kept
+/// there before would do, if there is one. A player without a keyring sees it at every sign-out.
+const NO_KEYRING_ANSWERED: &str = "Signed out. No system keyring answered, so a sign-in MyOrbiter kept in one before, if there is one, is still there: under dev.myorbiter.app / warframe.market it would sign MyOrbiter in again at its next start; under dev.orbiter.app (the name before the rename) it isn't read. Without a keyring on this computer there is nothing more to do; with one, sign out again while it runs.";
 /// warframe.market's WebSocket: the live feed of new orders (feed.rs) and your status (presence.rs).
 const SOCKET: &str = "wss://ws.warframe.market/socket";
 /// The socket refuses connections that don't ask for this subprotocol.
@@ -463,19 +466,24 @@ impl TokenStore {
 
     /// Forgets the sign-in: the keyring's entry, then the file, then the entry kept under the name
     /// before the rename. Ok only when none is left; otherwise the words the page shows, what kept
-    /// it and what to do, with nothing more removed. Only `OLD_NAME_KEPT` comes after the sign-in
-    /// in use is gone. The old folders aren't touched: they are only read (datamove.rs).
+    /// it and what to do, with nothing more removed. Only `OLD_NAME_KEPT` and
+    /// `NO_KEYRING_ANSWERED` come after the sign-in in use is gone. The old folders aren't
+    /// touched: they are only read (datamove.rs).
     pub fn clear(&self) -> Result<(), &'static str> {
         // Whether a keyring answered: where none does, the old name's entry can't be asked either.
         let mut answered = false;
+        // Signed out from the file without a keyring to ask: an entry kept there before may stay.
+        let mut unasked = false;
         if let Some(e) = self.entry() {
             match e.delete_credential() {
                 Ok(()) | Err(keyring::Error::NoEntry) => answered = true,
-                // No keyring answering, and the sign-in wasn't kept in one (the file held it):
-                // there is nothing there to remove. Without this a player with no keyring could
+                // No keyring answering, and the sign-in in use wasn't kept in one (the file held
+                // it): the sign-out goes on, and says that an entry kept there before, if there is
+                // one, stays (`NO_KEYRING_ANSWERED`). Without this a player with no keyring could
                 // never sign out.
                 Err(keyring::Error::PlatformFailure(why)) if self.backing() != "keyring" => {
                     log::info!(target: "myorbiter::market", "sign-out: no keyring answered ({why}); the sign-in was in the file");
+                    unasked = true;
                 }
                 // A keyring that refused (locked, an unlock prompt dismissed), or one that held the
                 // sign-in and no longer answers: the entry may still be there.
@@ -505,7 +513,7 @@ impl TokenStore {
                 }
             }
         }
-        Ok(())
+        if unasked { Err(NO_KEYRING_ANSWERED) } else { Ok(()) }
     }
 
     pub fn backing(&self) -> &'static str {
@@ -739,13 +747,13 @@ impl Client {
     }
 
     /// Signs out, or says why not (`TokenStore::clear`): then the sign-in is still where the next
-    /// start finds it, and this one stays signed in with it too. Only an entry left under the old
-    /// name is said after signing out, since that one is never read.
+    /// start finds it, and this one stays signed in with it too. An entry left under the old name,
+    /// or a keyring that didn't answer, is said after signing out: the sign-in in use is gone.
     pub fn sign_out(&self) -> Result<(), String> {
         // Under the lock throughout, so a request still out can't put it back.
         let mut slot = self.slot();
         match self.store.clear() {
-            Err(words) if words != OLD_NAME_KEPT => Err(words.to_string()),
+            Err(words) if words != OLD_NAME_KEPT && words != NO_KEYRING_ANSWERED => Err(words.to_string()),
             out => {
                 *slot = None;
                 out.map_err(str::to_string)
@@ -1892,10 +1900,52 @@ mod tests {
         let c = Client::new(store);
         assert_eq!(c.store.save("abc").unwrap(), "file");
         assert!(c.linked());
-        c.sign_out().unwrap();
+        // Signed out, and said: no keyring could be asked about an entry kept there before.
+        assert_eq!(c.sign_out(), Err(NO_KEYRING_ANSWERED.to_string()));
         assert!(!c.linked());
         assert!(!dir.join(TOKEN_FILE).exists());
         assert!(!Client::new(reopened(&dir, &keyring)).linked());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_sign_out_no_keyring_answered_says_an_older_sign_in_kept_there_may_come_back() {
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-keyring-gone", &keyring);
+        // The keyring took a sign-in, then refused a later one, which went to the file.
+        assert_eq!(store.save("old").unwrap(), "keyring");
+        keyring.refuse_writes(1);
+        assert_eq!(store.save("new").unwrap(), "file");
+        let c = Client::new(reopened(&dir, &keyring));
+        assert!(c.linked());
+        // At the sign-out no keyring answers; at the next start it does again.
+        keyring.refuse_deletes(KEYRING_SERVICE, "down");
+        let out = c.sign_out();
+        keyring.refused_deletes.lock().unwrap().clear();
+        let next = Client::new(reopened(&dir, &keyring)).token();
+        assert!(!(out.is_ok() && next.is_some()), "sign-out {out:?}, next start {next:?}: never a plain Ok over a sign-in that comes back");
+        assert_eq!(out, Err(NO_KEYRING_ANSWERED.to_string()));
+        assert!(!c.linked(), "signed out now: the sign-in in use is gone");
+        // What the words say: the entry kept before is the one the next start finds.
+        assert_eq!(next.as_deref(), Some("old"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_old_name_entry_the_keyring_refuses_is_still_said_first() {
+        let old = crate::datamove::OLD_ID;
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-old-name-first", &keyring);
+        keyring.refuse_writes(1);
+        let c = Client::new(store);
+        assert_eq!(c.store.save("abc").unwrap(), "file");
+        // The entry under the current name isn't answered for; the one under the old name refuses.
+        keyring.put(old, "from-before-the-rename");
+        keyring.refuse_deletes(KEYRING_SERVICE, "down");
+        keyring.refuse_deletes(old, "locked");
+        assert_eq!(c.sign_out(), Err(OLD_NAME_KEPT.to_string()));
+        assert!(!c.linked());
+        assert!(keyring.holds(old).is_some());
         std::fs::remove_dir_all(&dir).ok();
     }
 
