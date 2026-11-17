@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, NEAREST, newInstallUpdates, publishedTo, settleChannel, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
+import { buildCounts, buildNumber, cameFrom, CHANNELS, CHECK_EVERY, checkDue, checkedAgo, checkHeadline, checkLine, clockTime, compareVersions, defaultUpdates, NEAREST, newInstallStep, newInstallUpdates, newInstallWhy, publishedTo, settleChannel, settlesByAsking, unsettledWords, installChecks, installInstalls, installNote, noteLines, noticeShows, releasePage, sanitizeUpdates, versionLine, type Install } from "../src/lib/core/updates";
 import { openable } from "../src/lib/core/links";
 import { defaultSettings } from "../src/lib/backend";
 import { NEWS, showMeTarget } from "../src/lib/whatsNew";
@@ -134,7 +134,13 @@ test("What's New announces updates, and its Show me opens Settings at Updates", 
   assert.equal(showMeTarget("nowhere", () => null), null);
 });
 
-test("a new install starts on the channel its build was published to; saved settings keep theirs", () => {
+test("a new install that asks nothing: a local build on Stable, a copy that doesn't check on Experimental; saved settings keep theirs", () => {
+  // Only a CI build that checks settles by asking the channels (`newInstallStep`); the others keep
+  // what they had before, with no request.
+  assert.equal(settlesByAsking("0.2.127", true), true);
+  assert.equal(settlesByAsking("0.2.127", false), false, "an install that doesn't check");
+  assert.equal(settlesByAsking("0.1.0", true), false, "a local build");
+  assert.equal(settlesByAsking("0.1.0", false), false);
   // Each kind of build: every CI build (0.2.n) lands on Experimental; a local build is published nowhere.
   assert.equal(publishedTo("0.2.127"), "experimental");
   assert.equal(publishedTo("0.2.1"), "experimental");
@@ -161,6 +167,69 @@ test("a new install starts on the channel its build was published to; saved sett
   assert.equal(half.channel, "experimental");
   // The default object itself stays Stable and settled (settings saved before updates).
   assert.equal(defaultUpdates().picked, true);
+});
+
+test("a new install's channel: the most stable one whose build is this one or newer", () => {
+  const run = "0.2.134";
+  const v = (version: string) => ({ version });
+  // Stable has a build: Stable, without asking Beta.
+  assert.equal(newInstallStep(run, v("0.2.134")), "stable", "Stable has this build");
+  assert.equal(newInstallStep(run, v("0.2.140")), "stable", "Stable has a newer one");
+  // Stable empty: Beta is asked, and counts if it has a build.
+  assert.equal(newInstallStep(run, "empty"), "ask beta");
+  assert.equal(newInstallStep(run, "empty", v("0.2.134")), "beta", "only Beta has one");
+  assert.equal(newInstallStep(run, "empty", v("0.2.136")), "beta");
+  // Neither: Experimental, which is never asked for this.
+  assert.equal(newInstallStep(run, "empty", "empty"), "experimental", "neither has one");
+  // No answer from a channel that had to be asked: nothing settles.
+  assert.equal(newInstallStep(run, null), "not yet", "no answer from Stable");
+  assert.equal(newInstallStep(run, null, v("0.2.134")), "not yet", "Stable's silence isn't skipped over");
+  assert.equal(newInstallStep(run, "empty", null), "not yet", "no answer from Beta after an empty Stable");
+  assert.equal(newInstallStep(run, v("0.2.130"), null), "not yet", "nor after an older Stable");
+  // A Stable answer that counts settles even when Beta (not needed) would have failed.
+  assert.equal(newInstallStep(run, v("0.2.134"), null), "stable");
+  // A channel whose build is older than the running one doesn't count.
+  assert.equal(newInstallStep(run, v("0.2.130")), "ask beta", "running newer than Stable's");
+  assert.equal(newInstallStep(run, v("0.2.130"), v("0.2.134")), "beta", "newer than Stable's, Beta has it");
+  assert.equal(newInstallStep(run, "empty", v("0.2.131")), "experimental", "running newer than Beta's");
+  assert.equal(newInstallStep(run, v("0.2.120"), v("0.2.131")), "experimental", "running newer than both");
+  assert.equal(newInstallStep("0.2.9", v("0.2.10")), "stable", "by number, not by text");
+  // Why, for the log line.
+  assert.equal(newInstallWhy(run, "stable", v("0.2.134")), "the most stable channel with this build or a newer one (Stable has 0.2.134)");
+  assert.equal(newInstallWhy(run, "beta", "empty", v("0.2.134")), "the most stable channel with this build or a newer one (Stable has no build, Beta has 0.2.134)");
+  assert.equal(newInstallWhy(run, "experimental", v("0.2.120"), "empty"), "neither Stable nor Beta has this build or a newer one (Stable's build 0.2.120 is older, Beta has no build)");
+  assert.equal(newInstallWhy(run, "experimental", "empty", "empty", v("0.2.134")), "neither Stable nor Beta has this build or a newer one (Stable has no build, Beta has no build, Experimental has 0.2.134)");
+});
+
+test("only a build that is the running one or newer counts: an empty or older answer, or none, proves nothing", () => {
+  const run = "0.2.134";
+  assert.equal(buildCounts({ version: "0.2.134" }, run), true);
+  assert.equal(buildCounts({ version: "0.2.140" }, run), true);
+  // What every channel reads as when its file fails at the first address: the second (GitLab's
+  // frozen copy) has no manifest, or holds the bridge build, below 0.2.120.
+  assert.equal(buildCounts("empty", run), false);
+  assert.equal(buildCounts({ version: "0.2.112" }, run), false);
+  assert.equal(buildCounts({ version: "0.2.133" }, run), false);
+  assert.equal(buildCounts(null, run), false);
+  assert.equal(buildCounts(undefined, run), false);
+});
+
+test("an unsettled new install says so: the version line names no channel, and Settings says what is shown", () => {
+  const fresh = newInstallUpdates();
+  assert.equal(versionLine("0.2.134", fresh), "0.2.134 · channel not chosen yet");
+  assert.equal(versionLine("0.1.0", fresh), "0.1.0 · local build");
+  assert.equal(versionLine("0.2.134", { ...fresh, picked: true }), "0.2.134 · Stable");
+  const said = unsettledWords("stable", false);
+  assert.match(said, /^Stable is shown, but no channel is chosen yet: MyOrbiter is still finding out/);
+  assert.match(said, /asks them at its first check/);
+  // The same words whether no channel answered or every channel answered without this build or a newer one.
+  assert.match(unsettledWords("stable", true), /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check\./);
+  assert.doesNotMatch(unsettledWords("stable", true), /couldn't reach/, "not said when every channel answered");
+  // Both forms say what being unsettled costs, and the way out.
+  for (const failed of [false, true]) assert.match(unsettledWords("stable", failed), /Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once, and that channel stays\.$/);
+  // Saved settings are never a new install: whatever they hold, they count as picked.
+  for (const saved of [undefined, null, {}, { channel: "beta" }, { picked: "no" }, { picked: 0 }, { channel: "experimental", picked: true }]) assert.equal(sanitizeUpdates(saved).picked, true, JSON.stringify(saved));
+  assert.equal(sanitizeUpdates({ picked: false }).picked, false, "only an unsettled new install saves false");
 });
 
 test("a new install, as the settings load it: only when nothing was saved", () => {
