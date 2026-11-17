@@ -305,12 +305,26 @@ the last check, so a check missed while the computer slept runs when it wakes), 
 now and when you change the channel. They read the channel's `latest.json` from this
 project's releases on github.com and, only if github.com can't be reached or doesn't serve that
 channel's manifest, from its package registry on gitlab.com, with the updater's own User-Agent
-(`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
+(`tauri-plugin-updater/<version>`); the address names only the channel it asks (stable, beta or
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
-the same way, so Settings can name a channel that has one; it switches nothing. A new install starts
-on the channel its build was published to (Experimental, where every build lands first); an install
-that has saved settings keeps its channel, even when that file turns out damaged and is moved
+the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
+settings saved yet) has no channel, and is offered no update, until its first check hears back.
+That check reads github.com alone, never gitlab.com: Stable's `latest.json`, Beta's too if Stable
+has no build or an older one than yours, and Experimental's only if neither has yours or a newer
+one, and starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
+Experimental). For each channel it first
+reads the file's address once, following no redirect, with the updater's User-Agent; a 404 there
+is that channel having no build, and when github.com answers with the file, the updater reads it
+there (two reads of github.com, and of the file storage github.com hands the file to). Anything
+else (no connection, a time-out, another status) is no answer: nothing is chosen, the next check
+asks again, and a less stable channel is never chosen in its place. The same when Experimental too
+has no build yours or newer, as when github.com answers 404 for every channel. A channel you pick
+meanwhile stays, and its updates are looked for at once. That first read goes the way MyOrbiter's
+own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
+use, it gets no answer, and such an install has a channel only once you pick one. A local build
+starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
+An install that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the
@@ -438,10 +452,13 @@ it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an a
 be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
 can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
 paragraph, and says why, on the page and in its log, rather than going around the proxy; the
-window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: none
-of MyOrbiter's own requests and connections skips the proxy.
+window's read of last week's riven trades isn't made then either, nor a new install's first read
+of each channel's file on github.com, which is one of MyOrbiter's own requests (Updates, above).
+`NO_PROXY` isn't read: none of MyOrbiter's own requests and connections skips the proxy.
 
-The update check and its download, and TennoScope's web requests, choose for themselves: they use
+The update check and its download, and TennoScope's web requests, choose for themselves (all but
+a new install's first read of each channel's file on github.com, which goes MyOrbiter's way, by
+the paragraph above: no system proxy settings, `HTTP_PROXY` read, `NO_PROXY` not): they use
 `HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
 never `HTTP_PROXY`, their addresses all being https. They take an `https://` proxy too, skip the
 proxy for the hosts `NO_PROXY` names, and go straight when the address set can't be read and no
