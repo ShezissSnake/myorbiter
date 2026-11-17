@@ -201,6 +201,30 @@ test("user names: the same name as the in-game name reads as [user], and goes ev
   assert.equal(redact("Orrenvale sold Ash Prime Set for 20p", { self: ["Orrenvale"] }), "[you] sold Ash Prime Set for 20p");
 });
 
+test("user names: a text without the name comes out as it does when the name isn't known, whatever letters and marks it holds", () => {
+  // Short words, runs of one letter, the marks used while the rules run: none is taken for the name.
+  const lines = [
+    "can u fix it, siete u ocho, git push -u origin, QQ, uQQ, Q, QQQ u-Q u.QQ, ZZ, Zq, XJ x",
+    "buyer: uQ 20p from QQ /w u hi, /profile/ZZ, give Q +rep",
+    "U and QQ and Uq and u's, u%20QQ and %2Fu and u QQ QQ",
+    "/home/u/x and /home/QQ/y ~u/a $QQ/b C:\\Users\\Q Z\\x /mnt/x/ZZ) more",
+    "[usr] [plyusr] [usa] [plyusa] [user] [player] [you]",
+  ];
+  for (const line of lines) {
+    for (const names of [{}, { self: ["Kestrel"], others: ["Vexmora"] }]) {
+      for (const user of ["Orrenvale", "Orren Taskwell", "Bryn O'Hal"]) {
+        assert.equal(redact(line, { ...names, user: [user] }), redact(line, names), `${line} with ${user}`);
+        assert.equal(hideNames(line, { ...names, user: [user] }), hideNames(line, names), `${line} with ${user}`);
+      }
+    }
+  }
+  // With the name in it too, only the name changes.
+  assert.equal(redact("can u fix it, QQ? Orrenvale says no", { user: ["Orrenvale"] }), "can u fix it, QQ? [user] says no");
+  // A text that holds every letter still keeps its own words.
+  const every = "ABCDEFGHIJKLMNOPQRSTUVWXYZ abcdefghijklmnopqrstuvwxyz Q QQ u uQ Z ZZ";
+  assert.equal(redact(`${every} Orrenvale`, { user: ["Orrenvale"] }), `${every} [user]`);
+});
+
 test("user names: a report hides in every field a name one line shows, and keeps it nowhere", () => {
   const held = { self: ["MeExample"], user: ["Orren Taskwell"] };
   const input = { what: "brynhal here: it froze", steps: "1. Open Orders as Orren", expected: "Taskwell's sales listed" };

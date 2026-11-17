@@ -188,6 +188,25 @@ test("redact: knowing this computer's user name never lets out what was hidden w
   }, 1500);
 });
 
+test("redact: knowing this computer's user name changes nothing in a text that doesn't hold it", () => {
+  // Short words and runs of one or two letters (what a name looks like while the rules run), the
+  // marks, placeholders and real words, glued every way, after the leads of paths and names.
+  const TOKENS = ["u", "U", "Q", "QQ", "uQ", "uQQQ", "Qu", "q", "Z", "ZZ", "QZZ", "Zq", "X", "XJ", "J", "K", "KV", "V", "B", "G", "H", "C", "a", "I", "x", "zz", "[usr]", "[plyusr]", "[usa]", "[plyusa]", "[user]", "[player]", "[you]", "Brynwood", "word", "it", "the"];
+  const GLUE = [" ", " ", "-", ".", "'", "/", "\\", "%20", "%2F", ", ", ") ", ":", "=", ""];
+  const LEADS = ["", "buyer: ", "20p from ", "/w ", "https://warframe.market/profile/", "sold Ash Prime Set to ", "/home/", "~", "$", "C:\\Users\\", "Z:\\home\\", "drive_c/users/", "/mnt/x/", "D:\\Games\\", "(/home/", "give ", "x "];
+  forAll("user-absent", (r, seed) => {
+    const self = randomName(r);
+    const other = randomName(r);
+    const user = r.pick([randomName(r), `${randomName(r)} ${randomName(r)}`, self, other]);
+    let t = r.pick(LEADS);
+    for (let k = r.int(1, 6); k > 0; k--) t += r.pick(TOKENS) + (k > 1 ? r.pick(GLUE) : "");
+    t += r.pick(["", " whispered you", " +rep", "/x/y", " see EE.log", ")"]);
+    if (user.split(" ").some((w) => t.toLowerCase().includes(w.toLowerCase()))) return;
+    const names = r.pick([{}, { self: [self], others: [other] }]);
+    assert.equal(redact(t, { ...names, user: [casing(r, user)] }), redact(t, names), `PROPERTY_SEED=${seed}: ${JSON.stringify(t)}, user ${JSON.stringify(user)}`);
+  }, 1500);
+});
+
 test("redact: known names go in any case and next to any punctuation; names with regex characters don't break it", () => {
   forAll("names", (r, seed) => {
     const name = randomName(r) + r.pick(["", ".", "-x", "_"]);
