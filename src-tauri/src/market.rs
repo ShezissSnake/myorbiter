@@ -446,8 +446,14 @@ impl TokenStore {
                     Ok(()) => {}
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
                     Err(why) => {
-                        crate::write_atomic(&self.fallback, token.as_bytes(), true)
-                            .map_err(|e| format!("{TOKEN_FILE} holds an older sign-in and couldn't be removed ({why}) or replaced ({e})"))?;
+                        if let Err(w) = crate::write_atomic(&self.fallback, token.as_bytes(), true) {
+                            // The next start reads the older file first: the keyring's copy of this
+                            // one goes too, so it is kept nowhere, as the words say.
+                            if let Err(d) = e.delete_credential() {
+                                log::warn!(target: "myorbiter::market", "the keyring's copy of a sign-in that couldn't be kept wasn't removed: {d}");
+                            }
+                            return Err(format!("{TOKEN_FILE} in MyOrbiter's config folder holds an older sign-in and couldn't be removed ({why}) or replaced ({w}), so the next start would use that older one. Delete that file by hand with MyOrbiter closed, then sign in again."));
+                        }
                         self.set_backing("file");
                         return Ok("file");
                     }
@@ -1850,20 +1856,28 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_file_that_cant_be_removed_never_outranks_a_newer_token_in_the_keyring() {
+    fn a_save_fails_when_the_older_file_can_be_neither_removed_nor_replaced() {
         use std::os::unix::fs::PermissionsExt;
         let keyring = std::sync::Arc::new(StandIn::default());
         let (dir, store) = store_with("stuck-old-file", &keyring);
         keyring.refuse_writes(1);
         assert_eq!(store.save("old").unwrap(), "file");
-        // The keyring takes the next write, but the old file can't be removed.
+        // The keyring takes the next write, but the old file can't be removed or replaced.
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
         let saved = store.save("new");
         let loaded = reopened(&dir, &keyring).load_checked().0;
         std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
-        // Either the save says it couldn't keep the token, or the next start loads it (as root,
-        // where the folder's mode holds nothing back).
-        assert!(saved.is_err() || loaded.as_deref() == Some("new"), "{saved:?} {loaded:?}");
+        if saved.is_ok() {
+            // As root, where the folder's mode holds nothing back: kept, and the one loaded.
+            assert_eq!(loaded.as_deref(), Some("new"));
+        } else {
+            // The save fails, and what is kept agrees with what is said: the new sign-in nowhere,
+            // and the older one in the file is what the next start uses.
+            let why = saved.unwrap_err();
+            assert!(why.contains("the next start would use that older one"), "{why}");
+            assert_eq!(keyring.holds(KEYRING_SERVICE), None, "the new sign-in is kept nowhere");
+            assert_eq!(loaded.as_deref(), Some("old"));
+        }
         std::fs::remove_dir_all(&dir).ok();
     }
 
