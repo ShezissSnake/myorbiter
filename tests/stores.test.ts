@@ -89,6 +89,42 @@ test("a sign-out that left only the sign-in under the old name signs out, and sa
   assert.equal(mkt.ordersAt, null);
 });
 
+const chat = { id: "c1", with: "ExamplePlayer", unread: 2, lastUpdate: "2026-11-17T00:00:00Z", lastMessage: "wtb" };
+const signedOut = { linked: false, backing: "file", profile: null, error: null } as const;
+
+test("a read of your listings already on its way at a sign-out doesn't put that account's listings back", async () => {
+  mkt.orders = [order("a")];
+  let answer!: (o: MyOrder[]) => void;
+  market.myOrders = () => new Promise((r) => (answer = r));
+  market.signOut = async () => {};
+  market.account = async () => ({ ...signedOut });
+  const reading = mkt.refresh();
+  await mkt.signOut();
+  answer([order("a"), order("b")]);
+  await reading;
+  assert.deepEqual(mkt.orders, [], "the signed-out account's listings stay gone");
+  assert.equal(mkt.ordersAt, null);
+});
+
+test("a sign-out takes that account's unread chats off the strip, and a read on its way doesn't bring them back", async () => {
+  market.chats = async () => [chat];
+  await mkt.readChats();
+  assert.equal(mkt.chats.length, 1);
+  market.signOut = async () => {};
+  market.account = async () => ({ ...signedOut });
+  await mkt.signOut();
+  assert.deepEqual(mkt.chats, [], "gone at the sign-out");
+  // A read of the chats that left before the sign-out and lands after it.
+  mkt.account = { linked: true, backing: "keyring", profile: me, error: null };
+  let answer!: (c: (typeof chat)[]) => void;
+  market.chats = () => new Promise((r) => (answer = r));
+  const reading = mkt.readChats();
+  await mkt.signOut();
+  answer([chat]);
+  await reading;
+  assert.deepEqual(mkt.chats, [], "the late answer is dropped");
+});
+
 test("Auto-match backs off while warframe.market doesn't answer, and says so once", async () => {
   const s = defaultMarketSettings();
   market.items = async () => [{ id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] }];

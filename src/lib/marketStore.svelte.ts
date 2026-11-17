@@ -362,6 +362,10 @@ class MarketStore {
       const account = await market.account();
       if (account.linked) return;
     }
+    // A read of the listings or the chats that left before this and lands after it is the
+    // signed-out account's: dropped (`refresh`, `readChats`).
+    this.localEdits++;
+    this.signOuts++;
     this.dropStatusTimer();
     this.statusAsked = null;
     this.status = null;
@@ -370,7 +374,10 @@ class MarketStore {
     this.buys = [];
     this.otherOrders = 0;
     this.ordersAt = null;
+    this.chats = [];
   }
+  /** Sign-outs so far, so a read of the chats on its way at one doesn't put them back. */
+  private signOuts = 0;
 
   async refresh() {
     const edits = this.localEdits;
@@ -1342,8 +1349,10 @@ class MarketStore {
   async readChats() {
     if (!this.linked || this.chatsReading) return;
     this.chatsReading = true;
+    const signOuts = this.signOuts;
     try {
-      this.chats = await market.chats();
+      const chats = await market.chats();
+      if (signOuts === this.signOuts) this.chats = chats;
     } catch {
       // Not answering, or the sign-in expired: the market log already says so elsewhere.
     } finally {
