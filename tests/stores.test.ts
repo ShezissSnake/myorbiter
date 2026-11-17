@@ -91,6 +91,24 @@ test("a failed sign-out whose account then can't be read says the sign-out's wor
   assert.equal(mkt.ordersAt, 1);
 });
 
+test("the words of a refused sign-out go once a sign-out works", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => ({ linked: true, backing: "keyring", profile: me, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /);
+  // Unlocked, and signed out this time.
+  market.signOut = async () => {};
+  market.account = async () => ({ linked: false, backing: "file", profile: null, error: null });
+  await mkt.signOut();
+  assert.equal(mkt.error, null, "no \"Not signed out\" over a sign-out that worked");
+  assert.equal(mkt.linked, false);
+  assert.deepEqual(mkt.orders, []);
+});
+
 test("a sign-out that left only the sign-in under the old name signs out, and says so", async () => {
   mkt.orders = [order("a")];
   mkt.ordersAt = 1;

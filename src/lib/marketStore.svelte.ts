@@ -384,6 +384,8 @@ class MarketStore {
     // Kept: the app refused the sign-out and is still signed in (or can't say), so the page stays.
     let kept = false;
     await this.changingAccount(async () => {
+      // The words of a sign-out refused before don't outlive this one.
+      this.error = null;
       try {
         await market.signOut();
       } catch (e) {
