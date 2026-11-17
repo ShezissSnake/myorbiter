@@ -184,11 +184,12 @@ impl VisualRewardSource for ScreenRewardSource {
 ///
 /// The screen is polled every 400ms once its cards are read, and two failed polls in a row count
 /// as it closing: the overlay goes and that screen is not shown again. A full read can fail on a
-/// screen still up, as the background moves beside a two-card block, so each poll first looks
-/// for the cards already read, at the layout they were read at and with the grades that read them.
-/// The same names in the same slots are the same screen, and that reads as it did. Anything else
-/// is read in full as before: a screen that has closed fails as it did, and other cards in their
-/// place are read as what they are.
+/// screen still up, as the background moves beside a two-card block, so a poll whose full read
+/// fails looks for the cards already read, at the layout they were read at and with the grades
+/// that read them. The same names in the same slots are the same screen, and that reads as it
+/// did. A screen that has closed fails both reads, as it failed before. The full read still comes
+/// first, so whatever it reads (other cards in their place, or all four cards of a screen whose
+/// first read found only its middle two) is read as it would be without this.
 ///
 /// A reader lives for one reward screen: the recognition worker drops it when the screen is
 /// gone, when the log closes it and while the game is not running, so nothing is carried from
@@ -205,14 +206,17 @@ impl SameScreen {
         candidates: CardCandidates<'_>,
         learn: bool,
     ) -> Result<Vec<(String, f32)>, &'static str> {
-        if let Some(cards) = &self.cards
-            && let Some(read) = read_same_cards(image, candidates, cards)
-        {
-            return Ok(read);
+        match read_cards_learning(image, candidates, learn) {
+            Ok(read) => {
+                self.cards = Some(read.iter().map(|(name, _)| name.clone()).collect());
+                Ok(read)
+            }
+            Err(reason) => self
+                .cards
+                .as_deref()
+                .and_then(|cards| read_same_cards(image, candidates, cards))
+                .ok_or(reason),
         }
-        let read = read_cards_learning(image, candidates, learn)?;
-        self.cards = Some(read.iter().map(|(name, _)| name.clone()).collect());
-        Ok(read)
     }
 }
 
@@ -1265,6 +1269,46 @@ mod tests {
             .read(&four, candidates, false)
             .expect("a four-card screen reads");
         assert_eq!(next.len(), 4);
+    }
+
+    /// The cards already read never stand in for a full read that succeeds: a screen first read as
+    /// its middle two (its outer titles not painted yet, say) is read as all four once they are.
+    #[test]
+    fn a_screen_already_read_does_not_hide_the_cards_beside_it() {
+        let pool = [
+            "Braton Prime Blueprint",
+            "2X Forma Blueprint",
+            "Burston Prime Stock",
+            "Trumna Prime Blueprint",
+        ]
+        .map(pool_entry);
+        let candidates = crate::reward_source::CardCandidates {
+            pool: &pool,
+            catalog: &[],
+        };
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/reward-screen-1920x1080.png");
+        let four = image::open(fixture).unwrap();
+        let original = four.to_rgb8();
+        let mut middle = original.clone();
+        for y in 400..470 {
+            for dx in 0..244 {
+                middle.put_pixel(474 + dx, y, *original.get_pixel(dx, y));
+                middle.put_pixel(1204 + dx, y, *original.get_pixel(1446 + dx, y));
+            }
+        }
+        let mut screen = super::SameScreen::default();
+        let first = screen
+            .read(&image::DynamicImage::ImageRgb8(middle), candidates, false)
+            .expect("the middle two read as a screen of two");
+        assert_eq!(
+            card_names(&first),
+            ["2X Forma Blueprint", "Burston Prime Stock"]
+        );
+        let all = screen
+            .read(&four, candidates, false)
+            .expect("the four-card screen reads");
+        assert_eq!(all.len(), 4);
     }
 
     /// The 2026-08-22 report's own slot 1: Tesseract returns three noise fragments above the
