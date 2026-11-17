@@ -1144,9 +1144,13 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 struct LoadedSettings {
     settings: Value,
     page: u64,
-    /// There was no settings file: a new install. False for a damaged file moved aside, whose
-    /// player had settings (their update channel among them) and isn't new.
+    /// There was no settings file: a new install.
     fresh: bool,
+    /// The name a damaged settings file was moved aside under at this start
+    /// (`settings.json.broken-<seconds>`, beside where it was), for the page to tell the player.
+    /// The name only: the page is never given the folder's path.
+    #[serde(rename = "movedAside")]
+    moved_aside: Option<String>,
 }
 
 /// One token per process: the window's page calls this once as it starts (`loadSettings` in
@@ -1158,31 +1162,49 @@ fn load_settings(app: tauri::AppHandle) -> Result<LoadedSettings, String> {
     // Read under the save lock: a save from the page before is either on disk by now or dropped.
     let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
     let page = gate.page_loaded();
-    let (settings, fresh) = read_settings(&path)?;
-    Ok(LoadedSettings { settings, page, fresh })
+    let SettingsRead { settings, fresh, moved_aside } = read_settings(&path)?;
+    Ok(LoadedSettings { settings, page, fresh, moved_aside })
 }
 
-/// The settings, and whether there was no file at all.
-fn read_settings(path: &Path) -> Result<(Value, bool), String> {
+/// What `read_settings` found.
+struct SettingsRead {
+    /// The settings as saved; null when there were none to read.
+    settings: Value,
+    /// There was no file at all: a new install.
+    fresh: bool,
+    /// The file was damaged and is now kept under this name, in the same folder.
+    moved_aside: Option<String>,
+}
+
+/// The settings, whether there was no file at all, and the name a damaged one was moved aside under.
+fn read_settings(path: &Path) -> Result<SettingsRead, String> {
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
     let bytes = match fs::read(path) {
         Ok(b) => b,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((Value::Null, true)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(SettingsRead { settings: Value::Null, fresh: true, moved_aside: None }),
         Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
     };
-    Ok((match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
-        Err(_) => {
-            // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
+    match serde_json::from_slice(&bytes) {
+        Ok(settings) => Ok(SettingsRead { settings, fresh: false, moved_aside: None }),
+        Err(why) => {
+            // Keep a damaged file (floors, sales...) instead of letting the defaults overwrite it.
             // If it can't be moved aside (held by an antivirus or a backup), say so: starting from
             // the defaults would save them over the only copy.
             let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
             let aside = path.with_extension(format!("json.broken-{stamp}"));
             rename_replacing(path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
-            Value::Null
+            let name = aside.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            log::warn!(target: "myorbiter::settings", "{}", moved_aside_line(&name, &why.to_string()));
+            Ok(SettingsRead { settings: Value::Null, fresh: false, moved_aside: Some(name) })
         }
-    }, false))
+    }
+}
+
+/// The log's line for a damaged settings file moved aside: its new name only, never the folder.
+/// `why` is the JSON reader's reason (where the file stops making sense, no part of the file).
+fn moved_aside_line(name: &str, why: &str) -> String {
+    format!("the saved settings couldn't be read ({why}), so MyOrbiter started with the usual settings; the old file is kept as {name} in the settings folder, and nothing is read back from it")
 }
 
 #[tauri::command(async)]
@@ -1923,6 +1945,50 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn a_damaged_settings_file_is_moved_aside_named_and_logged_by_its_name_alone() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-settings-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        let names = || {
+            let mut n: Vec<String> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            n.sort();
+            n
+        };
+
+        // No file: a new install, nothing moved.
+        let read = read_settings(&path).unwrap();
+        assert_eq!((read.settings.clone(), read.fresh, read.moved_aside.clone()), (Value::Null, true, None));
+
+        // A readable file: read as before, left where it is, nothing named.
+        let saved = br#"{"tab":"sales","updates":{"channel":"beta"}}"#;
+        fs::write(&path, saved).unwrap();
+        let read = read_settings(&path).unwrap();
+        assert_eq!((read.settings.clone(), read.fresh, read.moved_aside.clone()), (serde_json::json!({"tab": "sales", "updates": {"channel": "beta"}}), false, None));
+        assert_eq!(names(), ["settings.json"]);
+        assert_eq!(fs::read(&path).unwrap(), saved);
+
+        // A damaged file (cut short, or emptied): moved aside whole, and its new name given.
+        for damaged in [&b"{\"tab\":\"sal"[..], b""] {
+            fs::write(&path, damaged).unwrap();
+            let read = read_settings(&path).unwrap();
+            assert_eq!((read.settings.clone(), read.fresh), (Value::Null, false));
+            let name = read.moved_aside.clone().expect("the moved file is named");
+            let stamp = name.strip_prefix("settings.json.broken-").expect(&name);
+            assert!(!stamp.is_empty() && stamp.bytes().all(|b| b.is_ascii_digit()), "{name}");
+            assert!(!path.exists(), "moved, not copied");
+            assert_eq!(fs::read(dir.join(&name)).unwrap(), damaged, "kept whole");
+            // The log line: the name alone, never the folder; the log's redaction leaves it whole.
+            let line = moved_aside_line(&name, "EOF while parsing a string at line 1 column 11");
+            assert!(line.contains(&name), "{line}");
+            assert!(!line.contains('/') && !line.contains('\\') && !line.contains(&*dir.to_string_lossy()), "{line}");
+            assert_eq!(applog::redact(&line), line);
+            fs::remove_file(dir.join(&name)).unwrap();
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn every_pick_up_of_tennoscope_s_data_says_what_it_took_in_or_why_not() {

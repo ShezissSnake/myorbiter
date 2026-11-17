@@ -324,8 +324,10 @@ meanwhile stays, and its updates are looked for at once. That first read goes th
 own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
 use, it gets no answer, and such an install has a channel only once you pick one. A local build
 starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
-An install that has saved settings keeps its channel, even when that file turns out damaged and is moved
-aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
+An install that has saved settings keeps its channel. One whose settings file turns out damaged, and
+is moved aside (below), can't read the channel saved in it, so it starts as a new install does: no
+channel until its first check hears back, then the most stable one with its build or a newer one.
+An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the
 download to GitHub's file storage (`release-assets.githubusercontent.com` or
@@ -522,6 +524,11 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
     platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed to the
     Helminth, the sets your loose parts were saved for, the gear you chose to keep, and what it has
     already told you about;
+  - `settings.json.broken-<seconds>`: a `settings.json` that couldn't be read as it started, moved
+    aside whole rather than saved over. MyOrbiter then starts with the usual settings, says so in a
+    banner that names the file until you dismiss it, and writes one line naming it (never the
+    folder) in its log. It never reads one back: to use it again, close MyOrbiter and repair it by
+    hand as `settings.json`, or delete it;
   - `relic-data.json` (drop tables), `recipe-data.json` (Foundry recipes),
     `worldstate-tables.json` (the world state's place names);
   - `tennoscope-program` (a TennoScope you chose in Settings), and on Linux `rendering` and

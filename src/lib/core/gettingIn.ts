@@ -64,6 +64,25 @@ export function saveTroubleWords(t: SaveTrouble): string {
   return `Couldn't save your settings (${t.cause}): what you change now may not be kept. MyOrbiter keeps trying.`;
 }
 
+/** Where MyOrbiter's settings folder is on each system (Tauri's config folder for `dev.myorbiter.app`). */
+export const SETTINGS_FOLDER = {
+  linux: "~/.config/dev.myorbiter.app",
+  windows: "%APPDATA%\\dev.myorbiter.app",
+  macos: "~/Library/Application Support/dev.myorbiter.app",
+} as const;
+
+/** Which system the window runs on, from the web view's user agent, for `SETTINGS_FOLDER`. */
+export const systemOf = (userAgent: string): keyof typeof SETTINGS_FOLDER => (/Windows/i.test(userAgent) ? "windows" : /Mac OS X|Macintosh/i.test(userAgent) ? "macos" : "linux");
+
+/**
+ * The banner's words after a damaged settings file was moved aside (`read_settings` in lib.rs):
+ * shown over every page, the setup page and the "Can't read" pages included, until dismissed.
+ * Nothing is read back from the old file by itself.
+ */
+export function movedAsideWords(name: string, system: keyof typeof SETTINGS_FOLDER): string {
+  return `Your saved settings couldn't be read, so MyOrbiter started with the usual settings. The old file is kept as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it.`;
+}
+
 /** The three automatic actions on warframe.market (Settings, warframe.market). */
 export interface AutoSwitches {
   auto: boolean;

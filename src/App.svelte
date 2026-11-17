@@ -167,7 +167,7 @@
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
-  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout, type SaveTrouble } from "./lib/core/gettingIn";
+  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
@@ -3075,6 +3075,15 @@
       <div class="stale" role="alert" title={saveError.cause}>
         <span>{saveTroubleWords(saveError)}</span>
       </div>
+    {/if}
+    <!-- A damaged settings file was moved aside (read_settings in lib.rs): said once, over every
+         page and the setup page too, since the start then goes as a first start does. Kept in the
+         settings until dismissed, so a restart doesn't lose it. -->
+    {#if settingsLoaded && settings.movedAside}
+      <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale" role="alert" data-banner="settings-moved-aside">
+        <span>{movedAsideWords(settings.movedAside, systemOf(navigator.userAgent))}</span>
+        <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (settings.movedAside = null)} />
+      </div></div></div>
     {/if}
     {#if !model && error && notYet}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
