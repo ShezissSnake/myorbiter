@@ -227,7 +227,7 @@ It stops as well when:
   isn't heard;
 - the build makes a symbolic link (`symlink`, `symlinkSync` or `fs.promises.symlink`), wherever it
   leads: what reads the output follows it later (the app's bundler takes in the file a link in the
-  page's folder leads to), where the script doesn't listen;
+  page's output leads to), where the script doesn't listen;
 - the page's config is bundled from a file outside the page that is no package's;
 - the page holds a module that is neither the page's own nor a package's;
 - the build emits a file of its own (not its code, styles or HTML) without reading it through
@@ -246,9 +246,12 @@ page holds theirs); a package's file the config has a known tool read for it bel
 `package.json` a known tool reads for the config from a callback, where the config isn't in the
 stack that called it (or is deeper than the 50 frames the script looks at); a read made below
 Node's `fs` functions otherwise (by native code, apart from the modules the page's own build
-bundles, which its chunks show, or through Node's internal bindings); a module loaded in the same
-Node before the build started (the script runs in a process of its own, after only `cargo`); and
-a package linked from a folder inside the repository, whose modules are taken for the page's own.
+bundles, which its chunks show, or through Node's internal bindings); a folder copied whole
+(`fs.cpSync` with `recursive`) that holds a link, which leaves a link in the output with no
+`symlink` event, so no stop (nothing goes unlisted by it: the copy marks the file the link leads
+to); a module loaded in the same Node before the build started (the script runs in a process of its
+own, after only `cargo`); and a package linked from a folder inside the repository, whose modules
+are taken for the page's own.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
