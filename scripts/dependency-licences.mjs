@@ -10,7 +10,7 @@
 //   node scripts/dependency-licences.mjs --check <folder> <myorbiter|tennoscope> <target>
 //
 // The first form runs after the program is compiled, before it's packed: MyOrbiter's as Tauri's
-// beforeBundleCommand (src-tauri/tauri.bundle.json, which gives the target as
+// beforeBundleCommand (src-tauri/tauri.bundle.json; Tauri gives it the target as
 // TAURI_ENV_TARGET_TRIPLE), TennoScope's once it's put in vendor/tennoscope/ (ci/build.sh, the
 // Release workflow). It writes the list (README.md) and the texts (texts/) into the folder, by
 // default THIRD-PARTY-NOTICES/dependencies/ for MyOrbiter and

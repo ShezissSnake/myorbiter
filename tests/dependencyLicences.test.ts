@@ -958,7 +958,7 @@ test("the messages name the allowed list and no-text file the run was given, and
 
 // ---------------------------------------------------------------- where the builds run it
 
-test("every build runs it for each program before the download is packed", () => {
+test("every build ci/build.sh and the Release workflow make runs it for each program before the download is packed", () => {
   const bundle = JSON.parse(readFileSync("src-tauri/tauri.bundle.json", "utf8"));
   assert.equal(bundle.build.beforeBundleCommand, "node scripts/dependency-licences.mjs myorbiter");
   const build = readFileSync("ci/build.sh", "utf8");

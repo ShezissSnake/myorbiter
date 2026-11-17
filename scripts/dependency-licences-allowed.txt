@@ -1,6 +1,7 @@
 # The licences a package compiled into a MyOrbiter or TennoScope download may carry.
 #
-# scripts/dependency-licences.mjs reads this file when a release is built, and the build stops at a
+# scripts/dependency-licences.mjs reads this file whenever a program is built for a download, on any
+# `tauri build` given src-tauri/tauri.bundle.json (a local one too), and the build stops at a
 # package whose licence isn't allowed by it. These are the licences the downloads carried when the
 # list was first made (2026-11-16), and no other. Adding one is a decision for the maintainer
 # (docs/maintaining.md, "The dependencies' licences").

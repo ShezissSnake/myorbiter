@@ -175,7 +175,8 @@ for TennoScope. `scripts/dependency-licences.mjs` makes each list while the buil
 the build itself has unpacked (cargo's registry folder, the page's `node_modules`), with no request
 of its own: MyOrbiter's as `tauri build`'s `beforeBundleCommand` (`src-tauri/tauri.bundle.json`),
 after compiling and before packing; TennoScope's once it is put into `vendor/tennoscope/`
-(`ci/build.sh` for Linux, the Windows job's *Put TennoScope beside MyOrbiter's sources*).
+(`ci/build.sh` for Linux and for the Windows half it cross-builds, the Windows job's *Put
+TennoScope beside MyOrbiter's sources*).
 `ci/build.sh` then checks that the `.deb` carries both Linux lists, each with every text it names.
 
 **The gate.** The script stops the build, naming every package at fault and why, when a package:
@@ -186,7 +187,9 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
   only as the list names it, and an expression the script can't read never passes;
 - comes from anywhere but the registry (a git repository, a path outside the workspace, a tarball);
 - ships no licence text and isn't in `scripts/dependency-licences-no-text.json` by name and
-  version (a new version of a crate listed there stops it too).
+  version (a new version of a crate listed there stops it too). The file is read for crates only:
+  an npm package with no licence text always stops it;
+- is in that file with a licence other than the one its manifest names.
 
 **How the page is read.** The page's own Vite build is run again, writing nothing. A package is in
 the page when its code is in the page's code (or a worker's), when one of its styles is compiled
@@ -198,7 +201,8 @@ link leads to. That takes in what a style `@import`s or
 `composes` from, in a stylesheet or a component's `<style>`, every small file Vite inlines as a
 `data:` address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`),
 whatever the page's config reads (`fs.ReadStream` included), and what a plugin copies, into the
-output or elsewhere to read it there. Each package found is listed and gated like any other.
+output or elsewhere to read it there, in the hooks a build that writes nothing runs (not
+`writeBundle`). Each package found is listed and gated like any other.
 
 Beside the page's own code and config, only the build's known tools may run while it builds: the
 short list in the script (`tools` of each program in `PROGRAMS`: Vite,
@@ -250,7 +254,8 @@ Node's `fs` functions otherwise (by native code, apart from the modules the page
 bundles, which its chunks show, or through Node's internal bindings); a folder copied whole
 (`fs.cpSync` with `recursive`) that holds a link, which leaves a link in the output with no
 `symlink` event, so no stop (nothing goes unlisted by it: the copy marks the file the link leads
-to); a module loaded in the same Node before the build started (the script runs in a process of its
+to); a plugin's `writeBundle` hook, which a build that writes nothing doesn't run, so what a plugin
+copies, links or reads there is neither listed nor stopped (neither page's config has one); a module loaded in the same Node before the build started (the script runs in a process of its
 own, after only `cargo`); and a package linked from a folder inside the repository, whose modules
 are taken for the page's own.
 
@@ -268,10 +273,15 @@ are taken for the page's own.
   (without it, any package of the build that ships those bytes): for a licence with no line of its
   own to fill (Apache-2.0, BSL-1.0), that licence's standard text; the build stops if no package of
   it ships that file. Or `text` is `null`: the download carries no text for the crate, and its list
-  says so, naming its licence and the repository its manifest names. A text is never written by
+  says so, naming its licence and the repository the entry's `upstream` gives (typed by hand from
+  the crate's manifest; the script checks it against nothing). A text is never written by
   hand. Carrying upstream's own file for a crate (its copyright line, for MIT or BSD) has no place
   in that file yet: it needs a change to the script, to read the file from the repository with
   where it came from.
+- An npm package with no licence text of its own, or an entry whose licence differs from the
+  manifest's: the no-text file takes no npm package, so the dependency that brought it is changed
+  back or replaced (or reading npm entries is a change to the script); an entry's licence is made
+  the manifest's, with the maintainer's yes.
 - A source that isn't the registry: the dependency goes back to a published version.
 - The page not installed, or a module of no known package: the build steps before it changed;
   `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. A file
