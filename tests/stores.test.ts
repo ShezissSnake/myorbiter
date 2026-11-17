@@ -60,6 +60,105 @@ test("listings count as read only once warframe.market answered; signing out for
   assert.equal(mkt.ordersAt, null);
 });
 
+test("a sign-out that couldn't be completed says so in plain words, and the account stays signed in", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  // As the app answers when the keyring kept the sign-in (lib.rs, market_sign_out).
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => ({ linked: true, backing: "keyring", profile: me, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /, "said, not swallowed");
+  assert.equal(mkt.linked, true, "still signed in, as at the next start");
+  assert.deepEqual(mkt.orders.map((o) => o.id), ["a"], "the listings stay shown");
+  assert.equal(mkt.ordersAt, 1);
+});
+
+test("a failed sign-out whose account then can't be read says the sign-out's words, and the page stays as it was", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => {
+    throw new Error("the app didn't answer");
+  };
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /, "the sign-out's own words");
+  assert.equal(mkt.linked, true, "not taken for signed out: nothing said it was");
+  assert.deepEqual(mkt.orders.map((o) => o.id), ["a"]);
+  assert.equal(mkt.ordersAt, 1);
+});
+
+test("the words of a refused sign-out go once a sign-out works", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => ({ linked: true, backing: "keyring", profile: me, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /);
+  // Unlocked, and signed out this time.
+  market.signOut = async () => {};
+  market.account = async () => ({ linked: false, backing: "file", profile: null, error: null });
+  await mkt.signOut();
+  assert.equal(mkt.error, null, "no \"Not signed out\" over a sign-out that worked");
+  assert.equal(mkt.linked, false);
+  assert.deepEqual(mkt.orders, []);
+});
+
+test("a sign-out that left only the sign-in under the old name signs out, and says so", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Signed out, but the sign-in kept under MyOrbiter's name before the rename is still in the system keyring.";
+  };
+  market.account = async () => ({ linked: false, backing: "file", profile: null, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Signed out, but /);
+  assert.equal(mkt.linked, false);
+  assert.deepEqual(mkt.orders, []);
+  assert.equal(mkt.ordersAt, null);
+});
+
+const chat = { id: "c1", with: "ExamplePlayer", unread: 2, lastUpdate: "2026-11-17T00:00:00Z", lastMessage: "wtb" };
+const signedOut = { linked: false, backing: "file", profile: null, error: null } as const;
+
+test("a read of your listings already on its way at a sign-out doesn't put that account's listings back", async () => {
+  mkt.orders = [order("a")];
+  let answer!: (o: MyOrder[]) => void;
+  market.myOrders = () => new Promise((r) => (answer = r));
+  market.signOut = async () => {};
+  market.account = async () => ({ ...signedOut });
+  const reading = mkt.refresh();
+  await mkt.signOut();
+  answer([order("a"), order("b")]);
+  await reading;
+  assert.deepEqual(mkt.orders, [], "the signed-out account's listings stay gone");
+  assert.equal(mkt.ordersAt, null);
+});
+
+test("a sign-out takes that account's unread chats off the strip, and a read on its way doesn't bring them back", async () => {
+  market.chats = async () => [chat];
+  await mkt.readChats();
+  assert.equal(mkt.chats.length, 1);
+  market.signOut = async () => {};
+  market.account = async () => ({ ...signedOut });
+  await mkt.signOut();
+  assert.deepEqual(mkt.chats, [], "gone at the sign-out");
+  // A read of the chats that left before the sign-out and lands after it.
+  mkt.account = { linked: true, backing: "keyring", profile: me, error: null };
+  let answer!: (c: (typeof chat)[]) => void;
+  market.chats = () => new Promise((r) => (answer = r));
+  const reading = mkt.readChats();
+  await mkt.signOut();
+  answer([chat]);
+  await reading;
+  assert.deepEqual(mkt.chats, [], "the late answer is dropped");
+});
+
 test("Auto-match backs off while warframe.market doesn't answer, and says so once", async () => {
   const s = defaultMarketSettings();
   market.items = async () => [{ id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] }];

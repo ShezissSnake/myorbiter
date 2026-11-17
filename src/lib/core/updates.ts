@@ -131,7 +131,7 @@ const FIRST_GITHUB_BUILD = 120;
 export interface UpdateSettings {
   /** The channel updates come from. */
   channel: Channel;
-  /** A version put off with Later: its notice stays away until a newer one comes. "" for none. */
+  /** A version put off with Later: its notice stays away, and any other version's shows. "" for none. */
   later: string;
   /** When the last check ended (ms): found something, found nothing, or failed. */
   lastCheck: number | null;
@@ -288,8 +288,12 @@ export function releasePage(version: string): string {
   return `${REPO_URL}/releases`;
 }
 
-/** Whether the notice for `version` shows: not when it (or something newer) was put off with Later. */
-export const noticeShows = (version: string, later: string) => !later || compareVersions(version, later) > 0;
+/**
+ * Whether the notice for `version` shows: not when that version was put off with Later. Only that
+ * one: a version a channel's file once named (a high number, for a while) mustn't keep every build
+ * below it quiet, so a lower one offered later shows, and so does a newer one.
+ */
+export const noticeShows = (version: string, later: string) => !later || compareVersions(version, later) !== 0;
 
 /**
  * The channel the running build came from, as far as MyOrbiter knows: the one it was installed from
