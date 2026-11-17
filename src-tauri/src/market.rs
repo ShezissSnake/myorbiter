@@ -18,7 +18,8 @@ const V1: &str = "https://api.warframe.market/v1";
 const V2: &str = "https://api.warframe.market/v2";
 pub(crate) const MIN_GAP: Duration = Duration::from_millis(400);
 // The keyring entry goes by the bundle identifier. One kept under the identifier before the rename
-// (dev.orbiter.app) isn't read: that sign-in is made once more.
+// (dev.orbiter.app) isn't read: that sign-in is made once more. A sign-out removes it
+// (`TokenStore::clear`).
 const KEYRING_SERVICE: &str = crate::datamove::ID;
 const KEYRING_USER: &str = "warframe.market";
 /// The sign-in's file in the config folder, where there is no keyring (written by `write_atomic`,
@@ -27,6 +28,8 @@ pub const TOKEN_FILE: &str = "market-token";
 /// What the page shows when a sign-out leaves the sign-in where the next start would find it.
 const KEPT_IN_KEYRING: &str = "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring (it is locked, or didn't answer), so it would sign in with it again at its next start. Unlock the keyring and sign out again, or delete dev.myorbiter.app / warframe.market from the keyring by hand.";
 const KEPT_IN_FILE: &str = "Not signed out: MyOrbiter couldn't delete its sign-in file (market-token in its config folder), so it would sign in with it again at its next start. Sign out again, or delete that file by hand with MyOrbiter closed.";
+/// What the page shows when the sign-out happened but the entry under the old name stayed.
+const OLD_NAME_KEPT: &str = "Signed out, but the sign-in kept under MyOrbiter's name before the rename is still in the system keyring (it is locked, or didn't answer). MyOrbiter doesn't read it; to remove it, delete dev.orbiter.app / warframe.market from the keyring by hand.";
 /// warframe.market's WebSocket: the live feed of new orders (feed.rs) and your status (presence.rs).
 const SOCKET: &str = "wss://ws.warframe.market/socket";
 /// The socket refuses connections that don't ask for this subprotocol.
@@ -458,13 +461,16 @@ impl TokenStore {
         Ok("file")
     }
 
-    /// Forgets the sign-in: the keyring's entry, then the file. Ok only when neither is left for
-    /// the next start to sign in with; otherwise the words the page shows, what kept it and what
-    /// to do, with nothing more removed.
-    pub fn clear(&self) -> Result<(), String> {
+    /// Forgets the sign-in: the keyring's entry, then the file, then the entry kept under the name
+    /// before the rename. Ok only when none is left; otherwise the words the page shows, what kept
+    /// it and what to do, with nothing more removed. Only `OLD_NAME_KEPT` comes after the sign-in
+    /// in use is gone. The old folders aren't touched: they are only read (datamove.rs).
+    pub fn clear(&self) -> Result<(), &'static str> {
+        // Whether a keyring answered: where none does, the old name's entry can't be asked either.
+        let mut answered = false;
         if let Some(e) = self.entry() {
             match e.delete_credential() {
-                Ok(()) | Err(keyring::Error::NoEntry) => {}
+                Ok(()) | Err(keyring::Error::NoEntry) => answered = true,
                 // No keyring answering, and the sign-in wasn't kept in one (the file held it):
                 // there is nothing there to remove. Without this a player with no keyring could
                 // never sign out.
@@ -475,7 +481,7 @@ impl TokenStore {
                 // sign-in and no longer answers: the entry may still be there.
                 Err(why) => {
                     log::warn!(target: "myorbiter::market", "sign-out: the keyring's entry couldn't be removed: {why}");
-                    return Err(KEPT_IN_KEYRING.into());
+                    return Err(KEPT_IN_KEYRING);
                 }
             }
         }
@@ -484,10 +490,21 @@ impl TokenStore {
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
             Err(why) => {
                 log::warn!(target: "myorbiter::market", "sign-out: {TOKEN_FILE} couldn't be removed: {why}");
-                return Err(KEPT_IN_FILE.into());
+                return Err(KEPT_IN_FILE);
             }
         }
         self.set_backing("file");
+        // Not read since the rename, but a sign-in all the same: a sign-out takes it too.
+        if let Some(e) = self.entry_for(crate::datamove::OLD_ID) {
+            match e.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => {}
+                Err(keyring::Error::PlatformFailure(_)) if !answered => {}
+                Err(why) => {
+                    log::warn!(target: "myorbiter::market", "sign-out: the keyring's entry under the old name couldn't be removed: {why}");
+                    return Err(OLD_NAME_KEPT);
+                }
+            }
+        }
         Ok(())
     }
 
@@ -722,13 +739,18 @@ impl Client {
     }
 
     /// Signs out, or says why not (`TokenStore::clear`): then the sign-in is still where the next
-    /// start finds it, and this one stays signed in with it too.
+    /// start finds it, and this one stays signed in with it too. Only an entry left under the old
+    /// name is said after signing out, since that one is never read.
     pub fn sign_out(&self) -> Result<(), String> {
         // Under the lock throughout, so a request still out can't put it back.
         let mut slot = self.slot();
-        self.store.clear()?;
-        *slot = None;
-        Ok(())
+        match self.store.clear() {
+            Err(words) if words != OLD_NAME_KEPT => Err(words.to_string()),
+            out => {
+                *slot = None;
+                out.map_err(str::to_string)
+            }
+        }
     }
 
     pub fn me(&self) -> Result<Profile, MarketError> {
@@ -1834,6 +1856,30 @@ mod tests {
         // Either the save says it couldn't keep the token, or the next start loads it (as root,
         // where the folder's mode holds nothing back).
         assert!(saved.is_err() || loaded.as_deref() == Some("new"), "{saved:?} {loaded:?}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_sign_out_also_removes_the_sign_in_kept_under_the_name_before_the_rename() {
+        let old = crate::datamove::OLD_ID;
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("sign-out-old-name", &keyring);
+        keyring.put(old, "from-before-the-rename");
+        let c = Client::new(store);
+        c.store.save("abc").unwrap();
+        c.sign_out().unwrap();
+        assert_eq!(keyring.holds(KEYRING_SERVICE), None);
+        assert_eq!(keyring.holds(old), None, "the entry under the old name goes too");
+        // Signed in again, and the keyring won't let go of the old entry: said.
+        keyring.put(old, "from-before-the-rename");
+        keyring.refuse_deletes(old, "locked");
+        c.store.save("abc").unwrap();
+        *c.slot() = Some("abc".into());
+        assert!(c.linked());
+        assert_eq!(c.sign_out(), Err(OLD_NAME_KEPT.to_string()));
+        assert!(!c.linked(), "signed out all the same: the sign-in in use is gone");
+        assert_eq!(keyring.holds(KEYRING_SERVICE), None);
+        assert!(keyring.holds(old).is_some());
         std::fs::remove_dir_all(&dir).ok();
     }
 

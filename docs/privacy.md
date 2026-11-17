@@ -563,6 +563,7 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
   the config folder keep starts apart: `dev.myorbiter.app.copy.lock` while a start copies, and
   `dev.myorbiter.app.lock` for as long as MyOrbiter runs, so a second start leaves the folders
   alone. A sign-in kept in the system keyring under the old name isn't read: sign in once more.
+  Signing out removes it (below).
 
 ### Your warframe.market sign-in
 
@@ -571,6 +572,12 @@ Keyring, or KWallet with Secret Service on; the Credential Manager on Windows), 
 `dev.myorbiter.app` / `warframe.market`. When the keyring can't store it, it goes to `market-token`
 in the config folder (readable only by your user on Linux; on Windows it has the folder's usual
 permissions).
+
+Signing out (Orders) removes the token from the keyring and the file, and the sign-in kept under
+the old name, `dev.orbiter.app` / `warframe.market`, if there is one. When the keyring or the folder
+keeps the token, MyOrbiter says so and stays signed in; when only the one under the old name stays,
+it signs out and says so. A `market-token` in the old `dev.orbiter.app` config folder stays, as the
+old folders are only read.
 
 ### Removing what is kept
 
@@ -584,7 +591,7 @@ writes `settings.json` as it runs):
   `dev.myorbiter.app.before-copy-<n>`; the config ones keep an old `settings.json`, with the trade
   log it held then;
 - the sign-in in the system keyring, `dev.myorbiter.app` / `warframe.market` (and, if one was kept,
-  the one under the old name);
+  the one under the old name), which signing out removes too;
 - TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
   Linux `screencast.token`.
 

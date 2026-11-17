@@ -75,6 +75,20 @@ test("a sign-out that couldn't be completed says so in plain words, and the acco
   assert.equal(mkt.ordersAt, 1);
 });
 
+test("a sign-out that left only the sign-in under the old name signs out, and says so", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Signed out, but the sign-in kept under MyOrbiter's name before the rename is still in the system keyring.";
+  };
+  market.account = async () => ({ linked: false, backing: "file", profile: null, error: null });
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Signed out, but /);
+  assert.equal(mkt.linked, false);
+  assert.deepEqual(mkt.orders, []);
+  assert.equal(mkt.ordersAt, null);
+});
+
 test("Auto-match backs off while warframe.market doesn't answer, and says so once", async () => {
   const s = defaultMarketSettings();
   market.items = async () => [{ id: "it", slug: "it", gameRef: "/it", name: "It", maxRank: null, subtypes: null, tags: [] }];
