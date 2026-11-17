@@ -36,6 +36,18 @@ const TRADE_FAILED: [&str; 3] = ["The trade failed", "The trade was cancelled", 
 /// A trade dialog is a few hundred bytes. One that keeps going past this without closing isn't a
 /// trade: it's dropped (no sale) rather than held and grown for the rest of the session.
 const MAX_DIALOG_BYTES: usize = 64 * 1024;
+/// The most of each list a session keeps, the oldest leaving first. A real session holds a few
+/// dozen of each (a long day's trading a few hundred trades and whispers, a long relic run a
+/// hundred or so missions); a log that goes far past them isn't one the game wrote, and the whole
+/// state goes to the window on every look.
+const TRADES_MAX: usize = 1000;
+const WHISPERS_MAX: usize = 1000;
+const HISTORY_MAX: usize = 300;
+/// A round's relics (four at most in a squad) and the rewards given at its end (one each).
+const RELICS_MAX: usize = 64;
+const REWARDS_MAX: usize = 64;
+/// One mission's relics and rewards over all its rounds (an endless fissure runs to a few hundred).
+const ENTRY_MAX: usize = 1000;
 
 /// One thing on one side of a trade: `Condition Overload (RARE RANK 0)`, `Vitus Essence x 2`.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -118,6 +130,14 @@ pub struct MissionState {
     trade_pending: Option<Trade>,
 }
 
+/// Adds `x` at the end of `list`, the oldest leaving first once it holds `max`.
+fn push_capped<T>(list: &mut Vec<T>, x: T, max: usize) {
+    if list.len() >= max {
+        list.drain(..=list.len() - max);
+    }
+    list.push(x);
+}
+
 /// Whether `line` says the player is signed in (`SIGNED_IN`).
 fn signed_in(line: &str) -> bool {
     let lower = line.to_ascii_lowercase();
@@ -141,7 +161,7 @@ impl MissionState {
             let name = strip_glyphs(rest.split(" to index").next().unwrap_or("")).trim().to_string();
             if !name.is_empty() && !self.whispers.iter().any(|w| w.name == name) {
                 let up = uptime_of(line).unwrap_or(0.0);
-                self.whispers.push(Whisper { name, uptime: up, at: clock_at(self.session_start, up) });
+                push_capped(&mut self.whispers, Whisper { name, uptime: up, at: clock_at(self.session_start, up) }, WHISPERS_MAX);
             }
             return;
         }
@@ -164,12 +184,12 @@ impl MissionState {
             if self.mission.as_deref() != Some(name) || replay {
                 self.mission = Some(name.to_string());
                 let up = uptime.unwrap_or(0.0);
-                self.history.push(MissionEntry {
+                push_capped(&mut self.history, MissionEntry {
                     name: name.to_string(),
                     started_at: clock_at(self.session_start, up),
                     uptime: up,
                     ..Default::default()
-                });
+                }, HISTORY_MAX);
                 if !self.relics.is_empty() {
                     self.last_relics = std::mem::take(&mut self.relics);
                 }
@@ -184,10 +204,10 @@ impl MissionState {
                 if self.relics.is_empty() {
                     self.rewards_given.clear();
                 }
-                self.relics.push(path.to_string());
+                push_capped(&mut self.relics, path.to_string(), RELICS_MAX);
                 if let Some(entry) = self.history.last_mut() {
                     if !entry.relics.iter().any(|p| p == path) {
-                        entry.relics.push(path.to_string());
+                        push_capped(&mut entry.relics, path.to_string(), ENTRY_MAX);
                     }
                 }
             }
@@ -208,9 +228,9 @@ impl MissionState {
         } else if let Some((_, path)) = line.split_once(GETS_REWARD) {
             let path = path.trim();
             if path.starts_with("/Lotus/") {
-                self.rewards_given.push(path.to_string());
+                push_capped(&mut self.rewards_given, path.to_string(), REWARDS_MAX);
                 if let Some(entry) = self.history.last_mut() {
-                    entry.rewards.push(path.to_string());
+                    push_capped(&mut entry.rewards, path.to_string(), ENTRY_MAX);
                 }
             } else {
                 changed = false;
@@ -266,7 +286,7 @@ impl MissionState {
         }
         if line.contains(TRADE_DONE) {
             if let Some(t) = self.trade_pending.take() {
-                self.trades.push(t);
+                push_capped(&mut self.trades, t, TRADES_MAX);
             }
             return true;
         }
@@ -558,12 +578,45 @@ pub fn find_ee_log() -> Option<PathBuf> {
 /// Steam Deck's SD card included: it's one of the libraries Steam lists).
 #[cfg(not(any(windows, target_os = "macos")))]
 pub fn find_ee_log() -> Option<PathBuf> {
-    find_ee_log_under(&PathBuf::from(std::env::var_os("HOME")?))
+    find_ee_log_passing_over().0
 }
 
-/// `find_ee_log` for the home folder `home`.
+/// `find_ee_log`, and how many logs it passed over because another user on the computer owns them
+/// (`find_ee_log_under`).
 #[cfg(not(any(windows, target_os = "macos")))]
-fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
+pub fn find_ee_log_passing_over() -> (Option<PathBuf>, usize) {
+    match std::env::var_os("HOME") {
+        Some(home) => find_ee_log_under(&PathBuf::from(home), running_uid()),
+        None => (None, 0),
+    }
+}
+
+/// `find_ee_log`: on Windows and macOS no log is passed over for its owner.
+#[cfg(any(windows, target_os = "macos"))]
+pub fn find_ee_log_passing_over() -> (Option<PathBuf>, usize) {
+    (find_ee_log(), 0)
+}
+
+/// The user MyOrbiter runs as: its effective user id, the second number of the `Uid:` line in
+/// `/proc/self/status`. None without `/proc` (then no log is passed over for its owner).
+#[cfg(not(any(windows, target_os = "macos")))]
+fn running_uid() -> Option<u32> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    status.lines().find_map(|l| l.strip_prefix("Uid:"))?.split_whitespace().nth(1)?.parse().ok()
+}
+
+/// The most of a `libraryfolders.vdf` read: Steam's list of libraries, a few hundred bytes for each.
+#[cfg(not(any(windows, target_os = "macos")))]
+const VDF_MAX: u64 = 1 << 20;
+
+/// `find_ee_log_passing_over` for the home folder `home`. Only a log `owner` owns is taken (the
+/// user MyOrbiter runs as, whose game writes it): a library listed in Steam's `.vdf` can sit on a
+/// drive other users can write to, and a newer `EE.log` planted there by one of them would
+/// otherwise be followed, its trades taken as the player's. The second number is how many logs
+/// were passed over for that.
+#[cfg(not(any(windows, target_os = "macos")))]
+fn find_ee_log_under(home: &Path, owner: Option<u32>) -> (Option<PathBuf>, usize) {
+    use std::os::unix::fs::MetadataExt;
     let steam_roots = [
         home.join(".local/share/Steam"),
         home.join(".steam/steam"),
@@ -573,7 +626,7 @@ fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
     let mut libraries: Vec<PathBuf> = Vec::new();
     for root in &steam_roots {
         libraries.push(root.clone());
-        if let Ok(vdf) = std::fs::read_to_string(root.join("steamapps/libraryfolders.vdf")) {
+        if let Ok(vdf) = crate::read_capped(&root.join("steamapps/libraryfolders.vdf"), VDF_MAX).map(|b| String::from_utf8_lossy(&b).into_owned()) {
             for line in vdf.lines() {
                 let mut parts = line.split('"').filter(|s| !s.trim().is_empty());
                 if parts.next() == Some("path") {
@@ -585,11 +638,13 @@ fn find_ee_log_under(home: &Path) -> Option<PathBuf> {
         }
     }
     let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
-    libraries
-        .iter()
-        .map(|lib| lib.join(tail))
-        .filter(|p| p.is_file())
-        .max_by_key(|p| std::fs::metadata(p).and_then(|m| m.modified()).ok())
+    let logs: Vec<(PathBuf, std::fs::Metadata)> = libraries.iter().map(|lib| lib.join(tail)).filter_map(|p| std::fs::metadata(&p).ok().filter(|m| m.is_file()).map(|m| (p, m))).collect();
+    // Each file once, however many library paths lead to it (`~/.steam/steam` is often a link).
+    let mut others: Vec<(u64, u64)> = logs.iter().filter(|(_, m)| owner.is_some_and(|uid| m.uid() != uid)).map(|(_, m)| (m.dev(), m.ino())).collect();
+    others.sort_unstable();
+    others.dedup();
+    let found = logs.into_iter().filter(|(_, m)| owner.is_none_or(|uid| m.uid() == uid)).max_by_key(|(_, m)| m.modified().ok()).map(|(p, _)| p);
+    (found, others.len())
 }
 
 #[cfg(test)]
@@ -705,14 +760,100 @@ and will receive from Buyer1\u{E000} the following:\n\
         let other = home.join("Games/SteamLibrary");
         std::fs::create_dir_all(steam.join(tail).parent().unwrap()).unwrap();
         std::fs::create_dir_all(other.join(tail).parent().unwrap()).unwrap();
-        assert_eq!(find_ee_log_under(&home), None, "no log yet");
+        assert_eq!(find_ee_log_under(&home, running_uid()).0, None, "no log yet");
         std::fs::write(steam.join("steamapps/libraryfolders.vdf"), format!("\"libraryfolders\"\n{{\n\t\"1\"\n\t{{\n\t\t\"path\"\t\t\"{}\"\n\t}}\n}}\n", other.display())).unwrap();
         std::fs::write(steam.join(tail), "old").unwrap();
         let older = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
         std::fs::File::options().write(true).open(steam.join(tail)).unwrap().set_modified(older).unwrap();
         std::fs::write(other.join(tail), "new").unwrap();
-        assert_eq!(find_ee_log_under(&home), Some(other.join(tail)));
+        assert_eq!(find_ee_log_under(&home, running_uid()).0, Some(other.join(tail)));
         std::fs::remove_dir_all(&home).ok();
+    }
+
+    /// A named pipe where Steam keeps its list of libraries: passed over at once, and the log in
+    /// the default library still found.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn a_library_list_that_is_not_a_plain_file_is_passed_over() {
+        let home = std::env::temp_dir().join(format!("myorbiter-home-fifo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
+        let steam = home.join(".local/share/Steam");
+        std::fs::create_dir_all(steam.join(tail).parent().unwrap()).unwrap();
+        std::fs::write(steam.join(tail), "log").unwrap();
+        crate::test_support::fifo(&steam.join("steamapps/libraryfolders.vdf"));
+        let found = crate::test_support::within({
+            let home = home.clone();
+            move || find_ee_log_under(&home, running_uid()).0
+        });
+        assert_eq!(found, Some(Some(steam.join(tail))), "returns at once, with the log it can see");
+        std::fs::remove_dir_all(&home).ok();
+    }
+
+    /// A candidate log the running user doesn't own (another user's file in a library on a shared
+    /// drive) is passed over. Files can't be given to another user without root, so the test asks
+    /// as another user would: the files here are then not theirs.
+    #[cfg(not(any(windows, target_os = "macos")))]
+    #[test]
+    fn a_log_the_running_user_does_not_own_is_passed_over() {
+        use std::os::unix::fs::MetadataExt;
+        let home = std::env::temp_dir().join(format!("myorbiter-home-owner-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        let tail = "steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log";
+        let log = home.join(".local/share/Steam").join(tail);
+        std::fs::create_dir_all(log.parent().unwrap()).unwrap();
+        std::fs::write(&log, "log").unwrap();
+        let me = std::fs::metadata(&log).unwrap().uid();
+        assert_eq!(find_ee_log_under(&home, Some(me)), (Some(log.clone()), 0));
+        assert_eq!(find_ee_log_under(&home, Some(me + 1)), (None, 1), "not the running user's: passed over, and counted");
+        // A file made here is the running user's, as /proc/self/status says.
+        assert_eq!(running_uid(), Some(me));
+        std::fs::remove_dir_all(&home).ok();
+    }
+
+    /// A log far longer than any session (forged, or a game gone wrong) keeps the newest of each
+    /// list, so the app's memory and what goes to the window on every look stay bounded.
+    #[test]
+    fn a_very_long_log_keeps_the_newest_of_each_list() {
+        let mut s = MissionState::default();
+        s.observe("0.1 Sys [Diag]: Current time: Tue Oct 13 21:08:47 2026 [UTC: Tue Oct 13 19:08:47 2026]");
+        let mut up = 100.0;
+        let mut at = || {
+            up += 1.0;
+            format!("{up:.3}")
+        };
+        for i in 0..WHISPERS_MAX + 10 {
+            s.observe(&format!("{} Script [Info]: ChatRedux.lua: ChatRedux::AddTab: Adding tab with channel name: FName{i} to index 6", at()));
+        }
+        assert_eq!(s.whispers.len(), WHISPERS_MAX);
+        assert_eq!(s.whispers[0].name, "Name10", "the oldest left first");
+        assert_eq!(s.whispers.last().unwrap().name, format!("Name{}", WHISPERS_MAX + 9));
+        for i in 0..TRADES_MAX + 5 {
+            s.observe(&format!("{} Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:", at()));
+            s.observe("\rCondition Overload (RARE RANK 0)");
+            s.observe(&format!("and will receive from Buyer{i} the following:"));
+            s.observe("\rPlatinum x 17, title= leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)");
+            s.observe(&format!("{} Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, title= leftItem=/Menu/Confirm_Item_Ok)", at()));
+        }
+        assert_eq!(s.trades.len(), TRADES_MAX);
+        assert_eq!(s.trades[0].partner, "Buyer5");
+        for i in 0..HISTORY_MAX + 5 {
+            s.observe(&format!("{} Script [Info]: ThemedSquadOverlay.lua: Mission name: Mission{i} (Void)", at()));
+        }
+        assert_eq!(s.history.len(), HISTORY_MAX);
+        assert_eq!(s.history[0].name, "Mission5 (Void)");
+        // One round: more relics loaded and more rewards given than any squad has.
+        for i in 0..ENTRY_MAX + 5 {
+            s.observe(&format!("{} Sys [Info]: ResourceLoader 0x1 (/Lotus/Types/Game/Projections/T1VoidProjectionRelic{i}Bronze) Found 1 items to load (0ms)", at()));
+            s.observe(&format!("{} Sys [Info]: VoidProjections: de1e7ed00000000000000011 gets reward /Lotus/StoreItems/Types/Reward{i}", at()));
+        }
+        assert_eq!(s.relics.len(), RELICS_MAX);
+        assert!(s.relics[0].ends_with(&format!("Relic{}Bronze", ENTRY_MAX + 5 - RELICS_MAX)), "{}", s.relics[0]);
+        assert_eq!(s.rewards_given.len(), REWARDS_MAX);
+        assert!(s.rewards_given[0].ends_with(&format!("Reward{}", ENTRY_MAX + 5 - REWARDS_MAX)), "{}", s.rewards_given[0]);
+        let entry = s.history.last().unwrap();
+        assert_eq!((entry.relics.len(), entry.rewards.len()), (ENTRY_MAX, ENTRY_MAX));
+        assert!(entry.rewards[0].ends_with("Reward5"), "{}", entry.rewards[0]);
     }
 
     #[test]

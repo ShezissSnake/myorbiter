@@ -146,6 +146,7 @@ fn scratch_file(kind: &str, extension: &str) -> PathBuf {
 /// Warframe window and its current monitor again.
 pub struct ScreenRewardSource {
     capture: crate::reward_capture::GameCapture,
+    screen: SameScreen,
 }
 
 impl Default for ScreenRewardSource {
@@ -158,6 +159,7 @@ impl ScreenRewardSource {
     pub fn new() -> Self {
         Self {
             capture: crate::reward_capture::GameCapture::new(),
+            screen: SameScreen::default(),
         }
     }
 }
@@ -171,10 +173,70 @@ impl VisualRewardSource for ScreenRewardSource {
         // Once per poll, not per frame: with a frame per monitor, the first monitor would take
         // the learning slot every time and the one with the game would never learn its colour.
         let learn = learn_due();
+        let screen = &mut self.screen;
         read_capture_candidates(&frames, &LATEST_MATCHED_RECT, |frame| {
-            read_cards_learning(frame, candidates, learn)
+            screen.read(frame, candidates, learn)
         })
     }
+}
+
+/// The cards a reader last read, so that while they stay up the same screen is told from a new one.
+///
+/// The screen is polled every 400ms once its cards are read, and two failed polls in a row count
+/// as it closing: the overlay goes and that screen is not shown again. A full read can fail on a
+/// screen still up, as the background moves beside a two-card block, so a poll whose full read
+/// fails looks for the cards already read, at the layout they were read at and with the grades
+/// that read them. The same names in the same slots are the same screen, and that reads as it
+/// did. A screen that has closed fails both reads, as it failed before. The full read still comes
+/// first, so whatever it reads (other cards in their place, or all four cards of a screen whose
+/// first read found only its middle two) is read as it would be without this.
+///
+/// A reader lives for one reward screen: the recognition worker drops it when the screen is
+/// gone, when the log closes it and while the game is not running, so nothing is carried from
+/// one screen to the next.
+#[derive(Default)]
+struct SameScreen {
+    cards: Option<Vec<String>>,
+}
+
+impl SameScreen {
+    fn read(
+        &mut self,
+        image: &DynamicImage,
+        candidates: CardCandidates<'_>,
+        learn: bool,
+    ) -> Result<Vec<(String, f32)>, &'static str> {
+        match read_cards_learning(image, candidates, learn) {
+            Ok(read) => {
+                self.cards = Some(read.iter().map(|(name, _)| name.clone()).collect());
+                Ok(read)
+            }
+            Err(reason) => self
+                .cards
+                .as_deref()
+                .and_then(|cards| read_same_cards(image, candidates, cards))
+                .ok_or(reason),
+        }
+    }
+}
+
+/// `cards` read again at their own layout, or `None` when that layout no longer reads them all.
+fn read_same_cards(
+    image: &DynamicImage,
+    candidates: CardCandidates<'_>,
+    cards: &[String],
+) -> Option<Vec<(String, f32)>> {
+    let (width, height) = image.dimensions();
+    let remembered = *LEARNED_TITLE_COLOUR
+        .lock()
+        .unwrap_or_else(|poison| poison.into_inner());
+    std::iter::once(Grade::Brightest)
+        .chain(remembered.map(Grade::Near))
+        .find_map(|grade| {
+            read_cards_at(image, width, height, cards.len(), candidates, grade)
+                .ok()
+                .filter(|read| read.iter().map(|(name, _)| name).eq(cards))
+        })
 }
 
 fn read_capture_candidates<T>(
@@ -401,20 +463,45 @@ fn read_cards_graded(
     }
     // Ordering alone does not settle the four-against-two ambiguity, because it is the same pixels
     // either way: "two cards" and "four cards whose outer two would not match" are indistinguishable
-    // at the two positions they share. The four-card slot 0 is the tiebreak. Blank means there is
-    // genuinely nothing out there and the block really is narrower; any text at all means a wider
-    // screen with a pool gap, and publishing its middle two as the whole screen would be a confident
-    // half-answer. That case fails closed, exactly as it did before there was anything to guess.
+    // at the two positions they share. The four-card layout's outer slots are the tiebreak, both of
+    // them. Blank means no card title out there and the block really is narrower; a title means a
+    // wider screen with a pool gap, and publishing its middle two as the whole screen would be a
+    // confident half-answer. That case fails closed, exactly as it did before there was anything
+    // to guess.
+    //
+    // Blank is judged by whether a read looks like a title, not by whether it is empty: a two-card
+    // screen's outer slots show the moving background, and a bright speck there reads as a
+    // character or two (`"@D‘"`, `"Y il"`). Taking that for a title is what kept squads of two
+    // from being read, on some polls and not on others as the background moved. Both outer slots
+    // must look blank, so that one title read as nothing (a blue UI theme once did that to a
+    // silver card) cannot let a four-card screen through on its first slot alone.
     let outside_the_block_is_empty = matches!(&widest, Err((0, BLANK_CARD)));
     for cards in (2..MAX_CARDS).rev() {
         // Dropping one card shifts the block half a pitch, so a layout two cards narrower is shifted
         // a whole pitch and its slots land exactly on the widest layout's. Those are the ambiguous
         // ones, and only those need the tiebreak.
-        let shares_slots_with_the_widest = (MAX_CARDS - cards) % 2 == 0;
+        let shares_slots_with_the_widest = (MAX_CARDS - cards).is_multiple_of(2);
         if shares_slots_with_the_widest && !outside_the_block_is_empty {
             break;
         }
         if let Ok(read) = read_cards_at(image, width, height, cards, candidates, grade) {
+            // The far outer slot is read only once the narrower layout has read, so a poll off the
+            // reward screen still costs one crop per layout. Under a learned title colour both
+            // outer slots are read by brightness as well: a colour that separates the middle two
+            // titles can still miss a bright one beside them, and a title in either grade is one.
+            let mut outer = vec![(MAX_CARDS - 1, grade)];
+            if grade != Grade::Brightest {
+                outer.extend([(0, Grade::Brightest), (MAX_CARDS - 1, Grade::Brightest)]);
+            }
+            let blank = |(slot, grade): (usize, Grade)| {
+                matches!(
+                    read_slot(image, width, height, MAX_CARDS, slot, candidates, grade),
+                    Err((_, BLANK_CARD))
+                )
+            };
+            if shares_slots_with_the_widest && !outer.into_iter().all(blank) {
+                break;
+            }
             return Ok(read);
         }
     }
@@ -422,6 +509,21 @@ fn read_cards_graded(
 }
 
 const BLANK_CARD: &str = "a reward card read as blank";
+
+/// The shortest word that makes a read a card title. Most relic reward names have a word this long
+/// (`Prime`, `Forma`, `Blueprint`), and a title read with a few letters wrong still keeps one. A
+/// speck or streak of the background reads as one to three characters at a time: over the
+/// two-card screens in `tests/reward_ocr.rs` the longest was three (`"oSS"`, `"ity"`). Seven
+/// Requiem rewards in `demo/dev-bundle.json` have no such word (Fass, Jahu, Khra, Lohk, Ris,
+/// Vome, Xata). Such a name still counts as a title whenever it matches, and reads as blank only
+/// when its read does not match.
+const TITLE_WORD: usize = 5;
+
+/// Whether a read holds a word long enough to be a card title.
+fn reads_as_a_title(text: &str) -> bool {
+    text.split(|character: char| !character.is_ascii_alphanumeric())
+        .any(|word| word.len() >= TITLE_WORD)
+}
 
 /// Reads the `cards` title slots of one layout, stopping at the first that will not match. The
 /// failing slot comes back with the reason because `read_cards` needs to know whether the *first*
@@ -434,50 +536,7 @@ fn read_cards_at(
     candidates: CardCandidates<'_>,
     grade: Grade,
 ) -> Result<Vec<(String, f32)>, (usize, &'static str)> {
-    let left = card_block_left(cards, width, height);
-    let read_slot = |slot: usize| -> Result<(String, f32), (usize, &'static str)> {
-        let (text, crop) = read_region(
-            image,
-            (left + CARD_PITCH * slot as f32 * height as f32) as u32,
-            (TITLE_TOP * height as f32) as u32,
-            (CARD_WIDTH * height as f32) as u32,
-            (TITLE_HEIGHT * height as f32) as u32,
-            grade,
-        )
-        .map_err(|reason| (slot, reason))?;
-        let matched = best_card_match(&text, candidates);
-        // Without the raw text a failed read is unattributable: reading the wrong place, reading a
-        // screen that is not the reward screen, and reading a card whose name is not in the pool
-        // all surface as the same error. The text alone is not enough either: a misplaced crop
-        // yields clean-looking wrong words rather than obvious garbage, which is how the title box
-        // stayed 10px too low for five live runs. Keep the pixels behind a poor read.
-        #[cfg(debug_assertions)]
-        let keep_crop = matched
-            .as_ref()
-            .is_none_or(|(_, score)| *score < CROP_KEEP_BELOW);
-        #[cfg(not(debug_assertions))]
-        let keep_crop = false;
-        log::debug!(
-            "[DEBUG-card] cards={cards} slot={slot} raw={text:?} match={matched:?} crop={}",
-            if keep_crop {
-                crop.display().to_string()
-            } else {
-                "-".to_owned()
-            }
-        );
-        if !keep_crop {
-            let _ = std::fs::remove_file(&crop);
-        }
-        // Blank means no text, not no match: with an empty pool an unmatched card has no match
-        // either, and taking it for blank would let `read_cards_in` read a four-card screen's
-        // middle two as a whole two-card screen.
-        if normalise(&text).is_empty() {
-            return Err((slot, BLANK_CARD));
-        }
-        matched
-            .filter(|(_, score)| *score >= MATCH_FLOOR)
-            .ok_or((slot, "reward card text did not match the relic pool"))
-    };
+    let read_slot = |slot: usize| read_slot(image, width, height, cards, slot, candidates, grade);
     // The first card alone, so a wrong layout or a screen that is not painted yet still costs a
     // single tesseract run. Once it matches, the layout is right and the rest are read side by
     // side: one spawn per card in a row cost a second or more on Windows, long enough for the
@@ -503,6 +562,61 @@ fn read_cards_at(
         read.push(card?);
     }
     Ok(read)
+}
+
+/// Reads title slot `slot` of the `cards`-card layout and matches it.
+fn read_slot(
+    image: &DynamicImage,
+    width: u32,
+    height: u32,
+    cards: usize,
+    slot: usize,
+    candidates: CardCandidates<'_>,
+    grade: Grade,
+) -> Result<(String, f32), (usize, &'static str)> {
+    let left = card_block_left(cards, width, height);
+    let (text, crop) = read_region(
+        image,
+        (left + CARD_PITCH * slot as f32 * height as f32) as u32,
+        (TITLE_TOP * height as f32) as u32,
+        (CARD_WIDTH * height as f32) as u32,
+        (TITLE_HEIGHT * height as f32) as u32,
+        grade,
+    )
+    .map_err(|reason| (slot, reason))?;
+    let matched = best_card_match(&text, candidates);
+    // Without the raw text a failed read is unattributable: reading the wrong place, reading a
+    // screen that is not the reward screen, and reading a card whose name is not in the pool
+    // all surface as the same error. The text alone is not enough either: a misplaced crop
+    // yields clean-looking wrong words rather than obvious garbage, which is how the title box
+    // stayed 10px too low for five live runs. Keep the pixels behind a poor read.
+    #[cfg(debug_assertions)]
+    let keep_crop = matched
+        .as_ref()
+        .is_none_or(|(_, score)| *score < CROP_KEEP_BELOW);
+    #[cfg(not(debug_assertions))]
+    let keep_crop = false;
+    log::debug!(
+        "[DEBUG-card] cards={cards} slot={slot} raw={text:?} match={matched:?} crop={}",
+        if keep_crop {
+            crop.display().to_string()
+        } else {
+            "-".to_owned()
+        }
+    );
+    if !keep_crop {
+        let _ = std::fs::remove_file(&crop);
+    }
+    if let Some(card) = matched.filter(|(_, score)| *score >= MATCH_FLOOR) {
+        return Ok(card);
+    }
+    // Blank means no title, not no match: with an empty pool an unmatched card has no match
+    // either, and taking it for blank would let `read_cards_in` read a four-card screen's
+    // middle two as a whole two-card screen.
+    if !reads_as_a_title(&text) {
+        return Err((slot, BLANK_CARD));
+    }
+    Err((slot, "reward card text did not match the relic pool"))
 }
 
 /// Crop one region and OCR it. Returns the text and the crop, which the caller deletes. It is
@@ -1072,6 +1186,131 @@ mod tests {
             name: name.to_owned(),
             ducats: 0,
         }
+    }
+
+    fn card_names(cards: &[(String, f32)]) -> Vec<&str> {
+        cards.iter().map(|(name, _)| name.as_str()).collect()
+    }
+
+    /// A squad of two made from the calibrated capture, as in `tests/reward_ocr.rs`: its first and
+    /// last title strips at the two-card positions, its own background beside them. With
+    /// `word_beside`, a stretch of title-like text (the word `Prime` from the last card) also stands
+    /// where a four-card screen's last title would be: the one thing the reader rightly will not
+    /// call a two-card screen, whatever else it reads.
+    fn two_card_screen(word_beside: bool) -> image::DynamicImage {
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/reward-screen-1920x1080.png");
+        let original = image::open(fixture).unwrap().to_rgb8();
+        let mut screen = original.clone();
+        for y in 400..470 {
+            for dx in 0..244 {
+                screen.put_pixel(718 + dx, y, *original.get_pixel(476 + dx, y));
+                screen.put_pixel(960 + dx, y, *original.get_pixel(1202 + dx, y));
+                screen.put_pixel(474 + dx, y, *original.get_pixel(dx, y));
+                screen.put_pixel(1204 + dx, y, *original.get_pixel(1446 + dx, y));
+            }
+            if word_beside {
+                for dx in 0..56 {
+                    screen.put_pixel(1262 + dx, y, *original.get_pixel(1280 + dx, y));
+                }
+            }
+        }
+        image::DynamicImage::ImageRgb8(screen)
+    }
+
+    /// The reward screen is polled every 400ms while it is up, and in a squad of two the full read
+    /// may fail on one poll and not the next as the background moves beside the cards. Two failed
+    /// polls in a row used to count as the screen closing, which took the read back while the
+    /// cards were still there and never showed it again. A screen already read is now looked for
+    /// first where it was: the same cards at the same places are the same screen.
+    #[test]
+    fn a_screen_already_read_stays_read_while_its_cards_are_there() {
+        let pool = [
+            "Braton Prime Blueprint",
+            "2X Forma Blueprint",
+            "Burston Prime Stock",
+            "Trumna Prime Blueprint",
+        ]
+        .map(pool_entry);
+        let candidates = crate::reward_source::CardCandidates {
+            pool: &pool,
+            catalog: &[],
+        };
+        let mut screen = super::SameScreen::default();
+        let first = screen
+            .read(&two_card_screen(false), candidates, false)
+            .expect("a two-card screen reads");
+        assert_eq!(
+            card_names(&first),
+            ["Braton Prime Blueprint", "Trumna Prime Blueprint"]
+        );
+
+        // A poll on which the full read is refused, the cards still up.
+        let busy = two_card_screen(true);
+        assert!(
+            super::read_cards_learning(&busy, candidates, false).is_err(),
+            "this frame is meant to be one the full read refuses"
+        );
+        let still = screen
+            .read(&busy, candidates, false)
+            .expect("the cards already read are still there");
+        assert_eq!(
+            card_names(&still),
+            ["Braton Prime Blueprint", "Trumna Prime Blueprint"]
+        );
+
+        // The screen gone: nothing reads, so the poll fails as it always did.
+        let gone = image::DynamicImage::new_rgb8(1920, 1080);
+        assert!(screen.read(&gone, candidates, false).is_err());
+
+        // Other cards in their place are read as what they are.
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/reward-screen-1920x1080.png");
+        let four = image::open(fixture).unwrap();
+        let next = screen
+            .read(&four, candidates, false)
+            .expect("a four-card screen reads");
+        assert_eq!(next.len(), 4);
+    }
+
+    /// The cards already read never stand in for a full read that succeeds: a screen first read as
+    /// its middle two (its outer titles not painted yet, say) is read as all four once they are.
+    #[test]
+    fn a_screen_already_read_does_not_hide_the_cards_beside_it() {
+        let pool = [
+            "Braton Prime Blueprint",
+            "2X Forma Blueprint",
+            "Burston Prime Stock",
+            "Trumna Prime Blueprint",
+        ]
+        .map(pool_entry);
+        let candidates = crate::reward_source::CardCandidates {
+            pool: &pool,
+            catalog: &[],
+        };
+        let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/reward-screen-1920x1080.png");
+        let four = image::open(fixture).unwrap();
+        let original = four.to_rgb8();
+        let mut middle = original.clone();
+        for y in 400..470 {
+            for dx in 0..244 {
+                middle.put_pixel(474 + dx, y, *original.get_pixel(dx, y));
+                middle.put_pixel(1204 + dx, y, *original.get_pixel(1446 + dx, y));
+            }
+        }
+        let mut screen = super::SameScreen::default();
+        let first = screen
+            .read(&image::DynamicImage::ImageRgb8(middle), candidates, false)
+            .expect("the middle two read as a screen of two");
+        assert_eq!(
+            card_names(&first),
+            ["2X Forma Blueprint", "Burston Prime Stock"]
+        );
+        let all = screen
+            .read(&four, candidates, false)
+            .expect("the four-card screen reads");
+        assert_eq!(all.len(), 4);
     }
 
     /// The 2026-08-22 report's own slot 1: Tesseract returns three noise fragments above the

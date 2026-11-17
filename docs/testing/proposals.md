@@ -59,8 +59,11 @@ TennoScope is asked only four fixed things; the updater needs a signature.
 1. Done: Settings' Choose opens a native file dialog from Rust (`tennoscope_choose_program`); the
    page can only open it or have MyOrbiter find TennoScope again, and the old `tennoscope.path` in
    the page's settings is no longer taken over.
-2. Done: `core:default` is replaced by `core:event:allow-listen` and `core:event:allow-unlisten`;
-   one start checked on Linux, starts on Windows and macOS still to check.
+2. Done: `core:default` is replaced by `core:event:allow-listen` and `core:event:allow-unlisten`
+   (of Tauri's core, the list then; the page has since been given
+   `core:webview:allow-set-webview-zoom` for the zoom keys, and
+   `src-tauri/capabilities/default.json` is the list now); one start checked on Linux, starts on
+   Windows and macOS still to check.
 3. Done: installing an older build also needs a yes in a native dialog that names both builds.
 4. Done: warframe.market changes are capped at 120 in any minute in `market.rs` (a change past it
    waits); a plan of 100 at the usual 400 ms spacing stays under it.

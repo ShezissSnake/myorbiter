@@ -600,6 +600,10 @@ test("the listing form lists what's spare, at the price shown, and approves that
 
 test("the listing form refuses more than is spare, and a price or quantity warframe.market wouldn't take", async () => {
   const sent = await serrationForm(4);
+  // The page said 4: the form opens at the 3 the last check lets go, and 4 typed in is refused.
+  assert.equal(mkt.draft?.available, 3);
+  assert.equal(mkt.draft?.quantity, 3);
+  mkt.draft!.quantity = 4;
   await mkt.submitDraft();
   assert.deepEqual(sent.create, []);
   assert.match(mkt.draftError ?? "", /^Didn't list Serration R0: Only 3 can go/);

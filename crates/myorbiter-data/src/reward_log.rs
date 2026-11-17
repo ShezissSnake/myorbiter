@@ -20,6 +20,10 @@ const PROJECTION_PREFIX: &str = "/Lotus/Types/Game/Projections/";
 /// TennoScope logs a screen once, but a screen it read again (a second look while it stayed up,
 /// or a failed read before the good one) lands within this many seconds of the first.
 const SAME_SCREEN_SECS: i64 = 90;
+/// The most of one log file read. TennoScope moves its log aside at 5 MB and keeps three
+/// (`max_file_size`, `KeepSome(3)` in its setup), so a real one is never much past 5 MB; a file
+/// larger than this under one of its names isn't its log, and is passed over.
+const LOG_MAX: u64 = 64 << 20;
 
 /// One relic reward screen TennoScope saw.
 #[derive(Clone, Debug, Default, Serialize, PartialEq)]
@@ -51,7 +55,7 @@ pub fn read_reward_logs(dirs: &[PathBuf]) -> Vec<LoggedScreen> {
     }
     let mut screens = Vec::new();
     for file in &files {
-        if let Ok(bytes) = fs::read(file) {
+        if let Ok(bytes) = crate::read_capped(file, LOG_MAX) {
             screens.extend(parse_reward_log(&String::from_utf8_lossy(&bytes)));
         }
     }
@@ -258,6 +262,42 @@ Failed to setup app: error encountered during setup hook: local store operation 
     }
 
     const GOOD: &str = r#"[2026-10-13][12:12:29][app_lib::reward_recognition][INFO] reward: published cards=["Bronco Prime Blueprint" 0.95, "Vadarya Prime Barrel" 1.00, "Forma Blueprint" 1.00] pool=22 relics=["T3VoidProjectionYareliPrimeABronze", "T2VoidProjectionStyanaxPrimeDPlatinum"]"#;
+
+    /// A named pipe under a log's name, planted in the data folder: passed over at once, and the
+    /// real log beside it still read.
+    #[cfg(unix)]
+    #[test]
+    fn a_pipe_named_like_the_log_is_passed_over_at_once() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-reward-fifo-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        crate::test_support::fifo(&dir.join("tennoscope.log"));
+        fs::write(dir.join("tennoscope_2026-10-13.log"), format!("{GOOD}\n")).unwrap();
+        let dirs = vec![dir.clone()];
+        let screens = crate::test_support::within(move || read_reward_logs(&dirs)).expect("returns at once");
+        assert_eq!(screens.len(), 1);
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A file far larger than TennoScope ever writes, under a log's name: not read.
+    #[test]
+    fn a_log_past_the_cap_is_passed_over() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-reward-big-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let big = dir.join("tennoscope.log");
+        // Sparse: the screen's line after LOG_MAX bytes of nothing.
+        let mut f = fs::File::create(&big).unwrap();
+        use std::io::{Seek, Write};
+        f.seek(std::io::SeekFrom::Start(LOG_MAX)).unwrap();
+        f.write_all(format!("\n{GOOD}\n").as_bytes()).unwrap();
+        drop(f);
+        assert!(read_reward_logs(&[dir.clone()]).is_empty());
+        // At the cap and under, read as before.
+        fs::write(&big, format!("{GOOD}\n")).unwrap();
+        assert_eq!(read_reward_logs(&[dir.clone()]).len(), 1);
+        fs::remove_dir_all(&dir).ok();
+    }
 
     #[test]
     fn reads_a_published_screen() {

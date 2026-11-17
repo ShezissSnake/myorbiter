@@ -415,14 +415,14 @@ pub fn show_reward_overlay(app: &tauri::AppHandle, cards: usize) -> Option<&'sta
         let _ = app.run_on_main_thread(move || {
             trace_overlay(&format!("show cards={cards}"));
             #[cfg(target_os = "linux")]
-            if let Ok(Some(geometry)) = overlay_geometry(&window, cards, game_rect) {
-                if show_over_game(&window, geometry) {
-                    trace_overlay(&format!(
-                        "shown override-redirect {}x{} at {},{}",
-                        geometry.width, geometry.height, geometry.x, geometry.y
-                    ));
-                    return;
-                }
+            if let Ok(Some(geometry)) = overlay_geometry(&window, cards, game_rect)
+                && show_over_game(&window, geometry)
+            {
+                trace_overlay(&format!(
+                    "shown override-redirect {}x{} at {},{}",
+                    geometry.width, geometry.height, geometry.x, geometry.y
+                ));
+                return;
             }
             let _ = configure_reward_overlay(&window, cards, game_rect);
             let _ = window.show();
@@ -459,14 +459,14 @@ pub fn show_kiosk_overlay(app: &tauri::AppHandle) {
         let _ = app.run_on_main_thread(move || {
             trace_overlay("show kiosk");
             #[cfg(target_os = "linux")]
-            if let Ok(Some(geometry)) = kiosk_geometry(&window) {
-                if show_over_game(&window, geometry) {
-                    trace_overlay(&format!(
-                        "kiosk shown override-redirect {}x{} at {},{}",
-                        geometry.width, geometry.height, geometry.x, geometry.y
-                    ));
-                    return;
-                }
+            if let Ok(Some(geometry)) = kiosk_geometry(&window)
+                && show_over_game(&window, geometry)
+            {
+                trace_overlay(&format!(
+                    "kiosk shown override-redirect {}x{} at {},{}",
+                    geometry.width, geometry.height, geometry.x, geometry.y
+                ));
+                return;
             }
             #[cfg(target_os = "linux")]
             if kiosk_geometry(&window).ok().flatten().is_none() {
