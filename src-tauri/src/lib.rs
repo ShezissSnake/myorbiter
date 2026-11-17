@@ -1209,7 +1209,8 @@ fn file_name_of(path: &Path) -> String {
 }
 
 /// The log's line for a damaged settings file moved aside: its new name only, never the folder.
-/// `why` is the JSON reader's reason (where the file stops making sense, no part of the file).
+/// `why` is the JSON reader's reason (where the file stops making sense, no part of the file), or
+/// that it holds no settings object.
 fn moved_aside_line(name: &str, why: &str) -> String {
     format!("the saved settings couldn't be read ({why}), so MyOrbiter started with the usual settings; the old file is kept as {name} in the settings folder, and nothing is read back from it")
 }
@@ -1404,13 +1405,18 @@ fn log_folder_path(which: LogFolder, myorbiter: Option<PathBuf>, data: impl FnOn
 /// none), checked as a path the page sent is (`data_dir`). Read only: a damaged settings file is an
 /// error here, not moved aside (`read_settings` does that, once, as the page starts).
 fn saved_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let path = settings_path(app)?;
-    let bytes = match fs::read(&path) {
-        Ok(b) => Some(b),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
-    };
+    let bytes = saved_settings_bytes(&settings_path(app)?)?;
     data_dir(settings_data_dir(bytes.as_deref())?)
+}
+
+/// The saved settings' bytes, or None when there is no file. The error names the file without its
+/// folder (which holds the user's name): the page shows it, in a button's tooltip.
+fn saved_settings_bytes(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    match fs::read(path) {
+        Ok(b) => Ok(Some(b)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("couldn't read {}: {e}", file_name_of(path))),
+    }
 }
 
 /// `dataDir` from the saved settings' bytes (none saved: None).
@@ -2044,7 +2050,15 @@ mod tests {
         let e = read_settings(&path).err().expect("a folder can't be read as the settings");
         assert!(e.starts_with("couldn't read settings.json: "), "{e}");
         no_folder(&e);
+        // TennoScope's log folder, opened from Settings, reads the same file: its error too.
+        let e = saved_settings_bytes(&path).err().expect("a folder can't be read as the settings");
+        assert!(e.starts_with("couldn't read settings.json: "), "{e}");
+        no_folder(&e);
         fs::remove_dir(&path).unwrap();
+        assert_eq!(saved_settings_bytes(&path), Ok(None), "no file: none saved");
+        fs::write(&path, b"{\"dataDir\":\"\"}").unwrap();
+        assert_eq!(saved_settings_bytes(&path), Ok(Some(b"{\"dataDir\":\"\"}".to_vec())));
+        fs::remove_file(&path).unwrap();
 
         // Damaged, and can't be moved aside: here a folder that lets nothing be renamed in it.
         #[cfg(unix)]

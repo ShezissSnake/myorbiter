@@ -81,10 +81,12 @@ export const systemOf = (userAgent: string): keyof typeof SETTINGS_FOLDER => (/W
  * The banner's words after a damaged settings file was moved aside (`read_settings` in lib.rs):
  * shown over every page, the setup page and the "Can't read" pages included, until dismissed.
  * Nothing is read back from the old file by itself. "Was moved aside", not "is kept": the player
- * may have deleted it since. The platform is back on PC while the warframe.market sign-in stays.
+ * may have deleted it since. The platform is back on PC, unless the player is signed in to
+ * warframe.market and it answers at this start: then the account sets it (App.svelte, after
+ * mkt.init). An offline start leaves PC until a later start.
  */
 export function movedAsideWords(name: string, system: keyof typeof SETTINGS_FOLDER): string {
-  return `Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it. Look through Settings again, your platform first: it is back on PC.`;
+  return `Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it. Look through Settings again, your platform first: it is back on PC, unless you are signed in to warframe.market and it answered as MyOrbiter started, when your account set it.`;
 }
 
 /** The three automatic actions on warframe.market (Settings, warframe.market). */

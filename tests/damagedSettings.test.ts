@@ -120,7 +120,7 @@ test("the banner's words: what happened, what MyOrbiter started with, and where 
   const { movedAsideWords, systemOf } = await import("../src/lib/core/gettingIn");
   assert.equal(
     movedAsideWords("settings.json.broken-1793814960", "linux"),
-    "Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as settings.json.broken-1793814960 in MyOrbiter's settings folder (~/.config/dev.myorbiter.app, or $XDG_CONFIG_HOME/dev.myorbiter.app when that is set); nothing is read back from it. Look through Settings again, your platform first: it is back on PC.",
+    "Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as settings.json.broken-1793814960 in MyOrbiter's settings folder (~/.config/dev.myorbiter.app, or $XDG_CONFIG_HOME/dev.myorbiter.app when that is set); nothing is read back from it. Look through Settings again, your platform first: it is back on PC, unless you are signed in to warframe.market and it answered as MyOrbiter started, when your account set it.",
   );
   // It may have been deleted since: the words don't say it is still there.
   assert.doesNotMatch(movedAsideWords("settings.json.broken-1", "linux"), /is kept/);

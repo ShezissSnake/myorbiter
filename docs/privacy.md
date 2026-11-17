@@ -515,7 +515,7 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 
 ### MyOrbiter's own files
 
-- `~/.config/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` on Windows):
+- `~/.config/dev.myorbiter.app/` (under `$XDG_CONFIG_HOME` when that is set; `%APPDATA%\dev.myorbiter.app` on Windows):
   - `settings.json`: your settings (the Discord address you entered among them); your records:
     the sales log, the trade log (other players' names, items, platinum), value history, riven
     history, relic runs and drops, notifications, who you gave +rep, the whispers and chats already
