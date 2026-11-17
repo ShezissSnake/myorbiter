@@ -450,7 +450,9 @@ written), but a hyphen, a dot or `@` joins two words (`Name-PC` becomes `[user]-
 your user name isn't known (`buyer: Name-Alt` becomes `buyer: [player]`); an e-mail address is
 hidden whole by its own rule. Knowing the name hides nothing less than not knowing it: every other
 rule reads it as it reads the name itself and takes with it what it takes with the name
-(`/home/name),more` becomes `/home/[user]`, as it does when the name isn't known). A name that is
+(`/home/name),more` becomes `/home/[user]`, as it does when the name isn't known). A name that
+begins with two hex digits is not read right after a bare `%`, where they are an encoded mark's
+(with the name `2Fmnt`, `%2Fmnt%2F…` stays the encoded `/mnt` the path rule reads). A name that is
 also a word a report needs is hidden only where the path rule hides a user name (`/home/deck/…`
 becomes `/home/[user]/…`), so the report keeps its words (`Steam Deck`): a name of fewer than 3
 characters, one with no letter (a number), the names systems and devices give an account (`deck`,

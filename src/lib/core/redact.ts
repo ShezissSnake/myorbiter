@@ -619,8 +619,11 @@ export function ordinaryName(name: string): boolean {
  *  The rules after it read it as a name (its stand-in), so another player's name by its shape that
  *  holds it ("buyer: Name-Alt") goes whole as "[player]", and a `~name/` path loses its folders.
  *  An encoded slash, colon or space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words
- *  may be apart by any spaces or `%20`. */
-const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
+ *  may be apart by any spaces or `%20`. A name that begins with two hex digits is not read right
+ *  after a bare `%`, where they are an encoded mark's (`2Fmnt` in `%2Fmnt%2F…` is the encoded `/mnt`
+ *  the path rule reads, not the name). */
+const userPattern = (words: string[]) =>
+  new RegExp(`${/^[0-9A-Fa-f]{2}/.test(words[0]) ? "(?<!%)" : ""}(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
 
 /** The patterns that hide the user names in `list`, longest first: each name that isn't ordinary,
  *  whole (but not one of several words that holds an ordinary word: "to", "you", "buyer" may be a

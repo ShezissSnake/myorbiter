@@ -4,6 +4,7 @@
 // and links only go to the allowed sites. Seeds as in tests/support/prop.ts.
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { ordinaryName, redact } from "../src/lib/core/redact";
 import { cleanBlock, cleanLine, HIDDEN_CHARS, stripHidden } from "../src/lib/core/untrusted";
 import { buildReport, issueText, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
@@ -185,6 +186,61 @@ test("redact: knowing this computer's user name never lets out what was hidden w
       const hidden = must.filter((m) => m && !without.toLowerCase().includes(m.toLowerCase()));
       assert.deepEqual(leaks(known, hidden), [], `PROPERTY_SEED=${seed}: ${JSON.stringify(text)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
     }
+  }, 1500);
+});
+
+/** Lines each rule reads by an anchor word (a lead, a scheme, a share's or a home's root, a method),
+ *  with random names, hosts and folders, and the secrets and shapes above. */
+function anchored(r: Rng): string {
+  const P = () => casing(r, randomName(r).replace(/[.]/g, "x"));
+  const F = () => randomName(r).replace(/[.]/g, "x");
+  const self = randomName(r);
+  const other = randomName(r);
+  const lines = [
+    `buyer: ${P()}`, `"seller": "${P()}"`, `partner=${P()}`, `username: ${P()}`, `ingame_name: ${P()}`, `player: ${P()}`,
+    `sold Ash Prime Set to ${P()}`, `bought Ash Prime Set from ${P()}`, `traded with ${P()}`, `gave Ash Prime Set to ${P()}`, `trading Ash Prime Set with ${P()}`, `invited by ${P()}`, `whispering with ${P()}`, `chatted with ${P()}`, `+rep to ${P()}`,
+    `${P()} whispered you`, `${P()} messaged you`, `3 people whispered you: ${P()}, ${P()}, ${P()}`, `Ash Prime Set: 20p from ${P()}`, `Couldnt give ${P()} +rep`,
+    `/tell ${P()} hi`, `/w ${P()} hi`, `/whisper ${P()} hi`, `/invite ${P()}`, `/r ${P()} ok`, `/t ${P()} ok`,
+    `https://warframe.market/profile/${P()}`, `https://warframe.market/orders/user/${P()}`, `/reviews/${P()}`, `/review/${P()}`, `/chats/with/${P()}`, `/users/${P()}`,
+    `siteChat: ${P()} messaged you on warframe.market (${P()}: ${F()} hi)`,
+    `smb://${F()}/${F()}/x`, `\\\\?\\UNC\\${F()}\\${F()}\\x`, `\\\\${F()}\\${F()}\\x`, `//${F()}/${F()}/x`, `file://${F()}/${F()}/x`, `file:///D:/${F()}/x`,
+    `/run/media/${F()}/${F()}/x`, `/var/home/${F()}/${F()}/x`, `/home/${F()}/${F()}/x`, `/Users/${F()}/${F()}`, `/media/${F()}/${F()}/x`, `C:\\Documents and Settings\\${F()}\\${F()}\\x`, `C:\\Users\\${F()}\\${F()}\\x`, `Z:\\home\\${F()}\\${F()}`, `drive_c/users/${F()}/${F()}/x`,
+    `GET /api/${F()}/x`, `PATCH https://api.warframe.market/v2/${F()}`, `POST /v1/${F()}/x`, `D:\\Games\\${F()}\\x`, `~/${F()}/x`, `~${F()}/${F()}/x`, `$HOME/${F()}/x`, `\${HOME}/${F()}/x`, `%APPDATA%\\${F()}\\x`, `%2Fmnt%2F${F()}%2Fx`,
+    ...secrets(r, self, other).map((s) => s.text),
+    ...userShapes(r, randomName(r)).map((s) => s.text),
+  ];
+  return Array.from({ length: r.int(1, 3) }, () => r.pick(lines)).join(r.pick(["\n", " ", ", "]));
+}
+
+/** Every word redaction may meet in its own rules: the words of redact.ts. */
+const RULE_SOURCE_WORDS = [...new Set(readFileSync("src/lib/core/redact.ts", "utf8").match(/[A-Za-z_][A-Za-z0-9_]{2,}/g) ?? [])];
+/** The words of `s`, apart from the placeholders redaction writes. */
+const wordsOf = (s: string) => s.replace(/\[[a-z][a-z ]*\]/g, " ").split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 2);
+
+test("redact: a user name that is a word of the text or of the rules never lets out what was hidden without it", () => {
+  forAll("user-words", (r, seed) => {
+    const t = anchored(r);
+    const own = wordsOf(t).filter((w) => w.length >= 3);
+    const word = () => (own.length && r.bool(0.6) ? r.pick(own) : r.pick(RULE_SOURCE_WORDS));
+    // Two or three words that stand next to each other in the text, short ones too.
+    const all = t.split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
+    const at = r.int(0, Math.max(0, all.length - 2));
+    const run = all.slice(at, at + r.int(2, 3)).join(" ") || word();
+    // One word, two words of the text or the rules, one with a made-up word, or a run of the text's.
+    const user = casing(r, r.pick([word(), word(), `${word()} ${word()}`, `${word()} ${randomName(r)}`, `${randomName(r)} ${word()}`, run, run]));
+    const names = r.pick([{}, { self: [randomName(r)], others: [randomName(r)] }]);
+    // Known as held, or learned only from a home folder another line of the log writes.
+    const held = r.bool(0.7);
+    const line = held ? t : t.replace(/\n/g, " ");
+    const without = redact(line, names);
+    const known = held
+      ? redact(line, { ...names, user: [user] })
+      : buildReport({ what: "x", steps: "", expected: "" }, { version: "0.2.18", commit: "abc1234", buildDate: "", channel: null, os: "linux", arch: "x86_64", page: "Orders", tennoscope: "connected", fullMode: "off", log: [line, `found at /home/${user.split(" ")[0]}/.local/share/Steam/x`] }, names).details!.log[0];
+    const shown = (out: string) => new Set(wordsOf(out).map((w) => w.toLowerCase()));
+    const before = shown(without);
+    const hidden = [...new Set(wordsOf(line).map((w) => w.toLowerCase()))].filter((w) => !before.has(w));
+    const after = shown(known);
+    assert.deepEqual(hidden.filter((w) => after.has(w)), [], `PROPERTY_SEED=${seed}: user ${JSON.stringify(user)}: ${JSON.stringify(t)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
   }, 1500);
 });
 

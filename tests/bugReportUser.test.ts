@@ -241,6 +241,28 @@ test("user names: a name that is a word a rule reads (buyer, sold, people, smb, 
   assert.deepEqual(report.details!.log, ["found at /home/[user]/[folder]/[folder]", "copied from smb://[host]/[folder]/[folder]", "buyer: [player]"]);
 });
 
+test("user names: a name that begins with an encoded mark's two hex digits (2Fmnt, 5CGames) leaves the encoded path to the path rule", () => {
+  // After a bare "%" the two digits are the mark's: "%2Fmnt" is the encoded "/mnt", not the name.
+  const cases: [string, string, string][] = [
+    ["2Fmnt", "%2Fmnt%2Fbrynhal%2FHush", "%2Fmnt%2F[drive]%2F[folder]"],
+    ["2Fhome", "%2Fhome%2Fbrynhal%2FHush", "%2Fhome%2F[user]%2F[folder]"],
+    ["5CGames", "D:%5CGames%5CHushfolder%5Cx", "D:%5CGames%5C[folder]%5C[folder]"],
+    ["2Fprofile", "warframe.market%2Fprofile%2FKirovane", "warframe.market%2Fprofile%2FKirovane"],
+    ["20Brynhal", "buyer:%20Brynhal", "buyer:%20Brynhal"],
+  ];
+  for (const [user, line, out] of cases) {
+    assert.equal(redact(line), out, `${line} without a name`);
+    for (const u of [user, user.toLowerCase()]) assert.equal(redact(line, { user: [u] }), out, `${line} with ${u}`);
+  }
+  // The name itself, where it stands as a word, is still hidden.
+  assert.equal(redact("%2F2Fmnt%2Fx", { user: ["2Fmnt"] }), "%2F[user]%2F[folder]");
+  assert.equal(redact("Kirovane%2F2Fmnt", { user: ["2Fmnt"] }), "Kirovane%2F[user]");
+  assert.equal(redact("buyer: 2Fmnt", { user: ["2Fmnt"] }), "buyer: [user]");
+  // Learned from a line of the log (a home folder named "2Fmnt"): the encoded path keeps what it hides.
+  const report = buildReport({ what: "it froze", steps: "", expected: "" }, details(["found at /home/2Fmnt/.local/share/Steam/x", "copied to %2Fmnt%2Fbrynhal%2FHush"]));
+  assert.deepEqual(report.details!.log[1], "copied to %2Fmnt%2F[drive]%2F[folder]");
+});
+
 test("user names: the same name as the in-game name reads as [user], and goes everywhere", () => {
   const both = { self: ["Orrenvale"], user: ["Orrenvale"] };
   assert.equal(redact("Orrenvale sold Ash Prime Set for 20p", both), "[user] sold Ash Prime Set for 20p");
