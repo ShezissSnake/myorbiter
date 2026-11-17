@@ -91,6 +91,21 @@ export function soldAfterUnmarked(listing: SoldListing, sales: readonly Sale[], 
 }
 
 /**
+ * What a Sold click on `listing` asks first, if anything: `marked`, copies a trade's sale marked
+ * sold on this listing in the last ten minutes (soldAfterTrade); `unmarked`, copies of a trade's
+ * sale that wait, not marked, for this listing (soldAfterUnmarked). Null: neither, and the click
+ * goes ahead. With `marked` alone it asks whether one more sold since; with `unmarked` whether the
+ * click is that sale. With both, one question with three answers (soldAnswers): that sale (marks
+ * the copies that wait, logs nothing), the one already marked (sends nothing), or another (marks
+ * and logs). Whichever was sold, an answer is true and logs no sale a trade already logged.
+ */
+export function soldQuestion(listing: SoldListing, sales: readonly Sale[], trades: readonly TradeLogEntry[], now: number, out: ReadonlySet<string> = new Set()): { marked: { count: number; partner: string | null } | null; unmarked: ReturnType<typeof soldAfterUnmarked> } | null {
+  const marked = soldAfterTrade(listing.id, sales, trades, now);
+  const unmarked = listing.name ? soldAfterUnmarked(listing, sales, trades, now, out) : null;
+  return marked || unmarked ? { marked, unmarked } : null;
+}
+
+/**
  * Before "that sale" (or its Try again) is sent: the trades whose copies it marks, added to `out`
  * (the trades with a "that sale" out), and `send`, the copies to send: the fewer of `asked` (what
  * the question showed) and what is still not marked for them now, as an answer from another
@@ -121,11 +136,60 @@ export function tradeSaleLine(send: number, asked: number): string {
 }
 
 /**
+ * "That sale" (or its Try again) for `listing`, asked with the `asked` copies the question showed:
+ * claims the trades' copies still not marked (claimTradeSale), sets the row's `words` for what is
+ * sent, sends nothing when nothing is left, else closes `send` copies with `close` (the store's
+ * `sold` for the listing) and records what it closed on the trades' sales (markedForTrade). The
+ * claim is given back whatever the call did. Throws when the call fails or another answer for
+ * these trades is out. `io.sales` is read when needed, so the record is made on the sales as they
+ * are when the call is back.
+ */
+export async function markTradeSale(
+  listing: SoldListing,
+  asked: number,
+  words: { working: string; done: string },
+  io: {
+    sales: () => readonly Sale[];
+    setSales: (sales: Sale[]) => void;
+    out: Set<string>;
+    now: () => number;
+    close: (n: number, failed: (why: string) => void) => Promise<{ quantity: number } | null>;
+    phase?: (working: string) => void;
+  },
+): Promise<void> {
+  // Never more than is still not marked: another listing's answer may have marked some.
+  const claim = claimTradeSale(listing, io.sales(), io.now(), io.out, asked);
+  if (!claim) throw new Error("already being marked sold from another listing");
+  // Set afresh on each try (Try again runs this again): the count sent.
+  words.done = tradeSaleLine(claim.send, asked);
+  words.working = `Sending ${claim.send} sold…`;
+  io.phase?.(words.working);
+  // A close call with 0 would close a copy: the store raises any count under 1 to 1.
+  if (!claim.send) return;
+  try {
+    let why = "";
+    const sale = await io.close(claim.send, (r) => (why = r));
+    if (!sale) throw new Error(why || "warframe.market didn't take it");
+    io.setSales(markedForTrade(io.sales(), listing, sale.quantity, io.now()));
+  } finally {
+    for (const k of claim.keys) io.out.delete(k);
+  }
+}
+
+/**
  * The copies each answer of that question sends: "that sale" the trades' `count` they could not
  * mark (and logs nothing), "another sale" the click's `n` (and logs it). The focus starts on the
- * one that sends least; on "that sale" when both send as many, as it logs nothing more.
+ * one that sends least; on "that sale" when both send as many, as it logs nothing more. `marked`:
+ * copies of a trade were also marked sold on this listing in the last ten minutes (soldQuestion),
+ * so a third answer, `same`, says the click was that sale: it sends nothing, and the focus starts
+ * there.
  */
-export const soldAnswers = (n: number, count: number) => ({ that: count, another: n, focus: count <= n ? ("that" as const) : ("another" as const) });
+export const soldAnswers = (n: number, count: number, marked = false) => ({
+  that: count,
+  another: n,
+  same: marked,
+  focus: marked ? ("same" as const) : count <= n ? ("that" as const) : ("another" as const),
+});
 
 /**
  * "That sale": `sent` copies of `listing` were marked sold for the trades' sales that
