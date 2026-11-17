@@ -10,11 +10,14 @@ import {
   plan,
   referencePrice,
   hasStars,
+  isPaused,
+  ownFloor,
   type BookOrder,
   type MarketItem,
   type Me,
   type MyOrder,
   type Plan,
+  type FloorRule,
 } from "./core/market";
 import { savesCheck } from "./core/schedule";
 import type { Model } from "./core/model";
@@ -28,7 +31,7 @@ import { backoff } from "./core/upkeep";
 import { drops } from "./drops.svelte";
 import { MAX_PLAT, MAX_QTY, wholeIn } from "./core/amounts";
 import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal, offersMore, spareNow, type GuardContext, type GuardRequest, type SpareNow } from "./core/listGuard";
-import { autoFloor, unattendedMove } from "./core/approved";
+import { AUTO_FLOOR_SHARE, approvedForOf, approvedGoneOf, cutTooFar, goneAfter, goneOf, sameEntries, settleApprovals, unattendedMove, whoseRead, type Approval, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
 
@@ -199,8 +202,10 @@ class MarketStore {
     const isSwitch = !!s && this.chosen;
     if (s) this.chosen = true;
     if (p === this.platform) return;
-    await market.setPlatform(p);
-    this.platform = p;
+    await this.changingAccount(async () => {
+      await market.setPlatform(p);
+      this.platform = p;
+    });
     this.books = {};
     this.histories.clear();
     this.deals = [];
@@ -281,18 +286,41 @@ class MarketStore {
 
   async signIn(email: string, password: string) {
     await this.guard("Signing in", async () => {
-      await market.signIn(email, password);
-      this.account = await market.account();
+      await this.changingAccount(async () => {
+        await market.signIn(email, password);
+        this.account = await market.account();
+      });
       await this.refresh();
     });
   }
 
   async useToken(token: string) {
     await this.guard("Checking token", async () => {
-      await market.useToken(token);
-      this.account = await market.account();
+      await this.changingAccount(async () => {
+        await market.useToken(token);
+        this.account = await market.account();
+      });
       await this.refresh();
     });
+  }
+
+  /** Account or platform changes under way, and how many have begun or ended: a read across one settles no approval. */
+  private accountChanging = 0;
+  private accountTurn = 0;
+  /**
+   * Signing in, out, or switching platform: warframe.market answers for the new account or
+   * platform before the store knows it, so a read that overlaps the change can't tell whose
+   * listings it has.
+   */
+  private async changingAccount(change: () => Promise<void>) {
+    this.accountChanging++;
+    this.accountTurn++;
+    try {
+      await change();
+    } finally {
+      this.accountChanging--;
+      this.accountTurn++;
+    }
   }
 
   async pollStatus() {
@@ -353,19 +381,29 @@ class MarketStore {
   }
 
   async signOut() {
-    await market.signOut();
-    this.dropStatusTimer();
-    this.statusAsked = null;
-    this.status = null;
-    this.account = await market.account();
+    await this.changingAccount(async () => {
+      await market.signOut();
+      this.dropStatusTimer();
+      this.statusAsked = null;
+      this.status = null;
+      this.account = await market.account();
+    });
     this.orders = [];
     this.buys = [];
     this.otherOrders = 0;
     this.ordersAt = null;
   }
 
-  async refresh() {
+  /**
+   * Your listings, read again. `s`: the settings whose approvals the read settles (the app's own
+   * by default; a pass gives the ones it runs with).
+   */
+  async refresh(s: MarketSettings | null = this.rules) {
     const edits = this.localEdits;
+    // Whose listings these are: the account signed in and the platform, as the read starts (none
+    // while either is changing).
+    const whose = this.accountChanging ? null : this.whose;
+    const turn = this.accountTurn;
     const all = await market.myOrders();
     // A sale was marked on the spot while this read was on its way: the read may predate it, and
     // would bring the sold listing back. The next read has it.
@@ -378,6 +416,62 @@ class MarketStore {
     if (!sameJson(this.buys, buy)) this.buys = buy;
     this.otherOrders = all.length - this.orders.length;
     this.ordersAt = Date.now();
+    // Only a read that succeeded and was kept says a listing is gone (core/approved.ts), and only of
+    // the account and platform it was read for: with either not known, or changing or changed
+    // while the read was on its way, the read settles nothing (no approval ends, moves or is
+    // recorded).
+    if (s && whose && turn === this.accountTurn && whose === this.whose) this.settleApprovals(s, sell, whose);
+  }
+
+  /** The account signed in and the platform read (core/approved.ts › whoseRead); null while the account isn't known. */
+  get whose(): string | null {
+    const me = this.me;
+    return me?.id ? whoseRead(me.id, this.platform) : null;
+  }
+
+  /** Listings MyOrbiter made since the last read, by whose: each one's key and the price it was listed at (approved by the read that finds it). */
+  readonly madeHere = new Map<string, Map<string, number>>();
+  /**
+   * A listing made here at `platinum` (the listing form, a Sell spares plan): approved at that
+   * price. The key's saved price is set now, as older builds read it; the listing's own approval
+   * comes with the read that finds it, which tells its order id.
+   */
+  private approveMade(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, platinum: number, s: MarketSettings | null = this.rules) {
+    if (!s || !Number.isInteger(platinum) || platinum < 1) return;
+    const key = this.approvalKey(o);
+    if (s.approved?.[key] !== platinum) s.approved = { ...(s.approved ?? {}), [key]: platinum };
+    const whose = this.whose;
+    if (!whose) return;
+    const mine = this.madeHere.get(whose) ?? new Map<string, number>();
+    mine.set(key, platinum);
+    this.madeHere.set(whose, mine);
+  }
+  /** Each listing's own approved price after a read of `whose` listings that succeeded (core/approved.ts › settleApprovals). */
+  private settleApprovals(s: MarketSettings, sell: readonly MyOrder[], whose: string) {
+    // Without the item list no key can be told: nothing ends or moves until it is in.
+    if (!this.items.length) return;
+    const up: UpListing[] = sell.map((o) => {
+      const known = !!this.item(o.itemId);
+      return { id: o.id, itemId: o.itemId, platinum: o.platinum, key: known ? this.approvalKey(o) : null, starless: known && hasStars(o) ? this.approvalKey({ ...o, amberStars: null, cyanStars: null }) : null };
+    });
+    const w = s as MarketSettings & WithApprovedFor;
+    const made = this.madeHere.get(whose) ?? new Map<string, number>();
+    // What this account's earlier reads ended, saved: a listing read again gets its approval back.
+    const saved = approvedGoneOf(w.approvedGone);
+    const ended = goneOf(saved, whose);
+    const next = settleApprovals(s.approved ?? {}, approvedForOf(w.approvedFor), up, ended, whose, made);
+    const gone = goneAfter(saved, ended, whose, Date.now());
+    // One made here that this read doesn't have yet waits for the next read.
+    if (made.size) this.madeHere.set(whose, made);
+    else this.madeHere.delete(whose);
+    // Assigned only when something changed: each assignment is a save.
+    if (!sameEntries(next.approved, s.approved)) s.approved = next.approved;
+    if (!sameEntries(next.owned, w.approvedFor as Record<string, unknown> | undefined)) w.approvedFor = next.owned;
+    if (!sameEntries(gone, w.approvedGone as Record<string, unknown> | undefined)) w.approvedGone = gone;
+  }
+  /** The price you last set or approved for this listing, if MyOrbiter has one. */
+  approvedPrice(o: MyOrder, s: MarketSettings): number | undefined {
+    return approvedForOf((s as MarketSettings & WithApprovedFor).approvedFor)[o.id]?.platinum ?? s.approved?.[this.approvalKey(o)];
   }
 
   /** Reload pressed on Orders: your listings read again, and the Activity log says how it went. */
@@ -480,7 +574,11 @@ class MarketStore {
   /** Whether TennoScope reads your inventory (Full mode), as it last said; null when unknown (set by the app). */
   fullMode: boolean | null = null;
 
-  /** Copies of the same item, rank and variant in your listings, but for `except`. */
+  /**
+   * Copies of the same item, rank and variant in your listings, but for `except`. A filled Ayatan
+   * sculpture's listing counts too: it is a listing of its own, but the inventory doesn't tell a
+   * filled sculpture from an empty one, so its copy is one of those held.
+   */
   private listedOf(it: MarketItem, rank: number | null, subtype: string | null, except: string | null = null): number {
     const def = it.subtypes?.[0] ?? null;
     return this.orders
@@ -564,45 +662,78 @@ class MarketStore {
 
   /**
    * You set or approved `platinum` for this listing (core/approved.ts): automatic repricing never
-   * takes it under 70% of that. Kept in your settings, by item, rank and variant.
+   * lowers it under 70% of that. Kept in your settings for that listing (by its order id), and by
+   * item, rank and variant as older builds read it.
    */
-  approve(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, platinum: number, s: MarketSettings | null = this.rules) {
+  approve(o: Pick<MyOrder, "id" | "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">, platinum: number, s: MarketSettings | null = this.rules) {
     if (!s || !Number.isInteger(platinum) || platinum < 1) return;
     const key = this.approvalKey(o);
-    if (s.approved?.[key] === platinum) return;
-    s.approved = { ...(s.approved ?? {}), [key]: platinum };
+    if (s.approved?.[key] !== platinum) s.approved = { ...(s.approved ?? {}), [key]: platinum };
+    this.record(o, { key, platinum }, s);
+  }
+  /** This listing's approval as `a`, for its order id only (the per-key price as it is), marked with whose listing it is. */
+  private record(o: Pick<MyOrder, "id">, a: Approval, s: MarketSettings) {
+    if (!o.id) return;
+    const w = s as MarketSettings & WithApprovedFor;
+    const owned = approvedForOf(w.approvedFor);
+    const whose = this.whose;
+    const entry: Approval = { key: a.key, platinum: a.platinum, ...(whose ? { by: whose } : {}), ...(a.legacy ? { legacy: true as const } : {}) };
+    if (JSON.stringify(owned[o.id]) !== JSON.stringify(entry)) w.approvedFor = { ...owned, [o.id]: entry } satisfies ApprovedFor;
   }
   /** A price change you made (a typed price, the listing form, a Sell spares plan): the cooldown counts it. */
-  noteChange(o: Pick<MyOrder, "itemId" | "rank" | "subtype">, s: MarketSettings | null = this.rules) {
+  noteChange(o: Pick<MyOrder, "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">, s: MarketSettings | null = this.rules) {
     if (s) s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
   }
-  /** The listing's key with its variant filled in (an intact relic made without one is "intact"). */
-  approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype">): string {
+  /** The listing's key with its variant filled in (an intact relic made without one is "intact"), and a filled sculpture's stars. */
+  approvalKey(o: Pick<MyOrder, "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">): string {
     return listingKey({ ...o, subtype: o.subtype ?? this.item(o.itemId)?.subtypes?.[0] ?? null });
   }
-  /** Listings whose 70% floor was told, with the price it was 70% of: told once, not every pass. */
+  /** Listings (by order id) whose 70% floor was told, with the price it was 70% of: told once, not every pass. */
   private floorTold = new Set<string>();
+  /** When warframe.market refused a raise up to a floor, by order id: tried again after the hour. */
+  private floorRefused = new Map<string, number>();
+
+  /**
+   * The floors repricing holds a listing at: its own (Orders' Floor column, read as `ownFloor`
+   * reads it), a relic's crack value and a prime's ducats, the minimum, and the share of the
+   * market value (for relics held to what sellers ask). One rule for the pass, Check prices, Orders'
+   * rows and the listing form's "your floor".
+   */
+  private floorRule(m: Model, s: MarketSettings, o: Pick<MyOrder, "itemId" | "rank" | "subtype" | "amberStars" | "cyanStars">, it: MarketItem): FloorRule {
+    const def = it.subtypes?.[0] ?? null;
+    const own = ownFloor(s.floors, o, def);
+    const crack = this.crackFloor(m, it.name, o.subtype ?? def);
+    // A prime part or set is never repriced down to (or under) what its ducats are worth to you.
+    const ducats = this.advice ? aboveDucats(ducatWorth(m, it, this.advice.platPerDucat)) : null;
+    const floors = [own, crack, ducats].filter((x): x is number => x != null);
+    return {
+      floor: floors.length ? Math.max(...floors) : null,
+      minShare: s.minShare,
+      // The daily price is for an empty sculpture: one with stars in has none.
+      reference: hasStars(o) ? null : referencePrice(m, it, o.rank, o.subtype ?? def),
+      defaultSubtype: def,
+      min: minimumForItem(s, m, it),
+      capByAsks: !!it.tags?.includes("relic"),
+      // Repricing follows a target that ignores bait, past a dead band (core/drift.ts).
+      drift: true,
+    };
+  }
 
   planFor(m: Model, s: MarketSettings, o: MyOrder): Plan | null {
     const it = this.item(o.itemId);
     const book = it ? this.books[it.slug]?.orders : undefined;
     if (!it || !book || !this.me) return null;
-    const own = s.floors[listingKey(o)] ?? null;
-    const crack = this.crackFloor(m, it.name, o.subtype ?? it.subtypes?.[0] ?? null);
-    // A prime part or set is never repriced down to (or under) what its ducats are worth to you.
-    const ducats = this.advice ? aboveDucats(ducatWorth(m, it, this.advice.platPerDucat)) : null;
-    const floors = [own, crack, ducats].filter((x): x is number => x != null);
-    return plan(o, book, this.me, {
-      floor: floors.length ? Math.max(...floors) : null,
-      minShare: s.minShare,
-      // The daily price is for an empty sculpture: one with stars in has none.
-      reference: hasStars(o) ? null : referencePrice(m, it, o.rank, o.subtype ?? it.subtypes?.[0] ?? null),
-      defaultSubtype: it.subtypes?.[0] ?? null,
-      min: minimumForItem(s, m, it),
-      capByAsks: !!it.tags?.includes("relic"),
-      // Repricing follows a target that ignores bait, past a dead band (core/drift.ts).
-      drift: true,
-    });
+    return plan(o, book, this.me, this.floorRule(m, s, o, it));
+  }
+
+  /**
+   * The floor the listing form names ("Under your 12p floor"): the one repricing would hold the
+   * listing at, worked out by planFor itself for your listing it adds to, or for the new one.
+   * Null until the item's order book is read.
+   */
+  formFloor(m: Model, s: MarketSettings, d: Draft): number | null {
+    const o: MyOrder = this.existingFor(d) ?? { id: "", itemId: d.itemId, type: "sell", platinum: d.platinum ?? 0, quantity: d.quantity, rank: d.rank, subtype: d.subtype, visible: true, updatedAt: null };
+    return this.planFor(m, s, o)?.floor ?? null;
   }
 
   /**
@@ -637,6 +768,8 @@ class MarketStore {
     let unseen = 0;
     let cooling = 0;
     let failed = 0;
+    /** Of `failed`: changes warframe.market refused (each counted for the cooldown as it was sent). */
+    let rejected = 0;
     let read = 0;
     // Three reads failing in a row is warframe.market not answering (or turning MyOrbiter away):
     // the pass stops there rather than holding your listings' buttons for every one left.
@@ -648,10 +781,10 @@ class MarketStore {
     try {
       await this.ensureItems();
       if (!this.items.length) throw new Error("Couldn't load warframe.market's item list; nothing was checked");
-      await this.refresh();
+      await this.refresh(s);
       // What the pass goes through, for its progress: every listing whose order book it reads
       // (Reprice by hand reads them all too, so the button doesn't sit full while it does).
-      const looked = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)]);
+      const looked = this.orders.filter((o) => o.visible && !isPaused(s.paused, o));
       const counted = new Set(looked.map((o) => o.id));
       let gone = 0;
       this.passProgress = { done: 0, total: looked.length };
@@ -662,7 +795,7 @@ class MarketStore {
       for (const planned of this.orders) {
         // The list can change under a pass (you hid or edited something); act on the latest.
         const o = this.orders.find((x) => x.id === planned.id);
-        if (!o || !o.visible || s.paused[listingKey(o)]) {
+        if (!o || !o.visible || isPaused(s.paused, o)) {
           tick(planned.id);
           continue;
         }
@@ -698,7 +831,7 @@ class MarketStore {
             continue;
           }
           // Settings can change during a long pass: Apply automatically turned off, this listing paused.
-          if ((timed && !s.auto) || s.paused[listingKey(o)]) continue;
+          if ((timed && !s.auto) || isPaused(s.paused, o)) continue;
           if (!timed) {
             const was = shown.get(o.id);
             if (was == null) {
@@ -712,25 +845,32 @@ class MarketStore {
           }
           let target = p.target;
           let atFloor = false;
+          let toFloor = false;
           if (timed) {
             const tag = `${it.name}${o.rank != null ? ` R${o.rank}` : ""}`;
-            // Never under 70% of the price you last set or approved (one MyOrbiter hasn't seen you
-            // price yet starts from what it's listed at now).
+            // Never lowered under 70% of the price you last set or approved for this listing (a
+            // listing with none, new, starts from what it's listed at now; core/approved.ts).
             const key = this.approvalKey(o);
-            const approved = s.approved?.[key] ?? o.platinum;
-            if (s.approved?.[key] == null) this.approve(o, o.platinum, s);
+            const approved = this.approvedPrice(o, s) ?? o.platinum;
+            // Recorded for this listing alone when it has none yet (a read that settled nothing): the
+            // per-key price stays as it is, and one taken from it stays a per-key one.
+            if (approvedForOf((s as MarketSettings & WithApprovedFor).approvedFor)[o.id] == null) this.record(o, { key, platinum: approved, ...(s.approved?.[key] === approved ? { legacy: true as const } : {}) }, s);
             const move = unattendedMove(p.target, o.platinum, approved);
+            const mark = `${Math.round(AUTO_FLOOR_SHARE * 100)}% of the ${approved}p you last set`;
             if (!move.go) {
               held++;
-              if (!this.floorTold.has(`${key}|${approved}`)) {
-                this.floorTold.add(`${key}|${approved}`);
-                this.note(`${tag}: stays at ${o.platinum}p, 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+              if (!this.floorTold.has(`${o.id}|${approved}`)) {
+                this.floorTold.add(`${o.id}|${approved}`);
+                // At the mark, or already under it (a price typed or changed on the website): it
+                // stays where it is, and the market is lower still.
+                const where = o.platinum === move.floor ? mark : `already under ${mark} (${move.floor}p)`;
+                this.note(`${tag}: stays at ${o.platinum}p, ${where}; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
               }
               continue;
             }
             target = move.target;
             atFloor = move.atFloor;
-            if (target < o.platinum / 2) {
+            if (cutTooFar(target, o.platinum)) {
               // More than halving a price is never done unattended: it waits for you to press Reprice.
               held++;
               this.note(`${tag}: would go from ${o.platinum}p to ${target}p; left for you to check (Reprice)`, "warn");
@@ -741,15 +881,18 @@ class MarketStore {
             if (target !== o.platinum && o.platinum >= p.hard && !drifted(o.platinum, target)) {
               if (atFloor) {
                 held++;
-                if (!this.floorTold.has(`${key}|${approved}`)) {
-                  this.floorTold.add(`${key}|${approved}`);
-                  this.note(`${tag}: stays at ${o.platinum}p, near 70% of the ${approved}p you last set; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
+                if (!this.floorTold.has(`${o.id}|${approved}`)) {
+                  this.floorTold.add(`${o.id}|${approved}`);
+                  this.note(`${tag}: stays at ${o.platinum}p, too close to ${mark} (${target}p) for a change; the market says ${p.target}p. Press Reprice to go lower, or set a new price`, "warn");
                 }
               }
               continue;
             }
-            // At most one change an hour and six a day per listing, by itself (core/drift.ts).
-            if (!cooldown(s.changes?.[key], Date.now()).ok) {
+            // At most one change an hour and six a day per listing, by itself (core/drift.ts); a
+            // raise up to a hard floor the listing is under waits for neither, as for no dead band,
+            // unless warframe.market refused it within the hour.
+            toFloor = o.platinum < p.hard && target > o.platinum;
+            if (!cooldown(s.changes?.[key], Date.now(), toFloor, this.floorRefused.get(o.id)).ok) {
               cooling++;
               continue;
             }
@@ -759,22 +902,25 @@ class MarketStore {
           s.changes = noteChange(s.changes, this.approvalKey(o), Date.now());
           try {
             await market.update(o.id, { platinum: target });
+            this.floorRefused.delete(o.id);
             writeFailing = 0;
             changed++;
             // Pressed Reprice: the price you approved.
             if (!timed) this.approve(o, target, s);
             const why = atFloor
-              ? `70% of the ${s.approved?.[this.approvalKey(o)] ?? "?"}p you last set; it goes no lower by itself (the market says ${p.target}p)`
+              ? `${Math.round(AUTO_FLOOR_SHARE * 100)}% of the ${this.approvedPrice(o, s) ?? "?"}p you last set; it goes no lower by itself (the market says ${p.target}p)`
               : p.reason === "floor" ? `held at your floor (${p.floor}p)`
               : p.reason === "median" ? `what it sells for: every seller online or in game asks more than twice that`
               // A raise stops at the cheapest seller (core/market.ts): then it's their price.
               : p.competitor.lowest && target === p.competitor.lowest.platinum && p.competitor.lowest.platinum !== p.competitor.price ? `up to the cheapest seller, ${p.competitor.lowest.name ?? "?"}`
               : `the market: ${p.competitor.sellers} seller${p.competitor.sellers === 1 ? "" : "s"} online or in game, the second-cheapest ${p.competitor.cheapest?.name ?? "?"}`;
-            if (atFloor) this.floorTold.add(`${this.approvalKey(o)}|${s.approved?.[this.approvalKey(o)]}`);
+            if (atFloor) this.floorTold.add(`${o.id}|${this.approvedPrice(o, s)}`);
             this.note(`${it.name}${o.rank != null ? ` R${o.rank}` : ""}: ${o.platinum}p → ${target}p, ${why}`, atFloor ? "warn" : "ok");
           } catch (e) {
             if (isAuthError(e)) throw e;
             failed++;
+            rejected++;
+            if (toFloor) this.floorRefused.set(o.id, Date.now());
             this.note(`${it.name}: couldn't update (${clean(e)})`, "warn");
             // Refused again and again (an outage): stop sending changes this pass.
             if (++writeFailing >= WRITE_FAILS) {
@@ -792,14 +938,20 @@ class MarketStore {
       if (cooling) this.note(`${cooling} listing${cooling === 1 ? "" : "s"} left as ${cooling === 1 ? "it was" : "they were"} for now: changed ${every(DRIFT.cooldownMs) === "an hour" ? "within the hour" : `less than ${every(DRIFT.cooldownMs).replace(/^every /, "")} ago`}, or ${DRIFT.perDay} times today`, "info", true);
       if (deferred) this.note(`${deferred} listing${deferred === 1 ? "" : "s"} left for the next pass: you were editing`, "info");
       if (stopped) this.note("warframe.market stopped answering, so this pass stopped early; the rest are checked next pass", read ? "warn" : tone());
-      else if (failed) this.note(`${failed} listing${failed === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
+      else {
+        const unread = failed - rejected;
+        if (unread) this.note(`${unread} listing${unread === 1 ? "" : "s"} couldn't be checked; trying again next pass`, read ? "warn" : tone());
+        // A change refused was counted as sent, and a raise up to a floor refused is held back an
+        // hour too: neither is tried again by itself within the hour.
+        if (rejected) this.note(`${rejected} change${rejected === 1 ? "" : "s"} refused by warframe.market (above); not tried again by itself within the hour`, "warn");
+      }
       if (apply && !changed && !failed && !skipped && !deferred && !held && !moved && !unseen && !cooling) this.note("Prices checked: everything already matches", "info");
       summary.changed = changed;
       summary.failed = failed;
       summary.stopped = stopped;
       if (!apply) {
         const off = this.orders.filter((o) => o.visible && this.planFor(m, s, o)?.change).length;
-        summary.off = this.orders.filter((o) => o.visible && !s.paused[listingKey(o)] && this.planFor(m, s, o)?.change).length;
+        summary.off = this.orders.filter((o) => o.visible && !isPaused(s.paused, o) && this.planFor(m, s, o)?.change).length;
         const checked = this.orders.filter((o) => o.visible && this.planFor(m, s, o)).length;
         this.note(
           off
@@ -810,7 +962,7 @@ class MarketStore {
           "info",
         );
       }
-      if (changed) await this.refresh();
+      if (changed) await this.refresh(s);
       if (failed && !read) this.passFailures++;
       else {
         if (this.passFailures) this.note("warframe.market is answering again", "info");
@@ -925,10 +1077,13 @@ class MarketStore {
     await this.priceDraft();
   }
 
-  /** Your listing of the same item, rank and variant, if there is one. */
+  /**
+   * Your listing of the same item, rank and variant, if there is one. The form lists empty Ayatan
+   * sculptures only: a filled one's listing is a listing of its own, never this one.
+   */
   existingFor(d: Draft): MyOrder | null {
     const def = d.subtypes?.[0] ?? null;
-    return this.orders.find((o) => o.itemId === d.itemId && (o.rank ?? null) === (d.rank ?? null) && (o.subtype ?? def) === (d.subtype ?? def)) ?? null;
+    return this.orders.find((o) => o.itemId === d.itemId && (o.rank ?? null) === (d.rank ?? null) && (o.subtype ?? def) === (d.subtype ?? def) && !hasStars(o)) ?? null;
   }
 
   async priceDraft() {
@@ -947,7 +1102,8 @@ class MarketStore {
           const s = this.rules;
           const it = this.item(d.itemId);
           const existing = this.existingFor(d);
-          const own = s && existing ? (s.floors[listingKey(existing)] ?? null) : null;
+          // Your own floor, read as the pass reads it (core/market.ts › ownFloor), of the listing this adds to.
+          const own = s && existing ? ownFloor(s.floors, existing, d.subtypes?.[0] ?? null) : null;
           const crack = it && this.draftModel ? this.crackFloor(this.draftModel, it.name, d.subtype ?? d.subtypes?.[0] ?? null) : null;
           // A prime part or set: never proposed at (or under) what its ducats are worth to you.
           const ducats = it && this.draftModel && this.advice ? aboveDucats(ducatWorth(this.draftModel, it, this.advice.platPerDucat)) : null;
@@ -1022,7 +1178,10 @@ class MarketStore {
         this.audit("Listing form", why || tag);
         this.note(`Listed ${d.quantity}× ${tag} at ${d.platinum}p`, "ok");
       }
-      this.approve(d, d.platinum!);
+      // The price you listed at is the one you approved: for the listing this added to, now; a new
+      // listing's from the read below, which tells its order id (core/approved.ts).
+      if (existing) this.approve(existing, d.platinum!);
+      else this.approveMade(d, d.platinum!);
       this.draftDone = this.log[0]?.text ?? null;
       this.draft = null;
       await this.refresh();
@@ -1551,7 +1710,7 @@ class MarketStore {
     await this.guard("Updating your listings", async () => {
       // The copies already listed cap what may go up (listGuard.ts): counted from an older read of
       // your listings, the cap could be too high, so nothing is sent without a fresh one.
-      await this.refresh().catch((e) => {
+      await this.refresh(s).catch((e) => {
         if (isAuthError(e)) throw e;
         throw new Error(`Nothing changed: your listings couldn't be read first (${clean(e)}). Try again in a minute.`);
       });
@@ -1612,14 +1771,19 @@ class MarketStore {
         }
         try {
           if (a.type === "create") {
+            // A new listing is approved at the price it is listed at, from the read at the end (core/approved.ts).
             await market.create({ itemId: a.item.id, platinum: a.platinum, quantity: a.quantity, rank: a.rank, subtype: a.subtype, visible: true });
-            this.approve({ itemId: a.item.id, rank: a.rank, subtype: a.subtype }, a.platinum, s);
+            this.approveMade({ itemId: a.item.id, rank: a.rank, subtype: a.subtype }, a.platinum, s);
             this.note(`Listed ${a.quantity}× ${tag(a.item.name, a.rank)} at ${a.platinum}p`, "ok");
             this.audit(`Spares plan, ${KIND_LABEL[a.kind].toLowerCase()} (${a.why}; ${a.priceWhy})`, why);
           } else if (a.type === "update") {
             await market.update(a.order.id, { quantity: a.quantity, platinum: a.platinum });
-            this.approve(a.order, a.platinum, s);
-            if (a.platinum !== a.order.platinum) this.noteChange(a.order, s);
+            // Only a price the plan changes is approved: a line that keeps the price (fewer copies)
+            // leaves the approval where it was, so a price the timer lowered never becomes it.
+            if (a.platinum !== a.order.platinum) {
+              this.approve(a.order, a.platinum, s);
+              this.noteChange(a.order, s);
+            }
             this.note(`${tag(a.item.name, a.order.rank)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`, "info");
             this.audit(`Spares plan changed ${a.order.id} (${a.why}; ${a.priceWhy})`, why || `${listingTag(a.item, a.order.rank, a.order.subtype)}: ${a.order.quantity}× ${a.order.platinum}p → ${a.quantity}× ${a.platinum}p`);
           } else if (a.type === "remove") {
@@ -1646,7 +1810,7 @@ class MarketStore {
       this.applying = { now: null, sent: new Set(sent), failed: new Set(refused) };
       // Your listings as they now are, still busy (Apply can't be pressed again meanwhile); the last
       // tick stays a moment before the plan goes, so it's seen.
-      await Promise.all([this.refresh().catch(() => {}), sent.size ? new Promise((r) => setTimeout(r, 900)) : null]);
+      await Promise.all([this.refresh(s).catch(() => {}), sent.size ? new Promise((r) => setTimeout(r, 900)) : null]);
     });
     this.progress = null;
     if (changed) {
