@@ -510,11 +510,13 @@ fn read_cards_graded(
 
 const BLANK_CARD: &str = "a reward card read as blank";
 
-/// The shortest word that makes a read a card title. A relic reward's name has a word this long
+/// The shortest word that makes a read a card title. Most relic reward names have a word this long
 /// (`Prime`, `Forma`, `Blueprint`), and a title read with a few letters wrong still keeps one. A
 /// speck or streak of the background reads as one to three characters at a time: over the
-/// two-card screens in `tests/reward_ocr.rs` the longest was three (`"oSS"`, `"ity"`). A reward
-/// whose name has no such word (`Aya`) still counts as a title whenever it matches.
+/// two-card screens in `tests/reward_ocr.rs` the longest was three (`"oSS"`, `"ity"`). Seven
+/// Requiem rewards in `demo/dev-bundle.json` have no such word (Fass, Jahu, Khra, Lohk, Ris,
+/// Vome, Xata). Such a name still counts as a title whenever it matches, and reads as blank only
+/// when its read does not match.
 const TITLE_WORD: usize = 5;
 
 /// Whether a read holds a word long enough to be a card title.
