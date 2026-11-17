@@ -274,10 +274,10 @@ pub fn create_order(
     if order.item_id.is_empty() || order.item_id.contains(['"', '\\']) {
         return Err(MarketError::Rejected);
     }
-    if let Some(subtype) = order.subtype {
-        if subtype.is_empty() || subtype.contains(['"', '\\']) {
-            return Err(MarketError::Rejected);
-        }
+    if let Some(subtype) = order.subtype
+        && (subtype.is_empty() || subtype.contains(['"', '\\']))
+    {
+        return Err(MarketError::Rejected);
     }
     if order.per_trade.is_some_and(|per_trade| per_trade == 0) {
         return Err(MarketError::Rejected);
