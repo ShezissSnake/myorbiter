@@ -23,12 +23,12 @@
         <b>MyOrbiter {n.version} is out</b>
         <span class="dim">on {CHANNEL_LABEL[n.channel]}</span>
       </span>
-      <button class="x" aria-label="Later" title="Later: hide this until a newer version is out (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}><Icon name="close" size={11} /></button>
+      <button class="x" aria-label="Later" title="Later: hide this for {n.version} only; any other version shows it again (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}><Icon name="close" size={11} /></button>
     </div>
     {#if lines.length}<ul class="notes">{#each lines as line, i (i)}<li>{line}</li>{/each}</ul>{/if}
     <div class="acts">
       <ProgressButton job={updates.installJob} tone="gold" label="Update and restart" sizer={["Downloading 100%", "Restarting", "Not installed"]} title="Download {n.version}, check its signature, install it and restart MyOrbiter into it" onclick={() => updates.install()} status />
-      <button type="button" class="link" title="Hide this until a newer version is out (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}>Later</button>
+      <button type="button" class="link" title="Hide this for {n.version} only; any other version shows it again (Settings, Updates still has it)" disabled={updates.installJob.working} onclick={() => updates.later()}>Later</button>
       <button type="button" class="link" title="Settings, Updates: your channel, Check now and the release notes" onclick={onsettings}>Settings</button>
     </div>
   </div>
