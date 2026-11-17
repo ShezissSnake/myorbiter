@@ -7,7 +7,7 @@ import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { updater, type UpdateCheck } from "../src/lib/backend";
-import { CHECK_EVERY, clockTime, defaultUpdates, SCHEDULE_TICK, type Channel, type UpdateSettings } from "../src/lib/core/updates";
+import { CHECK_EVERY, clockTime, defaultUpdates, sanitizeUpdates, SCHEDULE_TICK, type Channel, type UpdateSettings } from "../src/lib/core/updates";
 
 const { Updates, CHECK_LIMIT } = await import("../src/lib/updates.svelte");
 const { holdBackground } = await import("../src/lib/pane.svelte");
@@ -288,6 +288,27 @@ test("an empty channel: said plainly, with the nearest channel that has a build,
   assert.equal(settings.channel, "stable", "nothing switches by itself");
   assert.equal(u.offer, null, "and nothing is offered on a channel not chosen");
   assert.equal(u.notice, null);
+});
+
+test("Later hides the build it was pressed for, at this start and the next, and not a build below a version once named", async (t) => {
+  const { u, settings, begin } = await setup(t, [NEWER, NEWER, { state: "newer", version: "0.2.107", notes: null, date: null }]);
+  // Saved from an earlier start: Later pressed on 9.0.0, a version the channel's file once named.
+  settings.later = "9.0.0";
+  await begin();
+  // Read afresh each time: the notice follows the store.
+  const shown = () => u.notice?.version ?? null;
+  await u.checkNow();
+  assert.equal(shown(), "0.2.106", "the build really offered is shown");
+  u.later();
+  assert.equal(settings.later, "0.2.106");
+  assert.equal(shown(), null, "put off");
+  // The settings as the next start loads them.
+  Object.assign(settings, sanitizeUpdates(JSON.parse(JSON.stringify(settings))));
+  await u.checkNow();
+  assert.equal(u.offer?.version, "0.2.106");
+  assert.equal(shown(), null, "the same build isn't shown again");
+  await u.checkNow();
+  assert.equal(shown(), "0.2.107", "a newer one is");
 });
 
 test("the switch an empty channel offers is a click, and asks the new channel at once", async (t) => {

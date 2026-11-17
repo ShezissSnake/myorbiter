@@ -58,11 +58,17 @@ test("versions compare by number, and a CI build's number is its release", () =>
   for (const v of ["0.2.152", "0.2.119", "0.1.0"]) assert.ok(openable(releasePage(v)), v);
 });
 
-test("Later hides that version's notice until a newer one", () => {
+test("Later hides that version's notice, and only that version's", () => {
   assert.equal(noticeShows("0.1.52", ""), true);
   assert.equal(noticeShows("0.1.52", "0.1.52"), false);
-  assert.equal(noticeShows("0.1.51", "0.1.52"), false);
+  assert.equal(noticeShows("0.1.51", "0.1.52"), true, "a lower build offered later shows");
   assert.equal(noticeShows("0.1.53", "0.1.52"), true);
+});
+
+test("Later on a version a manifest once named doesn't hide the builds below it", () => {
+  // A channel's file named 9.0.0 for a while, and Later was pressed on it.
+  assert.equal(noticeShows("0.2.150", "9.0.0"), true);
+  assert.equal(noticeShows("9.0.0", "9.0.0"), false, "that version itself stays put off");
 });
 
 test("the version line says where the build came from", () => {
