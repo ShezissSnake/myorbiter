@@ -717,12 +717,11 @@ fn confident_or_agreed(
         return Some(Err(AcquisitionError::AuthorizationAmbiguous));
     }
     if let Some(authorization) = candidates.take_confident_url() {
-        if let Agreement::Single(single) = &agreed {
-            if single.account_id() != authorization.account_id()
-                || single.nonce() != authorization.nonce()
-            {
-                return Some(Err(AcquisitionError::AuthorizationAmbiguous));
-            }
+        if let Agreement::Single(single) = &agreed
+            && (single.account_id() != authorization.account_id()
+                || single.nonce() != authorization.nonce())
+        {
+            return Some(Err(AcquisitionError::AuthorizationAmbiguous));
         }
         let conflict = candidates.login.candidates.iter().any(|candidate| {
             candidate.authorization.account_id() == authorization.account_id()

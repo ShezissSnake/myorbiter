@@ -517,6 +517,91 @@ fn an_unnamed_card_fails_closed_when_the_pool_is_empty() {
     );
 }
 
+/// The calibrated capture's background beside the card block, `shift` pixels in from the screen's
+/// edge on the left and from the block's edge on the right, laid where the four-card block's outer
+/// cards stand. The background behind the reward screen moves, so a shift is the same screen a
+/// moment later. It has bright specks in it, which is what makes it hard to read past.
+fn background_over_the_outer_cards(
+    screen: &mut image::RgbImage,
+    original: &image::RgbImage,
+    shift: u32,
+) {
+    for y in 400..470 {
+        for dx in 0..244 {
+            screen.put_pixel(474 + dx, y, *original.get_pixel(shift + dx, y));
+            screen.put_pixel(1204 + dx, y, *original.get_pixel(1446 + shift + dx, y));
+        }
+    }
+}
+
+/// A squad of two: the calibrated capture's first and last title strips re-laid at the two-card
+/// positions (a block 482 px wide, centred, from x=720), with the moving background where a
+/// four-card screen's outer cards would be. Made from `fixtures/reward-screen-1920x1080.png`, so
+/// the pixels read are real ones; no capture of a two-card screen is used.
+fn two_card_screen(shift: u32) -> image::DynamicImage {
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/reward-screen-1920x1080.png");
+    let original = image::open(fixture).unwrap().to_rgb8();
+    let mut screen = original.clone();
+    for y in 400..470 {
+        for dx in 0..244 {
+            screen.put_pixel(718 + dx, y, *original.get_pixel(476 + dx, y));
+            screen.put_pixel(960 + dx, y, *original.get_pixel(1202 + dx, y));
+        }
+    }
+    background_over_the_outer_cards(&mut screen, &original, shift);
+    image::DynamicImage::ImageRgb8(screen)
+}
+
+/// Fissures in a squad of two, reported 2026-11-16: two cards, centred, over a bright background
+/// that moves, and nothing was shown, or it showed for a moment and went. The four-card layout is
+/// tried first, and its first slot falls on that background. A bright speck there read as a
+/// character (`"@D‘"`), which the tiebreak took for a card title, so the two-card layout was never
+/// tried. A speck that read as punctuation alone normalised to nothing and the screen read: so
+/// the read came and went as the background moved under it.
+#[test]
+fn a_two_card_screen_is_read_over_a_moving_background() {
+    common::isolate_debug_log();
+    let mut failed = Vec::new();
+    for shift in (0..=210).step_by(30) {
+        match app_lib::read_cards_in(&two_card_screen(shift), pool_only(&pool())) {
+            Ok(cards)
+                if names(cards.clone()) == ["Braton Prime Blueprint", "Trumna Prime Blueprint"]
+                    && cards.iter().all(|(_, score)| *score >= 0.85) => {}
+            other => failed.push((shift, other)),
+        }
+    }
+    assert!(failed.is_empty(), "two-card screens not read: {failed:?}");
+}
+
+/// The four-card screen with its first title gone, as when a title reads as nothing (a blue UI
+/// theme once did that to a silver card) and the moving background shows there instead. Its middle
+/// two still sit exactly on the two-card positions. A blank first slot alone used to let them
+/// through as a whole two-card screen; the last card's title, still there, now keeps it from that.
+#[test]
+fn a_four_card_screen_missing_its_first_title_is_not_read_as_two() {
+    common::isolate_debug_log();
+    let fixture = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/reward-screen-1920x1080.png");
+    let original = image::open(fixture).unwrap().to_rgb8();
+    for shift in (0..=210).step_by(30) {
+        let mut screen = original.clone();
+        for y in 400..470 {
+            for dx in 0..244 {
+                screen.put_pixel(474 + dx, y, *original.get_pixel(shift + dx, y));
+            }
+        }
+        let read = app_lib::read_cards_in(
+            &image::DynamicImage::ImageRgb8(screen),
+            pool_only(&pool()),
+        );
+        assert!(
+            !matches!(&read, Ok(cards) if cards.len() == 2),
+            "shift {shift}: read the middle two of four as a whole screen: {read:?}"
+        );
+    }
+}
+
 /// `fixtures/reward-crop-ornament.png` is a real prepared crop kept by the live run of 2026-07-28 --
 /// the exact bytes tesseract was handed, so no reconstruction stands between the test and the bug.
 ///
