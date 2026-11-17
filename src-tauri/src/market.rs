@@ -360,7 +360,8 @@ fn get_json_once(url: &str, timeout: u64) -> Result<Value, MarketError> {
 
 // ------------------------------------------------------------------ token storage
 
-/// Keyring first; if no Secret Service is running, a file only this user can read.
+/// Keyring first; where it can't store the token (no Secret Service running, or a write refused),
+/// a file only this user can read, which is then read before the keyring.
 pub struct TokenStore {
     fallback: PathBuf,
     /// Where the token was last found or kept, so showing it needn't ask the keyring again.
@@ -404,7 +405,16 @@ impl TokenStore {
     /// The token, and whether the answer is settled: false when the keyring couldn't be asked
     /// (its service not up yet at login, or the unlock prompt dismissed) and there's no file
     /// either, so it's worth asking again later rather than taking you for signed out.
+    ///
+    /// The file comes first. It is there only while the keyring refused the last write (`save`
+    /// removes it once the keyring takes one), so it holds the newer token, and an entry left in
+    /// the keyring is the older one.
     pub fn load_checked(&self) -> (Option<String>, bool) {
+        let t = std::fs::read_to_string(&self.fallback).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+        if t.is_some() {
+            self.set_backing("file");
+            return (t, true);
+        }
         let mut settled = true;
         if let Some(e) = self.entry() {
             match e.get_password() {
@@ -416,21 +426,32 @@ impl TokenStore {
                 Err(_) => settled = false,
             }
         }
-        let t = std::fs::read_to_string(&self.fallback).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
         self.set_backing("file");
-        let settled = settled || t.is_some();
-        (t, settled)
+        (None, settled)
     }
 
     /// Returns where it was kept: "keyring" or "file".
     pub fn save(&self, token: &str) -> Result<&'static str, String> {
         if let Some(e) = self.entry() {
             if e.set_password(token).is_ok() {
-                let _ = std::fs::remove_file(&self.fallback);
+                // The file goes, or it would outrank the token just kept (`load_checked`). One that
+                // can't be removed is given this token instead; failing that, the save fails.
+                match std::fs::remove_file(&self.fallback) {
+                    Ok(()) => {}
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                    Err(why) => {
+                        crate::write_atomic(&self.fallback, token.as_bytes(), true)
+                            .map_err(|e| format!("{TOKEN_FILE} holds an older sign-in and couldn't be removed ({why}) or replaced ({e})"))?;
+                        self.set_backing("file");
+                        return Ok("file");
+                    }
+                }
                 self.set_backing("keyring");
                 return Ok("keyring");
             }
         }
+        // The keyring refused the write, or there is none: an entry it holds is older than this
+        // token, which the file now outranks at the next start (`load_checked`).
         // Created 0600 and renamed into place: never readable by others, never half written.
         crate::write_atomic(&self.fallback, token.as_bytes(), true).map_err(|e| e.to_string())?;
         self.set_backing("file");
@@ -1776,6 +1797,44 @@ mod tests {
             assert!(!Client::new(reopened(&dir, &keyring)).linked());
             std::fs::remove_dir_all(&dir).ok();
         }
+    }
+
+    #[test]
+    fn after_a_refused_keyring_write_the_token_just_saved_is_the_one_loaded() {
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("refused-write", &keyring);
+        assert_eq!(store.save("old").unwrap(), "keyring");
+        // A renewal or a new sign-in the keyring refuses once: the token goes to the file.
+        keyring.refuse_writes(1);
+        assert_eq!(store.save("new").unwrap(), "file");
+        // The next start.
+        let next = reopened(&dir, &keyring);
+        assert_eq!(next.load_checked(), (Some("new".to_string()), true), "the old keyring entry no longer wins");
+        assert_eq!(next.backing(), "file");
+        // A later write the keyring takes is the one loaded after it: the file goes.
+        assert_eq!(next.save("newer").unwrap(), "keyring");
+        assert!(!dir.join(TOKEN_FILE).exists());
+        assert_eq!(reopened(&dir, &keyring).load_checked().0.as_deref(), Some("newer"));
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_file_that_cant_be_removed_never_outranks_a_newer_token_in_the_keyring() {
+        use std::os::unix::fs::PermissionsExt;
+        let keyring = std::sync::Arc::new(StandIn::default());
+        let (dir, store) = store_with("stuck-old-file", &keyring);
+        keyring.refuse_writes(1);
+        assert_eq!(store.save("old").unwrap(), "file");
+        // The keyring takes the next write, but the old file can't be removed.
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o500)).unwrap();
+        let saved = store.save("new");
+        let loaded = reopened(&dir, &keyring).load_checked().0;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700)).unwrap();
+        // Either the save says it couldn't keep the token, or the next start loads it (as root,
+        // where the folder's mode holds nothing back).
+        assert!(saved.is_err() || loaded.as_deref() == Some("new"), "{saved:?} {loaded:?}");
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
