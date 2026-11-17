@@ -3345,7 +3345,8 @@
   /* ---- sidebar: a neutral plate. Top: wordmark, version, platinum. Then Home, the root; each
      section's bar across the full width (it folds its pages); the pages hanging from one hairline
      track under the section's glyph. Foot: how the app is doing, then the tools. Only the page list
-     scrolls. */
+     scrolls, except on a very short page (a high zoom in a low window), where the whole bar scrolls
+     as one (`.railin`, below). */
   .rail {
     /* One row height for every page (28 px, its picture 18 px), and the gaps around a section's
        pages: under its bar at least the gap between two pages, after its last page more. */

@@ -74,3 +74,62 @@ test("the bar says there is more the way the list does: the same two marks, the 
   assert.match(app, /<aside class="rail"[^>]*class:more=\{navMore && railScrolls\} class:above=\{navAbove && railScrolls\}/);
   assert.match(app, /<nav [^>]*class:more=\{navMore && !railScrolls\} class:above=\{navAbove && !railScrolls\}/);
 });
+
+/** The markup of the sidebar: from `<aside class="rail"` to its `</aside>`. */
+const asideAt = app.indexOf('<aside class="rail"');
+const aside = app.slice(asideAt, app.indexOf("</aside>", asideAt));
+
+test("the bar's contents are one box inside the bar: the top, the page list and the foot", () => {
+  // Without it the rule above has nothing to scroll: the list stands at its full height in a bar
+  // that clips, and the pages under the foot are cut off.
+  const open = aside.search(/<div class="railin" bind:this=\{railEl\} onscroll=\{checkNav\}>/);
+  assert.ok(open > 0, "the box is in the sidebar, bound to railEl, telling checkNav when it scrolls");
+  assert.doesNotMatch(aside.slice(0, open).replace(/<!--[\s\S]*?-->/g, ""), /<div[\s>]/, "it is the bar's first box");
+  // Where it closes: its own `</div>`, the div tags in it balanced.
+  let depth = 0;
+  let close = -1;
+  for (const m of aside.slice(open).matchAll(/<div[\s>]|<\/div>/g)) {
+    depth += m[0] === "</div>" ? -1 : 1;
+    if (depth === 0) { close = open + m.index!; break; }
+  }
+  assert.ok(close > open, "the box closes");
+  const inside = aside.slice(open, close);
+  for (const [what, re] of [["the top", /<div class="brand">/], ["the page list", /<nav aria-label="Pages"/], ["the foot", /<div class="foot">/]] as const)
+    assert.match(inside, re, `${what} is in the box`);
+  assert.match(aside.slice(close + "</div>".length), /^\s*$/, "nothing of the bar is left outside it");
+});
+
+test("the code that marks the fades reads whichever box scrolls", () => {
+  // navScroller run as written, with a stand-in for the page's styles.
+  const expr = /const navScroller = \(\) => ([^;\n]+);/.exec(app)?.[1];
+  assert.ok(expr, "navScroller is there");
+  const navScroller = new Function("railEl", "navEl", "getComputedStyle", `return ${expr};`);
+  const rail = { display: "" };
+  const nav = {};
+  const style = (el: { display: string }) => ({ display: el.display });
+  rail.display = "flex";
+  assert.equal(navScroller(rail, nav, style), rail, "on a very short page the bar scrolls");
+  rail.display = "contents";
+  assert.equal(navScroller(rail, nav, style), nav, "above it the list scrolls");
+  assert.equal(navScroller(null, nav, style), nav, "before the bar is drawn, the list");
+  // The marks, and keeping the open page in view, both ask it.
+  assert.match(app, /const checkNav = \(\) => \{\s*const n = navScroller\(\);/);
+  assert.match(app, /function keepOpenInView\(\) \{\s*const n = navScroller\(\);/);
+});
+
+test("the marks are measured again when the list, the bar or the foot changes size", () => {
+  // The effect that sets up the ResizeObserver, run as written with stand-ins.
+  const at = app.indexOf("new ResizeObserver(checkNav)");
+  const start = app.lastIndexOf("$effect(() => {", at);
+  assert.ok(at > 0 && start > 0, "the effect is there");
+  const body = block(app, start + "$effect(() => ".length);
+  const seen: unknown[] = [];
+  class Observer { observe(el: unknown) { seen.push(el); } disconnect() {} }
+  const nav = {};
+  const foot = {};
+  const rail = { querySelector: (s: string) => (s === ".foot" ? foot : null) };
+  new Function("navEl", "railEl", "ResizeObserver", "checkNav", body)(nav, rail, Observer, () => {});
+  assert.ok(seen.includes(nav), "the list");
+  assert.ok(seen.includes(rail), "the bar, which has a size only while it scrolls as one");
+  assert.ok(seen.includes(foot), "the foot, whose height (a sync error under it) moves where the bar ends");
+});
