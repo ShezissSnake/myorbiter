@@ -75,6 +75,22 @@ test("a sign-out that couldn't be completed says so in plain words, and the acco
   assert.equal(mkt.ordersAt, 1);
 });
 
+test("a failed sign-out whose account then can't be read says the sign-out's words, and the page stays as it was", async () => {
+  mkt.orders = [order("a")];
+  mkt.ordersAt = 1;
+  market.signOut = async () => {
+    throw "Not signed out: MyOrbiter couldn't remove its sign-in from the system keyring.";
+  };
+  market.account = async () => {
+    throw new Error("the app didn't answer");
+  };
+  await mkt.signOut();
+  assert.match(mkt.error ?? "", /^Not signed out: /, "the sign-out's own words");
+  assert.equal(mkt.linked, true, "not taken for signed out: nothing said it was");
+  assert.deepEqual(mkt.orders.map((o) => o.id), ["a"]);
+  assert.equal(mkt.ordersAt, 1);
+});
+
 test("a sign-out that left only the sign-in under the old name signs out, and says so", async () => {
   mkt.orders = [order("a")];
   mkt.ordersAt = 1;

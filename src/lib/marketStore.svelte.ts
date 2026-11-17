@@ -359,8 +359,10 @@ class MarketStore {
       // The words say what kept the sign-in and what to do (market.rs, TokenStore::clear). Kept
       // where the next start finds it, the app stays signed in now too, and so does the page.
       this.error = clean(e);
-      const account = await market.account();
-      if (account.linked) return;
+      // An account that can't be read now isn't taken for signed out: the page stays as it was,
+      // with the sign-out's words.
+      const account = await market.account().catch(() => null);
+      if (!account || account.linked) return;
     }
     // A read of the listings or the chats that left before this and lands after it is the
     // signed-out account's: dropped (`refresh`, `readChats`).
