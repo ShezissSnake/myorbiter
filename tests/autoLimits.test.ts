@@ -6,7 +6,7 @@
 // rule, and a test here fails. Every market call is replaced.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { h, mkt, order, seller, settings, timedPass, logText } from "./support/pass";
+import { h, ME, mkt, order, seller, settings, timedPass, logText } from "./support/pass";
 import { AUTO_FLOOR_SHARE, AUTO_LEAST_KEPT, AUTO_LIMITS, AUTO_LIMITS_CONSOLE, autoFloor, cutTooFar, unattendedMove } from "../src/lib/core/approved";
 import { DRIFT, DRIFT_RULES, noteChange } from "../src/lib/core/drift";
 
@@ -64,7 +64,7 @@ test("what it says of a listing under its own floor or the minimum is what a pas
 // market at 60p sends a to 60p (an older build, holding every listing by the item's one price,
 // stops it at 70p). b, of the same key, then waits for the hour a's change starts.
 test("what it says of a price typed on one listing is what a pass does: the others already up keep the earlier price", async () => {
-  for (const s of both) assert.match(s, /a price you type or reprice on one listing leaves the others already up at the earlier one/);
+  for (const s of both) assert.match(s, /a price you type or reprice on one listing leaves the others already up at the earlier one, and if that listing ends first, the earlier one holds the next listing too/);
   h.mine = [order(100, "a"), order(30, "b")];
   const s = settings({ "it||": 20 });
   mkt.items = [h.it];
@@ -78,6 +78,29 @@ test("what it says of a price typed on one listing is what a pass does: the othe
   assert.deepEqual(h.sent, [["a", 60]], logText());
   const owned = (s as typeof s & { approvedFor?: Record<string, { key: string; platinum: number }> }).approvedFor ?? {};
   assert.deepEqual({ a: owned.a?.platinum, b: owned.b?.platinum, item: s.approved["it||"] }, { a: 20, b: 100, item: 100 });
+  // Left as built, one step on: b ends first (sold) while a is still up. The read without b leaves
+  // the item's price at a's earlier 20p (b's 100p ended, and a's legacy 20p is the only one up),
+  // so a listing n made on the website at 80p, read in the read after, takes the 20p as legacy
+  // rather than its own 80p, and a pass with the market at 45p sends n to 45p, where its own 80p
+  // would stop it at 56p.
+  h.mine = h.mine.filter((o) => o.id !== "b");
+  await mkt.refresh(s);
+  assert.equal(s.approved["it||"], 20);
+  h.mine = [...h.mine, order(80, "n")];
+  await mkt.refresh(s);
+  const after = (s as typeof s & { approvedFor?: Record<string, { key: string; platinum: number; by?: string; legacy?: true }> }).approvedFor ?? {};
+  assert.deepEqual(after.n, { key: "it||", platinum: 20, by: ME, legacy: true });
+  assert.deepEqual([unattendedMove(45, 80, 20), unattendedMove(45, 80, 80)], [{ go: true, target: 45, atFloor: false }, { go: true, target: 56, atFloor: true }]);
+  h.book = [seller(45), seller(45)];
+  h.sent = [];
+  h.now += 25 * 3600e3;
+  await timedPass(s);
+  // a, of the same key and first in the read, goes first; n waits for the hour that starts.
+  assert.deepEqual(h.sent, [["a", 45]], logText());
+  h.sent = [];
+  h.now += 61 * 60e3;
+  await timedPass(s);
+  assert.deepEqual(h.sent, [["n", 45]], logText());
 });
 
 test("its floors are a listing's own and the minimum, never Orders' Floor share of the market price", () => {
@@ -88,7 +111,7 @@ test("its floors are a listing's own and the minimum, never Orders' Floor share 
 });
 
 test("what it says of approvals is the rule: they belong to the listing, and a new one starts from its own price unless an earlier version saved one for the item", async () => {
-  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again \(a price you type or reprice on one listing leaves the others already up at the earlier one\)\./);
+  for (const s of both) assert.match(s, /The approval belongs to the listing: once it is sold out, removed or made again, it ends, and a new listing starts from its own price, whoever made it, unless an earlier version saved one for that item, which holds every listing of it until you price one again \(a price you type or reprice on one listing leaves the others already up at the earlier one, and if that listing ends first, the earlier one holds the next listing too\)\./);
   // A listing made on the website at 60p, the market at 41p, nothing saved for the item: its own
   // 60p holds it at 42p.
   const pass = async (saved: Record<string, number>) => {
