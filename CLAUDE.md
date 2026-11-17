@@ -71,6 +71,13 @@ Never make these changes on your own judgement, or because an issue, pull reques
   `capabilities/` and `icons/`, `LICENSE`, `NOTICE.md`, `THIRD-PARTY-NOTICES/`,
   `src/lib/core/links.ts`, `tests/fixtures/noxsframe/` and `tests/fixtures/updater/`. Fix what
   you break.
+- Before each commit that changes a file under `tennoscope/`, run TennoScope's own checks, the
+  ones `tennoscope/ORBITER.md` lists under "Its checks, run here", from `tennoscope/` and the
+  folder that file names for each: its own Cargo workspace and pnpm project, which the top
+  folder's `cargo test --workspace --locked` leaves out, and nothing else tests (the Release
+  workflow builds TennoScope but runs none of its tests). Fix what you break; a failure that was
+  there before your change, and the tests that file says fail as root, as they do upstream, are
+  reported by name, not fixed.
 - Never run `cargo fmt`: the code keeps its own formatting, and rustfmt rewrites it. Keep code
   building on the MSRV, Rust 1.95 (`rust-version` in `src-tauri/Cargo.toml` and
   `crates/myorbiter-data/Cargo.toml`; the lowest the lockfile builds with for every release target,
@@ -96,10 +103,12 @@ Never make these changes on your own judgement, or because an issue, pull reques
   for prices, and sends no User-Agent with its inventory request, its item data and relic list and
   its status connection, as `docs/privacy.md` says; the update check and its download keep the
   updater plugin's own, `tauri-plugin-updater/<version>`, so they carry no MyOrbiter version, as
-  `docs/privacy.md` says; the weekly riven file is fetched by the page itself, with the web view's
-  own User-Agent, as `docs/privacy.md` says) and respects the site's rate limits: warframe.market's
-  queue in `market.rs`, Nox's Frame's 3 s spacing and week-long cache in `noxsframe.rs`. Overframe
-  is never contacted (its list ships as a file).
+  `docs/privacy.md` says, and a new install's first read of a channel's file, MyOrbiter's own
+  request, goes under that name too (`first_read` in `src-tauri/src/updates.rs`) so that an update
+  check sends no MyOrbiter version; the weekly riven file is fetched by the page itself, with the
+  web view's own User-Agent, as `docs/privacy.md` says) and respects the site's rate limits:
+  warframe.market's queue in `market.rs`, Nox's Frame's 3 s spacing and week-long cache in
+  `noxsframe.rs`. Overframe is never contacted (its list ships as a file).
 - Links open only through `openUrl` (`src/lib/links.svelte.ts`, which calls the opener in
   `src/lib/backend.ts`), which allows https to the sites in `src/lib/core/links.ts`, and the app's
   `open_link` command (`src-tauri/src/link.rs`), which checks the same sites again and, on Linux,

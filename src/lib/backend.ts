@@ -38,6 +38,7 @@ import { timing, type TimingEnv } from "./timing";
 import { defaultUpdates, newInstallUpdates, sanitizeUpdates, type Channel, type Install, type UpdateSettings } from "./core/updates";
 import type { NoxAnswer, NoxFetcher, NoxListing, NoxPage } from "./core/builds/noxsframe";
 import { meterMemoryOf } from "./core/meterMemory";
+import { cleanMessage, cleanName } from "./core/untrusted";
 
 
 /** warframe.market's platforms: whose market MyOrbiter reads and lists on. */
@@ -1410,17 +1411,29 @@ function demoStandIn(): StandIn | null {
   }
 }
 
-/** Browser dev mode: Stable and Beta with no build yet, Experimental with this one (the help picture of an empty channel). */
-const demoEmptyChannel = () => {
+/**
+ * Browser dev mode: a stand-in for the update feed, for an AppImage of 0.2.130, by the value of
+ * EMPTY_CHANNEL_KEY in the demo browser's storage: "1", Stable and Beta with no build yet and
+ * Experimental with this one (the help picture of an empty channel); "stable", every channel with
+ * this build; "offline", no channel answers. Read at each check, so a change shows at the next.
+ */
+const demoFeed = (): "1" | "stable" | "offline" | null => {
   try {
-    return !inTauri && localStorage.getItem(EMPTY_CHANNEL_KEY) === "1";
+    const v = inTauri ? null : localStorage.getItem(EMPTY_CHANNEL_KEY);
+    return v === "1" || v === "stable" || v === "offline" ? v : null;
   } catch {
-    return false;
+    return null;
   }
 };
+const demoEmptyChannel = () => demoFeed() != null;
 const EMPTY_DEMO = {
   info: { version: "0.2.130", install: { how: "appImage", path: "/opt/MyOrbiter.AppImage" } } as UpdateInfo,
-  check: (c: Channel): UpdateCheck => (c === "experimental" ? { state: "current", version: "0.2.130" } : { state: "empty", system: false }),
+  // `firstOnly`: a new install's check, which asks GitHub alone and words its failure so (updates.rs).
+  check: (c: Channel, firstOnly = false): Promise<UpdateCheck> => {
+    const feed = demoFeed();
+    if (feed === "offline") return Promise.reject(new Error(firstOnly ? `Couldn't read the ${c[0].toUpperCase()}${c.slice(1)} channel's manifest on GitHub` : "Couldn't reach GitHub or GitLab"));
+    return Promise.resolve(feed === "stable" || c === "experimental" ? { state: "current", version: "0.2.130" } : { state: "empty", system: false });
+  },
 };
 
 /** Browser dev mode: public/dev-tennoscope.json fakes a running TennoScope. */
@@ -1453,7 +1466,8 @@ export type UpdateCheck =
  */
 export const updater = {
   info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.info : { version: "0.1.0", install: { how: "dev" } })),
-  check: (channel: Channel): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", { channel }) : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.check(channel) : { state: "off" })),
+  /** `firstOnly`: a new install settling its channel asks the first address alone (updates.rs, `updates_check`); every other check sends what it always did. */
+  check: (channel: Channel, firstOnly = false): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", firstOnly ? { channel, firstOnly } : { channel }) : (demoEmptyChannel() ? EMPTY_DEMO.check(channel, firstOnly) : Promise.resolve({ state: "off" }))),
   /** Downloads and installs `version` from `channel`; `older` only for an explicit switch to an older build. */
   async install(channel: Channel, version: string, older: boolean, onProgress: (done: number, total: number | null) => void): Promise<void> {
     if (!inTauri) throw new Error("updates aren't available in dev builds");
@@ -1771,6 +1785,24 @@ export interface ChatSummary {
   lastMessage: string | null;
 }
 
+// What warframe.market says that the page draws or announces (a chat's partner and newest message,
+// a seller's name, a riven's), cleaned where it comes in (core/untrusted.ts): a character that
+// draws nothing or reorders the text around it can't make a name read as another, and a message
+// is one line in a notification and the chat strip. Ids and times are left as they are.
+
+/** Chats as the page keeps them. */
+export const chatsIn = (list: ChatSummary[]): ChatSummary[] => list.map((c) => ({ ...c, with: cleanName(c.with), lastMessage: cleanMessage(c.lastMessage) }));
+/** A player's name in an order, as the page keeps it. */
+const userIn = <U extends { ingameName?: string | null }>(u: U): U => (u && typeof u.ingameName === "string" ? { ...u, ingameName: cleanName(u.ingameName) } : u);
+/** An item's order book, as the page keeps it. */
+export const bookIn = (orders: BookOrder[]): BookOrder[] => (Array.isArray(orders) ? orders.map((o) => (o?.user ? { ...o, user: userIn(o.user) } : o)) : orders);
+/** A new order from the live feed, as the page keeps it. */
+export const feedOrderIn = (o: import("./core/deals").FeedOrder): import("./core/deals").FeedOrder => (o?.user ? { ...o, user: userIn(o.user) } : o);
+/** A player's profile, as the page keeps it. */
+export const marketUserIn = (u: MarketUser | null): MarketUser | null => (u ? userIn(u) : u);
+/** Riven auctions, as the page keeps them: the seller's name and the riven's. */
+export const auctionsIn = (list: RivenAuction[]): RivenAuction[] => (Array.isArray(list) ? list.map((a) => ({ ...a, seller: cleanName(a.seller), name: cleanName(a.name) })) : list);
+
 /** warframe.market's live feed of new orders (src-tauri/src/feed.rs). */
 export interface FeedState {
   running: boolean;
@@ -1797,7 +1829,7 @@ export async function onNoticeAction(fn: (id: string, action: string) => void): 
 export async function onMarketOrder(fn: (order: import("./core/deals").FeedOrder) => void): Promise<() => void> {
   if (!inTauri) return () => {};
   const { listen } = await import("@tauri-apps/api/event");
-  return listen<import("./core/deals").FeedOrder>("market-order", (e) => fn(e.payload));
+  return listen<import("./core/deals").FeedOrder>("market-order", (e) => fn(feedOrderIn(e.payload)));
 }
 
 let devPlatform: Platform = "pc";
@@ -1813,11 +1845,11 @@ export const market = {
     return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : [];
   },
   /** Your chats on warframe.market's messenger. */
-  chats: async (): Promise<ChatSummary[]> => (inTauri ? invoke("market_chats") : []),
+  chats: async (): Promise<ChatSummary[]> => (inTauri ? chatsIn(await invoke<ChatSummary[]>("market_chats")) : []),
   feedState: (): Promise<FeedState> => (inTauri ? invoke("market_feed_state") : Promise.resolve({ running: false, connected: false, received: 0, error: null })),
   /** A trade partner's warframe.market profile by in-game name; null when there's no such account. */
   user: async (name: string): Promise<MarketUser | null> =>
-    inTauri ? invoke("market_user", { name }) : { ingameName: name, slug: name.toLowerCase(), reputation: 3, status: "offline" },
+    inTauri ? marketUserIn(await invoke<MarketUser | null>("market_user", { name })) : { ingameName: name, slug: name.toLowerCase(), reputation: 3, status: "offline" },
   /** The review you've left a player: 1 for +rep, -1 for a report, null for none. */
   myReview: (name: string): Promise<number | null> => (inTauri ? invoke("market_my_review", { name }) : Promise.resolve(null)),
   /** +rep: a positive review with your message, from your account. */
@@ -1836,9 +1868,11 @@ export const market = {
   rivenMeta: async (): Promise<RivenMeta> =>
     rivenMetaOf(await (inTauri ? invoke<unknown>("market_riven_meta") : fetch("/dev-rivens.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("no riven data in the browser")))))),
   rivenAuctions: async (weapon: string, positive: string[], negative: string | null): Promise<RivenAuction[]> =>
-    inTauri
-      ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
-      : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app")))),
+    auctionsIn(
+      await (inTauri
+        ? invoke<RivenAuction[]>("market_riven_auctions", { weapon, positive, negative })
+        : fetch("/dev-auctions.json").then((r) => (r.ok ? r.json() : Promise.reject(new Error("warframe.market can only be searched from the desktop app"))))),
+    ),
   /** Your riven auctions (raw; see parseMyAuctions). In the browser dev mode, /dev-market.json's `auctions`, or none. */
   myAuctions: async (): Promise<unknown> => (inTauri ? invoke("market_my_auctions") : ((await devMarket()) as { auctions?: unknown } | null)?.auctions ?? []),
   createAuction: (auction: { starting_price: number; buyout_price: number | null; minimal_reputation: number; private: boolean; note: string; item: import("./core/rivens").AuctionItem }): Promise<unknown> =>
@@ -1852,13 +1886,13 @@ export const market = {
     return inTauri ? invoke("market_platform", { platform }) : Promise.resolve();
   },
   book: async (slug: string): Promise<BookOrder[]> => {
-    if (inTauri) return invoke("market_order_book", { slug });
+    if (inTauri) return bookIn(await invoke<BookOrder[]>("market_order_book", { slug }));
     // Browser dev mode with /dev-books.json (the demo account has one): its books stand in for
     // the whole market, and an item it hasn't got has nobody selling.
     const kept = await devBooks();
-    if (kept) return kept[slug] ?? [];
+    if (kept) return bookIn(kept[slug] ?? []);
     const res = await fetch(`https://api.warframe.market/v2/orders/item/${slug}`, { headers: { Platform: devPlatform, Crossplay: "true" } });
-    return (await res.json()).data;
+    return bookIn((await res.json()).data);
   },
   create: (order: { itemId: string; platinum: number; quantity: number; rank?: number | null; subtype?: string | null; visible?: boolean; type?: "sell" | "buy" }): Promise<MyOrder> =>
     inTauri ? invoke("market_create", { order }) : devNoop().then(() => ({ id: `dev-${Date.now()}`, itemId: order.itemId, type: order.type ?? "sell", platinum: order.platinum, quantity: order.quantity, rank: order.rank ?? null, subtype: order.subtype ?? null, visible: true, updatedAt: null })),

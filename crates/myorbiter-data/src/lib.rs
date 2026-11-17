@@ -34,6 +34,36 @@ pub enum DataError {
     Db(#[from] rusqlite::Error),
 }
 
+/// Reads `path` whole when it is a plain file of at most `cap` bytes. A named pipe, a device or a
+/// folder under the name (a link to one included) is an error before it's opened: opening a pipe
+/// waits for a writer, and a device like `/dev/zero` never ends. A file larger than `cap`, more
+/// than any real one, is an error without being read. A link to a plain file is read as the file.
+pub fn read_capped(path: &Path, cap: u64) -> std::io::Result<Vec<u8>> {
+    use std::io::{Error, ErrorKind, Read};
+    let not_plain = || Error::new(ErrorKind::InvalidInput, "not a plain file");
+    let too_large = || Error::new(ErrorKind::InvalidData, format!("larger than {} MB, more than any real one", cap >> 20));
+    let meta = fs::metadata(path)?;
+    if !meta.is_file() {
+        return Err(not_plain());
+    }
+    if meta.len() > cap {
+        return Err(too_large());
+    }
+    let file = fs::File::open(path)?;
+    // Checked again on what was opened, in case the name changed in between; and read no further
+    // than the cap, in case the file grows.
+    let meta = file.metadata()?;
+    if !meta.is_file() {
+        return Err(not_plain());
+    }
+    let mut bytes = Vec::with_capacity(meta.len().min(cap) as usize);
+    file.take(cap + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > cap {
+        return Err(too_large());
+    }
+    Ok(bytes)
+}
+
 fn io_error(path: &Path, source: std::io::Error) -> DataError {
     if source.kind() == std::io::ErrorKind::NotFound {
         DataError::MissingFile(path.to_path_buf())
@@ -139,6 +169,14 @@ pub fn relics_path(dir: &Path, fallback: Option<&Path>) -> Option<PathBuf> {
 
 const CATALOG_FILE: &str = "catalog/catalog-generation.json";
 const RELICS_FILE: &str = "catalog/relic-generation.json";
+
+/// The most of a catalog file read (`catalog_entries`): the item catalog is about 80 MB (WFCD's
+/// download, about 70 MB, as TennoScope keeps it), the relic table a few MB. Three times the
+/// largest leaves it years to grow; a file past it isn't one of TennoScope's.
+const CATALOG_MAX: u64 = 256 << 20;
+/// The most of `collection-prices.json` read: TennoScope's price table, a few maps of item names to
+/// prices (a few thousand entries each, about a megabyte at most).
+const PRICES_MAX: u64 = 64 << 20;
 
 /// A slimmed catalog and the file state it was read from.
 struct Slimmed {
@@ -299,7 +337,7 @@ fn read_inventory(path: &Path) -> Result<(Vec<InventoryRow>, Option<i64>), DataE
 }
 
 fn read_json(path: &Path) -> Result<Value, DataError> {
-    let text = fs::read(path).map_err(|source| io_error(path, source))?;
+    let text = read_capped(path, PRICES_MAX).map_err(|source| io_error(path, source))?;
     serde_json::from_slice(&text).map_err(|source| DataError::Json { path: path.to_path_buf(), source })
 }
 
@@ -352,7 +390,7 @@ fn masterable_part(path: &str) -> bool {
 /// item catalog is skins, glyphs and patch logs: those are only scanned, never built, which reads
 /// it in about half the time of building the whole file and picking from it.
 fn catalog_entries(path: &Path, keep: fn(&Head) -> bool, fields: &[&str]) -> Result<Vec<Map<String, Value>>, DataError> {
-    let bytes = fs::read(path).map_err(|source| io_error(path, source))?;
+    let bytes = read_capped(path, CATALOG_MAX).map_err(|source| io_error(path, source))?;
     let json = |source| DataError::Json { path: path.to_path_buf(), source };
     let raw: Vec<&RawValue> = match serde_json::from_slice::<Wrapped>(&bytes) {
         Ok(w) => w.catalog,
@@ -564,6 +602,29 @@ fn read_relics(path: &Path) -> Result<Vec<Value>, DataError> {
     Ok(out)
 }
 
+/// For the tests: a planted named pipe, and a read that may block on one (Unix only, as are the
+/// tests that use them).
+#[cfg(all(test, unix))]
+pub(crate) mod test_support {
+    use std::path::Path;
+    use std::time::Duration;
+
+    /// A named pipe at `path`: opening it to read waits for a writer that never comes.
+    pub fn fifo(path: &Path) {
+        assert!(std::process::Command::new("mkfifo").arg(path).status().expect("mkfifo").success(), "mkfifo {}", path.display());
+    }
+
+    /// What `f` gives, or None when it takes more than five seconds (a read blocked on a pipe: the
+    /// thread is left behind, and ends with the test run).
+    pub fn within<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> Option<T> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(Duration::from_secs(5)).ok()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -581,6 +642,51 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
     use super::*;
+    #[cfg(unix)]
+    use crate::test_support::within;
+
+    /// A folder the player was talked into choosing as the data folder: a named pipe or a link to
+    /// a device under a catalog's or the price table's name, or a file far larger than any real
+    /// one. Each is an error at once, not a hang or the app's memory filled.
+    #[cfg(unix)]
+    #[test]
+    fn a_data_file_that_is_not_a_plain_file_is_passed_over_at_once() {
+        let dir = temp_dir("planted");
+        crate::test_support::fifo(&dir.join(CATALOG_FILE));
+        crate::test_support::fifo(&dir.join("collection-prices.json"));
+        std::os::unix::fs::symlink("/dev/zero", dir.join(RELICS_FILE)).unwrap();
+        let (catalog, prices, relics) = (dir.join(CATALOG_FILE), dir.join("collection-prices.json"), dir.join(RELICS_FILE));
+        let errors = within(move || [catalog_entries(&catalog, |_| true, &["name"]).err().map(|e| e.to_string()), read_json(&prices).err().map(|e| e.to_string()), catalog_entries(&relics, |_| true, &["name"]).err().map(|e| e.to_string())]);
+        let errors = errors.expect("read at once, without waiting on the pipe or the device");
+        for e in &errors {
+            assert!(e.as_deref().is_some_and(|e| e.contains("not a plain file")), "{errors:?}");
+        }
+        fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn a_data_file_is_read_up_to_its_cap() {
+        let dir = temp_dir("capped");
+        let file = dir.join("ten.json");
+        fs::write(&file, b"0123456789").unwrap();
+        assert_eq!(read_capped(&file, 10).unwrap(), b"0123456789");
+        let e = read_capped(&file, 9).unwrap_err();
+        assert!(e.to_string().contains("larger than"), "{e}");
+        assert!(read_capped(&dir, 10).is_err(), "a folder isn't read");
+        assert_eq!(read_capped(&dir.join("none"), 10).unwrap_err().kind(), std::io::ErrorKind::NotFound, "a missing file is still told as missing");
+        // A link to a plain file is read as the file (a data folder may be linked in, file by file).
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&file, dir.join("link.json")).unwrap();
+            assert_eq!(read_capped(&dir.join("link.json"), 10).unwrap(), b"0123456789");
+        }
+        // Past the cap, nothing is read: a sparse file the size of the cap and one byte more.
+        let big = dir.join(CATALOG_FILE);
+        fs::File::create(&big).unwrap().set_len(CATALOG_MAX + 1).unwrap();
+        let e = catalog_entries(&big, |_| true, &["name"]).unwrap_err().to_string();
+        assert!(e.contains("larger than 256 MB"), "{e}");
+        fs::remove_dir_all(&dir).ok();
+    }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("myorbiter-data-{tag}-{}", std::process::id()));

@@ -34,7 +34,17 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
 ## To check on Windows
 
 - [ ] **It starts with the narrowed permissions** (`src-tauri/capabilities/default.json`: of
-      Tauri's core, only listening for events): first start, every page opens, Settings saves.
+      Tauri's core, only listening for events and setting the page's zoom): first start, every page
+      opens, Settings saves.
+- [ ] **The zoom keys and the smallest window.** On Windows, where the keys are WebView2's own
+      zoom: Ctrl with plus, minus and the mouse wheel make the whole page larger and smaller,
+      Ctrl+0 puts it back at 100 %, and a pinch on a touchpad zooms too, if there is one. Close
+      MyOrbiter at another zoom and start it again: is it at 100 %, or does WebView2 keep the
+      zoom? (MyOrbiter itself saves none.) On Linux, where it is Tauri's script in the page,
+      20 % a step, through `core:webview:allow-set-webview-zoom` (nothing happens if the
+      permission is missing): the same keys and the wheel, and the next start is at 100 %
+      again. On both, the window drawn down to 900 by 500 keeps the foot of the sidebar (Sync
+      and the buttons under it) on screen.
 - [ ] **The three native dialogs** open from Rust and work: Settings → TennoScope → *Choose…*
       (TennoScope's program), a step back to an older build (it names both builds; needs a real
       older build), and a new Discord webhook address.
