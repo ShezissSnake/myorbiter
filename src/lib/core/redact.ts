@@ -569,7 +569,7 @@ function cleanPaths(s: string): string {
 // a usual setup. Known, it is hidden as "[user]" wherever it stands as a word, in any case, also
 // outside paths and in the paths the path rule above leaves as written; never out of a longer word
 // ("alice" stays in "malice" and "alice_2"; "alice-pc" is two words). A name with spaces is hidden
-// whole, and each of its words on its own too, but an ordinary one. Unknown (no such path held, none in the lines), only the path rule hides it.
+// whole when none of its words is ordinary, and each of its words on its own too, but an ordinary one. Unknown (no such path held, none in the lines), only the path rule hides it.
 //
 // A name that is also a word a report needs is not hidden as a word, so a report keeps its words
 // ("deck", the Steam Deck's account, in "Steam Deck"): `ordinaryName`. It stays hidden where the path
@@ -590,12 +590,27 @@ const ORDINARY_WORDS = new Set([
   "new", "old", "big", "little", "our", "his", "her", "their", "one", "two", "three", "mr", "mrs", "ms", "miss", "dr", "jr", "sr", "family", "office", "work", "school", "kids", "other", "second", "first", "backup", "temp", "local",
 ]);
 
+/** Words the rules after the user name read as an anchor (a rule's lead, an address's path, a
+ *  share's scheme or root): a user name equal to one would take the anchor away with its stand-in,
+ *  and with it what the rule hides. */
+const RULE_WORDS = new Set([
+  "sitechat", "people", "whisper", "whispered", "whispering", "message", "messaged", "chatted", "sold", "gave", "give", "giving", "traded", "trading", "bought", "invite", "invited", "rep", "tell",
+  "profile", "review", "reviews", "chats", "partner", "buyer", "seller", "username",
+  "smb", "file", "unc",
+]);
+
+/** A price ("20p", "300plat"), which the rule for a seller reads before "from". */
+const PRICE_WORD = /^\d+(?:p|plat|platinum)$/i;
+/** A word a rule reads: one of `RULE_WORDS`, or a price. */
+const ruleWord = (w: string) => RULE_WORDS.has(w.toLowerCase()) || PRICE_WORD.test(w);
+
 /** Whether a user name is an ordinary word, and so hidden only where the path rule hides one:
- *  fewer than 3 characters, no letter in it (a number), or one of `ORDINARY_WORDS` or `KEEP_FOLDERS`.
- *  A name of several words is ordinary when every word of it is. */
+ *  fewer than 3 characters, no letter in it (a number), one of `ORDINARY_WORDS` or `KEEP_FOLDERS`,
+ *  or a word a rule reads (`RULE_WORDS`, a price). A name of several words is ordinary when every
+ *  word of it is. */
 export function ordinaryName(name: string): boolean {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  return !words.length || words.every((w) => w.length < 3 || !/\p{L}/u.test(w) || ORDINARY_WORDS.has(w.toLowerCase()) || KEEP_FOLDERS.has(w.toLowerCase()));
+  return !words.length || words.every((w) => w.length < 3 || !/\p{L}/u.test(w) || ORDINARY_WORDS.has(w.toLowerCase()) || KEEP_FOLDERS.has(w.toLowerCase()) || ruleWord(w));
 }
 
 /** A user name as a whole word, in any case: not inside a longer word (letters and digits of any
@@ -608,8 +623,9 @@ export function ordinaryName(name: string): boolean {
 const userPattern = (words: string[]) => new RegExp(`(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
 
 /** The patterns that hide the user names in `list`, longest first: each name that isn't ordinary,
- *  whole, and each word of a name of several words that isn't ordinary on its own; and those names
- *  and words, in lower case. */
+ *  whole (but not one of several words that holds an ordinary word: "to", "you", "buyer" may be a
+ *  rule's anchor, and the whole name would take it away), and each word of a name of several words
+ *  that isn't ordinary on its own; and those names and words, in lower case. */
 function userPatterns(list: readonly (string | null | undefined)[] | undefined): { patterns: RegExp[]; keys: Set<string> } {
   const seen = new Map<string, string[]>();
   for (const n of list ?? []) {
@@ -617,7 +633,7 @@ function userPatterns(list: readonly (string | null | undefined)[] | undefined):
     const words = n.trim().split(/\s+/).filter(Boolean);
     for (const w of words.length > 1 ? [words, ...words.map((x) => [x])] : [words]) {
       const key = w.join(" ").toLowerCase();
-      if (w.length && !ordinaryName(key) && !seen.has(key)) seen.set(key, w);
+      if (w.length && !ordinaryName(key) && !(w.length > 1 && w.some((x) => ordinaryName(x))) && !seen.has(key)) seen.set(key, w);
     }
   }
   return { patterns: [...seen.entries()].sort((a, b) => b[0].length - a[0].length).map(([, w]) => userPattern(w)), keys: new Set(seen.keys()) };

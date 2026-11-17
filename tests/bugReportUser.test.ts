@@ -180,16 +180,65 @@ test("user names: an ordinary word is hidden only where the path rule hides a us
   }
   // Not ordinary: a made-up name, or a name with one word that is not.
   for (const name of ["Orrenvale", "Orren Taskwell", "Deck Orren", "José"]) assert.ok(!ordinaryName(name), name);
-  // A name with an ordinary word in it hides that word only as part of the whole name, the small
-  // words of a sentence included.
-  assert.equal(redact("Deck Orren left the Steam Deck", { user: ["Deck Orren"] }), "[user] left the Steam Deck");
-  assert.equal(redact("the game froze on a new listing; The Orrenvale", { user: ["The Orrenvale"] }), "the game froze on a new listing; [user]");
+  // A name with an ordinary word in it hides its other words, and leaves the ordinary word as it is
+  // (it may be a rule's anchor: "to", "you", "buyer"), the small words of a sentence included.
+  assert.equal(redact("Deck Orren left the Steam Deck", { user: ["Deck Orren"] }), "Deck [user] left the Steam Deck");
+  assert.equal(redact("the game froze on a new listing; The Orrenvale", { user: ["The Orrenvale"] }), "the game froze on a new listing; The [user]");
   // Every word of it ordinary: an ordinary name.
   assert.equal(redact("the gamer froze; The Gamer", { user: ["The Gamer"] }), "the gamer froze; The Gamer");
-  assert.equal(redact("the game froze on a new listing; New Orren", { user: ["New Orren"] }), "the game froze on a new listing; [user]");
+  assert.equal(redact("the game froze on a new listing; New Orren", { user: ["New Orren"] }), "the game froze on a new listing; New [user]");
   // Learned from a line without a slash after it, a name's first word may be a small word: it hides nothing.
   assert.deepEqual(homeNamesIn(["C:\\Users\\The Gamer said hi"]), ["The"]);
   assert.ok(ordinaryName("The"));
+});
+
+test("user names: a name that is a word a rule reads (buyer, sold, people, smb, a price…) leaves the rule its anchor", () => {
+  // Each rule's anchor as the user name: the line comes out as it does when the name isn't known.
+  const cases: [string, string, string][] = [
+    ["buyer", "buyer: Kirovane", "buyer: [player]"],
+    ["seller", "seller: Kirovane", "seller: [player]"],
+    ["partner", "partner: Kirovane", "partner: [player]"],
+    ["username", "username: Kirovane", "username: [player]"],
+    ["sold", "sold Ash Prime Set to Kirovane", "sold Ash Prime Set to [player]"],
+    ["bought", "bought Ash Prime Set from Kirovane", "bought Ash Prime Set from [player]"],
+    ["gave", "gave Ash Prime Set to Kirovane", "gave Ash Prime Set to [player]"],
+    ["trading", "trading with Kirovane", "trading with [player]"],
+    ["whisper", "whisper to Kirovane", "whisper to [player]"],
+    ["invited", "got invited to a squad with Kirovane", "got invited to a squad with [player]"],
+    ["chatted", "chatted with Ash for Kirovane", "chatted with Ash for [player]"],
+    ["people", "3 people whispered you: Kirovane, Tamsel, Ulbrecht", "3 people whispered you: [players]"],
+    ["messaged", "Kirovane messaged you", "[player] messaged you"],
+    ["whispered", "Kirovane whispered you", "[player] whispered you"],
+    ["tell", "/tell Kirovane hi", "/tell [player] hi"],
+    ["invite", "/invite Kirovane", "/invite [player]"],
+    ["give", "Couldnt give Kirovane +rep", "Couldnt give [player] +rep"],
+    ["rep", "Couldnt give Kirovane +rep", "Couldnt give [player] +rep"],
+    ["profile", "https://warframe.market/profile/Kirovane", "https://warframe.market/profile/[player]"],
+    ["reviews", "https://warframe.market/reviews/Kirovane", "https://warframe.market/reviews/[player]"],
+    ["chats", "https://warframe.market/chats/with/Kirovane", "https://warframe.market/chats/with/[player]"],
+    ["siteChat", "siteChat: Kirovane messaged you on warframe.market (Kirovane: meet at Hushfolder)", "siteChat: [player] messaged you on warframe.market ([chat hidden])"],
+    ["smb", "smb://brynhost/Secretshare/x", "smb://[host]/[folder]/[folder]"],
+    ["UNC", "\\\\?\\UNC\\brynhost\\Secretshare\\x", "\\\\?\\UNC\\[host]\\[folder]\\[folder]"],
+    ["file", "file://brynhost/Hushfolder/x", "file://[host]/[folder]/[folder]"],
+    ["20p", "Ash Prime Set: 20p from Kirovane", "Ash Prime Set: 20p from [player]"],
+    ["300plat", "Rubico: 300plat from Kirovane", "Rubico: 300plat from [player]"],
+  ];
+  for (const [user, line, out] of cases) {
+    assert.equal(redact(line), out, `${line} without a name`);
+    for (const u of [user, user.toUpperCase()]) {
+      assert.equal(redact(line, { user: [u] }), out, `${line} with ${u}`);
+      assert.equal(hideNames(line, { user: [u] }), hideNames(line), `${line} with ${u}`);
+      assert.ok(ordinaryName(u), u);
+    }
+  }
+  // One word of a longer name: the other words are hidden, the rule's word stays for the rule.
+  assert.equal(redact("Orren buyer: Kirovane", { user: ["Orren Buyer"] }), "[user] buyer: [player]");
+  assert.equal(redact("sold Ash Prime Set to Kirovane", { user: ["Set to"] }), "sold Ash Prime [user] to [player]");
+  assert.equal(redact("bought Ash Prime Set from Kirovane", { user: ["Set from"] }), "bought Ash Prime [user] from [player]");
+  assert.equal(redact("Kirovane whispered you Brynwood", { user: ["you Brynwood"] }), "[player] whispered you [user]");
+  // Learned from a line of the log (a home folder named "smb"): the share's line keeps what it hides.
+  const report = buildReport({ what: "it froze", steps: "", expected: "" }, details(["found at /home/smb/Hushfolder/x", "copied from smb://brynhost/Secretshare/x", "buyer: Kirovane"]));
+  assert.deepEqual(report.details!.log, ["found at /home/[user]/[folder]/[folder]", "copied from smb://[host]/[folder]/[folder]", "buyer: [player]"]);
 });
 
 test("user names: the same name as the in-game name reads as [user], and goes everywhere", () => {

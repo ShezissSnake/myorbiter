@@ -430,7 +430,8 @@ wherever it stands as a word, in what you wrote too: in any case, outside paths,
 gaps above and in encoded ones (`%2F…`), as a path's `~name` or variable, whose folder names are
 hidden as they are when the name isn't known (`~name/a` becomes `~[user]/[folder]`, `$Name/a`
 becomes `$[user]/[folder]`), and with spaces in it (whole, with any spaces or `%20`
-between its words, and each of its words on its own, but an everyday one, below). MyOrbiter knows
+between its words, when none of its words is an everyday one, below; and each of its words on its
+own, but an everyday one). MyOrbiter knows
 it as your home folder's name, which is your user name on a usual setup, and learns it without
 asking your system anything new: from
 the paths it already holds as the report opens, the game log's file and TennoScope's folder, as
@@ -456,9 +457,12 @@ characters, one with no letter (a number), the names systems and devices give an
 the Steam Deck's, `admin`, `guest` and the like), the folder names the path rule keeps (`user`,
 `home`, `steam`, `games` and the like), the marks the report writes, the words of its details'
 own lines (the system, the architecture, the channel and TennoScope's state: `linux`, `connected`
-and the like) and the small words of a sentence (`the`, `new`, `my` and the
-like); a name of several words is such a name when each of its words
-is. Any other name is hidden wherever it stands as a word, also where it is an ordinary word too.
+and the like), the small words of a sentence (`the`, `new`, `my` and the
+like), and the words the rules for players' names and paths read to find what they hide (`buyer`,
+`sold`, `people`, `tell`, `profile`, `siteChat`, `smb`, `UNC` and the like, and a price such as
+`20p`); a name of several words is such a name when each of its words
+is, and one with such a word in it is hidden word by word, that word left as it is (`Orren Buyer`
+leaves `[user] buyer: [player]`). Any other name is hidden wherever it stands as a word, also where it is an ordinary word too.
 When MyOrbiter hasn't seen your home folder (the game log and TennoScope's folder are not under it,
 as when TennoScope's folder is set elsewhere, or MyOrbiter runs in a browser, and the report writes
 none), your user name is hidden only where the path rule hides a user name. MyOrbiter's own log
