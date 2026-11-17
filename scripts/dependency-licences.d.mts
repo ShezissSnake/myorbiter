@@ -54,6 +54,7 @@ export interface BuildListener {
   loaded(file: string, byHook?: boolean): void;
   worker(what: string): void;
   command(line: string): void;
+  symlink(target: string, path: string): void;
 }
 export function pageRecorder(
   root: string,

@@ -565,6 +565,8 @@ export function knownTools(root, names) {
  *   in the page (the config holds it), and a file outside the page that is no package's stops it.
  * - `worker(what)` and `command(line)`: a thread started during the build stops it (what it reads
  *   isn't heard), and so does a process, unless its command line is one of `known.commands`.
+ * - `symlink(target, path)`: a symbolic link made during the build stops it, wherever it leads
+ *   (what reads the output, such as the app's bundler, follows it later, out of the script's hearing).
  * Each is traced to its package (`rendered`: package folder -> how), or to Vite's or Rolldown's
  * helpers; a module that is neither the page's own (under `root`) nor a package's is `unknown`.
  * `unheard()` names each file the build emitted as a file of its own (not its code, styles or
@@ -638,6 +640,7 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }, kno
     }
   };
   const worker = (what) => stop(`thread ${what}`, `the build started a thread (${what}), whose reads this script doesn't hear`);
+  const symlink = (target, path) => stop(`symlink ${path}`, `the build made a symbolic link, ${path} to ${target}, which what reads the output follows where this script doesn't hear it`);
   const command = (line) => {
     if (!known.commands.includes(line)) stop(`process ${line}`, `the build started a process this script doesn't know, whose reads it doesn't hear: ${line}`);
   };
@@ -688,7 +691,7 @@ export function pageRecorder(root, helpers = { vite: null, rolldown: null }, kno
   };
   const unheard = () => [...emitted].filter((f) => !heard.has(f)).sort();
   const stops = () => [...stopped.values()].sort();
-  return { plugin, read, loaded, config, worker, command, rendered, unknown, unheard, stops, hooks: () => hooked };
+  return { plugin, read, loaded, config, worker, command, symlink, rendered, unknown, unheard, stops, hooks: () => hooked };
 }
 
 // Node, listened to while a build runs (`build`, a recorder, is set): `fs`'s functions that read
@@ -757,11 +760,26 @@ function listenOnce() {
     obj[name] = listened;
   };
   for (const name of ["readFileSync", "readFile", "createReadStream", "openSync", "open", "openAsBlob"]) wrap(fs, name, "read");
-  for (const name of ["copyFileSync", "copyFile", "linkSync", "link", "renameSync", "rename"]) wrap(fs, name, "copy");
-  for (const name of ["cpSync", "cp"]) wrap(fs, name, "tree");
+  for (const name of ["copyFileSync", "copyFile", "linkSync", "link"]) wrap(fs, name, "copy");
+  // A move takes a folder whole, as cp copies one.
+  for (const name of ["cpSync", "cp", "renameSync", "rename"]) wrap(fs, name, "tree");
   for (const name of ["readFile", "open"]) wrap(fs.promises, name, "read");
-  for (const name of ["copyFile", "link", "rename"]) wrap(fs.promises, name, "copy");
-  wrap(fs.promises, "cp", "tree");
+  for (const name of ["copyFile", "link"]) wrap(fs.promises, name, "copy");
+  for (const name of ["cp", "rename"]) wrap(fs.promises, name, "tree");
+  // A symbolic link: its target is read by whatever follows it, later; it stops the build.
+  for (const obj of [fs, fs.promises]) {
+    for (const name of obj === fs ? ["symlinkSync", "symlink"] : ["symlink"]) {
+      const orig = obj[name];
+      obj[name] = function (target, path, ...rest) {
+        const at = build ? toPath(path) : null;
+        if (at) {
+          const to = target instanceof URL ? fileURLToPath(target) : String(target);
+          build.symlink(isAbsolute(to) ? to : join(dirname(at), to), at); // a relative target: from the link's folder
+        }
+        return orig.call(this, target, path, ...rest);
+      };
+    }
+  }
   // Processes: heard by their command line, once (execSync starts its process through spawnSync).
   let inProcess = 0;
   for (const name of ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"]) {
@@ -805,7 +823,8 @@ function listenOnce() {
  * Hears what a build does while it runs, for `recorder` (a pageRecorder): `read` for every file
  * read by name through Node's `fs` (readFile, readFileSync, createReadStream and the stream
  * fs.ReadStream opens, open, openSync, openAsBlob, and fs.promises' readFile and open), copied
- * (copyFile, cp, in each form; cp's every file) or linked or moved (link, rename); `loaded` for
+ * (copyFile, cp, in each form; cp's every file) or linked or moved (link, rename; a folder moved,
+ * its every file); `symlink` for every symbolic link made (symlink, in each form); `loaded` for
  * every module Node loads and every native addon; `worker` and `command` for every thread and
  * process started; until the returned function is called.
  */

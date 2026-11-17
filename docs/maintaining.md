@@ -191,8 +191,9 @@ after compiling and before packing; TennoScope's once it is put into `vendor/ten
 the page when its code is in the page's code (or a worker's), when one of its styles is compiled
 into the page, when the build emits one of its files, when the page's config is bundled from one
 of its files, when one of its files is in the page's public folder (or linked from there), or
-when the build reads, copies, links or moves one of its files through Node's `fs` while it runs,
-by the path it is given or by the path a link leads to. That takes in what a style `@import`s or
+when the build reads, copies, hard-links or moves one of its files through Node's `fs` while it
+runs (a folder of its moved whole, each of its files), by the path it is given or by the path a
+link leads to. That takes in what a style `@import`s or
 `composes` from, in a stylesheet or a component's `<style>`, every small file Vite inlines as a
 `data:` address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`),
 whatever the page's config reads (`fs.ReadStream` included), and what a plugin copies, into the
@@ -224,6 +225,9 @@ It stops as well when:
 - the build starts a thread, or a process whose command line isn't one of the program's
   `commands` in the script (MyOrbiter's config runs `git log` for its build stamp): what they read
   isn't heard;
+- the build makes a symbolic link (`symlink`, `symlinkSync` or `fs.promises.symlink`), wherever it
+  leads: what reads the output follows it later (the app's bundler takes in the file a link in the
+  page's folder leads to), where the script doesn't listen;
 - the page's config is bundled from a file outside the page that is no package's;
 - the page holds a module that is neither the page's own nor a package's;
 - the build emits a file of its own (not its code, styles or HTML) without reading it through

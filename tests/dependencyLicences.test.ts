@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import fs, { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 import {
   ALLOWED_FILE, NO_TEXT_FILE, PREPROCESSORS, PROGRAMS, callerOf, checkList, frameFile, gate, knownTools, licenceAllowed, listenToBuild, main,
@@ -400,6 +401,7 @@ test("fs's reads, copies and links are heard once each, by the code that called 
     loaded: () => {},
     worker: (what: string) => events.push(`worker ${what}`),
     command: (line: string) => events.push(`command ${line}`),
+    symlink: (target: string, path: string) => events.push(`symlink ${path.slice(dir.length + 1)} -> ${target.slice(dir.length + 1)}`),
   });
   try {
     readFileSync(join(pkg, "a.txt"), "utf8");
@@ -412,7 +414,12 @@ test("fs's reads, copies and links are heard once each, by the code that called 
     await fs.promises.copyFile(join(pkg, "e.txt"), join(dir, "e-copy.txt"));
     fs.linkSync(join(pkg, "e.txt"), join(dir, "e-link.txt"));
     fs.cpSync(join(pkg, "sub"), join(dir, "sub-copy"), { recursive: true });
+    fs.renameSync(pkg, join(dir, "moved"));
+    await fs.promises.rename(join(dir, "moved"), pkg);
     readFileSync(join(dir, "link.txt"));
+    symlinkSync(join(pkg, "a.txt"), join(dir, "sym-a.txt"));
+    await fs.promises.symlink("node_modules/fakefs/b.txt", join(dir, "sym-b.txt"));
+    await new Promise((ok) => fs.symlink(join(pkg, "c.txt"), join(dir, "sym-c.txt"), ok));
     execFileSync("true", ["made-up"]);
     await new Promise((ok) => new Worker("1", { eval: true }).on("exit", ok));
   } finally {
@@ -428,9 +435,19 @@ test("fs's reads, copies and links are heard once each, by the code that called 
     "node_modules/fakefs/e.txt copy test",
     "node_modules/fakefs/e.txt copy test",
     "node_modules/fakefs/sub/g.txt copy test",
+    // A folder moved: its every file, by the path it had.
+    ...["a", "b", "c", "d", "e", "f", "sub/g"].map((f) => `node_modules/fakefs/${f}.txt copy test`),
+    ...["a", "b", "c", "d", "e", "f", "sub/g"].map((f) => `moved/${f}.txt copy test`),
     "link.txt read test",
   ]);
-  assert.deepEqual(events, ["command true made-up", "worker 1"]);
+  // A symbolic link's target, from the link's own folder when relative.
+  assert.deepEqual(events, [
+    "symlink sym-a.txt -> node_modules/fakefs/a.txt",
+    "symlink sym-b.txt -> node_modules/fakefs/b.txt",
+    "symlink sym-c.txt -> node_modules/fakefs/c.txt",
+    "command true made-up",
+    "worker 1",
+  ]);
 });
 
 test("a file the build emits without having read it through fs is named: what it inlines could go unseen", () => {
@@ -460,7 +477,7 @@ test("a worker the page's build makes gets the same listener", () => {
 
 // A made-up page with made-up GPL-3.0 packages, built with the repository's own Vite (and Svelte,
 // for a component's style): the page's real build, run again by readPage as a release build does.
-const pageBuild = async (files: Record<string, string>, svelte = false, links: Record<string, string> = {}) => {
+const makePage = (files: Record<string, string>, svelte = false, links: Record<string, string> = {}) => {
   const repo = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   const nm = join(repo, "node_modules");
   mkdirSync(nm);
@@ -490,6 +507,10 @@ const pageBuild = async (files: Record<string, string>, svelte = false, links: R
       : "export default {};\n");
   }
   if (svelte) writeFileSync(join(repo, "svelte.config.js"), 'import { vitePreprocess } from "@sveltejs/vite-plugin-svelte";\nexport default { preprocess: vitePreprocess() };\n');
+  return repo;
+};
+const pageBuild = async (files: Record<string, string>, svelte = false, links: Record<string, string> = {}) => {
+  const repo = makePage(files, svelte, links);
   try {
     const page = await readPage("myorbiter", repo);
     const made = page.packages.filter((p) => p.name.startsWith("fake")).map((p) => `${p.name} ${p.version} ${p.licence}`).sort();
@@ -612,6 +633,68 @@ test("a package's files a plugin copies into the output, or copies and then read
   assert.deepEqual(r.made, ["fakecopy 1.0.0 GPL-3.0", "fakecp 1.0.0 GPL-3.0", "fakeemitcp 1.0.0 GPL-3.0", "fakelinkcp 1.0.0 GPL-3.0"]);
   assert.deepEqual(r.failures, []);
 });
+
+test("a symbolic link the build makes stops it: one in the output to a package's file, in each of fs's forms", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(1);\n",
+    "node_modules/fakesymout/x.txt": "made-up link\n",
+    "node_modules/fakesymrel/x.txt": "made-up relative link\n",
+    "node_modules/fakesymcb/x.txt": "made-up callback link\n",
+    "made-up-links/.keep": "",
+    "vite.config.ts": 'import fs, { mkdirSync, symlinkSync } from "node:fs";\nimport { join } from "node:path";\n' +
+      "let out = \"\";\nexport default { plugins: [{ name: \"made-up-linker\",\n" +
+      "  configResolved(c) { out = c.build.outDir; },\n" +
+      '  async closeBundle() { mkdirSync(out, { recursive: true }); symlinkSync(join(process.cwd(), "node_modules/fakesymout/x.txt"), join(out, "out.txt"));\n' +
+      '    await fs.promises.symlink("../node_modules/fakesymrel/x.txt", join(process.cwd(), "made-up-links", "rel.txt"));\n' +
+      '    await new Promise((ok) => fs.symlink(join(process.cwd(), "node_modules/fakesymcb/x.txt"), join(out, "cb.txt"), ok)); },\n' +
+      "}] };\n",
+  });
+  assert.deepEqual(r.made, []);
+  assert.equal(r.failures.length, 3);
+  for (const f of r.failures) assert.match(f, /^MyOrbiter's page: the build made a symbolic link, \S+ to \S+\/node_modules\/fakesym\w+\/x\.txt, which what reads the output follows where this script doesn't hear it$/);
+  assert.deepEqual(r.failures.map((f) => /node_modules\/(\w+)\//.exec(f)?.[1]).sort(), ["fakesymcb", "fakesymout", "fakesymrel"]);
+});
+
+test("a package's folder a plugin moves whole is in the page, as a copied one is", unix, async () => {
+  const r = await pageBuild({
+    "src/main.js": "console.log(1);\n",
+    "node_modules/fakemove/x.txt": "made-up move\n",
+    "node_modules/fakemove/sub/y.txt": "made-up move, deeper\n",
+    "vite.config.ts": 'import { mkdirSync, renameSync } from "node:fs";\nimport { join } from "node:path";\n' +
+      "let out = \"\";\nexport default { plugins: [{ name: \"made-up-mover\",\n" +
+      "  configResolved(c) { out = c.build.outDir; },\n" +
+      // Moved out and back, so its licence is still there to be read.
+      '  closeBundle() { mkdirSync(out, { recursive: true }); renameSync("node_modules/fakemove", join(out, "moved")); renameSync(join(out, "moved"), "node_modules/fakemove"); },\n' +
+      "}] };\n",
+  });
+  assert.deepEqual(r.made, ["fakemove 1.0.0 GPL-3.0"]);
+  assert.deepEqual(r.failures, []);
+});
+
+// A Node with no module.registerHooks, or one that tells of no load: the build is not heard, and
+// stops. Run in a Node of its own, its module made so before the script is loaded.
+for (const [mode, failure] of [
+  ["none", /^MyOrbiter's page: this Node \(v[\d.]+\) has no module\.registerHooks, so the script can't hear what the build loads$/],
+  ["silent", /^MyOrbiter's page: Node told the script of no module loaded during the build, its config's included, so what the build loads wasn't heard$/],
+] as const) {
+  test(`a Node whose module.registerHooks is ${mode === "none" ? "missing" : "silent"} stops the page's reading`, unix, () => {
+    const repo = makePage({ "src/main.js": "console.log(1);\n" });
+    const preload = join(repo, "made-up-node.mjs");
+    writeFileSync(preload, 'import m from "node:module";\n' +
+      `m.registerHooks = ${mode === "none" ? "undefined" : "() => ({ deregister() {} })"};\nm.syncBuiltinESMExports();\n`);
+    const run = join(repo, "made-up-run.mjs");
+    writeFileSync(run, `import { readPage } from ${JSON.stringify(pathToFileURL(join(process.cwd(), "scripts", "dependency-licences.mjs")).href)};\n` +
+      `process.stdout.write(JSON.stringify(await readPage("myorbiter", ${JSON.stringify(repo)})));\n`);
+    try {
+      const page = JSON.parse(execFileSync(process.execPath, ["--import", pathToFileURL(preload).href, run], { encoding: "utf8" }));
+      assert.deepEqual(page.packages.filter((p: Package) => p.name.startsWith("fake")), []);
+      assert.equal(page.failures.length, 1);
+      assert.match(page.failures[0], failure);
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+}
 
 test("a thread started during the build stops it", unix, async () => {
   const r = await pageBuild({
