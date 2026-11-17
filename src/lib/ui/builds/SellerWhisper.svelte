@@ -5,6 +5,7 @@
   import { mkt } from "../../marketStore.svelte";
   import { findItem } from "../../core/market";
   import { cheapestSeller, type Seller } from "../../core/buildsPage";
+  import { NO_WHISPER } from "../../core/whisper";
   import CopyButton from "../CopyButton.svelte";
   import P from "../P.svelte";
 
@@ -39,7 +40,11 @@
   <span class="found">
     <span class="who" title="{seller.name}: the cheapest of {seller.sellers} seller{seller.sellers === 1 ? '' : 's'} in game now, unranked">{seller.name}</span>
     <P v={seller.platinum} />
-    <CopyButton text={seller.whisper} label="Copy whisper" title="Copy the whisper to {seller.name}, to paste in game chat: {seller.whisper}" />
+    {#if seller.whisper}
+      <CopyButton text={seller.whisper} label="Copy whisper" title="Copy the whisper to {seller.name}, to paste in game chat: {seller.whisper}" />
+    {:else}
+      <span class="no">{NO_WHISPER}</span>
+    {/if}
   </span>
 {:else}
   <button type="button" class="link find" class:reading={st === "reading"} aria-busy={st === "reading"} title={st === "failed" ? `warframe.market didn't answer (${err}). Click to try again` : st === "none" ? "Nobody in game sells it right now. Click to look again" : st === "unlisted" ? "warframe.market doesn't trade it" : `Find the cheapest seller in game on warframe.market for ${name}, with a whisper to copy (reads the order book only)`} disabled={st === "unlisted"} onclick={find}>
@@ -56,6 +61,7 @@
 <style>
   .found { display: inline-flex; align-items: center; gap: .5rem; }
   .who { font-size: .8rem; color: var(--platinum-dim); max-width: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .no { font-size: .8rem; color: var(--platinum-dim); }
   /* Every label in one cell, so the link keeps its width as they swap. */
   .lbls { display: inline-grid; }
   .lbls > span { grid-area: 1 / 1; visibility: hidden; white-space: nowrap; }

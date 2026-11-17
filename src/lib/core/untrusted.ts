@@ -1,5 +1,6 @@
 // Text MyOrbiter didn't write: build titles and authors from Overframe's list and Nox's Frame's
-// pages, names from warframe.market, what a player types into a bug report. Svelte shows it as text
+// pages, names and chat messages from warframe.market (cleaned where they come in, backend.ts's
+// `chatsIn`, `bookIn` and the rest), what a player types into a bug report. Svelte shows it as text
 // (never as HTML), so it can't run; these keep it from hiding anything either. Characters that
 // draw nothing (zero-width, the Unicode "tag" block) or reorder what's around them (bidi overrides
 // and isolates) can make a title read differently from what it holds, or carry text nobody sees.
@@ -36,8 +37,9 @@ export function stripHidden(s: string): string {
 
 /**
  * A one-line field from outside: a string, cleaned of hidden characters, its whitespace folded to
- * single spaces, trimmed and cut to `max` characters (by code point, so an emoji is never split).
- * Null when it isn't a string or nothing is left.
+ * single spaces, trimmed and cut to `max` characters (by code point, so no code point is split in
+ * half; an emoji made of several code points can still be cut between them). Null when it isn't a
+ * string or nothing is left.
  */
 export function cleanLine(v: unknown, max: number): string | null {
   if (typeof v !== "string") return null;
@@ -54,6 +56,42 @@ export function cleanBlock(v: unknown, max: number): string | null {
   if (!s) return null;
   const chars = [...s];
   return chars.length > max ? chars.slice(0, max).join("").trimEnd() : s;
+}
+
+/**
+ * `s` cut to its first `max` characters by code point, so no code point is split in half. A letter
+ * with a combining accent, or an emoji made of several code points (a flag, a skin tone, a joined
+ * family), can still be cut between them.
+ */
+export const cutChars = (s: string, max: number): string => {
+  const chars = [...s];
+  return chars.length > max ? chars.slice(0, max).join("") : s;
+};
+
+/** A player's name from warframe.market (a seller, a chat's partner): `cleanLine` at 40 characters, "" when nothing is left. */
+export const cleanName = (v: unknown): string => cleanLine(v, 40) ?? "";
+/** A chat message from warframe.market, as the notification and the chat strip show it: `cleanLine` at 1,000 characters. */
+export const cleanMessage = (v: unknown): string | null => cleanLine(v, 1000);
+
+/**
+ * Text as Discord shows it as typed: every character its Markdown reads (emphasis, code, spoilers,
+ * masked links, `<…>` mentions, timestamps and emoji) and every line start that makes a heading,
+ * quote or list is escaped with a backslash, which Discord shows as the character alone. Someone
+ * else's chat message then can't draw a masked link (`[text](address)`) in the player's channel.
+ */
+export function discordText(s: string): string {
+  return s
+    .replace(/[\\*_~`|[\]<>]/g, "\\$&")
+    .replace(/^([ \t]*)([#+-])/gm, "$1\\$2")
+    .replace(/^([ \t]*\d+)\./gm, "$1\\.");
+}
+
+/**
+ * A notification as the Discord message it is posted as: the title in bold, the body under it,
+ * both as written (`discordText`). Mentions are turned off where it's posted (`discord_post`).
+ */
+export function discordMessage(title: string, body: string): string {
+  return `**${discordText(title)}**${body ? `\n${discordText(body)}` : ""}`;
 }
 
 /**

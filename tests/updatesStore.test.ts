@@ -316,29 +316,352 @@ test("a channel that gets its first build later offers it at the next check", as
   assert.deepEqual(u.offer, { channel: "stable", version: "0.2.130", notes: null, older: false });
 });
 
-test("a new install settles on its build's channel once the app says which build it is", async (t) => {
-  const { settings, begin } = await setup(t, []);
-  Object.assign(settings, { channel: "stable", picked: false });
+// A new install (no settings saved yet) of a CI build that checks: its first check asks Stable,
+// then Beta if need be, and settles on the most stable channel whose build is this one (0.2.104)
+// or newer (core/updates.ts `newInstallStep`). Before, a first start made one request (the channel
+// its build was published to, Experimental); now one when Stable has a build, two when only Beta
+// has one, three when neither has (then Experimental, asked as every check asks it). Each of them
+// asks GitHub alone (`firstOnly`): its 404 is "empty", and a check it couldn't answer throws, so
+// the stubs here are GitHub's own answers (tests/updatesTable.test.ts has the addresses cell by
+// cell).
+const EMPTY: UpdateCheck = { state: "empty", system: false };
+const OLDER = (version: string): UpdateCheck => ({ state: "older", version, notes: null, date: null });
+const OFFLINE = () => new Error("Couldn't reach GitHub or GitLab");
+
+/** A store on a new install: Stable shown, nothing chosen. */
+async function newInstall(t: TestContext, answers: Answer[]) {
+  const s = await setup(t, answers);
+  Object.assign(s.settings, { channel: "stable", picked: false });
+  return s;
+}
+
+/** The next start on the same (saved) settings, whose checks answer `answers`. */
+async function restart(t: TestContext, settings: UpdateSettings, answers: Answer[]) {
+  const calls: Channel[] = [];
+  updater.check = async (c) => {
+    calls.push(c);
+    const a = answers.shift();
+    if (!a) throw new Error("no answer stubbed");
+    if (a instanceof Error) throw a;
+    return a;
+  };
+  const u = new Updates();
+  t.after(() => u.stop());
+  u.start(() => settings);
+  await micro();
+  await startCheck(t);
+  return { u, calls };
+}
+
+test("a new install, Stable has a build: settles on Stable at its first check, one request", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [CURRENT]);
   await begin();
+  assert.deepEqual(calls, [], "nothing before the first paint");
+  assert.equal(settings.picked, false);
+  assert.equal(u.line, "0.2.104 · channel not chosen yet", "no channel claimed before it settles");
+  assert.match(u.unsettled ?? "", /^Stable is shown, but no channel is chosen yet/);
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable"], "Stable's answer is the check: Beta isn't asked");
+  assert.equal(settings.channel, "stable");
+  assert.equal(settings.picked, true);
+  assert.equal(u.unsettled, null);
+  assert.equal(u.line, "0.2.104 · Stable");
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+  assert.equal(settings.lastCheck, Date.now());
+});
+
+test("a new install, Stable has a newer build: Stable, offered, and the last request is Stable's", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [NEWER]);
+  await begin();
+  await startCheck(t);
+  // The app keeps the last check's download as the one to install (updates.rs `Pending`).
+  assert.deepEqual(calls, ["stable"]);
+  assert.equal(settings.channel, "stable");
+  assert.deepEqual(u.offer, { channel: "stable", version: "0.2.106", notes: "UI clipping sweep\nSale log", older: false });
+});
+
+test("a new install, only Beta has a build: settles on Beta, two requests", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta"]);
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.picked, true);
+  assert.equal(u.line, "0.2.104 · Beta");
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+  assert.equal(u.empty, null);
+});
+
+test("a new install, neither Stable nor Beta has a build (today's channels): Experimental, three requests", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta", "experimental"], "Experimental asked last, as the check, never for the rule");
+  assert.equal(settings.channel, "experimental");
+  assert.equal(settings.picked, true);
+  assert.equal(u.line, "0.2.104 · Experimental");
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+});
+
+// A check that failed never settles a new install: it throws. And Experimental settles it only
+// with this build or a newer one (`buildCounts`), so a GitHub that answers 404 for every channel
+// (the repository moved or gone), or holds only older builds, settles nothing either.
+
+test("GitHub's 404 for every channel: unsettled, three requests, asked again when due", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, EMPTY, EMPTY, EMPTY, EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta", "experimental"], "three requests, not five");
+  assert.equal(settings.picked, false, "not settled on Experimental for good");
+  assert.equal(settings.channel, "stable", "the channel shown, unchanged");
+  assert.equal(settings.lastCheck, Date.now());
+  assert.match(u.status(Date.now()), /^No channel answered with this build or a newer one \(at \d\d:\d\d, just now\)\.$/);
+  assert.match(u.unsettled ?? "", /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check/, "every channel answered: true here too");
+  assert.equal(u.empty, null, "no channel is said empty: none is chosen");
+  assert.equal(u.line, "0.2.104 · channel not chosen yet");
+  for (let at = 0; at <= CHECK_EVERY; at += SCHEDULE_TICK) {
+    t.mock.timers.tick(SCHEDULE_TICK);
+    await micro();
+  }
+  assert.deepEqual(calls.slice(3), ["stable", "beta", "experimental"], "asked again once due, and settled once Experimental answers with the build");
   assert.equal(settings.channel, "experimental");
   assert.equal(settings.picked, true);
 });
 
-test("saved settings keep their channel when the app says which build it is", async (t) => {
-  const { settings, begin } = await setup(t, []);
+test("only older builds on every channel: unsettled, nothing offered", async (t) => {
+  const BRIDGE = OLDER("0.2.100");
+  const { u, settings, calls, begin } = await newInstall(t, [BRIDGE, BRIDGE, BRIDGE]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta", "experimental"]);
+  assert.equal(settings.picked, false);
+  assert.equal(settings.channel, "stable");
+  assert.equal(u.offer, null, "no older build offered on a channel nobody chose");
+  assert.equal(u.notice, null);
+  assert.match(u.status(Date.now()), /^No channel answered with this build or a newer one/);
+});
+
+test("today's channels (Stable and Beta empty, Experimental with the build): still Experimental in that round", async (t) => {
+  for (const exp of [CURRENT, NEWER]) {
+    await t.test(exp.state, async (t2) => {
+      const { u, settings, calls, begin } = await newInstall(t2, [EMPTY, EMPTY, exp]);
+      await begin();
+      await startCheck(t2);
+      assert.deepEqual(calls, ["stable", "beta", "experimental"], "three requests, as before");
+      assert.equal(settings.channel, "experimental");
+      assert.equal(settings.picked, true);
+      assert.equal(u.checked, "experimental", "Experimental's answer is the check's: the last request is its");
+      assert.equal(u.offer?.version ?? null, exp.state === "newer" ? "0.2.106" : null);
+    });
+  }
+});
+
+test("a running build newer than Experimental's, with Beta holding it: still Beta, Experimental not asked", async (t) => {
+  const { settings, calls, begin } = await newInstall(t, [EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta"]);
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.picked, true);
+});
+
+test("Stable's or Beta's file failing on GitHub is a failed check: nothing settles, no less stable channel", async (t) => {
+  // updates.rs answers a new install's check from GitHub alone: anything but a file or its 404
+  // fails the check (no longer an empty or older channel), so a failed Stable or Beta never lets
+  // a less stable channel be settled on.
+  for (const [name, answers, asked] of [
+    ["Stable", [new Error("Couldn't read the Stable channel's manifest on GitHub"), CURRENT, NEWER], ["stable"]],
+    ["Beta", [EMPTY, new Error("GitHub didn't answer within 10 s"), NEWER], ["stable", "beta"]],
+  ] as [string, Answer[], Channel[]][]) {
+    await t.test(name, async (t2) => {
+      const { u, settings, calls, begin } = await newInstall(t2, answers);
+      await begin();
+      await startCheck(t2);
+      assert.deepEqual(calls, asked);
+      assert.equal(settings.picked, false);
+      assert.equal(settings.channel, "stable");
+      assert.equal(u.offer, null);
+    });
+  }
+});
+
+test("a new install whose build is newer than Stable's, than Beta's, or than both", async (t) => {
+  for (const [answers, want, asked] of [
+    [[OLDER("0.2.100"), CURRENT], "beta", ["stable", "beta"]],
+    [[OLDER("0.2.100"), NEWER], "beta", ["stable", "beta"]],
+    [[EMPTY, OLDER("0.2.101"), CURRENT], "experimental", ["stable", "beta", "experimental"]],
+    [[OLDER("0.2.100"), OLDER("0.2.102"), CURRENT], "experimental", ["stable", "beta", "experimental"]],
+  ] as [UpdateCheck[], Channel, Channel[]][]) {
+    await t.test(`${answers.map((a) => a.state).join(", ")}: ${want}`, async (t2) => {
+      const { u, settings, calls, begin } = await newInstall(t2, [...answers]);
+      await begin();
+      await startCheck(t2);
+      assert.deepEqual(calls, asked);
+      assert.equal(settings.channel, want);
+      assert.equal(settings.picked, true);
+      assert.equal(u.offer?.older ?? false, false, "no step back offered by itself");
+      assert.equal(u.line, `0.2.104 · ${want === "beta" ? "Beta" : "Experimental"}`);
+    });
+  }
+});
+
+test("a new install, no answer from Stable: nothing settles, Settings says so, and the next due check asks again", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [OFFLINE(), EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable"], "Beta isn't asked past a silent Stable");
+  assert.equal(settings.picked, false, "never marked picked while unsettled");
+  assert.equal(settings.channel, "stable", "the channel shown, unchanged");
+  assert.equal(settings.lastCheck, Date.now(), "a failed check like any other: the next in 6 hours, not at every tick");
+  assert.match(u.status(Date.now()), /^Couldn't reach GitHub or GitLab \(at \d\d:\d\d, just now\)\.$/);
+  assert.match(u.unsettled ?? "", /No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check/);
+  assert.equal(u.line, "0.2.104 · channel not chosen yet");
+  t.mock.timers.tick(SCHEDULE_TICK);
+  await micro();
+  assert.equal(calls.length, 1, "not before the next check is due");
+  for (let at = 0; at <= CHECK_EVERY; at += SCHEDULE_TICK) {
+    t.mock.timers.tick(SCHEDULE_TICK);
+    await micro();
+  }
+  assert.deepEqual(calls, ["stable", "stable", "beta"], "asked again once due");
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.picked, true);
+});
+
+test("a new install, Stable's check times out: nothing settles", async (t) => {
+  t.mock.method(console, "warn", () => {});
+  const { u, settings, calls, begin } = await newInstall(t, [new Promise<UpdateCheck>(() => {})]);
+  await begin();
+  await startCheck(t);
+  t.mock.timers.tick(CHECK_LIMIT);
+  await micro();
+  assert.deepEqual(calls, ["stable"]);
+  assert.equal(settings.picked, false);
+  assert.match(u.status(Date.now()), /^The check didn't finish in 20 s/);
+});
+
+test("a new install, no answer from Beta after an empty Stable: nothing settles, and the next start asks again", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [EMPTY, OFFLINE()]);
+  await begin();
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable", "beta"]);
+  assert.equal(settings.picked, false);
+  assert.equal(settings.channel, "stable");
+  assert.ok(u.unsettled);
+  assert.equal(u.empty, null, "Stable's emptiness isn't said as a chosen channel's: none is chosen");
+  u.stop();
+  const next = await restart(t, settings, [EMPTY, CURRENT]);
+  assert.deepEqual(next.calls, ["stable", "beta"]);
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.picked, true);
+  assert.equal(next.u.status(Date.now()), "Up to date (checked just now).");
+});
+
+test("a new install, the player picks a channel while it asks: the answer on its way is dropped, the pick stays", async (t) => {
+  let answer!: (r: UpdateCheck) => void;
+  const { u, settings, calls, begin } = await newInstall(t, [new Promise<UpdateCheck>((r) => (answer = r)), CURRENT]);
+  await begin();
+  await startCheck(t);
+  assert.equal(u.checking, true);
+  u.setChannel("experimental");
+  assert.equal(settings.picked, true, "saved as picked at once");
+  answer(CURRENT);
+  await micro();
+  assert.deepEqual(calls, ["stable", "experimental"], "Stable's answer dropped; the picked channel asked");
+  assert.equal(settings.channel, "experimental", "not moved to Stable, though Stable has this build");
+  assert.equal(u.checked, "experimental");
+  assert.equal(u.status(Date.now()), "Up to date (checked just now).");
+  u.stop();
+  const next = await restart(t, settings, [CURRENT]);
+  assert.deepEqual(next.calls, ["experimental"], "a later start never asks for it again");
+  assert.equal(settings.channel, "experimental");
+});
+
+test("a new install, the player picks the channel already shown while it asks: kept, though Beta has the build", async (t) => {
+  let answer!: (r: UpdateCheck) => void;
+  const { u, settings, calls, begin } = await newInstall(t, [new Promise<UpdateCheck>((r) => (answer = r)), EMPTY, CURRENT]);
+  await begin();
+  await startCheck(t);
+  u.setChannel("stable");
+  assert.equal(settings.picked, true);
+  answer(EMPTY);
+  await micro();
+  // Stable's answer was the settling's, dropped; then Stable is asked as the chosen channel, and
+  // being empty, its nearest channel (Beta) for the Switch to offer. Nothing moves.
+  assert.deepEqual(calls, ["stable", "stable", "beta"]);
+  assert.equal(settings.channel, "stable");
+  assert.deepEqual(u.empty, { words: "Stable has no build yet", to: { channel: "beta", version: "0.2.104" } });
+});
+
+test("a new install, a pick made while offline and unsettled, then a start online: the pick stays and only it is asked", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [OFFLINE(), OFFLINE()]);
+  await begin();
+  await startCheck(t);
+  assert.equal(settings.picked, false);
+  u.setChannel("beta");
+  await micro();
+  assert.deepEqual(calls, ["stable", "beta"], "the pick's own check, still offline");
+  assert.equal(settings.picked, true);
+  assert.equal(settings.channel, "beta");
+  assert.equal(u.unsettled, null, "picked: nothing more to find out");
+  assert.equal(u.line, "0.2.104 · Beta");
+  u.stop();
+  const next = await restart(t, settings, [{ state: "current", version: "0.2.104" }]);
+  assert.deepEqual(next.calls, ["beta"]);
+  assert.equal(settings.channel, "beta");
+});
+
+test("a new install of a local build: Stable at once, nothing asked for it", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, [CURRENT]);
+  updater.info = async () => ({ version: "0.1.0", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
+  await begin();
+  assert.equal(settings.picked, true, "settled when the app says which build it is");
+  assert.equal(settings.channel, "stable");
+  assert.equal(u.unsettled, null);
+  assert.equal(u.line, "0.1.0 · local build");
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable"], "only the check it always made");
+});
+
+test("a new install that doesn't check for updates: Experimental, as before, and no request", async (t) => {
+  const { u, settings, calls, begin } = await newInstall(t, []);
+  updater.info = async () => ({ version: "0.2.104", install: { how: "manual" } });
+  await begin();
+  await startCheck(t);
+  t.mock.timers.tick(CHECK_EVERY);
+  await micro();
+  assert.deepEqual(calls, []);
+  assert.equal(settings.channel, "experimental");
+  assert.equal(settings.picked, true);
+  assert.equal(u.unsettled, null);
+});
+
+test("saved settings keep their channel: nothing is asked for them, even when their channel's build is older", async (t) => {
+  const { u, settings, calls, begin } = await setup(t, [OLDER("0.2.100")]);
   Object.assign(settings, { channel: "stable", picked: true });
   await begin();
-  assert.equal(settings.channel, "stable");
+  await startCheck(t);
+  assert.deepEqual(calls, ["stable"], "the one check it always made");
+  assert.equal(settings.channel, "stable", "nobody already installed is moved");
+  assert.equal(u.unsettled, null);
+  assert.equal(u.offer?.older, true, "the older build offered only as a click, as before");
 });
 
 test("a channel the player picks on a new install stays, even the one already shown, before the app says which build", async (t) => {
   const { u, settings } = await setup(t, []);
-  // A CI build: left alone, a new install would settle on Experimental.
   updater.info = async () => ({ version: "0.2.127", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
   Object.assign(settings, { channel: "stable", picked: false });
   u.start(() => settings);
   u.setChannel("stable");
   await micro();
   assert.equal(settings.picked, true);
-  assert.equal(settings.channel, "stable", "the build's channel doesn't settle over the player's pick");
+  assert.equal(settings.channel, "stable");
+});
+
+test("Settings, Updates says what an unsettled new install shows, and both channel controls go through setChannel", () => {
+  const sheet = readFileSync(new URL("../src/lib/SettingsSheet.svelte", import.meta.url), "utf8");
+  assert.match(sheet, /\{#if updates\.unsettled\}<p class="hint"[^>]*>\{updates\.unsettled\}<\/p>\{\/if\}/);
+  assert.match(sheet, /<Seg label="Channel"[^\n]*onchange=\{\(c\) => updates\.setChannel\(c\)\}/, "the channel buttons");
+  assert.match(sheet, /onclick=\{\(\) => empty\.to && updates\.setChannel\(empty\.to\.channel\)\}/, "an empty channel's Switch to");
+  assert.doesNotMatch(sheet, /settings\.updates\.channel = /, "no other place sets the channel");
 });

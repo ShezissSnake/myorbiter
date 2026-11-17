@@ -393,7 +393,8 @@ export interface Seller {
   platinum: number;
   /** In-game sellers at any price for the same rank. */
   sellers: number;
-  whisper: string;
+  /** The whisper to copy; null for a name MyOrbiter builds no whisper for (core/whisper.ts). */
+  whisper: string | null;
 }
 
 

@@ -116,7 +116,9 @@ MyOrbiter reads Warframe's `EE.log` (read only) every 2 seconds, every 10 while 
 game isn't running, and not at all for console players. The first read goes through the log from
 the start of the game session; each one after takes only what the game added. On Linux it finds the
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
-included) under each library's Proton prefix for Warframe, and looks again every minute; on Windows
+included) under each library's Proton prefix for Warframe, takes only a log your user owns (one
+another user on the PC owns is passed over, and MyOrbiter's log says so in a line), and looks again
+every minute; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
 else).
 
@@ -303,12 +305,26 @@ the last check, so a check missed while the computer slept runs when it wakes), 
 now and when you change the channel. They read the channel's `latest.json` from this
 project's releases on github.com and, only if github.com can't be reached or doesn't serve that
 channel's manifest, from its package registry on gitlab.com, with the updater's own User-Agent
-(`tauri-plugin-updater/<version>`); the address names only the channel you picked (stable, beta or
+(`tauri-plugin-updater/<version>`); the address names only the channel it asks (stable, beta or
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
-the same way, so Settings can name a channel that has one; it switches nothing. A new install starts
-on the channel its build was published to (Experimental, where every build lands first); an install
-that has saved settings keeps its channel, even when that file turns out damaged and is moved
+the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
+settings saved yet) has no channel, and is offered no update, until its first check hears back.
+That check reads github.com alone, never gitlab.com: Stable's `latest.json`, Beta's too if Stable
+has no build or an older one than yours, and Experimental's only if neither has yours or a newer
+one, and starts on the most stable channel whose build is yours or newer (Stable, else Beta, else
+Experimental). For each channel it first
+reads the file's address once, following no redirect, with the updater's User-Agent; a 404 there
+is that channel having no build, and when github.com answers with the file, the updater reads it
+there (two reads of github.com, and of the file storage github.com hands the file to). Anything
+else (no connection, a time-out, another status) is no answer: nothing is chosen, the next check
+asks again, and a less stable channel is never chosen in its place. The same when Experimental too
+has no build yours or newer, as when github.com answers 404 for every channel. A channel you pick
+meanwhile stays, and its updates are looked for at once. That first read goes the way MyOrbiter's
+own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
+use, it gets no answer, and such an install has a channel only once you pick one. A local build
+starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
+An install that has saved settings keeps its channel, even when that file turns out damaged and is moved
 aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the
@@ -478,10 +494,13 @@ it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an a
 be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
 can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
 paragraph, and says why, on the page and in its log, rather than going around the proxy; the
-window's read of last week's riven trades isn't made then either. `NO_PROXY` isn't read: none
-of MyOrbiter's own requests and connections skips the proxy.
+window's read of last week's riven trades isn't made then either, nor a new install's first read
+of each channel's file on github.com, which is one of MyOrbiter's own requests (Updates, above).
+`NO_PROXY` isn't read: none of MyOrbiter's own requests and connections skips the proxy.
 
-The update check and its download, and TennoScope's web requests, choose for themselves: they use
+The update check and its download, and TennoScope's web requests, choose for themselves (all but
+a new install's first read of each channel's file on github.com, which goes MyOrbiter's way, by
+the paragraph above: no system proxy settings, `HTTP_PROXY` read, `NO_PROXY` not): they use
 `HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
 never `HTTP_PROXY`, their addresses all being https. They take an `https://` proxy too, skip the
 proxy for the hosts `NO_PROXY` names, and go straight when the address set can't be read and no
@@ -558,8 +577,18 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 - `~/.local/share/dev.myorbiter.app/logs/` (`%LOCALAPPDATA%\dev.myorbiter.app\logs`): its log,
   `myorbiter.log` (and `myorbiter.1.log`, 2 MB each; Settings, Logs opens the folder): what it did
   on warframe.market, your notifications (with other players' names), the game log's location and
-  errors. Readable only by you on Linux. Anything shaped like a token, password or webhook address
-  is cut out before it's written, and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
+  errors. Readable only by you on Linux. Before a line is written, these are cut out: a JWT
+  (`eyJ…`); the word after "Bearer", "JWT" or "token", or after a Cookie or Authorization header,
+  and in a Cookie header each `name=value` after a pair that ends in `;` (`a=1; b=2`, no space
+  before the `;`); the value of a `key=value` pair that is the word's first (its key all that comes
+  before the `=`) or follows a `?`, `&` or `;` (a quoted one to its closing quote; after a `?`, `&`
+  or `;` to the word's end; otherwise to the line's end, with the rest of the line, since such a
+  value can hold a space), or of a JSON pair with a key of up to 64 characters (an object or a list
+  to its closing bracket, on whatever line, or with none to the end of what is written; a bracket
+  inside its strings not counted), whose key contains token,
+  password, passwd, secret, cookie, session, nonce or jwt; and a Discord webhook address, its
+  slashes escaped (`\/`) or not. A secret written another way (`password: x` in plain text, a key such as `api_key`,
+  another site's webhook address) isn't caught (nothing MyOrbiter writes there is meant to hold one, though another player's chat line in a notification can), and your home folder is written `~` (so paths carry no user name). Its last lines leave your PC only in a bug report you paste into
   GitHub (or copy and send another way).
 - Record timings (Settings, Logs; off unless you turn it on) writes how long clicks, page switches, opening and closing panels, scrolling, frames and MyOrbiter's own work take into that log each minute, and Copy timing report saves a `timings-<date>.txt` beside it (the ten newest kept): numbers, MyOrbiter's version, the system and its architecture, the web view's version, how frames reach the window (the rendering line) and the graphics card's maker, never a name or a price; it sends nothing.
 - CSV exports go to your Downloads folder as `myorbiter-<what>-<date>.csv`, never over an existing
