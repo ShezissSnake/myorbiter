@@ -2887,10 +2887,16 @@
   const FOOT_ORDER = ["Settings", "Search", "Help", "Report a bug", "TennoScope"];
   const footCells = $derived([...moreItems].sort((a, b) => FOOT_ORDER.indexOf(a.label) - FOOT_ORDER.indexOf(b.label)));
   // The page list scrolls on a short window: a fade at its foot says there's more below, and at
-  // its head that there's more above.
+  // its head that there's more above. On a very short page (a high zoom in a low window) the top
+  // and the foot would leave the list no room: there the whole bar scrolls as one instead (the
+  // `max-height` rule in the styles), with the same two fades over it, and the list doesn't.
   let navEl = $state<HTMLElement | null>(null);
+  let railEl = $state<HTMLElement | null>(null);
   let navMore = $state(false);
   let navAbove = $state(false);
+  let railScrolls = $state(false);
+  /** The box that scrolls now: the whole bar's when the short-page rule gives it a box, else the list. */
+  const navScroller = () => (railEl && getComputedStyle(railEl).display !== "contents" ? railEl : navEl);
   // The page you're on stays in view, clear of the fades at either end.
   $effect(() => {
     const tab = settings.tab;
@@ -2911,7 +2917,7 @@
     return () => clearTimeout(t);
   });
   function keepOpenInView() {
-    const n = navEl;
+    const n = navScroller();
     if (!n) return;
     // In a closed section the page's row is hidden: its section's bar stands for it.
     const row = n.querySelector<HTMLElement>(".nav.on");
@@ -2929,15 +2935,23 @@
     settings.sectionsClosed = closed.includes(sec) ? closed.filter((x) => x !== sec) : [...closed, sec];
   }
   const checkNav = () => {
-    const n = navEl;
+    const n = navScroller();
+    const was = untrack(() => railScrolls);
+    railScrolls = !!n && n === railEl;
+    // A zoom took the page across the short-page rule: the other box scrolls now, from where it
+    // was left, so the open page is brought into its view again.
+    if (railScrolls !== was) keepOpenInView();
     navMore = !!n && n.scrollTop + n.clientHeight < n.scrollHeight - 4;
     navAbove = !!n && n.scrollTop > 4;
   };
   $effect(() => {
     const n = navEl;
-    if (!n) return;
+    const r = railEl;
+    if (!n || !r) return;
+    // The list's own size; the bar's, which has a box only while it scrolls as one; and the foot's,
+    // whose height (a sync error under it) moves where the bar's end is.
     const ro = new ResizeObserver(checkNav);
-    ro.observe(n);
+    for (const el of [n, r, r.querySelector(".foot")]) if (el) ro.observe(el);
     checkNav();
     return () => ro.disconnect();
   });
@@ -2987,7 +3001,10 @@
 <a class="skip" href="#main" title="Jump past the sidebar to this page's title" onclick={(e) => { e.preventDefault(); focusPage(document.activeElement, 0); }}>Skip to page</a>
 <div class="shell" class:compact class:withside={sideShown} class:withtab={sideTab}>
   <!-- While the first start is open the sidebar waits: dimmed, not clickable, out of the Tab order. -->
-  <aside class="rail" aria-label="MyOrbiter" inert={setupOpen} class:waits={setupOpen} title={setupOpen ? "Finish getting set up first (or Finish later)" : undefined}>
+  <aside class="rail" aria-label="MyOrbiter" inert={setupOpen} class:waits={setupOpen} class:more={navMore && railScrolls} class:above={navAbove && railScrolls} title={setupOpen ? "Finish getting set up first (or Finish later)" : undefined}>
+    <!-- No box of its own, except on a very short page, where it is the one box that scrolls: the
+         top, the page list and the foot together. -->
+    <div class="railin" bind:this={railEl} onscroll={checkNav}>
     <div class="brand">
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
            version the updater compares), small and muted, and your platinum with its picture. -->
@@ -3013,7 +3030,7 @@
     <!-- Home is the root, level with the section bars. Each section's bar shows its crest and opens
          or closes its pages (kept in settings); closed, it shows how many pages it holds and a rule
          in its colour, and the section of the page you're on keeps its colour mark at its edge. -->
-    <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore} class:above={navAbove}>
+    <nav aria-label="Pages" data-card="sections" bind:this={navEl} onscroll={checkNav} class:more={navMore && !railScrolls} class:above={navAbove && !railScrolls}>
       {@render navItem(pages[0])}
       {#each sections as sec (sec)}
         {@const ps = pages.filter((p) => p.group === sec)}
@@ -3061,6 +3078,7 @@
       {/if}
       </div>
       {#if syncJob.state === "failed" && syncJob.error}<p class="syncerr" role="status">{syncJob.error}</p>{/if}
+    </div>
     </div>
   </aside>
 
@@ -3331,7 +3349,8 @@
   /* ---- sidebar: a neutral plate. Top: wordmark, version, platinum. Then Home, the root; each
      section's bar across the full width (it folds its pages); the pages hanging from one hairline
      track under the section's glyph. Foot: how the app is doing, then the tools. Only the page list
-     scrolls. */
+     scrolls, except on a very short page (a high zoom in a low window), where the whole bar scrolls
+     as one (`.railin`, below). */
   .rail {
     /* One row height for every page (28 px, its picture 18 px), and the gaps around a section's
        pages: under its bar at least the gap between two pages, after its last page more. */
@@ -3512,6 +3531,21 @@
   /* On the button's corner, clear of the envelope in the narrow column. */
   .compact .bell .count { position: absolute; top: -3px; right: -3px; margin: 0; }
   .compact .bell.paused::after { left: 50%; }
+  /* The bar's contents: no box of their own (the rule below gives them one on a very short page). */
+  .railin { display: contents; }
+  /* The fades over the whole bar when it scrolls as one: the list's two, the same heights, drawn over
+     the bar in its own ground (a mask on the scrolling box would also hide More's menu, which opens
+     from inside it). */
+  .rail.above::before, .rail.more::after { content: ""; position: absolute; z-index: 2; left: 0; right: 0; pointer-events: none; }
+  .rail.above::before { top: 0; height: 2.5rem; background: linear-gradient(#0e1013, transparent); }
+  .rail.more::after { bottom: 0; height: 3rem; background: linear-gradient(transparent, #0e1013); }
+  /* A very short page: a high zoom in a low window (the window is never under 500 px, so never at
+     100 %). The top and the foot would leave the list less than a row clear of its fades; the whole
+     bar scrolls as one instead, the list at its full height in it. */
+  @media (max-height: 380px) {
+    .railin { position: relative; display: flex; flex-direction: column; flex: 1 1 auto; min-height: 0; overflow: hidden auto; scrollbar-width: thin; scroll-padding-block: 2.5rem 3rem; }
+    nav { flex: none; overflow: visible; mask-image: none; }
+  }
   /* A short window: the top tighter, so more of the list shows before it scrolls. Rows keep their height. */
   @media (max-height: 820px) {
     .brand { padding-top: 12px; padding-bottom: 4px; }
