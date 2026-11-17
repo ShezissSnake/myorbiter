@@ -338,7 +338,7 @@ export class Updates {
   }
 
 
-  /** Later: this version's notice goes until a newer one is out. */
+  /** Later: this version's notice goes; another version, newer or lower, shows (`noticeShows`). */
   later() {
     const o = this.offer;
     const u = this.get?.();
