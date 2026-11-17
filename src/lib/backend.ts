@@ -1088,7 +1088,8 @@ export async function loadSettings(): Promise<Settings> {
     }
   }
   const base = defaultSettings();
-  // A file that isn't a settings object at all (a number, a list, text): the usual settings.
+  // A file that isn't a settings object at all (a number, a list, text): the usual settings. The
+  // desktop app moves such a file aside as a damaged one (read_settings in lib.rs).
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = null;
   // Read whole: a settings object, or no file at all (a new install). Not when the file couldn't be
   // read, was damaged (moved aside) or held something else: then the usual settings stand in for it.
@@ -1179,9 +1180,10 @@ export async function loadSettings(): Promise<Settings> {
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
     // Settings from before updates: Stable, never checked. No settings object to read (no file at
-    // all, a damaged one moved aside, or one that held something else): no channel chosen yet, and
-    // the new-install rule settles it at the first check (updates.svelte.ts). A file that couldn't be
-    // read at all is never saved over and holds the player's channel: Stable is only shown meanwhile.
+    // all, or a damaged one moved aside, JSON that isn't a settings object included): no channel
+    // chosen yet, and the new-install rule settles it at the first check (updates.svelte.ts). A file
+    // that couldn't be read at all is never saved over; until a restart reads it, Stable stands in
+    // as the chosen channel, so the update checks ask Stable and offer its builds.
     updates: raw ? sanitizeUpdates(raw.updates) : loadFailed == null ? newInstallUpdates() : defaultUpdates(),
     // Told once, until dismissed: this start's moved file, else one an earlier start named.
     movedAside: movedAside ?? movedAsideOf(raw?.movedAside),

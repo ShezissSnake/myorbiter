@@ -64,9 +64,12 @@ export function saveTroubleWords(t: SaveTrouble): string {
   return `Couldn't save your settings (${t.cause}): what you change now may not be kept. MyOrbiter keeps trying.`;
 }
 
-/** Where MyOrbiter's settings folder is on each system (Tauri's config folder for `dev.myorbiter.app`). */
+/**
+ * Where MyOrbiter's settings folder is on each system (Tauri's config folder for
+ * `dev.myorbiter.app`; on Linux under `$XDG_CONFIG_HOME` when that is set).
+ */
 export const SETTINGS_FOLDER = {
-  linux: "~/.config/dev.myorbiter.app",
+  linux: "~/.config/dev.myorbiter.app, or $XDG_CONFIG_HOME/dev.myorbiter.app when that is set",
   windows: "%APPDATA%\\dev.myorbiter.app",
   macos: "~/Library/Application Support/dev.myorbiter.app",
 } as const;
@@ -77,10 +80,11 @@ export const systemOf = (userAgent: string): keyof typeof SETTINGS_FOLDER => (/W
 /**
  * The banner's words after a damaged settings file was moved aside (`read_settings` in lib.rs):
  * shown over every page, the setup page and the "Can't read" pages included, until dismissed.
- * Nothing is read back from the old file by itself.
+ * Nothing is read back from the old file by itself. "Was moved aside", not "is kept": the player
+ * may have deleted it since. The platform is back on PC while the warframe.market sign-in stays.
  */
 export function movedAsideWords(name: string, system: keyof typeof SETTINGS_FOLDER): string {
-  return `Your saved settings couldn't be read, so MyOrbiter started with the usual settings. The old file is kept as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it.`;
+  return `Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it. Look through Settings again, your platform first: it is back on PC.`;
 }
 
 /** The three automatic actions on warframe.market (Settings, warframe.market). */

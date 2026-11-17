@@ -524,8 +524,8 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
     platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed to the
     Helminth, the sets your loose parts were saved for, the gear you chose to keep, and what it has
     already told you about;
-  - `settings.json.broken-<seconds>`: a `settings.json` that couldn't be read as it started, moved
-    aside whole rather than saved over. MyOrbiter then starts with the usual settings, says so in a
+  - `settings.json.broken-<seconds>`: a `settings.json` that couldn't be read as it started
+    (damaged, or JSON that holds no settings object), moved aside whole rather than saved over. MyOrbiter then starts with the usual settings, says so in a
     banner that names the file until you dismiss it, and writes one line naming it (never the
     folder) in its log. It never reads one back: to use it again, close MyOrbiter and repair it by
     hand as `settings.json`, or delete it;

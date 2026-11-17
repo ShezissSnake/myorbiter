@@ -12,6 +12,9 @@ globalThis.fetch = (() => {
 const calls: string[] = [];
 let reply: (cmd: string) => unknown = () => null;
 (globalThis as { window?: unknown }).window = {
+  // For the update store's modules, loaded by one test below.
+  addEventListener: () => {},
+  removeEventListener: () => {},
   __TAURI_INTERNALS__: {
     invoke: async (cmd: string) => {
       calls.push(cmd);
@@ -100,12 +103,27 @@ test("a file that couldn't be read at all keeps Stable as it was: it is never sa
   assert.equal(settingsMovedAside(), null);
 });
 
+test("the update log says a channel settled after a damaged file, not on a new install", async () => {
+  await import("./support/runes");
+  const { settledWho } = await import("../src/lib/updates.svelte");
+  reply = (cmd) => (cmd === "load_settings" ? { settings: null, page: 1, fresh: false, movedAside: "settings.json.broken-1793814960" } : null);
+  await loadSettings();
+  assert.equal(settledWho(), "after a damaged settings file");
+  reply = (cmd) => (cmd === "load_settings" ? { settings: null, page: 1, fresh: true } : null);
+  await loadSettings();
+  assert.equal(settledWho(), "new install");
+  const store = (await import("node:fs")).readFileSync(new URL("../src/lib/updates.svelte.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(store, /`new install: on/, "both settling lines go through settledWho");
+});
+
 test("the banner's words: what happened, what MyOrbiter started with, and where the old file is kept", async () => {
   const { movedAsideWords, systemOf } = await import("../src/lib/core/gettingIn");
   assert.equal(
     movedAsideWords("settings.json.broken-1793814960", "linux"),
-    "Your saved settings couldn't be read, so MyOrbiter started with the usual settings. The old file is kept as settings.json.broken-1793814960 in MyOrbiter's settings folder (~/.config/dev.myorbiter.app); nothing is read back from it.",
+    "Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as settings.json.broken-1793814960 in MyOrbiter's settings folder (~/.config/dev.myorbiter.app, or $XDG_CONFIG_HOME/dev.myorbiter.app when that is set); nothing is read back from it. Look through Settings again, your platform first: it is back on PC.",
   );
+  // It may have been deleted since: the words don't say it is still there.
+  assert.doesNotMatch(movedAsideWords("settings.json.broken-1", "linux"), /is kept/);
   assert.match(movedAsideWords("settings.json.broken-1", "windows"), /\(%APPDATA%\\dev\.myorbiter\.app\)/);
   assert.match(movedAsideWords("settings.json.broken-1", "macos"), /\(~\/Library\/Application Support\/dev\.myorbiter\.app\)/);
   assert.equal(systemOf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36 Edg/130.0.0.0"), "windows");
@@ -113,7 +131,7 @@ test("the banner's words: what happened, what MyOrbiter started with, and where 
   assert.equal(systemOf("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)"), "linux");
 });
 
-test("the banner sits above every page, the setup page included, and its Dismiss clears the kept name", async () => {
+test("the banner sits at the top of every page, the setup page included, and its Dismiss clears the kept name", async () => {
   const { readFileSync } = await import("node:fs");
   const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
   const banner = app.indexOf('data-banner="settings-moved-aside"');
