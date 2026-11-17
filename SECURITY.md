@@ -17,7 +17,8 @@ is possible. There is no bounty.
   carries (`tennoscope/`).
 - **Leaking what's private:** the warframe.market sign-in (kept in the system keyring), Discord
   webhook addresses, or other players' names getting into a log, a bug report, a crash, a file
-  others can read, or the network.
+  others can read, or the network. When the keyring can't store the sign-in, it is kept in the file
+  `market-token` in MyOrbiter's config folder instead, as `docs/privacy.md` says.
 - **Reaching further than it should:** a link that opens anything other than https to the sites in
   `src/lib/core/links.ts`; a page that runs script or HTML from outside data (Overframe's or Nox's
   Frame's build names, warframe.market, the wiki data, the game's log); a request to a host MyOrbiter

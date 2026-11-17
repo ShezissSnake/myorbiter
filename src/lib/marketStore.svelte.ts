@@ -381,18 +381,43 @@ class MarketStore {
   }
 
   async signOut() {
+    // Kept: the app refused the sign-out and is still signed in (or can't say), so the page stays.
+    let kept = false;
     await this.changingAccount(async () => {
-      await market.signOut();
+      // The words of a sign-out refused before don't outlive this one.
+      this.error = null;
+      try {
+        await market.signOut();
+      } catch (e) {
+        // The words say what kept the sign-in and what to do (market.rs, TokenStore::clear). Kept
+        // where the next start finds it, the app stays signed in now too, and so does the page.
+        this.error = clean(e);
+        // An account that can't be read now isn't taken for signed out: the page stays as it was,
+        // with the sign-out's words.
+        const account = await market.account().catch(() => null);
+        if (!account || account.linked) {
+          kept = true;
+          return;
+        }
+      }
+      // A read of the listings or the chats that left before this and lands after it is the
+      // signed-out account's: dropped (`refresh`, `readChats`).
+      this.localEdits++;
+      this.signOuts++;
       this.dropStatusTimer();
       this.statusAsked = null;
       this.status = null;
       this.account = await market.account();
     });
+    if (kept) return;
     this.orders = [];
     this.buys = [];
     this.otherOrders = 0;
     this.ordersAt = null;
+    this.chats = [];
   }
+  /** Sign-outs so far, so a read of the chats on its way at one doesn't put them back. */
+  private signOuts = 0;
 
   /**
    * Your listings, read again. `s`: the settings whose approvals the read settles (the app's own
@@ -1493,8 +1518,10 @@ class MarketStore {
   async readChats() {
     if (!this.linked || this.chatsReading) return;
     this.chatsReading = true;
+    const signOuts = this.signOuts;
     try {
-      this.chats = await market.chats();
+      const chats = await market.chats();
+      if (signOuts === this.signOuts) this.chats = chats;
     } catch {
       // Not answering, or the sign-in expired: the market log already says so elsewhere.
     } finally {

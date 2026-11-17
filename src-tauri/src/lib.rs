@@ -950,12 +950,21 @@ async fn market_use_token(app: tauri::AppHandle, token: String) -> Result<market
 
 #[tauri::command]
 async fn market_sign_out(app: tauri::AppHandle) -> Result<(), String> {
+    // Clearing the keyring entry waits on D-Bus. An error is the words the page shows: the sign-in
+    // is still where the next start finds it, so the app stays signed in (`TokenStore::clear`).
+    let client = app.clone();
+    let (out, linked) = tauri::async_runtime::spawn_blocking(move || {
+        let client = client.state::<market::Client>();
+        let out = client.sign_out();
+        (out, client.linked())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     // Signed out: the status connection signed in with that account goes too.
-    app.state::<presence::Presence>().close();
-    // Clearing the keyring entry waits on D-Bus.
-    tauri::async_runtime::spawn_blocking(move || app.state::<market::Client>().sign_out())
-        .await
-        .map_err(|e| e.to_string())
+    if !linked {
+        app.state::<presence::Presence>().close();
+    }
+    out
 }
 
 #[tauri::command]
