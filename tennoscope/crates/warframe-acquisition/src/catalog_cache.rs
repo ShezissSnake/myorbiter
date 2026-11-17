@@ -155,20 +155,20 @@ impl CatalogCache {
         source: &dyn CatalogSource,
         now_unix: u64,
     ) -> Result<CatalogLoad, CatalogCacheError> {
-        if let Ok(bytes) = source.fetch() {
-            if let Ok(index) = CatalogIndex::from_wfcd_json(&bytes) {
-                store_generation(
-                    &self.directory.join("catalog-generation.json"),
-                    &self.directory,
-                    &bytes,
-                    now_unix,
-                )?;
-                return Ok(CatalogLoad {
-                    index,
-                    source: CatalogLoadSource::Network,
-                    fetched_unix: now_unix,
-                });
-            }
+        if let Ok(bytes) = source.fetch()
+            && let Ok(index) = CatalogIndex::from_wfcd_json(&bytes)
+        {
+            store_generation(
+                &self.directory.join("catalog-generation.json"),
+                &self.directory,
+                &bytes,
+                now_unix,
+            )?;
+            return Ok(CatalogLoad {
+                index,
+                source: CatalogLoadSource::Network,
+                fetched_unix: now_unix,
+            });
         }
         self.load_cached()
     }
@@ -268,15 +268,15 @@ impl RelicCatalogCache {
         source: &dyn RelicCatalogSource,
         now_unix: u64,
     ) -> Result<RelicCatalogLoad, CatalogCacheError> {
-        if let Ok(bytes) = source.fetch() {
-            if let Ok(index) = RelicRewardIndex::from_wfcd_json(&bytes) {
-                self.store(&bytes, now_unix)?;
-                return Ok(RelicCatalogLoad {
-                    index,
-                    source: CatalogLoadSource::Network,
-                    fetched_unix: now_unix,
-                });
-            }
+        if let Ok(bytes) = source.fetch()
+            && let Ok(index) = RelicRewardIndex::from_wfcd_json(&bytes)
+        {
+            self.store(&bytes, now_unix)?;
+            return Ok(RelicCatalogLoad {
+                index,
+                source: CatalogLoadSource::Network,
+                fetched_unix: now_unix,
+            });
         }
         self.load_cached()
     }

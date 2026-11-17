@@ -438,14 +438,13 @@ pub fn inventory_log_under(local_appdata: &Path) -> Option<PathBuf> {
 pub fn inventory_log_path_at(proc_root: &Path, pid: u32) -> Option<PathBuf> {
     let mut prefixes = Vec::new();
     let process_root = proc_root.join(pid.to_string());
-    if let Ok(environment) = fs::read(process_root.join("environ")) {
-        if let Some(prefix) = environment
+    if let Ok(environment) = fs::read(process_root.join("environ"))
+        && let Some(prefix) = environment
             .split(|byte| *byte == 0)
             .find_map(|entry| entry.strip_prefix(b"WINEPREFIX="))
             .and_then(|value| String::from_utf8(value.to_vec()).ok())
-        {
-            prefixes.push(PathBuf::from(prefix));
-        }
+    {
+        prefixes.push(PathBuf::from(prefix));
     }
     for source in [
         fs::read_link(process_root.join("exe"))
@@ -1217,23 +1216,23 @@ pub(crate) fn run(
         });
         #[cfg(target_os = "linux")]
         let mut close_portal = false;
-        if let Some(process) = confirmed_process {
-            if process != announced_process {
-                #[cfg(target_os = "linux")]
-                {
-                    close_portal = should_close_portal(
-                        announced_process.map(|process: GameProcess| process.pid()),
-                        process.map(|process| process.pid()),
-                    );
-                }
-                if let Ok(mut runtime) = shared.lock() {
-                    runtime.game_running = process.is_some();
-                    if process.is_some() {
-                        let _ = runtime.core.record_game_process_ready();
-                    }
-                }
-                announced_process = process;
+        if let Some(process) = confirmed_process
+            && process != announced_process
+        {
+            #[cfg(target_os = "linux")]
+            {
+                close_portal = should_close_portal(
+                    announced_process.map(|process: GameProcess| process.pid()),
+                    process.map(|process| process.pid()),
+                );
             }
+            if let Ok(mut runtime) = shared.lock() {
+                runtime.game_running = process.is_some();
+                if process.is_some() {
+                    let _ = runtime.core.record_game_process_ready();
+                }
+            }
+            announced_process = process;
         }
         // A discovery error is not evidence that Warframe exited. Keep the last confirmed process
         // for reward teardown and event handling until procfs reports an actual absence.
@@ -1312,18 +1311,18 @@ pub(crate) fn run(
                 ),
             );
         }
-        if let Some(log_health) = result.log_health {
-            if let Ok(mut runtime) = shared.lock() {
-                let _ = match log_health {
-                    LogMonitorDiagnostic::Ready => runtime.core.record_log_monitor_ready(),
-                    LogMonitorDiagnostic::Unavailable => {
-                        runtime.core.record_log_monitor_idle("Waiting for Warframe")
-                    }
-                    LogMonitorDiagnostic::ReadFailed => runtime
-                        .core
-                        .record_log_monitor_failure("EE.log could not be read"),
-                };
-            }
+        if let Some(log_health) = result.log_health
+            && let Ok(mut runtime) = shared.lock()
+        {
+            let _ = match log_health {
+                LogMonitorDiagnostic::Ready => runtime.core.record_log_monitor_ready(),
+                LogMonitorDiagnostic::Unavailable => {
+                    runtime.core.record_log_monitor_idle("Waiting for Warframe")
+                }
+                LogMonitorDiagnostic::ReadFailed => runtime
+                    .core
+                    .record_log_monitor_failure("EE.log could not be read"),
+            };
         }
         let caught_up = std::mem::take(&mut adopted_reward_events);
         for event in caught_up
@@ -1540,10 +1539,10 @@ fn stash_publish(chips: &ChipsState, view: KioskView) {
 /// them. A null verdict fades the chips visually but the pixels were already captured, so
 /// the mask stays put either way.
 fn track_scroll_delta(chips: &ChipsState, verdict: Option<i32>) {
-    if let Some(delta) = verdict {
-        if let Ok(Some(mask)) = chips.lock().as_deref_mut() {
-            mask.mask_dy = mask.mask_dy.saturating_add(delta);
-        }
+    if let Some(delta) = verdict
+        && let Ok(Some(mask)) = chips.lock().as_deref_mut()
+    {
+        mask.mask_dy = mask.mask_dy.saturating_add(delta);
     }
 }
 
