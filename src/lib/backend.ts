@@ -929,7 +929,7 @@ export async function relicData(force = false): Promise<RelicData | null> {
 const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fallback);
 
 /** The largest price a saved price may be: the limit floors and minimum prices already have. */
-const MAX_SAVED_PRICE = 100_000;
+export const MAX_SAVED_PRICE = 100_000;
 
 /**
  * A group of yes-or-no switches as loaded: the fields of `base` and no others. A field missing
@@ -1003,8 +1003,12 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     // 6 hours; past a week, once a week); no number, or one under a minute, is the usual one.
     every: everyOf(r.every, base.every),
     lastCheck: lastCheckOf(r.lastCheck),
-    floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
-    paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
+    // A floor saved above the limit (typed before Orders' field refused it) is cut to the limit,
+    // never dropped: dropping it would let repricing go under where the player put it.
+    floors: Object.fromEntries(record(r.floors).flatMap(([k, v]) => (Number.isInteger(v) && (v as number) >= 1 ? [[k, Math.min(v as number, MAX_SAVED_PRICE)]] : []))) as Record<string, number>,
+    // A pause turned off is kept as false: for a filled sculpture it says "not paused" over a pause
+    // saved under the empty sculpture's key, which it otherwise falls back on (core/market.ts › isPaused).
+    paused: Object.fromEntries(record(r.paused).filter(([, v]) => typeof v === "boolean")) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
     changes: changesOf(r.changes, Date.now()),
     // Automatic actions on warframe.market: on only when a file says true. A missing key is off,

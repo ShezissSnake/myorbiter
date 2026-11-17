@@ -4,11 +4,11 @@
   // The Sell form, over whatever page you're on: priced at the cheapest seller who is
   // in game right now, with the quantity set to what you can spare.
   import type { Model } from "../core/model";
-  import { listingKey, referencePrice } from "../core/market";
+  import { referencePrice } from "../core/market";
   import type { MarketSettings } from "../backend";
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
-  import { aboveDucats, catOfItem, ducatWorth, minimumForItem, neverHeld, neverNames, neverWhy, sellAgainTakes } from "../core/bulk";
+  import { catOfItem, minimumForItem, neverHeld, neverNames, neverWhy, sellAgainTakes } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked } from "../core/listGuard";
   import { mkt } from "../marketStore.svelte";
   import { proxy } from "../proxy.svelte";
@@ -39,14 +39,12 @@
     return cat && market?.minByCategory?.[cat] != null ? `${CATEGORY_WORD[cat]} minimum` : "minimum";
   });
   const underMinimum = $derived(d?.platinum != null && minimum != null && d.platinum < minimum);
-  /** The lowest price Orders' repricer keeps this listing at: your minimum, the share of the median, a floor you set. */
-  const floor = $derived.by(() => {
-    if (!market || !d) return null;
-    const own = existing ? market.floors[listingKey(existing)] : null;
-    // A prime part or set is never repriced to (or under) what its ducats are worth to you.
-    const ducats = item && advice ? aboveDucats(ducatWorth(model, item, advice.platPerDucat)) : null;
-    return Math.max(1, minimum ?? 1, median != null ? Math.ceil(median * market.minShare) : 0, own ?? 0, ducats ?? 0);
-  });
+  /**
+   * The lowest price Orders' repricer keeps this listing at, asked of the store (marketStore ›
+   * formFloor, which is planFor's floor): your floors, a relic's crack value, a prime's ducats, the
+   * minimum and the share of the market value. Null until the order book is read.
+   */
+  const floor = $derived(market && d ? mkt.formFloor(model, market, d) : null);
   const underFloor = $derived(d?.platinum != null && floor != null && d.platinum < floor);
   /** A relic: what one crack at this refinement is worth, when the price is no more than that. */
   const crackBeats = $derived.by(() => {
@@ -225,7 +223,7 @@
           {#if repriceOnly && existing}<p class="small dim">{room === 0 ? `All you can spare is listed already (${existing.quantity} at ${existing.platinum}p).` : room != null ? `No copies added (you could add ${room} more).` : "No copies added."} This only changes the price{hiddenListing ? ": the listing stays hidden" : ""}.</p>
           {:else if hiddenListing}<p class="small dim">Your listing is hidden, and stays hidden with these added: show it on Orders when buyers should see it.</p>{/if}
           {#if underMinimum}<p class="err small">Under your {minimum}p {minimumWords} (Sell spares): MyOrbiter never lists under it. <button type="button" class="link" title="Ask {minimum}p, the minimum" onclick={() => { if (d && minimum != null) d.platinum = minimum; }}>Ask {minimum}p</button></p>
-          {:else if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically lifts it to at least ${floor}p while anyone in game sells it` : " (Floor on Orders, minimums on Sell spares)"}.</p>
+          {:else if underFloor && market}<p class="warn small">Under your {floor}p floor{market.auto ? `: Apply automatically raises it to at least ${floor}p by itself` : " (Floor on Orders, minimums on Sell spares)"}.</p>
           {:else if low}<p class="warn small">Under half the daily median. Check the price before listing.</p>{/if}
           {#if crackBeats != null}<p class="warn small">{anRefinement} crack of it is worth about {crackBeats}p{(advice?.squad ?? 1) > 1 ? " in a radshare" : ""}: cracking beats selling at {d.platinum}p.</p>{/if}
           {#if ducats}<p class="warn small">Worth more as ducats: {ducats.n} ducats are about {ducats.worth}p to you (your rate, on Prime parts). Sell spares keeps it off the market.</p>{/if}

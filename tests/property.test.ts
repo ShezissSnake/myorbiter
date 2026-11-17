@@ -222,14 +222,17 @@ test("repricing floor: unattended, never under 70% of the approved price, never 
     const mv = unattendedMove(target, current, approved);
     const ctx = JSON.stringify({ approved, current, target, floor, mv });
     assert.ok(floor >= approved * 0.7 - 1e-9 && floor < approved * 0.7 + 1, ctx);
+    // A raise (or no move) is never held, nor changed: the floor only stops a price going down.
+    if (target >= current) assert.deepEqual(mv, { go: true, target, atFloor: false }, `a raise held: ${ctx}`);
     if (mv.go) {
-      assert.ok(mv.target >= floor, `under the floor: ${ctx}`);
+      // Never lowered under the floor; under it only by not moving down (a raise from under it).
+      assert.ok(mv.target >= floor || mv.target >= current, `lowered under the floor: ${ctx}`);
       assert.ok(mv.target === target || mv.target === floor, ctx);
       if (target >= floor) assert.equal(mv.target, target, ctx);
       // Lowered to the floor only from above it: a listing under the floor is never raised to it.
       if (mv.target === floor && target < floor) assert.ok(current > floor, ctx);
     } else {
-      assert.ok(target < floor && current <= floor, ctx);
+      assert.ok(target < floor && target < current && current <= floor, ctx);
     }
   });
 });
