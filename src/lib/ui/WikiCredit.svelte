@@ -11,5 +11,5 @@
 
 <style>
   /* The address in the sentence's own size, so the line reads as one. */
-  .wiki-credit .link { font: inherit; letter-spacing: 0; min-height: 0; }
+  .wiki-credit .link { font: inherit; letter-spacing: 0; text-transform: none; min-height: 0; }
 </style>

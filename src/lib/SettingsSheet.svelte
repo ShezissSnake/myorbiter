@@ -465,6 +465,8 @@
   .about { display: grid; gap: .5rem; }
   .about p, .about .sub { margin: 0; }
   .about .files { flex-wrap: wrap; gap: .4rem 1.2rem; }
+  /* The files by their own names, in their own case (NOTICE.md, not NOTICE.MD). */
+  .about .files .link { text-transform: none; letter-spacing: .04em; font-family: var(--face-figures); }
   .offer-in { display: grid; gap: .7rem; padding: .9rem 1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
   .offer-in p { margin: 0; }
   .notes { margin: 0; padding-left: 1.1rem; display: grid; gap: .2rem; font-size: .8rem; color: var(--platinum-dim); }
