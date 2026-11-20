@@ -66,6 +66,9 @@ export function nextCheckShown(last: number | null, wait: number, clock: number)
   return at == null ? null : Math.max(at, clock);
 }
 
+/** How old the page's clock can be: a minute's tick, and a new minute's wait after coming back to the page. */
+const CLOCK_AGE_MS = 2 * 60_000;
+
 /**
  * The "Next check" tooltip, true of the label it sits on: `next` is the label's time
  * (`nextCheckShown`), `wait` the store's `passDelay`, `clock` the page's clock. After passes
@@ -75,8 +78,9 @@ export function nextCheckShown(last: number | null, wait: number, clock: number)
  * - the wait is longer than the interval (an hour or less doubles it, up to an hour): it waits
  *   longer, with that wait; a label ahead of the clock is the last check plus `wait`, so the
  *   figure is the one behind it;
- * - over an hour, a label within the hour (the store dates a missed pass back): it tries again
- *   within the hour, with no figure;
+ * - over an hour, a label within the hour (the store dates a missed pass back; the clock may be
+ *   behind the pass by up to two minutes, so the label may read an hour and two minutes ahead of
+ *   it): it tries again within the hour, with no figure;
  * - anything else (a missed pass at an hour or less, then once a day): the interval's sentence.
  */
 export function nextCheckWhy(every: number, failures: number, wait: number, next: number | null, clock: number): string {
@@ -85,7 +89,7 @@ export function nextCheckWhy(every: number, failures: number, wait: number, next
   const missed = `warframe.market didn't answer the last ${failures === 1 ? "pass" : `${failures} passes`}`;
   if (next <= clock) return `${missed}, so it tries again now`;
   if (wait > every * 60_000) return `${missed}, so the timer waits longer (${Math.round(wait / 60_000)} min) before the next`;
-  if (every > 60 && next - clock <= 60 * 60_000) return `${missed}, so it tries again within the hour`;
+  if (every > 60 && next - clock <= 60 * 60_000 + CLOCK_AGE_MS) return `${missed}, so it tries again within the hour`;
   return plain;
 }
 
