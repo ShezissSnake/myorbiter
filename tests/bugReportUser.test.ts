@@ -359,6 +359,12 @@ test("user names: what a rule leaves of the user name glued to its mark goes wit
   assert.equal(hideNames("/home/O'Brien/x and O'Brien", { user: ["O'Brien"] }), "/home/[user]/x and [user]");
   // Another player's name glued to the user name keeps what it keeps without the user name.
   assert.equal(redact("buyer: Orrén-Alt", { user: ["Orrén"] }), "buyer: [player]-Alt");
+  // Only for a name the text holds: a mark the text itself writes keeps what follows it (the long
+  // property run's case, PROPERTY_SEED=126752058 of "user-absent").
+  for (const line of ["/mnt/x/I%2F[plyusa]) [user].H see EE.log", "see [user].h and [player]én, and ex'[player] too"]) {
+    assert.equal(redact(line, { user: ["Tamsel_.h Kirovén ex'vnbj"] }), redact(line), line);
+    assert.equal(hideNames(line, { user: ["Tamsel_.h Kirovén ex'vnbj"] }), hideNames(line), line);
+  }
   for (const [user, line] of [["Orrén", "buyer: Orrén-Alt"], ["Jo鈴木太郎", "3 people whispered you: Jo鈴木太郎, Kirovane"], ["uGpöNVX", "uGpöNVX whispered you"]]) hidesAsWithout(line, { user: [user] });
   // A letter whose other case is longer: the name in upper case too.
   assert.equal(redact("Straße froze; STRASSE again", { user: ["Straße"] }), "[user] froze; [user] again");

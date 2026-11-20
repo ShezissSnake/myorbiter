@@ -118,7 +118,7 @@ function knownAndRules(text: string, opts: RedactOptions): string {
 export function hideNames(text: string, opts: RedactOptions = {}): string {
   let s = knownAndRules(text, opts);
   for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
-  return hideUser(s, opts.user);
+  return hideUser(text, s, opts.user);
 }
 
 /** A placeholder a rule for names wrote over the text from `at` to `end` (in the text the rules
@@ -222,8 +222,8 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   const first = write(true);
   // A `~name` given back whose path wasn't cleaned (nothing after its slash, or read inside the
   // path before it) would show the user name: then every such root stays under its placeholder.
-  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return hideUser(write(false).out, opts.user);
-  return hideUser(first.out, opts.user);
+  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return hideUser(text, write(false).out, opts.user);
+  return hideUser(text, first.out, opts.user);
 }
 
 // ---------------------------------------------------------------- paths
@@ -564,14 +564,18 @@ function userPieces(names: string[][]): { heads: string[]; tails: string[] } {
  *  and word of `userWords` as a whole word, in any case, its words apart by any spaces or `%20`, as
  *  "[user]" (one "[user]" for one right after a "[user]" a rule wrote or this wrote: the path rule's
  *  "/home/[user] Smith" reads "/home/[user]"); then what a rule left of one glued to its mark
- *  (`userPieces`) goes, the mark staying. It only writes "[user]" over the text or takes text away,
- *  so it never shows what the rules hid. */
-function hideUser(s: string, list: RedactOptions["user"]): string {
+ *  (`userPieces`) goes, the mark staying, for the words `text` (what the rules were given) holds in
+ *  any case: a mark the text itself held, next to a piece of a word it doesn't hold, stays as it was
+ *  with the text around it. It only writes "[user]" over the text or takes text away, so it never
+ *  shows what the rules hid. */
+function hideUser(text: string, s: string, list: RedactOptions["user"]): string {
   const names = userWords(list);
   if (!names.length) return s;
   const alts = names.map((w) => w.map(anyCase).join("(?:\\s|%20)+")).join("|");
   let out = s.replace(new RegExp(`(?:\\[user\\](?:\\s|%20)+)?${USER_GAP}(?:${alts})(?![\\p{L}\\p{N}_])`, "giu"), "[user]");
-  const { heads, tails } = userPieces(names);
+  const lower = text.toLowerCase(), upper = text.toUpperCase();
+  const held = (w: string) => text.includes(w) || lower.includes(w.toLowerCase()) || upper.includes(w.toUpperCase());
+  const { heads, tails } = userPieces(names.map((n) => n.filter(held)).filter((n) => n.length));
   if (tails.length) out = out.replace(new RegExp(`(?<=${MARK})(?:${tails.join("|")})(?![\\p{L}\\p{N}_])`, "giu"), "");
   if (heads.length) out = out.replace(new RegExp(`${USER_GAP}(?:${heads.join("|")})(?=${MARK})`, "giu"), "");
   return out;
