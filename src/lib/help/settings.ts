@@ -297,9 +297,9 @@ const SETTINGS_TRADES: Walkthrough = {
       },
     },
     {
-      title: "Automatic repricing",
+      title: "Apply automatically",
       lines: [
-        "Change my prices by itself (off to start): also sends them; Apply automatically on Orders.",
+        "Change my prices by itself (Apply automatically, off to start): sends them; on Orders too.",
         "It follows the second-cheapest seller online or in game, past a 2p and 5% gap.",
         "Hourly at most, six a day per listing; a floor lift waits for neither.",
         `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,

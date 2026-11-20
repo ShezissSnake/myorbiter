@@ -130,3 +130,35 @@ test("the Undercut tile says how many of its listings Reprice leaves, and why", 
   assert.match(tile, /follows the second-cheapest seller down/);
   assert.match(orders, /const undercutLeft = \$derived\(/);
 });
+
+// "Auto" names one thing: the row switch that decides whether Reprice touches a listing is not
+// called Auto-price, and automatic repricing is "Apply automatically" wherever Orders and Settings
+// name it.
+
+test("the row switch has a name without \"auto\", and its tooltip says who changes the price", () => {
+  const orders = src("src/lib/tabs/Orders.svelte");
+  const cell = orders.slice(orders.indexOf('<td class="center c-auto"'), orders.indexOf("</td>", orders.indexOf('<td class="center c-auto"')));
+  assert.doesNotMatch(cell, /Auto-price|auto-price/i);
+  assert.match(cell, /data-label="Reprice"/);
+  assert.match(cell, /label="Reprice this listing"/);
+  // Who changes it: the player with Reprice, MyOrbiter by itself only while Apply automatically is on.
+  assert.match(cell, /you change its price with Reprice/);
+  assert.match(cell, /MyOrbiter changes it by itself only while Apply automatically is on/);
+  assert.match(cell, /settings\.auto \?/, "the tooltip follows Apply automatically's switch");
+  const head = orders.slice(orders.indexOf('<th class="right floorcol"'), orders.indexOf('<th class="center" title="Whether buyers see'));
+  assert.match(head, />Reprice<\/th>/);
+  assert.doesNotMatch(head, /Auto-price/);
+  assert.doesNotMatch(orders, /Auto-price/, "Orders says Auto-price nowhere");
+  for (const f of ["src/lib/help/trade.ts", "src/lib/tabs/Guide.svelte"]) assert.doesNotMatch(src(f), /Auto-price|auto-priced/, f);
+});
+
+test("automatic repricing has one name, Apply automatically, on Orders and in Settings", () => {
+  const settings = src("src/lib/SettingsSheet.svelte");
+  assert.match(settings, /name="settings\.auto-reprice"[^\n]*?label="Change my prices on warframe\.market by itself \(Apply automatically\)"/);
+  const words = (s: string) => s.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+  assert.doesNotMatch(words(settings), /automatic repricing/i, "no other name in Settings' words");
+  const help = src("src/lib/help/settings.ts");
+  assert.doesNotMatch(help, /title: "Automatic repricing"/);
+  assert.match(help, /title: "Apply automatically"/);
+  assert.doesNotMatch(words(src("src/lib/tabs/Orders.svelte")), /automatic repricing/i);
+});
