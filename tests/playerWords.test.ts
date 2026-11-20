@@ -10,6 +10,7 @@ import { plan, type BookOrder, type FloorRule, type MyOrder } from "../src/lib/c
 import { unchangedWhy } from "../src/lib/core/willSet";
 import * as saleWords from "../src/lib/core/saleLog";
 import { notListedYet } from "../src/lib/core/readyToList";
+import * as firstStartWords from "../src/lib/core/firstStart";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -254,4 +255,30 @@ test("Home's Foundry card, with TennoScope off, links to where it is set up", ()
   assert.match(home, /\{#if setUpTennoscope\} <button class="link" onclick=\{setUpTennoscope\}>Set up TennoScope<\/button>\{\/if\}/);
   const app = src("src/App.svelte");
   assert.match(app, /<Home [^\n]*setUpTennoscope=\{!noTennoScope && !ts\.running \? \(\) => \(showTennoscope = true\) : null\}/);
+});
+
+// The setup page's third step: its title follows the stage under it, Report a bug sits beside
+// Try again, and the page says that the sidebar waits.
+
+test("the setup page's third step never asks for what its stage says is done", () => {
+  const { gameStepTitle } = firstStartWords;
+  const at = (step: "game" | "inventory", waitingFor: string | null) => gameStepTitle({ step, waitingFor });
+  assert.equal(at("game", "Warframe to start"), "Start Warframe and sign in");
+  assert.equal(at("game", "you to sign in"), "Sign in to Warframe");
+  // Signed in: reading the inventory, or loading it.
+  for (const w of ["TennoScope to read your inventory", "MyOrbiter to load what TennoScope read", null]) {
+    const t = at("inventory", w);
+    assert.doesNotMatch(t, /Start Warframe|sign in/i, String(w));
+    assert.equal(t, "TennoScope reads your inventory");
+  }
+  const app = src("src/App.svelte");
+  assert.match(app, /\{ id: "game", title: gameStepTitle\(setup\) \}/);
+  assert.doesNotMatch(app, /title: "Start Warframe and sign in"/);
+});
+
+test("the setup page has Report a bug beside Try again, and says the sidebar waits", () => {
+  const app = src("src/App.svelte");
+  const row = app.slice(app.indexOf("{#each setup.actions.filter("), app.indexOf("{/each}", app.indexOf("{#each setup.actions.filter(")) + 200);
+  assert.match(row, /\{#if setup\.actions\.includes\("retry"\)\}<button data-field="setup\.bug" onclick=\{\(\) => bugReport\.show\(\)\}>Report a bug<\/button>\{\/if\}/);
+  assert.match(app, /Three steps, once; you can finish later at any of them\. Meanwhile the sidebar waits: its pages open once you're set up, or after Finish later\./);
 });

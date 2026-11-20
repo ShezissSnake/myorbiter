@@ -167,7 +167,7 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
-  import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
+  import { firstStart, gameLine, gameStepTitle, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
@@ -3114,11 +3114,11 @@
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
-          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them.</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them. Meanwhile the sidebar waits: its pages open once you're set up, or after Finish later.</p>
           {@const order = ["start", "access", "game", "inventory", "done"]}
           {@const at = order.indexOf(setup.step === "inventory" ? "game" : setup.step)}
           <ol class="steps">
-            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: "Start Warframe and sign in" }] as st, i (st.id)}
+            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: gameStepTitle(setup) }] as st, i (st.id)}
               <li class:done={at > i} class:now={at === i} data-step={st.id}>
                 <strong>{st.title}</strong>
                 {#if at === i}
@@ -3132,6 +3132,7 @@
                       {#each setup.actions.filter((a) => !(st.id === "access" && a === "full" && !setup.waitingFor)) as a (a)}
                         <button data-field={`setup.${a}`} class:stamp={a === "retry"} onclick={() => setupAct(a)} disabled={a === "full" && !ts.running}>{a === "retry" ? "Try again" : a === "full" ? "Read my inventory (Full mode)" : a === "overlay" ? "Not now: overlay only" : "Settings"}</button>
                       {/each}
+                      {#if setup.actions.includes("retry")}<button data-field="setup.bug" onclick={() => bugReport.show()}>Report a bug</button>{/if}
                     </div>
                   {/if}
                 {:else if at > i}

@@ -166,6 +166,13 @@ export function firstStart(s: Signs): StepState {
 }
 
 /** When each wait began (ms): the setup's start or the last Try again, and the first time each sign was seen since. */
+/** The setup page's third step, named for what its stage still needs: once signed in, the inventory read. */
+export function gameStepTitle(x: Pick<StepState, "step" | "waitingFor">): string {
+  if (x.step === "inventory") return "TennoScope reads your inventory";
+  if (x.waitingFor === "you to sign in") return "Sign in to Warframe";
+  return "Start Warframe and sign in";
+}
+
 export interface Waits {
   since: number;
   runningSince: number | null;
