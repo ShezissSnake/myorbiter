@@ -166,7 +166,10 @@
     void tick().then(() => cancelButton?.focus());
   }
   const focusIt = (node: HTMLButtonElement) => node.focus();
+  // Kept reachable while names are left to fix (aria-disabled), so the keyboard gets its reason too;
+  // pressed then, it does nothing.
   function save() {
+    if (problems > 0) return;
     for (const s of slots) if (s.text.trim() && (!s.path || misplaced(s))) commit(s);
     if (slots.some((s) => s.problem)) return;
     onsave(draft);
@@ -232,7 +235,7 @@
       {:else}
       {#if problems}<span class="warn small">{problems} name{problems === 1 ? "" : "s"} to fix</span>{/if}
       <button type="button" onclick={leave} bind:this={cancelButton} title="Close without saving">Cancel</button>
-      <button type="button" class="stamp gold" disabled={problems > 0} title={problems ? "Fix or clear the names MyOrbiter couldn't match first" : copy ? "Save it as your own build" : "Save the changes"} onclick={save}>{copy ? "Save as mine" : "Save"}</button>
+      <button type="button" class="stamp gold" aria-disabled={problems > 0 || undefined} title={problems ? "Fix or clear the names MyOrbiter couldn't match first" : copy ? "Save it as your own build" : "Save the changes"} onclick={save}>{copy ? "Save as mine" : "Save"}</button>
       {/if}
     </div>
   </div>

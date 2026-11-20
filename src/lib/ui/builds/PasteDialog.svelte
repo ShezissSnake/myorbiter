@@ -230,7 +230,7 @@
         <button type="button" title="Go back to the build: nothing is lost" onclick={keepEditing} use:focusIt>Keep editing</button>
       {:else}
       <button type="button" onclick={leave} bind:this={cancelButton} title="Close without saving">Cancel</button>
-      <button type="button" class="stamp gold" disabled={linkOnlyNow ? false : !draft || !found || !linkOk} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: MyOrbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
+      <button type="button" class="stamp gold" aria-disabled={(linkOnlyNow ? false : !draft || !found || !linkOk) || undefined} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: MyOrbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
       {/if}
     </div>
   </div>
