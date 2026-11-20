@@ -1,0 +1,28 @@
+# The licences a package compiled into a MyOrbiter or TennoScope download may carry.
+#
+# scripts/dependency-licences.mjs reads this file whenever a program is built for a download, on any
+# `tauri build` given src-tauri/tauri.bundle.json (a local one too), and the build stops at a
+# package whose licence isn't allowed by it. These are the licences the downloads carried when the
+# list was first made (2026-11-16), and no other. Adding one is a decision for the maintainer
+# (docs/maintaining.md, "The dependencies' licences").
+#
+# One SPDX licence id per line, exactly as manifests write it (case counts). A licence with an
+# exception is allowed only as a line of its own, "<licence> WITH <exception>": the licence alone
+# doesn't allow it with an exception, nor the other way round. Lines starting with # are comments.
+
+0BSD
+Apache-2.0
+Apache-2.0 WITH LLVM-exception
+BSD-2-Clause
+BSD-3-Clause
+BSL-1.0
+CC0-1.0
+CDLA-Permissive-2.0
+ISC
+MIT
+MIT-0
+MPL-2.0
+OFL-1.1
+Unicode-3.0
+Unlicense
+Zlib
