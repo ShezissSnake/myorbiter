@@ -21,6 +21,7 @@
   import ListButton from "../ui/ListButton.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import Thumb from "../ui/Thumb.svelte";
+  import WikiCredit from "../ui/WikiCredit.svelte";
   import type { AdviceSettings } from "../backend";
   import { collections, packValues, spareArcanes, vosforHeld, vosforWorth, type SpareArcane } from "../core/vosfor";
   import { info } from "../hover.svelte";
@@ -324,6 +325,7 @@
     {:else}
       <p class="small dim">Every arcane in Loid's packs is maxed or has enough copies to max: no pack has anything you still need.</p>
     {/if}
+    <p class="small dim credit"><WikiCredit /></p>
   </section>
   {/if}
   {#if show === "spares"}
@@ -349,6 +351,7 @@
         </div>
       {/each}
     </div>
+    <p class="small dim credit"><WikiCredit /></p>
   </section>
   {/if}
   {#snippet filters()}
