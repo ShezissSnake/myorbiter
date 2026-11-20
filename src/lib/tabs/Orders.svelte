@@ -6,7 +6,7 @@
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
-  import { tradeAllowance } from "../core/tradeLimit";
+  import { tradeAllowance, tradesADay } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
@@ -804,7 +804,7 @@
       </div>
       {#if !console && trades.limit != null}
         {@const resets = until(new Date(trades.resets).toISOString(), minute)}
-        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. Trades a day are your Mastery Rank (${trades.limit}; extra trades from Founder status are not added), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
+        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. ${tradesADay(trades.limit)}, each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
           <span class="register">Trades left</span>
           {#if trades.left != null}
             <div class="fv"><span class="mark fig" class:gold={trades.left <= 3}>{trades.left}</span>

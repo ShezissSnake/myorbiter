@@ -15,6 +15,7 @@ import * as traceWords from "../src/lib/core/traces";
 import * as buildWords from "../src/lib/core/buildsPage";
 import type { Build } from "../src/lib/core/builds";
 import * as guardWords from "../src/lib/core/listGuard";
+import * as tradeWords from "../src/lib/core/tradeLimit";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -351,4 +352,26 @@ test("the listing form's figures never pass what the last check lets go, and say
   assert.match(form, /const room = \$derived\(d\?\.available == null \? null : formRoom\(/);
   assert.match(form, /\{spareLine\(d\.available, d\.spareWhy \?\? null, merging, now\)\}/);
   assert.doesNotMatch(form, /`That's more than the \$\{d\.available\} you can spare; the rest are copies MyOrbiter keeps back for you\.`/);
+});
+
+// Trades a day: none at Mastery Rank 0 and 1 (tradeAllowance), so no sentence says "as many as
+// your Mastery Rank" alone.
+
+test("trades a day read against tradeAllowance: none before Mastery Rank 2", () => {
+  const { tradeAllowance, tradesADay } = tradeWords;
+  for (const rank of [0, 1]) {
+    const limit = tradeAllowance([], rank, 0).limit!;
+    assert.equal(limit, 0);
+    assert.match(tradesADay(limit), /^No trades before Mastery Rank 2/);
+  }
+  const at8 = tradeAllowance([], 8, 0).limit!;
+  assert.equal(tradesADay(at8), "Trades a day are your Mastery Rank (8; extra trades from Founder status are not added)");
+  for (const f of ["src/lib/tabs/Orders.svelte", "src/lib/tabs/Home.svelte"]) {
+    const s = src(f);
+    assert.match(s, /tradesADay\(trades\.limit\)/, f);
+    assert.doesNotMatch(s, /Trades a day are your Mastery Rank \(/, f);
+  }
+  const guide = src("src/lib/tabs/Guide.svelte");
+  assert.doesNotMatch(guide, /Trades left today \(as many as your Mastery Rank,/);
+  assert.match(guide, /Trades left today \(as many as your Mastery Rank from rank 2, none at 0 or 1;/);
 });
