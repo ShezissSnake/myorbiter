@@ -3,6 +3,7 @@
   import { fixedScale, sortRows, type Column } from "./table";
   import { nearEnd } from "./nearEnd";
   import { sideways } from "./sideways";
+  import { roving } from "./roving";
   import NoMatch from "./NoMatch.svelte";
   import { inView, progressive } from "../progress.svelte";
 
@@ -83,7 +84,10 @@
         {#if detail}<th class="chev" aria-label="Details"></th>{/if}
       </tr>
     </thead>
-    <tbody bind:this={body}>
+    <!-- Rows that open are one Tab stop for the whole table, as a grid of cards is (roving.ts): the
+         arrow keys move between them, Enter or Space opens one, and the controls of the row last
+         focused are the ones Tab reaches. An open row's details stay in the Tab order. -->
+    <tbody bind:this={body} use:roving>
       {#each drawn as r (key(r))}
         {@const k = key(r)}
         {@const t = tint?.(r) ?? null}

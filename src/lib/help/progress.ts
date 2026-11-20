@@ -364,7 +364,7 @@ const BUILD_EDIT: Walkthrough = {
       },
     },
   ],
-  good: { text: "Nothing is kept until you press Save; Cancel or Esc leaves your builds as they were. New build opens the same editor, empty." },
+  good: { text: "Nothing is kept until you press Save; Cancel or Esc leaves your builds as they were, and asks first when you changed something. New build opens the same editor, empty." },
   covers: { "builds.paste": 1, "builds.editor": 2 },
 };
 

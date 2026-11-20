@@ -61,7 +61,7 @@
 </script>
 
 {#if failed}
-  <p class="dim small">warframe.market didn't answer for its price history.</p>
+  <p class="dim small">Couldn't read its price history from warframe.market.</p>
 {:else if days == null}
   <p class="dim small">Reading its price history…</p>
 {:else if days.length}

@@ -355,6 +355,30 @@ pub(crate) fn request(method: &str, url: &str) -> ureq::Request {
     http_agent().request(method, url).set("User-Agent", &user_agent())
 }
 
+/// The most of one answer's body MyOrbiter reads as JSON (warframe.market's item and riven lists,
+/// the worldstate, the drop tables, WFCD's tables, the recipe export): the largest real one is a
+/// few megabytes. More is a service gone wrong, or something answering in its place.
+pub(crate) const MAX_BODY: u64 = 64 * 1024 * 1024;
+
+/// An answer's body, read whole up to `MAX_BODY` (ureq's `into_json` reads with no limit). More is
+/// an error of kind `FileTooLarge`, never a body cut short and read as if whole; any other error
+/// is the connection's.
+pub(crate) fn read_body(body: impl std::io::Read) -> std::io::Result<Vec<u8>> {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    body.take(MAX_BODY + 1).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > MAX_BODY {
+        return Err(std::io::Error::new(std::io::ErrorKind::FileTooLarge, format!("the answer is larger than {} MiB", MAX_BODY >> 20)));
+    }
+    Ok(bytes)
+}
+
+/// An answer's body as JSON, read up to `MAX_BODY`.
+pub(crate) fn json_reply(resp: ureq::Response) -> Result<Value, String> {
+    let bytes = read_body(resp.into_reader()).map_err(|e| e.to_string())?;
+    serde_json::from_slice(&bytes).map_err(|e| e.to_string())
+}
+
 /// Writes `bytes` to a temp file beside `path`, flushes it to disk and renames it into place, so
 /// a crash or power cut leaves the old file or the new one, never half of one. `private`: only
 /// this user can read it (the temp file is created that way, so it never is readable by others).
@@ -419,12 +443,16 @@ enum Unavailable {
 /// One part of the worldstate ("fissures"), or all of it (an empty path).
 fn get_json(path: &str) -> Result<Value, Unavailable> {
     let url = if path.is_empty() { WORLDSTATE.to_string() } else { format!("{WORLDSTATE}/{path}") };
-    match request("GET", &url)
+    get_json_at(&url)
+}
+
+fn get_json_at(url: &str) -> Result<Value, Unavailable> {
+    match request("GET", url)
         .query("language", "en")
         .timeout(Duration::from_secs(10))
         .call()
     {
-        Ok(resp) => resp.into_json::<Value>().map_err(|_| Unavailable::Refused),
+        Ok(resp) => json_reply(resp).map_err(|_| Unavailable::Refused),
         Err(ureq::Error::Status(..)) => Err(Unavailable::Refused),
         Err(ureq::Error::Transport(_)) => Err(Unavailable::Unreachable),
     }
@@ -1926,6 +1954,42 @@ pub(crate) mod test_http {
         (addr, handle)
     }
 
+    /// Listens on a free port and answers one request with a body of `size` bytes that is JSON
+    /// (`{}`) after as many spaces as it takes, sent as it goes: an answer as large as wanted that
+    /// costs the server no memory. Gives the address (`http://127.0.0.1:<port>`).
+    pub fn serve_padded(size: usize) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a local port");
+        let addr = format!("http://{}", listener.local_addr().expect("its address"));
+        std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("a request");
+            stream.set_read_timeout(Some(std::time::Duration::from_secs(10))).ok();
+            let mut seen = Vec::new();
+            let mut buf = [0u8; 4096];
+            while !seen.windows(4).any(|w| w == b"\r\n\r\n") {
+                match stream.read(&mut buf) {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => seen.extend_from_slice(&buf[..n]),
+                }
+            }
+            let head = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {size}\r\nConnection: close\r\n\r\n");
+            if stream.write_all(head.as_bytes()).is_err() {
+                return;
+            }
+            let spaces = vec![b' '; 1 << 16];
+            let mut left = size - 2;
+            while left > 0 {
+                let n = left.min(spaces.len());
+                // The reader may stop listening once it has had enough: then so does this.
+                if stream.write_all(&spaces[..n]).is_err() {
+                    return;
+                }
+                left -= n;
+            }
+            let _ = stream.write_all(b"{}");
+        });
+        addr
+    }
+
     /// A header's value in a request head, its name in any case. Sent twice is a failure.
     pub fn header(head: &str, name: &str) -> Option<String> {
         let found: Vec<String> = head
@@ -1943,6 +2007,17 @@ pub(crate) mod test_http {
 
 #[cfg(test)]
 mod tests {
+
+    /// A worldstate answer larger than `MAX_BODY` ends in an error (then the game's own worldstate
+    /// is read), not in a read of all of it. Against a server on this machine.
+    #[test]
+    fn a_worldstate_answer_over_the_limit_is_refused() {
+        let addr = test_http::serve_padded(MAX_BODY as usize + 2);
+        assert!(matches!(get_json_at(&addr), Err(Unavailable::Refused)));
+        let (addr, served) = test_http::serve_once(r#"{"fissures": []}"#);
+        assert!(matches!(get_json_at(&addr), Ok(v) if v["fissures"].is_array()));
+        served.join().unwrap();
+    }
 
     #[test]
     fn a_game_log_passed_over_for_its_owner_is_said_once() {

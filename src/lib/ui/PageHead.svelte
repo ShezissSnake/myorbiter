@@ -75,7 +75,9 @@
   /* One line, never two: the rest is behind Details (and on hover). */
   .lede { display: flex; align-items: baseline; gap: 10px; margin: 0; max-width: min(760px, 100%); min-width: 0; height: 20px; font-size: 14px; line-height: 20px; color: var(--platinum-dim); }
   .ln { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .more { flex: none; min-height: 20px; font-family: var(--face-text); font-size: 14px; letter-spacing: 0; text-transform: none; line-height: 20px; }
+  .more { flex: none; min-height: 20px; font-family: var(--face-text); font-size: 14px; letter-spacing: 0; text-transform: none; line-height: 20px; position: relative; }
+  /* Drawn on the 20 px line, the click lands over 26 px (app.css's .link rule: a full 24 px to click). */
+  .more::before { content: ""; position: absolute; inset: -3px 0; }
   .act { flex: none; align-self: flex-end; display: flex; align-items: center; gap: var(--tight); padding-bottom: 6px; }
   /* The engraved rule: 72 px in the section's colour, then the hairline. */
   .engr { height: 1px; margin: 20px 0 24px; background: linear-gradient(90deg, var(--sec) 0 72px, var(--rule) 72px); }

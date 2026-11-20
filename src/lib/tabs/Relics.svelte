@@ -326,10 +326,12 @@
   .era:hover:not(:disabled) { background: var(--raised); }
   /* Each era's name in its relic's colour, so the row reads as the eras at a glance. */
   .era .en { color: var(--tint, var(--platinum)); }
-  .era:focus-visible { outline: none; box-shadow: inset 3px 0 0 var(--tint, var(--rule-control)), inset 0 0 0 1px var(--select); }
   /* Picked: raised, with a platinum edge (gold would read as Axi). */
   .era.on { border-color: var(--select); background: var(--raised); box-shadow: inset 3px 0 0 var(--tint, var(--select)), inset 0 0 0 1px color-mix(in srgb, var(--select) 70%, transparent), 0 2px 0 rgb(0 0 0 / 50%); }
   .era.on strong { text-shadow: 0 0 1px currentColor; }
+  /* The keyboard's focus: a 2 px ring of its own, drawn inside the cut corner (the clip cuts anything
+     outside), after the chosen look so it shows on the chosen tile too and never reads as "chosen". */
+  .era:focus-visible { outline: 2px solid var(--select); outline-offset: -5px; }
   .counts .om { display: inline-flex; align-items: center; gap: .25rem; }
   /* One fact a line: the era's own fissures, then the Omnia ones. */
   .counts { display: grid; }

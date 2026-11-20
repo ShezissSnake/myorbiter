@@ -149,7 +149,7 @@ test("the row switch has a name without \"auto\", and its tooltip says who chang
   const cell = orders.slice(orders.indexOf('<td class="center c-auto"'), orders.indexOf("</td>", orders.indexOf('<td class="center c-auto"')));
   assert.doesNotMatch(cell, /Auto-price|auto-price/i);
   assert.match(cell, /data-label="Reprice"/);
-  assert.match(cell, /label="Reprice this listing"/);
+  assert.match(cell, /label="Reprice: \{nm\}"/);
   // Who changes it: the player with Reprice, MyOrbiter by itself only while Apply automatically is on.
   assert.match(cell, /you change its price with Reprice/);
   assert.match(cell, /MyOrbiter changes it by itself only while Apply automatically is on/);

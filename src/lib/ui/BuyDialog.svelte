@@ -91,7 +91,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={close}>
+  <div class="scrim" use:scrim={close} in:shade|global out:shade|global>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
       <div class="register head"><span>Post a buy order</span><HelpMark part="buy" /></div>

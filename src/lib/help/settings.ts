@@ -389,7 +389,7 @@ const NOTICES: Walkthrough = {
       title: "Choose which kinds you get",
       lines: [
         "Kinds come in groups: Trading, World, Fissures, Your account.",
-        "A switch for each kind: off, it's dropped, not even kept in Recent.",
+        "A switch for each kind: off, it's dropped, even from Recent; only setup's switch-off notice isn't.",
         "Recent only: kept in Recent without popping up.",
         "All off or All on: a whole group at once.",
       ],

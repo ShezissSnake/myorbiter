@@ -211,7 +211,9 @@
 {/snippet}
 
 {#snippet screen()}
-  <section class="screen" aria-label={onScreen ? "The reward screen" : "The reward screen, before it opens"}>
+  <section class="screen" aria-labelledby="screen-h">
+    <!-- For a screen reader: the cards' names are h3s, and they come before the page's first h2. -->
+    <h2 class="sr" id="screen-h">{onScreen ? "The reward screen" : "The reward screen, before it opens"}</h2>
     {#if onScreen}
       <div class="row" class:few={onScreen.length < 4} style:--n={onScreen.length}>{#each onScreen as c, i (i + c.name)}{@render rewardCard(c, i)}{/each}</div>
       <div class="screen-foot">
@@ -396,6 +398,8 @@
   /* The reward screen, as the game draws it: the cards side by side, each item's art large, its
      rarity a bar along the bottom edge. The one to take glows with the Void. */
   .screen { display: grid; gap: .7rem; }
+  /* Out of the grid's flow (absolute), so the gap stays as it was. */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
   /* Always in quarters across the page, as the figures below are: a solo screen's one card keeps its place. */
   .row { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .8rem; }
   :global(html[data-room~="lt640"]) .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
