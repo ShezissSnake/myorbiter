@@ -1,6 +1,6 @@
 // Shared warframe.market state: account, your orders, cached order books, and the repricer.
 
-import { logLine, market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
+import { PLATFORM_LABEL, logLine, market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
 import {
   canTrade,
   findItem,
@@ -242,9 +242,31 @@ class MarketStore {
     this.log = [{ at, text, tone, ...(quiet ? { quiet } : {}) }, ...this.log].slice(0, 200);
   }
 
+  /** The account and its platform last taken into Settings → Platform ("id|platform"). */
+  private platformTaken: string | null = null;
+  /**
+   * Signed in: the account says which platform you play on, and Settings → Platform follows it;
+   * the relic prices read for the old platform go. After signing in (`always`), every time. At the
+   * start and at a reconnect, only when the account or its platform isn't the one last taken in:
+   * a platform picked by hand since stays.
+   */
+  private takePlatform(always: boolean) {
+    const me = this.me;
+    const s = this.rules;
+    const theirs = me?.platform;
+    if (!me?.id || !s || !theirs || !Object.hasOwn(PLATFORM_LABEL, theirs)) return;
+    const taken = `${me.id}|${theirs}`;
+    if (!always && taken === this.platformTaken) return;
+    this.platformTaken = taken;
+    if (theirs === s.platform) return;
+    s.platform = theirs as Platform;
+    s.relicPrices = {};
+  }
+
   async init() {
     try {
       this.account = await market.account();
+      this.takePlatform(false);
       await this.ensureItems();
       if (this.linked) await this.refresh();
     } catch (e) {
@@ -294,6 +316,7 @@ class MarketStore {
         await market.signIn(email, password);
         this.account = await market.account();
       });
+      this.takePlatform(true);
       await this.refresh();
     });
   }
@@ -304,6 +327,7 @@ class MarketStore {
         await market.useToken(token);
         this.account = await market.account();
       });
+      this.takePlatform(true);
       await this.refresh();
     });
   }

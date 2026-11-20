@@ -2748,13 +2748,8 @@
       cardsPoll = setInterval(pollCards, 800);
       // warframe.market: sign-in state, your orders, and the auto-match timer.
       // Your warframe.market status: held again from where you left it (see Orders).
+      // Signed in: the store sets Settings → Platform from the account (marketStore › takePlatform).
       mkt.init().then(() => {
-        // Signed in: your account says which platform you play on.
-        const theirs = mkt.me?.platform;
-        if (theirs && theirs in PLATFORM_LABEL && theirs !== settings.market.platform) {
-          settings.market.platform = theirs as Platform;
-          settings.market.relicPrices = {};
-        }
         if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();
