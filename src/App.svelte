@@ -170,7 +170,7 @@
   import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
-  import type { RedactOptions } from "./lib/core/redact";
+  import { homeNames, type RedactOptions } from "./lib/core/redact";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
@@ -2355,7 +2355,10 @@
   };
   // ---------------------------------------------------------------- Report a bug
   // What the report's technical details say about TennoScope, and the names it hides: the
-  // player's own, and every other player MyOrbiter knows of (trade partners, whispers, chats).
+  // player's own, every other player MyOrbiter knows of (trade partners, whispers, chats), and this
+  // computer's user name, as the home folder's name in the paths already held here (the game log's
+  // file and TennoScope's folder, saved in Settings or found). Read as the dialog opens and held by
+  // it alone: never saved, logged or sent.
   const reportTennoscope = $derived(noTennoScope ? "not used here" : ts.running ? (ts.report ? "connected" : "running, not reporting") : "not running");
   const reportFullMode = $derived(ts.report ? (ts.report.setup.access_mode === "full" ? "on" : "off") : "unknown");
   function reportNames(): RedactOptions {
@@ -2363,6 +2366,7 @@
     return {
       self: [mkt.me?.ingameName],
       others: [...settings.market.trades.map((t) => t.partner), ...whispered, ...(mission?.whispers ?? []).map((w) => w.name), ...mkt.chats.map((c) => c.with)],
+      user: homeNames([settings.eeLog, settings.dataDir, defaultDir, mission?.path]),
     };
   }
   function typing(el: EventTarget | null) {

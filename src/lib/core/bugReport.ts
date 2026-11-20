@@ -9,12 +9,12 @@
 // expected) and, if they leave "Include technical details" on, a plain-text block they can read in
 // full first: the version, the system, the page, TennoScope's state and the log's last lines.
 // Everything is cleaned on the way in (core/untrusted.ts: no hidden characters, no HTML comments)
-// and redacted (core/redact.ts: no sign-ins, addresses, ids, players' names, or folder names in
-// the paths it recognises). The technical block
+// and redacted (core/redact.ts: no sign-ins, addresses, ids, players' names, this computer's user
+// name where MyOrbiter knows it, or folder names in the paths it recognises). The technical block
 // goes in a `text` code block no line of it can close, so GitHub shows it as text, never as
 // Markdown or HTML.
 
-import { redact, type RedactOptions } from "./redact";
+import { homeNamesIn, redact, type RedactOptions } from "./redact";
 import { cleanBlock, cleanLine, stripHidden, stripHtmlComments } from "./untrusted";
 
 /** The repository's new-issue page. Its host and path are in the opener's allowed sites (core/links.ts). */
@@ -96,8 +96,17 @@ export function cleanDetails(d: ReportDetails, names: RedactOptions = {}): Repor
   };
 }
 
+/** The names to hide in one report: `names`, and as this computer's user name, the home folder's
+ *  name in any line of it that writes one (`homeNamesIn`), so every field hides what one shows.
+ *  Read from the lines whole, before any is cut to its length. */
+export function namesOfReport(input: ReportInput, details: ReportDetails | null, names: RedactOptions = {}): RedactOptions {
+  const lines = [input.what, input.steps, input.expected, ...(details?.log ?? [])].map((s) => stripHidden(s ?? ""));
+  return { ...names, user: [...(names.user ?? []), ...homeNamesIn(lines)] };
+}
+
 /** The whole report, cleaned and redacted. `include`: whether the technical details go in. */
-export function buildReport(input: ReportInput, details: ReportDetails | null, names: RedactOptions = {}): Report {
+export function buildReport(input: ReportInput, details: ReportDetails | null, known: RedactOptions = {}): Report {
+  const names = namesOfReport(input, details, known);
   const what = cleanUserText(input.what, MAX.what, names);
   const first = (cleanLine(what.split("\n")[0] ?? "", MAX.title) ?? "").replace(/[.:;,\s]+$/, "");
   return {
@@ -128,7 +137,7 @@ export function detailsText(d: ReportDetails): string {
   ];
   if (!d.log.length) lines.push("Log: no lines (MyOrbiter's log is only kept by the desktop app).");
   else {
-    lines.push(`Log, last ${d.log.length} line${d.log.length === 1 ? "" : "s"} (sign-ins, addresses, ids, players' names and folder names in recognised paths hidden):`);
+    lines.push(`Log, last ${d.log.length} line${d.log.length === 1 ? "" : "s"} (sign-ins, addresses, ids, players' names, this computer's user name where known and folder names in recognised paths hidden):`);
     lines.push(...d.log);
   }
   return lines.join("\n");
