@@ -21,10 +21,13 @@ const RUNNING = "0.2.130";
 type Call = { cmd: string; args?: Record<string, unknown> };
 const calls: Call[] = [];
 let unreadable = false;
+/** Beta's build, where a case gives it one: older than the running build. */
+let betaBuild: string | null = null;
 
 /** The channels as a new channel has them: Stable and Beta with no build on GitHub, Experimental with a newer one. */
 function check(args: { channel: string; firstOnly?: boolean }) {
   if (args.channel === "experimental") return { state: "newer", version: "0.2.132", notes: null, date: null };
+  if (args.channel === "beta" && betaBuild) return { state: "older", version: betaBuild, notes: null, date: null };
   return { state: "empty", system: false };
 }
 
@@ -128,6 +131,27 @@ test("its first check settles the channel as a new install's does, sending exact
   assert.match(logged[0], /^after saved settings that couldn't be read: on Experimental, neither Stable nor Beta has this build or a newer one/);
   assert.equal(newInstall.logged.length, 1);
   assert.equal(logged[0].replace(/^after saved settings that couldn't be read/, "new install"), newInstall.logged[0], "the same line as a new install's but for whose start it is");
+});
+
+test("with Stable empty and Beta holding an older build, it asks all three channels, each GitHub alone", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"], now: Date.UTC(2026, 10, 20, 9, 0) });
+  unreadable = true;
+  betaBuild = "0.2.129";
+  t.after(() => (betaBuild = null));
+  const s = await load(t);
+  const { u, sent, logged } = await firstChecks(t, s);
+  u.stop();
+  // Main stopped at Beta here (any build of Beta was its nearest); the new-install rule goes on to Experimental.
+  assert.deepEqual(sent, [
+    { cmd: "updates_info", args: {} },
+    { cmd: "updates_check", args: { channel: "stable", firstOnly: true } },
+    { cmd: "updates_check", args: { channel: "beta", firstOnly: true } },
+    { cmd: "updates_check", args: { channel: "experimental", firstOnly: true } },
+  ]);
+  assert.deepEqual({ channel: s.updates.channel, picked: s.updates.picked }, { channel: "experimental", picked: true });
+  assert.equal(u.offer?.version, "0.2.132", "the settled channel's update is offered");
+  assert.equal(logged.length, 1);
+  assert.match(logged[0], /^after saved settings that couldn't be read: on Experimental, neither Stable nor Beta has this build or a newer one \(Stable has no build, Beta's build 0\.2\.129 is older/);
 });
 
 test("Settings, Updates says, while no channel is chosen, that a channel chosen now is kept only until a restart", async (t) => {
