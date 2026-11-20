@@ -167,7 +167,7 @@
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
-  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
+  import { carryOnEmpty, dataMissing, leaveSetup, leftSetupNotice, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import { homeNames, type RedactOptions } from "./lib/core/redact";
@@ -574,6 +574,20 @@
     Object.assign(settings.market, next);
     logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
+    tellSwitchedOff(how, off);
+  }
+  /**
+   * Says once which automatic actions leaving the setup page switched off (nothing when none was
+   * on): kept under the bell's Recent and popped up as notifications are (`popUp`), under Listing
+   * problems, the kind whose page has the switches. Not through `tell`: it says this whatever
+   * that kind's switch, and it never goes to Discord. Leaving builds a collection, whose world
+   * notices then come in a burst: its pop-up stays out of their "N more" fold.
+   */
+  function tellSwitchedOff(how: "later" | "overlay", off: string[]) {
+    const words = leftSetupNotice(how, off);
+    if (!words) return;
+    settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
+    void popUp(settings.game.notices[0], "market", { keepOut: true });
   }
   /** This start began with the first start's question: a new install's first run. */
   let firstStartRun = false;
@@ -858,15 +872,16 @@
    * for the Settings test, which has no entry). `toast`, `desktop`: false when this call isn't to
    * show it in that place (a repricing pass keeps its pop-up up to date as it grows but only sends
    * the total once it ends); a send that isn't made notes nothing. `note`: false to leave what became
-   * of it unwritten for now. Resolves to what it noted, or null.
+   * of it unwritten for now. `keepOut`: its pop-up inside MyOrbiter isn't folded into "N more" by
+   * the notices that follow it (toasts.svelte.ts). Resolves to what it noted, or null.
    */
-  async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean } = {}): Promise<NoticeOutcome | null> {
+  async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean; keepOut?: boolean } = {}): Promise<NoticeOutcome | null> {
     const route = routeOf(popupFacts(gate));
     let outcome: NoticeOutcome | null = route;
     if (route.how === "app") {
       // Not shown by this call (a repricing pass that settled after its pop-up went): nothing to note.
       if (o.toast === false) outcome = null;
-      else toasts.push(n);
+      else toasts.push(n, o.keepOut);
     } else if (route.how === "desktop") {
       if (o.desktop === false) outcome = null;
       else {
@@ -3142,7 +3157,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions go off; a notification names those that were on. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}

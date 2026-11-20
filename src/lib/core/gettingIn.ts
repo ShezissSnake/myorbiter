@@ -113,3 +113,32 @@ export function leaveSetup(how: "later" | "overlay", m: AutoSwitches, firstStart
   const off = (Object.keys(NAMES) as (keyof AutoSwitches)[]).filter((k) => m[k]).map((k) => NAMES[k]);
   return { next: { auto: false, autoTrades: false, autoRep: false }, off };
 }
+
+/**
+ * Each switch by its name in the two places it is turned on again: Orders' Auto panel
+ * (Orders.svelte) and Settings, Trades (SettingsSheet.svelte), which has the same three switches,
+ * two of them under other names.
+ */
+export const SWITCH_LABEL: Record<keyof AutoSwitches, { orders: string; settings: string }> = {
+  auto: { orders: "Apply automatically", settings: "Change my prices on warframe.market by itself (automatic repricing)" },
+  autoTrades: { orders: "Mark sales sold from the game", settings: "Mark sales sold from the game" },
+  autoRep: { orders: "Give +rep by itself", settings: "Give +rep by itself after a trade" },
+};
+
+/**
+ * What the player is told after leaving the setup page switched automatic actions off: `off` is
+ * what `leaveSetup` returned. Null when nothing was switched off, so nothing is said.
+ */
+export function leftSetupNotice(how: "later" | "overlay", off: string[]): { title: string; body: string } | null {
+  const keys = (Object.keys(NAMES) as (keyof AutoSwitches)[]).filter((k) => off.includes(NAMES[k]));
+  if (!keys.length) return null;
+  const and = (xs: string[]) => (xs.length === 1 ? xs[0] : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+  const names = keys.map((k) => SWITCH_LABEL[k].orders);
+  // Settings' own name for each that it calls otherwise, so that each name is found where it is said to be.
+  const renamed = keys.filter((k) => SWITCH_LABEL[k].settings !== SWITCH_LABEL[k].orders).map((k) => `${SWITCH_LABEL[k].orders} is "${SWITCH_LABEL[k].settings}"`);
+  const way = how === "overlay" ? "\"Not now: overlay only\"" : "Finish later";
+  return {
+    title: names.length === 1 ? "Automatic action switched off" : "Automatic actions switched off",
+    body: `Leaving the setup page with ${way} switched off ${and(names)}. ${names.length === 1 ? "It stays" : "They stay"} off until you turn ${names.length === 1 ? "it" : "them"} on again: on Orders, under the Auto line when you're signed in, or in Settings, Trades${renamed.length ? `, where ${and(renamed)}` : ""}.`,
+  };
+}
