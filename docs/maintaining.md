@@ -255,9 +255,10 @@ bundles, which its chunks show, or through Node's internal bindings); a folder c
 (`fs.cpSync` with `recursive`) that holds a link, which leaves a link in the output with no
 `symlink` event, so no stop (nothing goes unlisted by it: the copy marks the file the link leads
 to); a plugin's `writeBundle` hook, which a build that writes nothing doesn't run, so what a plugin
-copies, links or reads there is neither listed nor stopped (neither page's config has one); a module loaded in the same Node before the build started (the script runs in a process of its
-own, after only `cargo`); and a package linked from a folder inside the repository, whose modules
-are taken for the page's own.
+copies, links or reads there is neither listed nor stopped (neither page's config has one); a module
+loaded in the same Node before the build started (the script runs in a process of its own, after
+only `cargo`); and a package linked from a folder inside the repository, whose modules are taken for
+the page's own.
 
 **When it stops a build.** The job's log lists each package with the reason (the Linux job's
 *Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
