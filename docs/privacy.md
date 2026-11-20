@@ -476,7 +476,7 @@ stands whole, an everyday word in it too (`Deck Name left the Steam Deck` become
 `[user] left the Steam Deck`). Not hidden: the name with its accents written in another of
 Unicode's forms (a letter and a combining accent for one accented letter), in a case some languages
 fold their own way (Turkish `İ` and `ı`), glued to a longer word in letters, digits or `_`
-(Chinese and Japanese characters included), or cut short where a log line is cut at its length limit.
+(Chinese and Japanese characters included), written with its own letters percent-encoded (`Orr%C3%A9n` for `Orrén`, `O%27Brien` for `O'Brien`, which stay as they are, whether the name is known or not), or cut short where a log line is cut at its length limit.
 When MyOrbiter hasn't seen your home folder (the game log and TennoScope's folder are not under it,
 as when TennoScope's folder is set elsewhere, or MyOrbiter runs in a browser, and the report writes
 none), your user name is hidden only where the path rule hides a user name. MyOrbiter's own log
