@@ -4,7 +4,7 @@
 // and from Check now (docs/privacy.md, Updates). Nothing installs without a click.
 //
 // A new install (no settings saved yet) of a CI build that checks has no channel until its first
-// check hears back: that check asks Stable, then Beta and Experimental if need be, and settles on
+// check hears back, and neither has a start whose settings file was damaged or couldn't be read: that check asks Stable, then Beta and Experimental if need be, and settles on
 // the most stable channel whose build is this one or newer (`settle`, core/updates.ts
 // `newInstallStep`), each asked of GitHub alone (`firstOnly`). A check that failed never settles it:
 // see `buildCounts` for what an answer shows and what stays open.
@@ -13,7 +13,7 @@
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
-import { flushSettings, logLine, settingsMovedAside, updater, type UpdateCheck, type UpdateInfo } from "./backend";
+import { flushSettings, logLine, settingsMovedAside, settingsUnreadable, updater, type UpdateCheck, type UpdateInfo } from "./backend";
 import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
@@ -23,10 +23,11 @@ import { afterPaint } from "./ui/soon";
 export const CHECK_LIMIT = 20 * 1000;
 
 /**
- * Whose channel the log says just settled: a new install's, or a start's whose settings file was
- * damaged and moved aside (backend.ts, loadSettings), which settles the same way but isn't new.
+ * Whose channel the log says just settled: a new install's, a start's whose settings file was
+ * damaged and moved aside, or one whose saved settings couldn't be read at all (backend.ts,
+ * loadSettings). The last two settle the same way but aren't new, and the last saves nothing.
  */
-export const settledWho = () => (settingsMovedAside() ? "after a damaged settings file" : "new install");
+export const settledWho = () => (settingsUnreadable() ? "after saved settings that couldn't be read" : settingsMovedAside() ? "after a damaged settings file" : "new install");
 
 /** An update on offer: a newer build, or (after a switch to a more stable channel) an older one. */
 export interface Offer {
@@ -257,7 +258,8 @@ export class Updates {
   /**
    * A new install's channel, settled by asking Stable, Beta only when Stable's build doesn't count,
    * and Experimental only when neither does (`newInstallStep`; Experimental must count too): the
-   * channel settled on, saved as picked and said in the log once.
+   * channel settled on, marked picked (saved with the settings, unless they couldn't be read at
+   * start: then it lasts until a restart) and said in the log once.
    * Null when the player picked a channel meanwhile: what was heard is dropped. Throws when a
    * channel that had to be asked didn't answer: nothing settles, nothing is marked picked, and the
    * next check (when due, or at the next start) asks again. What each channel answered goes into
@@ -297,14 +299,14 @@ export class Updates {
   }
 
   /**
-   * While a new install hasn't settled its channel: what Settings, Updates says about the channel
-   * it shows (`unsettledWords`). Null once settled, and on an install that settles without asking.
+   * While a new install, or a start whose saved channel couldn't be read, hasn't settled its
+   * channel: what Settings, Updates says about the channel it shows (`unsettledWords`). Null once settled, and on an install that settles without asking.
    */
   get unsettled(): string | null {
     const u = this.get?.();
     const i = this.info;
     if (!u || u.picked || !i || !settlesByAsking(i.version, installChecks(i.install))) return null;
-    return unsettledWords(u.channel, this.outcome?.kind === "failed");
+    return unsettledWords(u.channel, this.outcome?.kind === "failed", settingsUnreadable());
   }
 
   /** The empty channel's line in Settings, Updates, and the switch it offers; null otherwise. */
@@ -327,7 +329,8 @@ export class Updates {
     // The player's own choice, from the channel buttons or an empty channel's Switch to: it
     // settles a new install for good, even on the channel already shown, and an answer the
     // settling was waiting for is dropped (`settle`). Saved with the settings, so a later start
-    // never asks again.
+    // never asks again; when they couldn't be read at start nothing is saved, so it lasts until a
+    // restart, which reads the file again.
     const unsettled = !u.picked;
     u.picked = true;
     if (u.channel === c) {
