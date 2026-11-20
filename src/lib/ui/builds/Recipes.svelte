@@ -67,7 +67,7 @@
       <button type="button" class="link more" aria-expanded={all} title={all ? `Back to the top ${LIMIT}` : `Every combination, ranked (${r.combos.length})`} onclick={() => (all = !all)}>{all ? `Top ${LIMIT} only` : `Show all ${r.combos.length}`}</button>
     {/if}
     <!-- The part stats are the wiki's: its credit shows with every recipe list, after what they leave out. -->
-    <p class="dim small gaps">{#if r.gaps.length}{r.gaps.join(" ")} {/if}<WikiCredit /></p>
+    <p class="dim small gaps">{#if r.gaps.length}{`${r.gaps.join(" ")} `}{/if}<WikiCredit /></p>
     {#if r.how}<p class="dim small how">{r.how}</p>{/if}
   </section>
 {/if}

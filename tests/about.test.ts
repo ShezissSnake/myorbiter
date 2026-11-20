@@ -60,7 +60,7 @@ test("Arcanes, where the Vosfor figures show, and Builds' recipes carry that cre
   assert.equal(sections.length, 2);
   for (const s of sections) assert.match(s, /<p class="small dim credit"><WikiCredit \/><\/p>\s*<\/section>$/);
   const recipes = readFileSync("src/lib/ui/builds/Recipes.svelte", "utf8");
-  assert.match(recipes, /<p class="dim small gaps">\{#if r\.gaps\.length\}\{r\.gaps\.join\(" "\)\} \{\/if\}<WikiCredit \/><\/p>/, "shown whether or not the recipe has gaps");
+  assert.match(recipes, /<p class="dim small gaps">\{#if r\.gaps\.length\}\{`\$\{r\.gaps\.join\(" "\)\} `\}\{\/if\}<WikiCredit \/><\/p>/, "shown whether or not the recipe has gaps");
   assert.doesNotMatch(recipes, /CC BY-NC-SA\./, "the old short credit is gone");
   const credit = readFileSync("src/lib/ui/WikiCredit.svelte", "utf8");
   assert.match(credit, /aria-busy=\{links\.isOpening\(WIKI_CREDIT_URL\)\} onclick=\{\(\) => openUrl\(WIKI_CREDIT_URL\)\}/);
