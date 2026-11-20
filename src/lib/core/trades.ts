@@ -5,9 +5,10 @@ import { gearSetParts, type Model } from "./model";
 import { imprintSale, type ImprintNaming, type ImprintRaw } from "./imprints";
 import type { Trade, TradeItem } from "./types";
 import type { Sale, TradeLogEntry } from "../backend";
-import { recentTrade } from "./saleNotice";
+import { recentTrade, type SoldLine } from "./saleNotice";
 import { handLoggedSale } from "./upkeep";
 import { sameSaleItem } from "./sameSale";
+import { tradeLineSale } from "./soldMarks";
 
 /** What makes a trade unique: the game session's start and the trade's time in it. */
 export const tradeKey = (sessionStart: number | null | undefined, t: Trade) => `${sessionStart ?? "?"}|${t.uptime}`;
@@ -189,6 +190,128 @@ export function placeTradeLine(sales: Sale[], logged: Sale[], line: { name: stri
 
 /** The listing a trade's line is to lower, if it is still listed (one an earlier line or a Sold click closed is not). */
 export const stillListed = (order: MyOrder | null, orders: MyOrder[]): MyOrder | null => (order && orders.some((o) => o.id === order.id) ? order : null);
+
+/** What marking sales from the game's trades needs from the page (App.svelte's trade effect). */
+export interface TradeMarking {
+  /** The sales log as it is now, and the one to keep. */
+  sales(): Sale[];
+  setSales(sales: Sale[]): void;
+  /** Records a trade's key as handled (tradesSeen). */
+  seen(key: string): void;
+  /** The trade's sales, matched against the player's listings as they are now (salesFromTrade). */
+  salesOf(t: Trade): TradeSale[] | null;
+  /** The player's listings as they are now. */
+  orders(): MyOrder[];
+  /** Marks `n` copies of the listing sold on warframe.market (the store's `sold`): null when it couldn't. */
+  sold(order: MyOrder, n: number): Promise<{ quantity: number } | null>;
+  /** What became of a trade, for its notification; null: it wasn't a sale, or the marking went wrong. */
+  outcome(key: string, lines: SoldLine[] | null): void;
+  /** Something threw while a trade was handled: said in the log; the rest of the batch goes on. */
+  failed(key: string, e: unknown): void;
+  now(): number;
+}
+
+/**
+ * The keys of a read's fresh trades (tradesToMark) to record as handled at once: those not acted on
+ * (marking off, or not recent), so that turning the marking on later doesn't act on old trades.
+ * The keys of `acting`, the trades markTrades is given, are left to it: it records each in the
+ * same step as that trade's sales go into the log.
+ */
+export function seenAtOnce(fresh: string[], acting: Trade[], session: number | null): string[] {
+  const later = new Set(acting.map((t) => tradeKey(session, t)));
+  return fresh.filter((k) => !later.has(k));
+}
+
+/**
+ * Logs each trade's sales and marks their listings sold, one trade after another. Returns how
+ * many lines it logged (as many as it tried to mark).
+ *
+ * A trade's sales go into the log, and its key into `seen`, in one step with no wait between
+ * them: settings saved at any moment (a quit while warframe.market is answering) hold both or
+ * neither, so a sale is never lost to a key recorded before it. A line with a listing to mark is
+ * logged first as a plain sale, with neither `lowered` nor `unmarked` (so a Sold click meanwhile
+ * asks what it asked before: nothing), and is given what its marking did once warframe.market
+ * answers. A trade not yet reached has neither, and nothing of it was sent. Whatever throws for
+ * one trade is said (`failed`) and the batch goes on.
+ */
+export async function markTrades(trades: Trade[], session: number | null, io: TradeMarking): Promise<number> {
+  let done = 0;
+  for (const t of trades) {
+    const key = tradeKey(session, t);
+    try {
+      let lines: SoldLine[] | null = null;
+      const toMark: { line: number; s: TradeSale; left: number; at: number; logged: Sale }[] = [];
+      try {
+        const sales = io.salesOf(t);
+        if (sales) {
+          const at = t.at ? t.at * 1000 : io.now();
+          // What this trade logged before, if it's handled again: read before any line is logged.
+          const logged = loggedForTrade(io.sales(), key);
+          lines = [];
+          for (const s of sales) {
+            const placed = placeTradeLine(io.sales(), logged, s, at, key);
+            if (placed.sales !== io.sales()) io.setSales(placed.sales);
+            if (!placed.left) {
+              lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
+              continue;
+            }
+            const sale = s.order
+              ? { at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key }
+              : tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order: null, marked: 0, now: io.now() });
+            io.setSales([sale, ...io.sales()].slice(0, 2000));
+            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "not listed" });
+            if (s.order) toMark.push({ line: lines.length - 1, s, left: placed.left, at, logged: io.sales()[0] });
+            else done++;
+          }
+        }
+      } finally {
+        // In the same step as its sales: never before them.
+        io.seen(key);
+      }
+      for (const m of toMark) {
+        const { s, left, at } = m;
+        // Matched against the listings as they were when the trade was read: one an earlier sale
+        // in this trade (or a Sold click) closed meanwhile isn't listed any more.
+        const order = stillListed(s.order, io.orders());
+        let marked: { quantity: number } | null = null;
+        try {
+          marked = order ? await io.sold(order, left) : null;
+        } catch (e) {
+          io.failed(key, e);
+        }
+        // Which listing this lowered, and the copies it couldn't mark: a Sold click soon after asks first.
+        const sale = tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left, platinumEach: s.platinumEach, key, order, marked: marked?.quantity ?? 0, now: io.now() });
+        io.setSales(withMarking(io.sales(), m.logged, sale));
+        lines![m.line] = { name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" };
+        done++;
+      }
+      io.outcome(key, lines);
+    } catch (e) {
+      io.failed(key, e);
+      io.outcome(key, null);
+    }
+  }
+  return done;
+}
+
+/**
+ * The log with what a trade line's marking did (`lowered`, `unmarked`) given to the sale it logged
+ * before the marking: that very record, else the one like it (the same trade, item, time, copies
+ * and price, with no marking yet; its rank may have been filled in since). One taken out
+ * meanwhile (deleted, or past the 2,000 kept) is not put back.
+ */
+export function withMarking(sales: Sale[], logged: Sale, marking: Sale): Sale[] {
+  let i = sales.indexOf(logged);
+  if (i < 0)
+    i = sales.findIndex((x) => x.trade === logged.trade && x.item === logged.item && x.at === logged.at && x.quantity === logged.quantity && x.platinum === logged.platinum && !x.lowered && !x.unmarked && (logged.rank == null || x.rank === logged.rank));
+  if (i < 0) return sales;
+  const next: Sale = { ...sales[i] };
+  if (marking.lowered) next.lowered = marking.lowered;
+  if (marking.unmarked) next.unmarked = marking.unmarked;
+  const out = [...sales];
+  out[i] = next;
+  return out;
+}
 
 /**
  * Every part of a prime set handed over in one trade is a set sale ("Styanax Prime Set"), when you
