@@ -363,6 +363,10 @@ jobs:
           cp -r tennoscope/app/src-tauri/vendor/tesseract/. vendor/tennoscope/tesseract/
           # Its licence, its notices and its Tesseract's, and NOTICE.md (where its source is).
           scripts/tennoscope-notice.sh vendor/tennoscope
+          # The packages compiled into it, with their licences and texts; the build stops at one
+          # the allowed list doesn't allow (scripts/dependency-licences.mjs). MyOrbiter's own list is
+          # made the same way by tauri build, before it packs (src-tauri/tauri.bundle.json).
+          node scripts/dependency-licences.mjs tennoscope x86_64-pc-windows-msvc
 
       # No updater files and no key here: the sign job signs the installer. tauri.windows.conf.json
       # (NSIS only, per-user, the WebView2 bootstrapper) is merged by Tauri on Windows.

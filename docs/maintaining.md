@@ -166,6 +166,153 @@ change `BUILD_OFFSET` so the first build is still above the bridge build, throug
 before running it. Never lower it afterwards: a version made twice, or one lower than an installed
 build, is never offered.
 
+## The dependencies' licences
+
+Every download carries, for each program in it, the list of the third-party packages compiled into
+that program for its system, each with its name, version, licence and licence texts:
+`THIRD-PARTY-NOTICES/dependencies/` for MyOrbiter and `tennoscope/THIRD-PARTY-NOTICES/dependencies/`
+for TennoScope. `scripts/dependency-licences.mjs` makes each list while the build runs, from what
+the build itself has unpacked (cargo's registry folder, the page's `node_modules`), with no request
+of its own: MyOrbiter's as `tauri build`'s `beforeBundleCommand` (`src-tauri/tauri.bundle.json`),
+after compiling and before packing; TennoScope's once it is put into `vendor/tennoscope/`
+(`ci/build.sh` for Linux and for the Windows half it cross-builds, the Windows job's *Put
+TennoScope beside MyOrbiter's sources*).
+`ci/build.sh` then checks that the `.deb` carries both Linux lists, each with every text it names.
+
+**The gate.** The script stops the build, naming every package at fault and why, when a package:
+
+- has no licence in its manifest, or names a licence file in place of a licence expression;
+- has a licence that `scripts/dependency-licences-allowed.txt` doesn't allow. A choice (`OR`, or
+  the old `/`) passes when one side is allowed, an `AND` when every side is, an exception (`WITH`)
+  only as the list names it, and an expression the script can't read never passes;
+- comes from anywhere but the registry (a git repository, a path outside the workspace, a tarball);
+- ships no licence text and isn't in `scripts/dependency-licences-no-text.json` by name and
+  version (a new version of a crate listed there stops it too). The file is read for crates only:
+  an npm package with no licence text always stops it;
+- is in that file with a licence other than the one its manifest names.
+
+**How the page is read.** The page's own Vite build is run again, writing nothing. A package is in
+the page when its code is in the page's code (or a worker's), when one of its styles is compiled
+into the page, when the build emits one of its files, when the page's config is bundled from one
+of its files, when one of its files is in the page's public folder (or linked from there), or
+when the build reads, copies, hard-links or moves one of its files through Node's `fs` while it
+runs (a folder of its moved whole, each of its files), by the path it is given or by the path a
+link leads to. That takes in what a style `@import`s or
+`composes` from, in a stylesheet or a component's `<style>`, every small file Vite inlines as a
+`data:` address (from a style's `url()`, from `new URL(…, import.meta.url)`, from `index.html`),
+whatever the page's config reads (`fs.ReadStream` included), and what a plugin copies, into the
+output or elsewhere to read it there, in the hooks a build that writes nothing runs (not
+`writeBundle`). Each package found is listed and gated like any other.
+
+Beside the page's own code and config, only the build's known tools may run while it builds: the
+short list in the script (`tools` of each program in `PROGRAMS`: Vite,
+`@sveltejs/vite-plugin-svelte` and Svelte for MyOrbiter; Vite, Vitest and `@vitejs/plugin-react`
+for TennoScope), with every package they use (their `dependencies` and `optionalDependencies`,
+all the way down). The list is added to by hand, in the same change that adds a tool to a page's
+build. Two reads aren't counted: Node loading those tools' code to run it, and those tools
+reading a package's `package.json` to find its files; any other code reading one stops the build.
+
+It stops as well when:
+
+- the page's packages aren't installed;
+- a CSS preprocessor (`sass`, `sass-embedded`, `less` or `stylus`) is installed for the page,
+  where Vite finds one: in `node_modules` of the page's folder or any folder above it, or of
+  Vite's own folder or any above it (pnpm's hidden `node_modules/.pnpm/node_modules` among them).
+  It reads what a style imports in a thread or process of its own, where the script doesn't
+  listen;
+- Node loads, while the build runs, a module that is neither the page's own nor one of the known
+  tools' (a package the config or a plugin imports or requires, a plugin that is a package, a
+  native addon): what its code puts into the page can't be followed. Node itself tells the script
+  what it loads (`module.registerHooks`); a Node without it, or a build in which Node told of no
+  load, stops it too;
+- code other than the known tools reads a package's `package.json`, or a known tool does so for
+  the config (the config is in the stack that called it);
+- the build starts a thread, or a process whose command line isn't one of the program's
+  `commands` in the script (MyOrbiter's config runs `git log` for its build stamp): what they read
+  isn't heard;
+- the build makes a symbolic link (`symlink`, `symlinkSync` or `fs.promises.symlink`), wherever it
+  leads: what reads the output follows it later (the app's bundler takes in the file a link in the
+  page's output leads to), where the script doesn't listen;
+- the page's config is bundled from a file outside the page that is no package's;
+- the page holds a module that is neither the page's own nor a package's;
+- the build emits a file of its own (not its code, styles or HTML) without reading it through
+  Node's `fs`. This check sees only that: that Vite still reads the files it emits where the script
+  listens, as it reads the files it inlines. A page that emits no such file gives it nothing to
+  check;
+- cargo's answer has a line the script can't read, or no crate at all;
+- the script is given an argument it doesn't know.
+
+It never passes by leaving out a package it has found, and it stops on every reader above it
+doesn't know. What it lets through without following it: what the known tools' own code and files
+carry into the page when the config runs or reads them (in MyOrbiter's page, Vite and Svelte are
+listed anyway, as the page holds their code; the other tools' packages aren't listed unless the
+page holds theirs); a package's file the config has a known tool read for it below Node's `fs`
+(Vite's bundler, in a second build or its config loader pointed at a package's file); a
+`package.json` a known tool reads for the config from a callback, where the config isn't in the
+stack that called it (or is deeper than the 50 frames the script looks at); a read made below
+Node's `fs` functions otherwise (by native code, apart from the modules the page's own build
+bundles, which its chunks show, or through Node's internal bindings); a folder copied whole
+(`fs.cpSync` with `recursive`) that holds a link, which leaves a link in the output with no
+`symlink` event, so no stop (nothing goes unlisted by it: the copy marks the file the link leads
+to); a plugin's `writeBundle` hook, which a build that writes nothing doesn't run, so what a plugin
+copies, links or reads there is neither listed nor stopped (neither page's config has one); a module
+loaded in the same Node before the build started (the script runs in a process of its own, after
+only `cargo`); and a package linked from a folder inside the repository, whose modules are taken for
+the page's own.
+
+**When it stops a build.** The job's log lists each package with the reason (the Linux job's
+*Build* step; on Windows, *Put TennoScope beside MyOrbiter's sources* or *Build MyOrbiter*). Then:
+
+- A licence that isn't on the allowed list: **adding a licence to the allowed list is the
+  maintainer's decision**, made after reading that licence; the list is
+  `scripts/dependency-licences-allowed.txt`. Otherwise the dependency that brought it is changed
+  back or replaced.
+- A crate with no licence text of its own: an entry for it, by name, version and licence, goes into
+  `scripts/dependency-licences-no-text.json`, with the maintainer's yes like any licence file. An
+  entry can hold one of two things today. `text` names, by its SHA-256, a file another package of
+  the same build ships unchanged, with an optional `from` naming the one package it must come from
+  (without it, any package of the build that ships those bytes): for a licence with no line of its
+  own to fill (Apache-2.0, BSL-1.0), that licence's standard text; the build stops if no package of
+  it ships that file. Or `text` is `null`: the download carries no text for the crate, and its list
+  says so, naming its licence and the repository the entry's `upstream` gives (typed by hand from
+  the crate's manifest; the script checks it against nothing). A text is never written by
+  hand. Carrying upstream's own file for a crate (its copyright line, for MIT or BSD) has no place
+  in that file yet: it needs a change to the script, to read the file from the repository with
+  where it came from.
+- An npm package with no licence text of its own, or an entry whose licence differs from the
+  manifest's: the no-text file takes no npm package, so the dependency that brought it is changed
+  back or replaced (or reading npm entries is a change to the script); an entry's licence is made
+  the manifest's, with the maintainer's yes.
+- A source that isn't the registry: the dependency goes back to a published version.
+- The page not installed, or a module of no known package: the build steps before it changed;
+  `node scripts/dependency-licences.mjs <program> <target>` after the build shows the same. A file
+  emitted without being read through `fs`, or a line of cargo's it can't read: an upgrade of Vite
+  or cargo changed how they read, and the script follows it. A CSS preprocessor: following what
+  it imports is a change to the script.
+- A package loaded that is none of the known tools', or a `package.json` read by other code: when
+  it is a new tool of the page's build, it goes into `tools` in the same change that adds it;
+  otherwise the config or plugin stops loading or reading it. A thread, or a process the script
+  doesn't know: the config or plugin that starts it changes, or (a process whose output can't
+  carry a package's file) its command line goes into `commands` in the same change.
+
+Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
+TennoScope) and a build of the program, so its crates are unpacked:
+`node scripts/dependency-licences.mjs myorbiter x86_64-unknown-linux-gnu` writes
+`THIRD-PARTY-NOTICES/dependencies/` (the folder is never committed). Without a target it takes
+`TAURI_ENV_TARGET_TRIPLE`, as Tauri sets it. Its other arguments: `--out <folder>` writes
+elsewhere; `--allowed <file>` and `--no-text <file>` read another allowed list or no-text file in
+place of the two in `scripts/` (to try a change before making it); and
+`--check <folder> <program> <target>` checks a list already written, with every text it names, as
+`ci/build.sh` does in the `.deb`. Any other argument stops it.
+
+**What the list doesn't cover**, as each list also says: the Rust standard library, which no
+lockfile names; code a package carries inside itself (for example the copy of `tslib` inside
+`@tauri-apps/api`); C and C++ sources inside crates (the `-sys` crates, `ring`'s C and assembly, a C
+header a crate bundles), of which only the crate's own licence is listed; what isn't a package (the
+system libraries an AppImage carries, in `SOURCES.md` and `linux/`; Tesseract and its libraries;
+WebView2's installer; the files listed in `NOTICE.md`); and packages used only to build or test a
+program.
+
 ## Actions
 
 - [ ] **Fork pull requests wait for approval:** Settings → Actions → General → "Approval for running
