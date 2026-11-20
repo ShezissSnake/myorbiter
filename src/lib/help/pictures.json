@@ -422,8 +422,8 @@
   "orders-automatic-1.webp": {
     "hash": "63120ee854ba2e1c",
     "w": 787,
-    "h": 386,
-    "bytes": 46844
+    "h": 423,
+    "bytes": 56318
   },
   "orders-automatic-2.webp": {
     "hash": "7ce2d28dff7c5fe1",
@@ -650,8 +650,8 @@
   "settings-trades-2.webp": {
     "hash": "693ec2edc21438a9",
     "w": 575,
-    "h": 409,
-    "bytes": 57094
+    "h": 408,
+    "bytes": 55844
   },
   "settings-trades-3.webp": {
     "hash": "6d6f3a9c1dfc0448",
@@ -660,10 +660,10 @@
     "bytes": 20258
   },
   "settings-trades-4.webp": {
-    "hash": "e52a82866a3eb64a",
+    "hash": "a766ed053ab72429",
     "w": 557,
-    "h": 338,
-    "bytes": 58098
+    "h": 76,
+    "bytes": 17004
   },
   "spares-1.webp": {
     "hash": "285fee3d0408d891",
