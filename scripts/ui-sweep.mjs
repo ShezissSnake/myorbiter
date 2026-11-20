@@ -18,7 +18,8 @@
 // that no part of the table is left with a transform or an animation (sortCheck), and that the
 // rows read the same at rest with reduced motion on. Also at 1280×800 it counts the Tab presses to
 // get past Inventory as Cards and as Table (the table must take about as many as the cards) and past
-// Orders by its "Skip past the listings" link; measures the click targets the 24 px rule names
+// Orders by its "Skip past the listings" link, and reads the names of the controls on Orders' first
+// two listings (each must name its item); measures the click targets the 24 px rule names
 // (Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks: each must take a
 // click all round a 24 px square); and opens the folded sidebar's More menu by keyboard, where no
 // focus tip may cover the menu; and reads the list pages' headings, none of which may jump a level
@@ -907,6 +908,17 @@ function headingLevels() {
   return { levels, jump };
 }
 
+/** The names of the controls on Orders' first two listings, as a screen reader says them. */
+const orderNames = [];
+const nameFindings = [];
+
+/** Runs in the page: the aria-labels of the controls on Orders' first two listings, row by row. */
+function orderRowNames() {
+  return [...document.querySelectorAll(".pane.shown table.orders tbody tr.order")].slice(0, 2).map((tr) =>
+    [...tr.querySelectorAll("button, input, select, a, [role=switch], [tabindex='0']")].map((el) => el.getAttribute("aria-label") ?? "").filter(Boolean),
+  );
+}
+
 /** Whether the focus tip is drawn over the open More menu. */
 function tipOverMenu() {
   const menu = document.querySelector(".moremenu");
@@ -946,6 +958,16 @@ async function keyboardExtras(size) {
   keyCounts.push(`Orders (${listings} listings) ${told(orders)}`, `Orders by its skip link ${skipped.skipped ? told(skipped) : "(no link)"}`);
   if (!skipped.skipped) countFindings.push('Orders: Tab reaches no "Skip past the listings" link');
   else if (!skipped.left || skipped.presses > 60) countFindings.push(`Orders by its skip link still takes ${told(skipped)} Tab presses to leave`);
+  // Each listing's controls name its item ("Remove: Arcane Energize"), so two rows' read apart.
+  const rowsNamed = await p.evaluate(orderRowNames);
+  const items = rowsNamed.map((labels, i) => {
+    orderNames.push(`row ${i + 1}: ${labels.join(" | ") || "(none)"}`);
+    const named = new Set(labels.filter((l) => l.includes(": ")).map((l) => l.slice(l.lastIndexOf(": ") + 2)));
+    if (labels.filter((l) => l.includes(": ")).length < 3 || named.size !== 1) nameFindings.push(`Orders row ${i + 1}: its controls don't all name one item (${[...named].join(", ") || "none"})`);
+    return [...named][0];
+  });
+  if (rowsNamed.length < 2) nameFindings.push(`Orders: ${rowsNamed.length} listings drawn, two wanted`);
+  else if (items[0] && items[0] === items[1]) nameFindings.push(`Orders: the first two rows' controls have the same names (${items[0]})`);
   // The click targets: Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks.
   const measure = async (view, sel) => {
     await p.mouse.move(size.w - 5, size.h - 5);
@@ -1212,6 +1234,9 @@ try {
     console.log(`${countFindings.length} press-count findings, ${targetFindings.length} click targets under 24 px, ${targetsMeasured} measured`);
     for (const f of menuTipFindings) console.log(`MENU TIP ${f}`);
     console.log(`${menuTipFindings.length} focus tips over the More menu`);
+    console.log(`Orders' controls by name: ${orderNames.join("; ")}`);
+    for (const f of nameFindings) console.log(`NAMES ${f}`);
+    console.log(`${nameFindings.length} Orders rows whose controls don't name their item`);
     for (const f of headingFindings) console.log(`HEADINGS ${f}`);
     console.log(`${headingFindings.length} list pages whose headings jump a level, of ${headingPages} read`);
   }
@@ -1235,7 +1260,7 @@ try {
   console.log(requestsLine());
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
-  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || nameFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
