@@ -585,7 +585,7 @@
                   <li><button type="button" title="Builds for {r.name}" onclick={() => choose(r.unique)}>
                     <Thumb file={model.imageOf(r.name)} size={30} />
                     <span class="an"><b>{r.name}</b><span class="register"><Kind kind={r.label} size={11} /></span></span>
-                    <span class="af mark">{r.fig}</span>
+                    <span class="af"><b class="mark">{r.fig}</b><span class="register">{r.unit}</span></span>
                   </button></li>
                 {/each}
               </ul>
@@ -770,7 +770,10 @@
   .an { display: grid; gap: 2px; min-width: 0; }
   .an b { font-weight: 600; color: var(--platinum); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .an .register { font-size: 11px; }
-  .af { font-size: 18px; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  /* The figure with its unit under it, as the cards above have it: builds, or Forma. */
+  .af { display: grid; justify-items: end; gap: 2px; }
+  .af b { font-size: 18px; line-height: 1; color: var(--platinum); font-variant-numeric: tabular-nums; }
+  .af .register { font-size: 11px; }
   .recentb { position: relative; }
   .recentb :is(th, td):last-child { padding-right: 42px; }
   .recentb table { width: 100%; border-collapse: collapse; background: none; }
