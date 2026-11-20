@@ -806,7 +806,7 @@ impl Client {
 
     pub fn my_orders(&self) -> Result<Vec<Order>, MarketError> {
         let v = self.call("GET", &format!("{V2}/orders/my"), None, true)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
+        order_rows(&v, "your orders")
     }
 
     /// Every visible order on an item, both sides, with each seller's status.
@@ -815,7 +815,7 @@ impl Client {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V2}/orders/item/{slug}"), None, false)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
+        order_rows(&v, "an order book")
     }
 
     /// A player's public warframe.market profile, by their in-game name (the market's names are
@@ -936,7 +936,7 @@ impl Client {
                 other => break other?,
             }
         };
-        let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))?;
+        let order = made_order(&v, new, kind)?;
         // What went up, beside the request line: the window logs why ("[ui-listing]" lines).
         log::info!(target: "myorbiter::market", "{}", created_line(&order.id, new, kind));
         Ok(order)
@@ -1008,6 +1008,46 @@ fn changed_line(id: &str, change: &OrderChange) -> String {
         parts.push(if v { "shown".to_string() } else { "hidden".to_string() });
     }
     format!("order {id} changed: {}", parts.join(", "))
+}
+
+/// The rows of an order list (`data`), read row by row as `parse_closed_orders` reads its own: one
+/// row that doesn't parse (a price with a fraction, a null quantity, no user) is left out rather
+/// than failing the whole list, with one log line that counts them and names no one. A reply
+/// with no list at all is still `Unexpected`, never "no orders".
+fn order_rows<T: serde::de::DeserializeOwned>(reply: &Value, what: &str) -> Result<Vec<T>, MarketError> {
+    let list = reply["data"].as_array().ok_or_else(|| MarketError::Unexpected(format!("no list of {what} in the reply")))?;
+    let rows: Vec<T> = list.iter().filter_map(|row| T::deserialize(row).ok()).collect();
+    if rows.len() < list.len() {
+        log::warn!(target: "myorbiter::market", "{} of {} rows of {what} couldn't be read and were left out", list.len() - rows.len(), list.len());
+    }
+    Ok(rows)
+}
+
+/// The listing `create` made, from warframe.market's reply to it. The POST has gone through by
+/// then: a reply that doesn't parse whole but names the listing's id is that listing, as it was
+/// sent, not an error for a listing that exists. Without a usable id it is `Unexpected`.
+fn made_order(reply: &Value, new: &NewOrder, kind: &str) -> Result<Order, MarketError> {
+    let data = &reply["data"];
+    match serde_json::from_value::<Order>(data.clone()) {
+        Ok(order) => Ok(order),
+        Err(e) => {
+            let id = data["id"].as_str().filter(|id| id.len() <= 64 && valid_id(id).is_ok()).ok_or_else(|| MarketError::Unexpected(e.to_string()))?;
+            log::warn!(target: "myorbiter::market", "order {id} created, but the reply couldn't be read whole: taken as sent");
+            Ok(Order {
+                id: id.to_string(),
+                item_id: new.item_id.clone(),
+                kind: kind.to_string(),
+                platinum: new.platinum,
+                quantity: new.quantity,
+                rank: new.rank,
+                subtype: new.subtype.clone(),
+                visible: new.visible,
+                updated_at: None,
+                amber_stars: None,
+                cyan_stars: None,
+            })
+        }
+    }
 }
 
 fn profile_of(v: Value) -> Result<Profile, MarketError> {
@@ -2474,5 +2514,54 @@ mod odd_answers {
         assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": null } } })), Err(MarketError::Unexpected(_))));
         // A history with no days is one: nothing sold in 90 days.
         assert_eq!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": [] } } })).unwrap(), vec![]);
+    }
+
+    fn book_row(id: &str) -> Value {
+        json!({ "id": id, "type": "sell", "platinum": 12, "quantity": 2, "rank": null, "visible": true,
+                "user": { "id": "aaaaaaaaaaaaaaaaaaaaaaaa", "ingameName": "ExampleSeller", "status": "ingame", "platform": "pc", "crossplay": true } })
+    }
+
+    #[test]
+    fn one_odd_row_leaves_out_that_row_not_the_whole_list() {
+        let good = book_row("bbbbbbbbbbbbbbbbbbbbbbbb");
+        let mut null_quantity = book_row("cccccccccccccccccccccccc");
+        null_quantity["quantity"] = Value::Null;
+        let mut fraction = book_row("dddddddddddddddddddddddd");
+        fraction["platinum"] = json!(12.5);
+        let mut no_user = book_row("eeeeeeeeeeeeeeeeeeeeeeee");
+        no_user.as_object_mut().unwrap().remove("user");
+        let rows: Vec<BookOrder> = order_rows(&json!({ "data": [good, null_quantity, fraction, no_user] }), "an order book").unwrap();
+        assert_eq!(rows.iter().map(|o| o.id.as_str()).collect::<Vec<_>>(), ["bbbbbbbbbbbbbbbbbbbbbbbb"]);
+        // The player's own orders, read the same way.
+        let mine = json!({ "data": [
+            { "id": "111111111111111111111111", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": 1, "visible": true },
+            { "id": "222222222222222222222222", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": null, "visible": true },
+        ] });
+        let rows: Vec<Order> = order_rows(&mine, "your orders").unwrap();
+        assert_eq!(rows.iter().map(|o| o.id.as_str()).collect::<Vec<_>>(), ["111111111111111111111111"]);
+        // A reply with no list at all is still not a list: not "no orders".
+        assert!(matches!(order_rows::<Order>(&json!({ "data": null }), "your orders"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(order_rows::<BookOrder>(&json!({}), "an order book"), Err(MarketError::Unexpected(_))));
+        assert_eq!(order_rows::<Order>(&json!({ "data": [] }), "your orders").unwrap().len(), 0, "an empty list is one");
+    }
+
+    #[test]
+    fn a_listing_that_was_created_comes_back_as_made_when_its_reply_is_odd() {
+        let new = NewOrder { item_id: "5dbe9b097ea27b0ffe3ca26c".into(), platinum: 15, quantity: 3, rank: Some(0), subtype: None, visible: true, kind: None };
+        // The reply as the site sends it.
+        let reply = json!({ "data": { "id": "333333333333333333333333", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 15, "quantity": 3, "rank": 0, "visible": true } });
+        let o = made_order(&reply, &new, "sell").unwrap();
+        assert_eq!((o.id.as_str(), o.platinum, o.quantity), ("333333333333333333333333", 15, 3));
+        // A reply with the id and a field that doesn't parse: the listing exists, taken as sent.
+        let odd = json!({ "data": { "id": "444444444444444444444444", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 15.0001, "quantity": null } });
+        let o = made_order(&odd, &new, "sell").expect("the listing that was made, not an error");
+        assert_eq!((o.id.as_str(), o.item_id.as_str(), o.kind.as_str()), ("444444444444444444444444", "5dbe9b097ea27b0ffe3ca26c", "sell"));
+        assert_eq!((o.platinum, o.quantity, o.rank, o.visible), (15, 3, Some(0), true));
+        let buy = NewOrder { kind: Some("buy".into()), ..new.clone() };
+        assert_eq!(made_order(&json!({ "data": { "id": "555555555555555555555555" } }), &buy, "buy").unwrap().kind, "buy");
+        // No id to be had (or one no later call could use): an error, as before.
+        assert!(matches!(made_order(&json!({ "data": { "platinum": 15 } }), &new, "sell"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(made_order(&json!({ "data": { "id": "../x" } }), &new, "sell"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(made_order(&Value::Null, &new, "sell"), Err(MarketError::Unexpected(_))));
     }
 }
