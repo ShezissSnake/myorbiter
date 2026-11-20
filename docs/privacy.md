@@ -328,8 +328,8 @@ An install that has saved settings keeps its channel. One whose settings file tu
 is moved aside (below), can't read the channel saved in it, so it starts as a new install does: no
 channel until its first check hears back, then the most stable one with its build or a newer one.
 So does a start that can't read the settings file at all, with the same reads; it saves nothing
-over that file, so the channel it settles on, or one you pick then, lasts until MyOrbiter restarts
-and reads the file again.
+over that file, so the channel it settles on, or one you pick then, lasts only until MyOrbiter
+restarts and reads the file again, and each start that still can't read it asks again the same way.
 An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the
