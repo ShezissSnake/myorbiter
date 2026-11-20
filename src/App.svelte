@@ -1809,8 +1809,9 @@
     const lc = settings.market.lastCopy;
     if (!lc.optIn || !mkt.linked) return;
     const toHide = lastCopies(mkt.orders);
-    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false) : [];
-    settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, hiddenNow, Date.now());
+    // Each one into the list as warframe.market takes it: a quit part way leaves none hidden that
+    // MyOrbiter doesn't know of (and so wouldn't show again).
+    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false, true, (o) => (settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, [o], Date.now()))) : [];
     if (hiddenNow.length) {
       const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
       mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back after that if a newer inventory read still has it`, "info");

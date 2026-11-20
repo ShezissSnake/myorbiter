@@ -1223,9 +1223,10 @@ class MarketStore {
 
   /**
    * Hides or shows several listings, then reloads them once (unless `reread` is false). Returns
-   * the ones warframe.market took; one it refuses is logged and left as it was.
+   * the ones warframe.market took; one it refuses is logged and left as it was. `each` is told of
+   * every listing taken, before the next is asked, so the caller can keep it at once.
    */
-  async setShown(orders: MyOrder[], visible: boolean, reread = true): Promise<MyOrder[]> {
+  async setShown(orders: MyOrder[], visible: boolean, reread = true, each?: (o: MyOrder) => void): Promise<MyOrder[]> {
     const done: MyOrder[] = [];
     for (const o of orders) {
       // Shown again (after a whisper, Show all hidden): only while it's still all spare, and at a
@@ -1245,6 +1246,7 @@ class MarketStore {
         this.orders = this.orders.map((x) => (x.id === o.id ? { ...x, visible } : x));
         // A read already on its way predates this: it mustn't bring the old visibility back.
         this.localEdits++;
+        each?.(o);
       } catch (e) {
         this.note(`${this.item(o.itemId)?.name ?? "A listing"}: couldn't ${visible ? "show" : "hide"} it (${clean(e)})`, "warn");
       }
