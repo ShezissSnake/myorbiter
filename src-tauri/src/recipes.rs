@@ -31,9 +31,8 @@ fn get(url: &str) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(90))
         .call()
-        .map_err(|e| format!("{url}: {e}"))?
-        .into_json::<Value>()
         .map_err(|e| format!("{url}: {e}"))
+        .and_then(|r| crate::json_reply(r).map_err(|e| format!("{url}: {e}")))
 }
 
 /// Star-chart resources (Ferrite, Orokin Cell, Morphics…) live under MiscItems; the rest (Narmer
@@ -107,6 +106,17 @@ pub fn recipe_data(dir: &Path) -> Result<Value, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A download larger than `MAX_BODY` ends in an error, and the copy on disk is used. Against a
+    /// server on this machine.
+    #[test]
+    fn an_answer_over_the_limit_is_an_error() {
+        let addr = crate::test_http::serve_padded(crate::MAX_BODY as usize + 2);
+        assert!(get(&addr).is_err());
+        let (addr, served) = crate::test_http::serve_once(r#"{"/Lotus/Types/Recipes/Example": {}}"#);
+        assert!(get(&addr).unwrap()["/Lotus/Types/Recipes/Example"].is_object());
+        served.join().unwrap();
+    }
 
     #[test]
     fn a_check_stamped_in_the_future_is_old() {

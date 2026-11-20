@@ -340,11 +340,14 @@ fn log_path(url: &str) -> &str {
 
 /// A reply's body as JSON. Read whole first: failing to read it (a connection reset or cut off on
 /// the way) is "unreachable"; a whole body that isn't JSON is "unexpected". ureq's own
-/// `into_json` reports both as invalid data, so it can't tell them apart.
-fn json_body(mut body: impl std::io::Read) -> Result<Value, MarketError> {
+/// `into_json` reports both as invalid data, so it can't tell them apart (and reads with no limit).
+/// A body larger than `MAX_BODY` is unexpected too: the copy on disk is used where there is one.
+fn json_body(body: impl std::io::Read) -> Result<Value, MarketError> {
     // Bytes, not text: a whole body that isn't UTF-8 is an unexpected reply, not the network.
-    let mut bytes = Vec::new();
-    body.read_to_end(&mut bytes).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+    let bytes = crate::read_body(body).map_err(|e| match e.kind() {
+        std::io::ErrorKind::FileTooLarge => MarketError::Unexpected(e.to_string()),
+        _ => MarketError::Unreachable(e.to_string()),
+    })?;
     serde_json::from_slice(&bytes).map_err(|e| MarketError::Unexpected(e.to_string()))
 }
 
@@ -806,7 +809,7 @@ impl Client {
 
     pub fn my_orders(&self) -> Result<Vec<Order>, MarketError> {
         let v = self.call("GET", &format!("{V2}/orders/my"), None, true)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
+        order_rows(&v, "your orders")
     }
 
     /// Every visible order on an item, both sides, with each seller's status.
@@ -815,7 +818,7 @@ impl Client {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V2}/orders/item/{slug}"), None, false)?;
-        serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))
+        order_rows(&v, "an order book")
     }
 
     /// A player's public warframe.market profile, by their in-game name (the market's names are
@@ -896,7 +899,7 @@ impl Client {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V1}/items/{slug}/statistics"), None, false)?;
-        Ok(parse_history(&v))
+        parse_history(&v)
     }
 
     /// Your chats on warframe.market's own messenger, with how many messages you haven't read.
@@ -936,7 +939,7 @@ impl Client {
                 other => break other?,
             }
         };
-        let order: Order = serde_json::from_value(v["data"].clone()).map_err(|e| MarketError::Unexpected(e.to_string()))?;
+        let order = made_order(&v, new, kind)?;
         // What went up, beside the request line: the window logs why ("[ui-listing]" lines).
         log::info!(target: "myorbiter::market", "{}", created_line(&order.id, new, kind));
         Ok(order)
@@ -1008,6 +1011,51 @@ fn changed_line(id: &str, change: &OrderChange) -> String {
         parts.push(if v { "shown".to_string() } else { "hidden".to_string() });
     }
     format!("order {id} changed: {}", parts.join(", "))
+}
+
+/// The rows of an order list (`data`), read whole or not at all. A list with a row that doesn't
+/// parse (a price with a fraction, a null quantity, no user) is an answer of another shape, and
+/// so is one none of whose rows parse: taken as the rows that could be read, the player's own
+/// listings would read as gone (an approval ended, a sale "not listed", a second listing
+/// planned) and an order book short of a seller could move a price. The error counts rows and
+/// quotes nothing from them. An empty list is a list; a reply with no list is `Unexpected` too.
+fn order_rows<T: serde::de::DeserializeOwned>(reply: &Value, what: &str) -> Result<Vec<T>, MarketError> {
+    let list = reply["data"].as_array().ok_or_else(|| MarketError::Unexpected(format!("no list of {what} in the reply")))?;
+    let rows: Vec<T> = list.iter().filter_map(|row| T::deserialize(row).ok()).collect();
+    if rows.is_empty() && !list.is_empty() {
+        return Err(MarketError::Unexpected(format!("none of the {} rows of {what} could be read", list.len())));
+    }
+    if rows.len() < list.len() {
+        return Err(MarketError::Unexpected(format!("{} of the {} rows of {what} couldn't be read", list.len() - rows.len(), list.len())));
+    }
+    Ok(rows)
+}
+
+/// The listing `create` made, from warframe.market's reply to it. The POST has gone through by
+/// then: a reply that doesn't parse whole but names the listing's id is that listing, as it was
+/// sent, not an error for a listing that exists. Without a usable id it is `Unexpected`.
+fn made_order(reply: &Value, new: &NewOrder, kind: &str) -> Result<Order, MarketError> {
+    let data = &reply["data"];
+    match serde_json::from_value::<Order>(data.clone()) {
+        Ok(order) => Ok(order),
+        Err(e) => {
+            let id = data["id"].as_str().filter(|id| id.len() <= 64 && valid_id(id).is_ok()).ok_or_else(|| MarketError::Unexpected(e.to_string()))?;
+            log::warn!(target: "myorbiter::market", "order {id} created, but the reply couldn't be read whole: taken as sent");
+            Ok(Order {
+                id: id.to_string(),
+                item_id: new.item_id.clone(),
+                kind: kind.to_string(),
+                platinum: new.platinum,
+                quantity: new.quantity,
+                rank: new.rank,
+                subtype: new.subtype.clone(),
+                visible: new.visible,
+                updated_at: None,
+                amber_stars: None,
+                cyan_stars: None,
+            })
+        }
+    }
 }
 
 fn profile_of(v: Value) -> Result<Profile, MarketError> {
@@ -1170,9 +1218,14 @@ pub struct PricePoint {
     pub subtype: Option<String>,
 }
 
-fn parse_history(v: &Value) -> Vec<PricePoint> {
-    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else { return Vec::new() };
-    days.iter()
+/// An item's history from a statistics reply. A reply without it is an error, not "nothing sold":
+/// the page would stamp the item as read with no price (a relic's prices) or draw an empty history.
+fn parse_history(v: &Value) -> Result<Vec<PricePoint>, MarketError> {
+    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else {
+        return Err(MarketError::Unexpected("no price history in the reply".into()));
+    };
+    Ok(days
+        .iter()
         .filter_map(|d| {
             Some(PricePoint {
                 at: d["datetime"].as_str()?.to_owned(),
@@ -1184,7 +1237,7 @@ fn parse_history(v: &Value) -> Vec<PricePoint> {
                 subtype: d["subtype"].as_str().map(str::to_owned),
             })
         })
-        .collect()
+        .collect())
 }
 
 /// One chat on warframe.market's messenger.
@@ -1322,11 +1375,11 @@ pub struct OrderChange {
 // ------------------------------------------------------------------ item list (cached daily)
 
 /// Caches a list whole (temp file and rename): a crash mid-write must not leave a cache that
-/// fails to parse, since offline it's the only copy. An empty list (warframe.market answered,
-/// but not with data) isn't worth keeping over a good one.
+/// fails to parse, since offline it's the only copy. An empty list, or riven lists with one of
+/// the two missing or empty (warframe.market answered, but not with data), isn't worth keeping
+/// over a good one.
 fn keep(path: &Path, value: &Value) {
-    let empty = value.as_array().is_some_and(Vec::is_empty) || value.get("weapons").and_then(Value::as_array).is_some_and(Vec::is_empty);
-    if empty {
+    if !whole(value) {
         return;
     }
     if let Ok(bytes) = serde_json::to_vec(value) {
@@ -1343,45 +1396,80 @@ fn thumb_name(v: &Value) -> Value {
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
-/// `/v2/items`, trimmed to what MyOrbiter needs and cached for a day.
-pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
-    let path = cache_dir.join("market-items.json");
-    let fresh = std::fs::metadata(&path)
+/// A list with something in it (the item list), or riven lists with both of theirs.
+fn whole(value: &Value) -> bool {
+    match value {
+        Value::Array(list) => !list.is_empty(),
+        Value::Object(_) => ["weapons", "attributes"].iter().all(|k| value[*k].as_array().is_some_and(|l| !l.is_empty())),
+        _ => false,
+    }
+}
+
+/// The list in a reply's `data`. A reply without one, or with an empty one, is a reply of another
+/// shape (a changed API, maintenance served as 200), not "nothing": `Unexpected`, so the copy on
+/// disk is used where there is one.
+fn data_list<'a>(reply: &'a Value, what: &str) -> Result<&'a Vec<Value>, MarketError> {
+    match reply["data"].as_array() {
+        Some(list) if !list.is_empty() => Ok(list),
+        _ => {
+            log::warn!(target: "myorbiter::market", "the reply for the {what} has no list; the copy on disk is used if there is one");
+            Err(MarketError::Unexpected(format!("no {what} in the reply")))
+        }
+    }
+}
+
+/// A copy on disk under a day old, if `usable` takes it.
+fn fresh_copy(path: &Path, usable: impl Fn(&Value) -> bool) -> Option<Value> {
+    let fresh = std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
         .and_then(|t| t.elapsed().ok())
         .is_some_and(|age| age < Duration::from_secs(86_400));
-    if fresh {
-        // A list saved before it carried thumbnails is fetched again.
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| v[0].get("thumb").is_some()) {
-            return Ok(v);
-        }
+    if !fresh {
+        return None;
     }
-    let fetched = get_json(&format!("{V2}/items"), 30);
-    match fetched {
-        Ok(v) => {
-            let slim: Vec<Value> = v["data"]
-                .as_array()
-                .map(|items| {
-                    items
-                        .iter()
-                        .map(|i| {
-                            serde_json::json!({
-                                "id": i["id"], "slug": i["slug"], "gameRef": i["gameRef"],
-                                "name": i["i18n"]["en"]["name"], "maxRank": i["maxRank"],
-                                "subtypes": i["subtypes"], "tags": i["tags"],
-                                "thumb": thumb_name(&i["i18n"]["en"]["thumb"]),
-                            })
-                        })
-                        .collect()
+    std::fs::read(path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| usable(v))
+}
+
+/// The copy on disk, whatever its age: offline, an old list is better than none.
+fn copy_on_disk(path: &Path) -> Option<Value> {
+    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok())
+}
+
+/// `/v2/items`, trimmed to what MyOrbiter needs and cached for a day.
+pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
+    let path = cache_dir.join("market-items.json");
+    // A list saved before it carried thumbnails is fetched again.
+    if let Some(v) = fresh_copy(&path, |v| v[0].get("thumb").is_some()) {
+        return Ok(v);
+    }
+    items_from(&path, get_json(&format!("{V2}/items"), 30))
+}
+
+/// The item list from warframe.market's reply, kept on disk; the copy on disk when there is no
+/// reply, or one without the list.
+fn items_from(path: &Path, fetched: Result<Value, MarketError>) -> Result<Value, MarketError> {
+    let read = fetched.and_then(|v| {
+        let slim: Vec<Value> = data_list(&v, "item list")?
+            .iter()
+            .map(|i| {
+                serde_json::json!({
+                    "id": i["id"], "slug": i["slug"], "gameRef": i["gameRef"],
+                    "name": i["i18n"]["en"]["name"], "maxRank": i["maxRank"],
+                    "subtypes": i["subtypes"], "tags": i["tags"],
+                    "thumb": thumb_name(&i["i18n"]["en"]["thumb"]),
                 })
-                .unwrap_or_default();
-            let out = Value::Array(slim);
-            keep(&path, &out);
+            })
+            .collect();
+        Ok(Value::Array(slim))
+    });
+    match read {
+        Ok(out) => {
+            keep(path, &out);
             Ok(out)
         }
-        // Offline: an old list is better than none.
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        // Offline, or an answer of another shape: an old list is better than none.
+        Err(e) => copy_on_disk(path).ok_or(e),
     }
 }
 
@@ -1405,40 +1493,42 @@ fn query_value(s: &str) -> String {
 /// for a day. Each carries `gameRef`: the weapon path and the stat tag the game's own riven uses.
 pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
     let path = cache_dir.join("market-rivens.json");
-    let fresh = std::fs::metadata(&path)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.elapsed().ok())
-        .is_some_and(|age| age < Duration::from_secs(86_400));
-    if fresh {
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()) {
-            return Ok(v);
-        }
+    if let Some(v) = fresh_rivens(&path) {
+        return Ok(v);
     }
     let get = |what: &str| get_json(&format!("{V2}/riven/{what}"), 30);
-    let fetched = get("weapons").and_then(|w| get("attributes").map(|a| (w, a)));
-    match fetched {
-        Ok((w, a)) => {
-            let weapons: Vec<Value> = w["data"]
-                .as_array()
-                .map(|xs| xs.iter().map(|x| serde_json::json!({ "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "group": x["group"], "rivenType": x["rivenType"] })).collect())
-                .unwrap_or_default();
-            let attributes: Vec<Value> = a["data"]
-                .as_array()
-                .map(|xs| {
-                    xs.iter()
-                        .map(|x| serde_json::json!({
-                            "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "unit": x["unit"],
-                            "positiveOnly": x["positiveOnly"], "negativeOnly": x["negativeOnly"], "exclusiveTo": x["exclusiveTo"],
-                        }))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let out = serde_json::json!({ "weapons": weapons, "attributes": attributes });
-            keep(&path, &out);
+    rivens_from(&path, get("weapons").and_then(|w| get("attributes").map(|a| (w, a))))
+}
+
+/// A fresh copy of the riven lists on disk, used only with both of its lists, as the item list's
+/// is only with its thumbnails: one kept before both were checked is fetched again.
+fn fresh_rivens(path: &Path) -> Option<Value> {
+    fresh_copy(path, whole)
+}
+
+/// The riven lists from warframe.market's two replies, kept on disk; the copy on disk when there
+/// are no replies, or one without its list.
+fn rivens_from(path: &Path, fetched: Result<(Value, Value), MarketError>) -> Result<Value, MarketError> {
+    let read = fetched.and_then(|(w, a)| {
+        let weapons: Vec<Value> = data_list(&w, "riven weapons")?
+            .iter()
+            .map(|x| serde_json::json!({ "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "group": x["group"], "rivenType": x["rivenType"] }))
+            .collect();
+        let attributes: Vec<Value> = data_list(&a, "riven attributes")?
+            .iter()
+            .map(|x| serde_json::json!({
+                "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "unit": x["unit"],
+                "positiveOnly": x["positiveOnly"], "negativeOnly": x["negativeOnly"], "exclusiveTo": x["exclusiveTo"],
+            }))
+            .collect();
+        Ok(serde_json::json!({ "weapons": weapons, "attributes": attributes }))
+    });
+    match read {
+        Ok(out) => {
+            keep(path, &out);
             Ok(out)
         }
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        Err(e) => copy_on_disk(path).ok_or(e),
     }
 }
 
@@ -1664,7 +1754,7 @@ mod tests {
     #[test]
     fn reads_price_history() {
         let v: Value = serde_json::from_str(r#"{"payload": {"statistics_closed": {"48hours": [], "90days": [{"datetime": "2026-10-26T00:00:00.000+00:00", "volume": 123, "min_price": 5.0, "max_price": 9.0, "median": 7.0, "mod_rank": 0}, {"datetime": "2026-10-26T00:00:00.000+00:00", "volume": 3, "min_price": 110.0, "max_price": 130.0, "median": 120.0, "mod_rank": 5}]}}}"#).unwrap();
-        let h = parse_history(&v);
+        let h = parse_history(&v).unwrap();
         assert_eq!(h.len(), 2);
         assert_eq!((h[1].median, h[1].volume, h[1].rank), (120.0, 3, Some(5)));
     }
@@ -2248,6 +2338,47 @@ mod tests {
         assert_eq!(v[0].user.status.as_deref(), Some("ingame"));
     }
 
+    /// What Rust checks last before an order is sent (audit A12, finding 6).
+    #[test]
+    fn the_pages_json_for_a_new_order_is_read_as_sent() {
+        // As backend.ts's `market.create` sends it.
+        let buy: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 2, "rank": 0, "subtype": null, "type": "buy" })).unwrap();
+        assert_eq!(buy.kind.as_deref(), Some("buy"), "a buy order");
+        assert_eq!((buy.item_id.as_str(), buy.platinum, buy.quantity, buy.rank, buy.visible), ("5dbe9b097ea27b0ffe3ca26c", 7, 2, Some(0), true));
+        let sell: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 1, "visible": true })).unwrap();
+        assert_eq!(sell.kind, None, "no type: a sell order (create sends \"sell\")");
+        let typed: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 1, "type": "sell" })).unwrap();
+        assert_eq!(typed.kind.as_deref(), Some("sell"));
+    }
+
+    /// Refused before any request: the client is signed out (no token, the keyring never asked),
+    /// so a call that got past the check would end in "Not signed in" before anything was sent;
+    /// the range's own refusal shows the check came first. Nothing can reach warframe.market here.
+    #[test]
+    fn create_and_update_refuse_a_price_or_quantity_out_of_range_before_any_request() {
+        let client = Client::offline();
+        assert!(!client.linked());
+        let order = |platinum: u32, quantity: u32| NewOrder { item_id: "5dbe9b097ea27b0ffe3ca26c".into(), platinum, quantity, rank: None, subtype: None, visible: true, kind: None };
+        for (platinum, quantity) in [(0, 1), (900_001, 1), (7, 0), (7, 10_000)] {
+            let e = client.create(&order(platinum, quantity)).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "price or quantity out of range"), "{platinum}p × {quantity}: {e}");
+        }
+        // The ends of the range pass the check (and then stop at the sign-in, sending nothing).
+        for (platinum, quantity) in [(1, 1), (900_000, 9_999)] {
+            assert!(matches!(client.create(&order(platinum, quantity)), Err(MarketError::NotLinked)), "{platinum}p × {quantity}");
+        }
+        let change = |platinum: Option<u32>, quantity: Option<u32>| OrderChange { platinum, quantity, visible: None };
+        for p in [0, 900_001] {
+            let e = client.update("666666666666666666666666", &change(Some(p), None)).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "price out of range"), "{p}p: {e}");
+        }
+        for q in [0, 10_000] {
+            let e = client.update("666666666666666666666666", &change(None, Some(q))).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "quantity out of range"), "× {q}: {e}");
+        }
+        assert!(matches!(client.update("666666666666666666666666", &change(Some(900_000), Some(9_999))), Err(MarketError::NotLinked)));
+    }
+
     /// Hits the network: `cargo test -p myorbiter -- --ignored`.
     #[test]
     #[ignore]
@@ -2360,5 +2491,161 @@ mod slug_tests {
         }
         assert_eq!(user_slug("Tenno_Alpha"), Some("tenno_alpha".into()));
         assert_eq!(user_slug("x.y-z"), Some("x.y-z".into()));
+    }
+}
+
+/// Answers of another shape than the one asked for: none of them costs a good copy or reads as
+/// "nothing". Nothing here is sent anywhere: the replies are given to the functions that read them.
+#[cfg(test)]
+mod odd_answers {
+    use super::*;
+    use serde_json::json;
+
+    /// A folder of its own for one test, empty.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("myorbiter-odd-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn an_answer_without_the_item_list_gives_the_good_copy_on_disk() {
+        let dir = scratch("items");
+        let path = dir.join("market-items.json");
+        let good = json!([{ "id": "i1", "slug": "thing_prime_set", "name": "Thing Prime Set", "thumb": null }]);
+        std::fs::write(&path, serde_json::to_vec(&good).unwrap()).unwrap();
+        for odd in [json!({ "data": null }), json!({}), json!({ "data": [] }), json!({ "data": { "items": [] } })] {
+            assert_eq!(items_from(&path, Ok(odd.clone())).unwrap(), good, "{odd}");
+        }
+        assert_eq!(copy_on_disk(&path).unwrap(), good, "and the copy stays");
+        // With no copy on disk, an answer without the list is an error, not an empty list.
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(items_from(&path, Ok(json!({ "data": null }))), Err(MarketError::Unexpected(_))));
+        // A list is read and kept.
+        let reply = json!({ "data": [{ "id": "i2", "slug": "x_prime_set", "i18n": { "en": { "name": "X Prime Set", "thumb": "items/images/en/thumbs/x.png" } } }] });
+        let read = items_from(&path, Ok(reply)).unwrap();
+        assert_eq!((read[0]["slug"].as_str(), read[0]["thumb"].as_str()), (Some("x_prime_set"), Some("wfm.x.png")));
+        assert_eq!(copy_on_disk(&path).unwrap(), read);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_riven_lists_are_kept_and_used_only_whole() {
+        let dir = scratch("rivens");
+        let path = dir.join("market-rivens.json");
+        let weapon = json!({ "slug": "braton", "gameRef": "/Lotus/Weapons/Braton", "i18n": { "en": { "name": "Braton" } } });
+        let stat = json!({ "slug": "damage", "gameRef": "WeaponDamageAmountMod", "i18n": { "en": { "name": "Damage" } } });
+        // Weapons and no attributes: not kept, and with nothing on disk an error.
+        assert!(matches!(rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({ "data": null })))), Err(MarketError::Unexpected(_))));
+        assert!(copy_on_disk(&path).is_none(), "half a copy isn't kept");
+        assert!(rivens_from(&path, Ok((json!({}), json!({ "data": [stat] })))).is_err(), "nor the other half");
+        assert!(copy_on_disk(&path).is_none());
+        // Both: kept, and an odd answer after it gives that copy.
+        let whole = rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({ "data": [stat] })))).unwrap();
+        assert_eq!(copy_on_disk(&path).unwrap(), whole);
+        assert_eq!(rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({})))).unwrap(), whole);
+        assert_eq!(copy_on_disk(&path).unwrap(), whole, "the whole copy stays");
+        // A fresh copy on disk is used only when it has both lists (one kept before this check).
+        std::fs::write(&path, br#"{"weapons":[{"slug":"braton"}],"attributes":[]}"#).unwrap();
+        assert_eq!(fresh_rivens(&path), None, "half a copy is fetched again");
+        std::fs::write(&path, br#"{"weapons":[{"slug":"braton"}]}"#).unwrap();
+        assert_eq!(fresh_rivens(&path), None);
+        std::fs::write(&path, serde_json::to_vec(&whole).unwrap()).unwrap();
+        assert_eq!(fresh_rivens(&path), Some(whole));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_statistics_answer_without_the_history_is_an_error_not_an_empty_history() {
+        assert!(matches!(parse_history(&json!({})), Err(MarketError::Unexpected(_))));
+        assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": {} } })), Err(MarketError::Unexpected(_))));
+        assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": null } } })), Err(MarketError::Unexpected(_))));
+        // A history with no days is one: nothing sold in 90 days.
+        assert_eq!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": [] } } })).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn an_answer_over_the_limit_is_unexpected_and_the_list_on_disk_is_used() {
+        use std::io::Read;
+        // JSON after as many spaces as it takes: as large as wanted, read in memory.
+        let padded = |size: u64| std::io::repeat(b' ').take(size - 2).chain(&b"[]"[..]);
+        assert!(matches!(json_body(padded(crate::MAX_BODY)), Ok(v) if v == json!([])), "up to the limit, read");
+        assert!(matches!(json_body(padded(crate::MAX_BODY + 1)), Err(MarketError::Unexpected(_))), "over it, not");
+        // Read from a server on this machine, as get_json reads the item list.
+        let addr = crate::test_http::serve_padded(crate::MAX_BODY as usize + 2);
+        let fetched = get_json(&format!("{addr}/v2/items"), 30);
+        assert!(matches!(fetched, Err(MarketError::Unexpected(_))), "{fetched:?}");
+        let dir = scratch("items-over-limit");
+        let path = dir.join("market-items.json");
+        let good = json!([{ "id": "i1", "slug": "thing_prime_set", "name": "Thing Prime Set", "thumb": null }]);
+        std::fs::write(&path, serde_json::to_vec(&good).unwrap()).unwrap();
+        assert_eq!(items_from(&path, fetched).unwrap(), good);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn book_row(id: &str) -> Value {
+        json!({ "id": id, "type": "sell", "platinum": 12, "quantity": 2, "rank": null, "visible": true,
+                "user": { "id": "aaaaaaaaaaaaaaaaaaaaaaaa", "ingameName": "ExampleSeller", "status": "ingame", "platform": "pc", "crossplay": true } })
+    }
+
+    /// What `my_orders` and `order_book` make of a list: read whole or not at all, as on main. A
+    /// shorter list would read as listings gone (an approval ended, a sale "not listed", a second
+    /// listing planned) or as a book without its cheapest seller (a price moved without a click).
+    #[test]
+    fn an_order_list_with_a_row_that_cant_be_read_is_an_error_not_a_shorter_list() {
+        let mut null_quantity = book_row("cccccccccccccccccccccccc");
+        null_quantity["quantity"] = Value::Null;
+        let mut fraction = book_row("dddddddddddddddddddddddd");
+        fraction["platinum"] = json!(12.5);
+        let mut no_user = book_row("eeeeeeeeeeeeeeeeeeeeeeee");
+        no_user.as_object_mut().unwrap().remove("user");
+        let book = |rows: Vec<Value>| order_rows::<BookOrder>(&json!({ "data": rows }), "an order book");
+        let why = |r: Result<Vec<BookOrder>, MarketError>| match r {
+            Err(MarketError::Unexpected(why)) => why,
+            other => panic!("not an answer of another shape: {other:?}"),
+        };
+        // An item's order book with one row that can't be read, then with none that can.
+        assert_eq!(why(book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("ffffffffffffffffffffffff"), null_quantity.clone()])), "1 of the 3 rows of an order book couldn't be read");
+        assert_eq!(why(book(vec![null_quantity, fraction, no_user])), "none of the 3 rows of an order book could be read");
+        let whole = book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("ffffffffffffffffffffffff")]).unwrap();
+        assert_eq!(whole.len(), 2, "a list read whole is the list");
+
+        // The player's own orders, the same.
+        let own = |id: &str, quantity: Value| json!({ "id": id, "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": quantity, "visible": true });
+        let mine = |rows: Vec<Value>| order_rows::<Order>(&json!({ "data": rows }), "your orders");
+        let e = mine(vec![own("111111111111111111111111", json!(1)), own("222222222222222222222222", Value::Null)]).unwrap_err();
+        assert!(matches!(&e, MarketError::Unexpected(why) if why == "1 of the 2 rows of your orders couldn't be read"), "{e}");
+        let e = mine(vec![own("222222222222222222222222", Value::Null)]).unwrap_err();
+        assert!(matches!(&e, MarketError::Unexpected(why) if why == "none of the 1 rows of your orders could be read"), "{e}");
+        // The error counts rows and quotes nothing from one: no id, no name, no value.
+        for word in ["222222222222222222222222", "5dbe9b097ea27b0ffe3ca26c", "ExampleSeller", "null", "12.5"] {
+            assert!(!e.to_string().contains(word) && !why(book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("cccccccccccccccccccccccc"), json!({ "user": { "ingameName": "ExampleSeller" }, "platinum": 12.5 })])).contains(word), "{word}");
+        }
+        assert_eq!(mine(vec![own("111111111111111111111111", json!(1))]).unwrap().len(), 1);
+        // An empty list is a list (no orders); a reply with no list at all is not "no orders".
+        assert_eq!(mine(vec![]).unwrap().len(), 0, "an empty list is one");
+        assert!(matches!(order_rows::<Order>(&json!({ "data": null }), "your orders"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(order_rows::<BookOrder>(&json!({}), "an order book"), Err(MarketError::Unexpected(_))));
+    }
+
+    #[test]
+    fn a_listing_that_was_created_comes_back_as_made_when_its_reply_is_odd() {
+        let new = NewOrder { item_id: "5dbe9b097ea27b0ffe3ca26c".into(), platinum: 15, quantity: 3, rank: Some(0), subtype: None, visible: true, kind: None };
+        // The reply as the site sends it.
+        let reply = json!({ "data": { "id": "333333333333333333333333", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 15, "quantity": 3, "rank": 0, "visible": true } });
+        let o = made_order(&reply, &new, "sell").unwrap();
+        assert_eq!((o.id.as_str(), o.platinum, o.quantity), ("333333333333333333333333", 15, 3));
+        // A reply with the id and a field that doesn't parse: the listing exists, taken as sent.
+        let odd = json!({ "data": { "id": "444444444444444444444444", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 15.0001, "quantity": null } });
+        let o = made_order(&odd, &new, "sell").expect("the listing that was made, not an error");
+        assert_eq!((o.id.as_str(), o.item_id.as_str(), o.kind.as_str()), ("444444444444444444444444", "5dbe9b097ea27b0ffe3ca26c", "sell"));
+        assert_eq!((o.platinum, o.quantity, o.rank, o.visible), (15, 3, Some(0), true));
+        let buy = NewOrder { kind: Some("buy".into()), ..new.clone() };
+        assert_eq!(made_order(&json!({ "data": { "id": "555555555555555555555555" } }), &buy, "buy").unwrap().kind, "buy");
+        // No id to be had (or one no later call could use): an error, as before.
+        assert!(matches!(made_order(&json!({ "data": { "platinum": 15 } }), &new, "sell"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(made_order(&json!({ "data": { "id": "../x" } }), &new, "sell"), Err(MarketError::Unexpected(_))));
+        assert!(matches!(made_order(&Value::Null, &new, "sell"), Err(MarketError::Unexpected(_))));
     }
 }
