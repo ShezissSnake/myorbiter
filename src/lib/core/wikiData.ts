@@ -18,6 +18,22 @@ export const WIKI_FILES: Record<keyof WikiData, string> = {
 };
 export const WIKI_DIR = "/data/wiki/";
 
+/** The credit shown wherever the data shows (Arcanes' Vosfor figures, Builds' recipes: ui/WikiCredit.svelte),
+ *  as public/data/wiki/LICENSE.md states it: its "Attribution:" line (the contributors, the address and
+ *  the host) and the licence's name and version from its Licence section. The licence is named, not
+ *  linked; the address opens through the list of sites (core/links.ts). */
+export const WIKI_CREDIT = {
+  contributors: "the Warframe Wiki contributors",
+  address: "https://wiki.warframe.com",
+  host: "hosted by Weird Gloop",
+  licence: "Creative Commons Attribution-NonCommercial-ShareAlike 3.0 Unported",
+  short: "CC BY-NC-SA 3.0",
+} as const;
+/** What the address opens. */
+export const WIKI_CREDIT_URL = `${WIKI_CREDIT.address}/`;
+/** The credit as one sentence, the words WikiCredit.svelte draws. */
+export const wikiCreditText = (): string => `Data from ${WIKI_CREDIT.contributors} (${WIKI_CREDIT.address}), ${WIKI_CREDIT.host}, under the ${WIKI_CREDIT.licence} licence (${WIKI_CREDIT.short}).`;
+
 let data: WikiData | null = null;
 let generation = 0;
 let pending: Promise<void> | null = null;
