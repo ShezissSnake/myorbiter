@@ -415,6 +415,22 @@ test("Settings, Orders' brief and the page hint never say kept at the market pri
   assert.match(live, /your listings follow the market price \(down to the second-cheapest seller online or in game; a raise goes no higher than the cheapest\)/);
 });
 
+// Sell spares prices a listing already up as it prices a new one: at the cheapest seller in game,
+// with no dead band (bulk.test.ts: 100p to 96p, where Reprice leaves it). Its words say that, and
+// none of them speaks of the second-cheapest seller or the band, which are Reprice's.
+
+test("Sell spares' words about its prices read against its plan: the cheapest in game, no band", () => {
+  const guide = src("src/lib/tabs/Guide.svelte");
+  assert.match(guide, /"Plan the changes reads the cheapest in-game price of everything and lists what it would do, in the order Apply sends it \(removals, changes, new listings\)/);
+  assert.match(src("src/lib/ui/SparesPlan.svelte"), /the plan reads the cheapest in-game price for each/);
+  const spares = guide.slice(guide.indexOf('["spares", "Sell spares", ['), guide.indexOf("]],", guide.indexOf('["spares", "Sell spares", [')));
+  const help = src("src/lib/help/trade.ts");
+  const walk = help.slice(help.indexOf("const SPARES"), help.indexOf("const SALES"));
+  for (const [f, s] of [["Guide", spares], ["help", walk], ["SparesPlan", src("src/lib/ui/SparesPlan.svelte")], ["Spares", src("src/lib/tabs/Spares.svelte")]] as const) {
+    assert.doesNotMatch(s, /second-cheapest|BAND_WORDS|2p\/5%|2p and 5%|dead band/, `${f}: Sell spares has no band and doesn't skip the cheapest seller`);
+  }
+});
+
 test("Arcanes, Mods and Parts take the one Full-mode-off case, as Inventory does", () => {
   for (const f of ["Arcanes", "Mods", "Parts"]) {
     const s = src(`src/lib/tabs/${f}.svelte`);
