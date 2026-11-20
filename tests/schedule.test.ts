@@ -143,6 +143,24 @@ test("the Next check tooltip follows the wait in force when the interval changed
   assert.equal(nextCheckWhy(10080, 0, 10080 * MIN, clock + 40 * MIN, clock), "The timer checks once a week");
 });
 
+test("the Next check tooltip, over an hour, names the retry in the first minutes too, when the page's clock is behind the pass", () => {
+  const clock = Date.UTC(2026, 10, 14, 12, 0);
+  // The page's clock last ticked `behind` before the pass ended (up to nearly two minutes, as
+  // Orders is left and come back to); the store dates the pass back so that the next is due an
+  // hour after its end, so the label is an hour and `behind` ahead of that clock.
+  for (const behind of [0, 30_000, 59_000, 90_000, 119_000]) {
+    for (const every of [120, 1440, 10080]) {
+      const end = clock + behind;
+      const label = nextCheckShown(end - (every - 60) * MIN, every * MIN, clock);
+      assert.equal(label, end + HOUR, `${every} min, ${behind} ms behind`);
+      assert.equal(nextCheckWhy(every, 1, every * MIN, label, clock), "warframe.market didn't answer the last pass, so it tries again within the hour", `${every} min, ${behind} ms behind`);
+    }
+  }
+  // A label really further than that is the interval's sentence, as before.
+  assert.equal(nextCheckWhy(1440, 1, DAY, clock + 3 * HOUR, clock), "The timer checks once a day");
+  assert.equal(nextCheckWhy(1440, 1, DAY, clock + HOUR + 3 * MIN, clock), "The timer checks once a day");
+});
+
 test("Next check shows right after a pass, though the page's clock is up to a minute old", () => {
   const clock = Date.UTC(2026, 10, 14, 12, 0);
   // A pass that ended 40 s after the page's clock last ticked: its next time, at once.
