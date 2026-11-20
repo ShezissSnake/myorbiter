@@ -72,7 +72,9 @@ test("Finish later, Esc and the overlay step tell the player, once, by the app's
   assert.match(body, /withoutInventory\(\);\s*tellSwitchedOff\(how, off\);/);
   const told = body.slice(body.indexOf("function tellSwitchedOff("));
   assert.match(told, /const words = leftSetupNotice\(how, off\);\s*if \(!words\) return;/);
-  assert.match(told, /settings\.game\.notices = logNotice\(settings\.game\.notices, \{ at: Date\.now\(\), kind: "market", \.\.\.words \}\);\s*void popUp\(settings\.game\.notices\[0\], "market"\);/);
+  assert.match(told, /settings\.game\.notices = logNotice\(settings\.game\.notices, \{ at: Date\.now\(\), kind: "market", \.\.\.words \}\);\s*void popUp\(settings\.game\.notices\[0\], "market", \{ keepOut: true \}\);/);
+  // Its pop-up reaches the fold's keep-out (toastFold.test.ts holds what the fold then does).
+  assert.match(app, /else toasts\.push\(n, o\.keepOut\);/);
   assert.doesNotMatch(told, /toDiscord|tell\(/);
 });
 
