@@ -3027,7 +3027,7 @@
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
         {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
-        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
+        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (down to the second-cheapest seller online or in game; a raise goes no higher than the cheapest)"></span>{/if}
       </button>
     {/snippet}
 

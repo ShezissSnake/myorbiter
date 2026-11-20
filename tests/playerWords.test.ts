@@ -409,6 +409,10 @@ test("Settings, Orders' brief and the page hint never say kept at the market pri
   const body = sheet.slice(sheet.indexOf('name="settings.auto-reprice"'), sheet.indexOf("</Switch>", sheet.indexOf('name="settings.auto-reprice"')));
   assert.match(body, /more than \{BAND_WORDS\} from where Reprice would set it: down to the second-cheapest seller online or in game, so one bait listing is never followed, and up no higher than the cheapest;/);
   for (const [f, s] of [["help", page], ["Settings", body]]) assert.match(s, /no higher than the cheapest/, f);
+  // The sidebar's mark beside Orders while Apply automatically is on.
+  const app = src("src/App.svelte");
+  const live = app.slice(app.indexOf('title="Apply automatically is on:'), app.indexOf("</span>", app.indexOf('title="Apply automatically is on:')));
+  assert.match(live, /your listings follow the market price \(down to the second-cheapest seller online or in game; a raise goes no higher than the cheapest\)/);
 });
 
 test("Arcanes, Mods and Parts take the one Full-mode-off case, as Inventory does", () => {
