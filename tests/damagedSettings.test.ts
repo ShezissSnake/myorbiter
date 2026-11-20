@@ -86,22 +86,8 @@ test("no file at all is a new install, as before", async () => {
   assert.equal(settingsReadWhole(), true);
 });
 
-test("a file that couldn't be read at all keeps Stable as it was: it is never saved over, and its channel is in it", async (t) => {
-  t.mock.timers.enable({ apis: ["setTimeout"] });
-  reply = (cmd) => {
-    if (cmd === "load_settings") throw new Error("couldn't read settings.json: permission denied");
-    return null;
-  };
-  const loading = loadSettings();
-  for (let i = 0; i < 5; i++) {
-    await new Promise((r) => setImmediate(r));
-    t.mock.timers.tick(1000);
-  }
-  const s = await loading;
-  assert.equal(settingsUnreadable(), true);
-  assert.deepEqual({ channel: s.updates.channel, picked: s.updates.picked }, { channel: "stable", picked: true });
-  assert.equal(settingsMovedAside(), null);
-});
+// A file that couldn't be read at all: tests/unreadableSettings.test.ts, in a process of its own,
+// since backend.ts keeps that state for the rest of the start.
 
 test("the update log says a channel settled after a damaged file, not on a new install", async () => {
   await import("./support/runes");
