@@ -315,15 +315,23 @@ test("a build with empty slots says how many beside You have everything it takes
   const b = (x: Partial<Build>): Build => ({ id: "b", item: "/Lotus/Example/Gun", kind: "primary", mods: [], arcanes: [], shards: [], source: "pasted", importedAt: 0, ...x });
   // A rifle: 8 mod slots, an exilus, one arcane.
   const full = b({ mods: Array(8).fill(mod), exilus: mod, arcanes: [mod] });
-  assert.equal(emptySlots(full), 0);
-  assert.equal(haveAllWord(0), "You have everything it takes");
+  assert.deepEqual(emptySlots(full), { mods: 0, others: [] });
+  assert.equal(haveAllWord(emptySlots(full)), "You have everything it takes");
   const sparse = b({ mods: [mod, null, mod, mod, mod, mod], arcanes: [mod] });
-  assert.equal(emptySlots(sparse), 4, "slot 2, slots 7 and 8, and the exilus");
-  assert.equal(haveAllWord(4), "You have everything it takes · 4 slots empty");
-  assert.equal(haveAllWord(1), "You have everything it takes · 1 slot empty");
+  assert.deepEqual(emptySlots(sparse), { mods: 3, others: ["the exilus"] }, "slot 2, slots 7 and 8, and the exilus");
+  // Each count says what it counts, so the mod-slot figure reads the same as the suggestion's
+  // own sentence ("3 of 8 mod slots left empty"), and the exilus and arcanes are named apart.
+  assert.equal(haveAllWord(emptySlots(sparse)), "You have everything it takes · empty: 3 mod slots, the exilus");
+  const frame = b({ kind: "warframe", item: "/Lotus/Powersuits/Example", mods: [mod, mod, mod, mod, mod, mod, mod, null], aura: mod, exilus: mod, arcanes: [] });
+  assert.equal(haveAllWord(emptySlots(frame)), "You have everything it takes · empty: 1 mod slot, 2 arcane slots");
+  assert.equal(haveAllWord({ mods: 0, others: ["the aura"] }), "You have everything it takes · empty: the aura");
   const card = src("src/lib/ui/builds/BuildCard.svelte");
   assert.match(card, /haveAllWord\(emptySlots\(b\)\)/);
   assert.doesNotMatch(card, /<span class="good">You have everything it takes<\/span>/);
+  // The suggestion's sentence names its slots too.
+  const suggest = src("src/lib/core/builds/suggest.ts");
+  assert.doesNotMatch(suggest, /\$\{empty\} of \$\{layout\.mods\} slots left empty/);
+  assert.equal([...suggest.matchAll(/\$\{empty\} of \$\{layout\.mods\} mod slots left empty/g)].length, 2);
 });
 
 // The listing form: no number the last check (guardListing: never more than spareNow's free) would
