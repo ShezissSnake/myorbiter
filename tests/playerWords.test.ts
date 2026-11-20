@@ -128,6 +128,11 @@ test("Orders, the Guide and the Sell dialog say a raise stops at the cheapest se
   // The Guide's Orders sentence and its line in the page list.
   assert.match(guide.slice(guide.indexOf('"Your listings,'), guide.indexOf("New listing finds what you hold")), RAISE);
   assert.doesNotMatch(guide, /Reprice moves it there/);
+  // The two Orders titles that give the second-cheapest seller (Against lowest, the cheapest seller's tag) say where a raise stops.
+  assert.match(orders, /Reprice follows the second-cheapest seller down, not the cheapest; a raise goes no higher than the cheapest seller">Against lowest</);
+  assert.match(orders, /The cheapest alone isn't followed down, the second-cheapest is, so one listing \(bait or a mistake\) can't pull your price down; a raise stops at this price\./);
+  assert.doesNotMatch(orders, /Reprice follows the second-cheapest, not this/);
+  assert.doesNotMatch(orders, /The cheapest alone isn't followed, the second-cheapest is/);
   // The Sell dialog.
   assert.match(dialog.slice(dialog.indexOf("It joins your Orders"), dialog.indexOf("</p>", dialog.indexOf("It joins your Orders"))), RAISE);
 });
@@ -204,7 +209,7 @@ test("Sales names the median, never \"Vs market\"", () => {
 });
 
 // Home's Ready to list: its figure counted copies already listed, which the listings' total above
-// it counts too; each count now says what it counts.
+// it counts too (the shown ones only); each count now says what it counts.
 
 test("Ready to list leaves out copies already listed, each listing's copies once", () => {
   const rows = [
@@ -239,7 +244,9 @@ test("Home's Ready to list counts what isn't listed yet, and names its units", (
   // Units: copies on each kind, items not listed at all.
   assert.match(home, /<span class="dim">\{k\.count\} \{k\.count === 1 \? "copy" : "copies"\}<\/span>/);
   assert.match(home, /\$\{unlisted\} item\$\{unlisted === 1 \? "" : "s"\} not listed yet/);
-  assert.match(home, /Copies already on your listings, shown or hidden, are left out/);
+  assert.match(home, /Copies already on your listings, shown or hidden, are left out: the listings' total above counts the shown ones\./);
+  assert.doesNotMatch(home, /total above counts them/);
+  assert.match(home, /const listed = \$derived\(orders\.filter\(\(o\) => o\.visible\)/);
   // Everything listed already is not "Nothing spare".
   assert.match(home, /\{:else if worthy\.length && !byKind\.length\}\s*<p class="dim">Every spare worth your minimum or more is listed already/);
 });

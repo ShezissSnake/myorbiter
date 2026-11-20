@@ -1,5 +1,5 @@
-// Home's Ready to list: the spares not listed yet. Copies already on warframe.market are in the
-// listings' total on the same page, so they are taken out here and counted once.
+// Home's Ready to list: the spares not listed yet. Copies already on warframe.market, shown or
+// hidden, are taken out here. The listings' total on the same page counts the shown ones only.
 
 /** One line of Ready to list: copies of an item and their platinum (no more than a month sells). */
 export interface ReadyRow {

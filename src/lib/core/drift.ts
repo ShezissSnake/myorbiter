@@ -3,7 +3,8 @@
 // of the price you last set), so a listing that sits on a floor never changes by itself:
 //
 // - The target ignores bait: the second-lowest price among sellers who are online or in game
-//   (one order each), never the single lowest. With three or more sellers that is the median of
+//   (one order each), never the single lowest. A raise goes no higher than the cheapest seller
+//   (core/market.ts). With three or more sellers that is the median of
 //   the three lowest; with one seller there is no target and the price stays.
 // - A dead band: no change unless the gap from the listing's price to the target is more than
 //   the larger of 2 platinum and 5% of the listing's price.

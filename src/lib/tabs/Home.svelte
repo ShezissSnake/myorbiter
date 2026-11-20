@@ -150,7 +150,7 @@
     const cat = it ? catOfItem(model, it) : catOfTarget(t);
     return { min: it ? minimumForItem(settings.market, model, it) : minimumFor(settings.market, cat), own: !!cat && settings.market.minByCategory?.[cat] != null };
   }
-  /** What isn't listed yet: copies on your listings (shown or hidden) are in the listings' total above, so they're left out here. */
+  /** What isn't listed yet: copies on your listings, shown or hidden, are left out here. The listings' total above counts the shown ones only, so a hidden listing's copies are counted nowhere on Home. */
   const ready = $derived(notListedYet(worthy, orders.map((o) => ({ name: mkt.item(o.itemId)?.name, rank: o.rank, quantity: o.quantity }))));
   const byKind = $derived(
     BULK_KINDS
@@ -657,7 +657,7 @@
       {:else if !byKind.length}
         <p class="dim" title="Your minimum prices (Sell spares): {minimumsText(settings.market)}">Nothing spare worth your minimum or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Copies already on your listings, shown or hidden, are left out: the listings' total above counts them. Each kind counts copies; not listed yet counts items with no listing at all. Everything you could spare, of every kind, is Spare value on Inventory">if you list the rest of your spares{unlisted ? ` · ${unlisted} item${unlisted === 1 ? "" : "s"} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Copies already on your listings, shown or hidden, are left out: the listings' total above counts the shown ones. Each kind counts copies; not listed yet counts items with no listing at all. Everything you could spare, of every kind, is Spare value on Inventory">if you list the rest of your spares{unlisted ? ` · ${unlisted} item${unlisted === 1 ? "" : "s"} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
