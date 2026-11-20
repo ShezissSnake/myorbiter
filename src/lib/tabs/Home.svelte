@@ -13,6 +13,7 @@
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
   import { noInventoryRead } from "../core/listGuard";
+  import { notListedYet } from "../core/readyToList";
   import { fullModeOff, FULL_MODE_OFF, NO_READ_YET } from "../core/fullModeOff";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { catOfItem, catOfTarget, minimumForItem, resolve, sellTargets, KIND_LABEL, BULK_KINDS, type BulkKind } from "../core/bulk";
@@ -149,10 +150,12 @@
     const cat = it ? catOfItem(model, it) : catOfTarget(t);
     return { min: it ? minimumForItem(settings.market, model, it) : minimumFor(settings.market, cat), own: !!cat && settings.market.minByCategory?.[cat] != null };
   }
+  /** What isn't listed yet: copies on your listings (shown or hidden) are in the listings' total above, so they're left out here. */
+  const ready = $derived(notListedYet(worthy, orders.map((o) => ({ name: mkt.item(o.itemId)?.name, rank: o.rank, quantity: o.quantity }))));
   const byKind = $derived(
     BULK_KINDS
       .map((k) => {
-        const xs = worthy.filter((t) => t.kind === k);
+        const xs = ready.filter((t) => t.kind === k);
         return { kind: k, count: xs.reduce((n, t) => n + t.quantity, 0), plat: Math.round(xs.reduce((n, t) => n + t.plat, 0)) };
       })
       .filter((k) => k.count > 0),
@@ -161,7 +164,8 @@
   const ticked = $derived(SPARE_CATEGORIES.filter((c) => spares[c].on).length);
   // Listed already: what's left to put up.
   const listedNames = $derived(new Set(orders.map((o) => mkt.item(o.itemId)?.name)));
-  const unlisted = $derived(worthy.filter((t) => !listedNames.has(t.name)).length);
+  /** Items (by name) with no listing at all. */
+  const unlisted = $derived(new Set(worthy.filter((t) => !listedNames.has(t.name)).map((t) => t.name)).size);
 
   // ------------------------------------------------------------ fissures
   const ERAS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"] as const;
@@ -648,15 +652,17 @@
         <p class="dim">Nothing ticked on <b>Sell spares</b>.</p>
       {:else if nothingRead}
         <p class="dim">{offFull ? FULL_MODE_OFF : NO_READ_YET}</p>
+      {:else if worthy.length && !byKind.length}
+        <p class="dim">Every spare worth your minimum or more is listed already: see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
       {:else if !byKind.length}
         <p class="dim" title="Your minimum prices (Sell spares): {minimumsText(settings.market)}">Nothing spare worth your minimum or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Everything you could spare, of every kind, is Spare value on Inventory">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Copies already on your listings, shown or hidden, are left out: the listings' total above counts them. Each kind counts copies; not listed yet counts items with no listing at all. Everything you could spare, of every kind, is Spare value on Inventory">if you list the rest of your spares{unlisted ? ` · ${unlisted} item${unlisted === 1 ? "" : "s"} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
               {#if KIND_ICON[k.kind].game}<GameIcon name={KIND_ICON[k.kind].game!} size={20} />{:else}<Icon name={KIND_ICON[k.kind].line!} size={18} />{/if}
-              <span>{KIND_LABEL[k.kind]}s</span><span class="dim">{k.count}</span><P v={k.plat} />
+              <span>{KIND_LABEL[k.kind]}s</span><span class="dim">{k.count} {k.count === 1 ? "copy" : "copies"}</span><P v={k.plat} />
             </li>
           {/each}
         </ul>

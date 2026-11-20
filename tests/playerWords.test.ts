@@ -9,6 +9,7 @@ import { syncIdleWord } from "../src/lib/core/syncWord";
 import { plan, type BookOrder, type FloorRule, type MyOrder } from "../src/lib/core/market";
 import { unchangedWhy } from "../src/lib/core/willSet";
 import * as saleWords from "../src/lib/core/saleLog";
+import { notListedYet } from "../src/lib/core/readyToList";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -57,7 +58,7 @@ test("the banner, the empty pages and Home's Ready to list take the one Full-mod
   }
   const home = src("src/lib/tabs/Home.svelte");
   // No inventory read: never "Nothing spare".
-  assert.match(home, /\{:else if nothingRead\}\s*<p class="dim">\{offFull \? FULL_MODE_OFF : NO_READ_YET\}<\/p>\s*\{:else if !byKind\.length\}/);
+  assert.match(home, /\{:else if nothingRead\}\s*<p class="dim">\{offFull \? FULL_MODE_OFF : NO_READ_YET\}<\/p>\s*\{:else if worthy\.length && !byKind\.length\}/);
 });
 
 // What Reprice does to a price: it follows the second-cheapest seller down, a raise stops at the
@@ -193,4 +194,45 @@ test("Sales names the median, never \"Vs market\"", () => {
   assert.match(help, /Lists each sale against the daily median when it sold/);
   const guide = src("src/lib/tabs/Guide.svelte");
   assert.doesNotMatch(guide, /each sale against the market/);
+});
+
+// Home's Ready to list: its figure counted copies already listed, which the listings' total above
+// it counts too; each count now says what it counts.
+
+test("Ready to list leaves out copies already listed, each listing's copies once", () => {
+  const rows = [
+    { kind: "set", name: "Example Prime Set", rank: null, quantity: 3, each: 50, plat: 150 },
+    { kind: "arcane", name: "Arcane Example", rank: 5, quantity: 2, each: 100, plat: 200 },
+    { kind: "arcane", name: "Arcane Example", rank: 0, quantity: 4, each: 5, plat: 20 },
+    // A month sells two of these: four held, two counted.
+    { kind: "mod", name: "Slow Mod", rank: 0, quantity: 4, each: 10, plat: 20 },
+    { kind: "mod", name: "Unlisted Mod", rank: 0, quantity: 1, each: 30, plat: 30 },
+  ];
+  const out = notListedYet(rows, [
+    { name: "Example Prime Set", rank: null, quantity: 2 },
+    { name: "Arcane Example", rank: 5, quantity: 2 },
+    { name: "Slow Mod", rank: 0, quantity: 1 },
+    { name: undefined, rank: null, quantity: 9 },
+  ]);
+  assert.deepEqual(out.map((r) => [r.name, r.rank, r.quantity, r.plat]), [
+    ["Example Prime Set", null, 1, 50],
+    ["Arcane Example", 0, 4, 20],
+    ["Slow Mod", 0, 3, 20],
+    ["Unlisted Mod", 0, 1, 30],
+  ]);
+  // Nothing listed: the rows as they were.
+  assert.deepEqual(notListedYet(rows, []), rows);
+});
+
+test("Home's Ready to list counts what isn't listed yet, and names its units", () => {
+  const home = src("src/lib/tabs/Home.svelte");
+  // The figure and the kinds come from the copies not listed yet.
+  assert.match(home, /const ready = \$derived\(notListedYet\(worthy, orders\.map\(/);
+  assert.match(home, /const xs = ready\.filter\(\(t\) => t\.kind === k\)/);
+  // Units: copies on each kind, items not listed at all.
+  assert.match(home, /<span class="dim">\{k\.count\} \{k\.count === 1 \? "copy" : "copies"\}<\/span>/);
+  assert.match(home, /\$\{unlisted\} item\$\{unlisted === 1 \? "" : "s"\} not listed yet/);
+  assert.match(home, /Copies already on your listings, shown or hidden, are left out/);
+  // Everything listed already is not "Nothing spare".
+  assert.match(home, /\{:else if worthy\.length && !byKind\.length\}\s*<p class="dim">Every spare worth your minimum or more is listed already/);
 });
