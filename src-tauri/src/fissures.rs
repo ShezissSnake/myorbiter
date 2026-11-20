@@ -57,10 +57,13 @@ fn tables_with(dir: &Path, get: impl Fn(&str) -> Result<Value, String>) -> Resul
     }
     match (get(NODES), get(MISSIONS)) {
         (Ok(nodes), Ok(missions)) => {
-            // The sortie table only names bosses and conditions: without it the rest still works.
-            let sorties = get(SORTIES).unwrap_or_else(|_| json!({}));
+            // A part whose download fails is carried over from the copy on disk, so a whole copy is
+            // never replaced by a partial one. Without one to carry from, the rest still works: the
+            // sortie table only names bosses and conditions.
+            let kept = |part: &str| cached.as_ref().map(|c| c[part].clone()).filter(Value::is_object);
+            let sorties = get(SORTIES).ok().or_else(|| kept("sorties")).unwrap_or_else(|| json!({}));
             // Only the bounties' names are kept from the (large) language table.
-            let jobs = get(LANGUAGES).ok().map(|l| job_names(&l)).unwrap_or(Value::Null);
+            let jobs = get(LANGUAGES).ok().map(|l| job_names(&l)).or_else(|| kept("jobs")).unwrap_or(Value::Null);
             let v = json!({ "at": now(), "nodes": nodes, "missions": missions, "sorties": sorties, "jobs": jobs });
             let _ = fs::create_dir_all(dir);
             let _ = crate::write_atomic(&path, &serde_json::to_vec(&v).unwrap_or_default(), false);
@@ -344,6 +347,43 @@ mod tests {
         asked.borrow_mut().clear();
         assert_eq!(tables_with(&dir, downloads(&[], &asked)).unwrap(), t);
         assert!(asked.borrow().is_empty(), "{:?}", asked.borrow());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_download_that_fails_keeps_that_part_of_the_copy_on_disk() {
+        let dir = scratch("partial");
+        // A whole copy, a week and a day old: due to be read again.
+        let old = json!({ "at": now() - 8 * 24 * 3600, "nodes": { "SolNode1": { "value": "Old Node" } }, "missions": {},
+                          "sorties": { "bosses": { "SORTIE_BOSS_OLD": { "name": "Old Boss" } } }, "jobs": { "/old/jobs/oldjob": "Old Job" } });
+        fs::write(dir.join(TABLES), serde_json::to_vec(&old).unwrap()).unwrap();
+        let asked = std::cell::RefCell::new(Vec::new());
+        // The sortie table fails: its part is carried over, the rest is new.
+        let t = tables_with(&dir, downloads(&[SORTIES], &asked)).unwrap();
+        assert_eq!(t["nodes"]["SolNode1"]["value"], "Fresh Node (Mercury)");
+        assert_eq!(t["sorties"], old["sorties"], "carried over");
+        assert_eq!(t["jobs"]["/lotus/types/gameplay/eidolon/jobs/freshjob"], "Fresh Job");
+        let saved: Value = serde_json::from_slice(&fs::read(dir.join(TABLES)).unwrap()).unwrap();
+        assert_eq!(saved, t, "the whole copy is what's kept");
+        // It holds: the next call asks for nothing.
+        asked.borrow_mut().clear();
+        tables_with(&dir, downloads(&[], &asked)).unwrap();
+        assert!(asked.borrow().is_empty(), "{:?}", asked.borrow());
+        // The language table failing: the bounties' names are carried over the same way.
+        fs::write(dir.join(TABLES), serde_json::to_vec(&old).unwrap()).unwrap();
+        let t = tables_with(&dir, downloads(&[LANGUAGES], &asked)).unwrap();
+        assert_eq!(t["jobs"], old["jobs"]);
+        assert_eq!(t["sorties"]["bosses"]["SORTIE_BOSS_FRESH"]["name"], "Fresh Boss");
+        // With no copy on disk to carry from, the rest still works, and the next call tries again.
+        fs::remove_file(dir.join(TABLES)).unwrap();
+        let t = tables_with(&dir, downloads(&[SORTIES], &asked)).unwrap();
+        assert_eq!((t["nodes"]["SolNode1"]["value"].as_str(), t["sorties"].clone()), (Some("Fresh Node (Mercury)"), json!({})));
+        asked.borrow_mut().clear();
+        tables_with(&dir, downloads(&[], &asked)).unwrap();
+        assert_eq!(asked.borrow().len(), 4);
+        // The node table failing: the copy on disk, whole, as before.
+        fs::write(dir.join(TABLES), serde_json::to_vec(&old).unwrap()).unwrap();
+        assert_eq!(tables_with(&dir, downloads(&[NODES], &asked)).unwrap(), old);
         let _ = fs::remove_dir_all(dir);
     }
 

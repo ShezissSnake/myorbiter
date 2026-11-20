@@ -81,13 +81,19 @@ fn compact(relics: &Value, all: &Value, wfcd: Option<&Value>, hash: &str, modifi
             a.sort_by(|x, y| y["chance"].as_f64().unwrap_or(0.0).total_cmp(&x["chance"].as_f64().unwrap_or(0.0)));
         }
     }
+    let paths = relic_paths(wfcd);
+    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths, "bounties": bounties(all), "sortie": sortie(all) })
+}
+
+/// Each relic's in-game path and name, from WFCD's relic list; none without it.
+fn relic_paths(wfcd: Option<&Value>) -> Map<String, Value> {
     let mut paths: Map<String, Value> = Map::new();
     for r in wfcd.and_then(|w| w.as_array()).into_iter().flatten() {
         if let (Some(u), Some(n)) = (r["uniqueName"].as_str(), r["name"].as_str()) {
             paths.insert(u.to_string(), Value::String(n.to_string()));
         }
     }
-    json!({ "hash": hash, "modified": modified, "checkedAt": now(), "relics": list, "drops": drops, "paths": paths, "bounties": bounties(all), "sortie": sortie(all) })
+    paths
 }
 
 /// What the Sortie pays at the end, one reward from this table: `{ name, chance, rarity }`, best
@@ -163,6 +169,11 @@ pub fn cached(dir: &Path) -> Option<Value> {
 /// The relic data: from the cache while it's fresh (or when the site can't be reached), else read
 /// again. `force`: check now whatever the age. Errors only when there's nothing at all.
 pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
+    relic_data_with(dir, force, get)
+}
+
+/// `relic_data`, with `get` for each download (its address and time limit in seconds).
+fn relic_data_with(dir: &Path, force: bool, get: impl Fn(&str, u64) -> Result<Value, String>) -> Result<Value, String> {
     let path = dir.join(FILE);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     // A cache from before the bounty tables (the open worlds' ones, the Sortie's) were kept is read again, once; it's still what's
@@ -181,6 +192,14 @@ pub fn relic_data(dir: &Path, force: bool) -> Result<Value, String> {
     let modified = info["modified"].as_u64().unwrap_or(0);
     if let Some(mut c) = cached.clone().filter(|_| complete) {
         if !hash.is_empty() && c["hash"].as_str() == Some(hash.as_str()) {
+            // Saved without relic paths (WFCD's list failed then): the drop tables are the same,
+            // so only the paths are asked for again, once a check. Failing again, the copy stays as
+            // it is until the next check.
+            if !c["paths"].as_object().is_some_and(|p| !p.is_empty()) {
+                if let Some(paths) = get(WFCD_RELICS, 60).ok().map(|w| relic_paths(Some(&w))).filter(|p| !p.is_empty()) {
+                    c["paths"] = Value::Object(paths);
+                }
+            }
             c["checkedAt"] = json!(now());
             let _ = crate::write_atomic(&path, &serde_json::to_vec(&c).unwrap_or_default(), false);
             return Ok(c);
@@ -215,6 +234,66 @@ mod tests {
         // Stamped while the clock ran ahead, then set right: old at once, not fresh until real time catches up.
         assert!(!fresh(t + 1, t), "a second ahead");
         assert!(!fresh(t + 30 * 24 * 3600, t), "a month ahead");
+    }
+
+    /// Stands in for the four downloads. WFCD's relic list fails while `wfcd_down` is set; every
+    /// address asked is noted.
+    fn downloads<'a>(wfcd_down: &'a std::cell::Cell<bool>, asked: &'a std::cell::RefCell<Vec<String>>) -> impl Fn(&str, u64) -> Result<Value, String> + 'a {
+        move |url: &str, _timeout: u64| {
+            asked.borrow_mut().push(url.rsplit('/').next().unwrap_or(url).to_string());
+            if url == format!("{DROPS}/info.json") {
+                Ok(json!({ "hash": "h1", "modified": 1 }))
+            } else if url == format!("{DROPS}/relics.json") {
+                Ok(json!({ "relics": [{ "tier": "Lith", "relicName": "Z9", "state": "Intact", "rewards": [{ "itemName": "Forma Blueprint", "chance": 11.0, "rarity": "Uncommon" }] }] }))
+            } else if url == format!("{DROPS}/all.slim.json") {
+                Ok(json!([
+                    { "place": "Earth/Cetus (<b>Level 5 - 15 Cetus Bounty</b>), Rotation A", "item": "50 Endo", "rarity": "Uncommon", "chance": 20.0 },
+                    { "place": "Sorties", "item": "Forma", "rarity": "Rare", "chance": 2.5 }
+                ]))
+            } else if url == WFCD_RELICS {
+                if wfcd_down.get() {
+                    Err(format!("{url}: timed out"))
+                } else {
+                    Ok(json!([{ "uniqueName": "/Lotus/Types/Game/Projections/T1VoidProjectionZ9Bronze", "name": "Lith Z9 Intact" }]))
+                }
+            } else {
+                panic!("not one of the downloads: {url}")
+            }
+        }
+    }
+
+    #[test]
+    fn a_copy_saved_without_relic_paths_gets_them_at_the_next_check_though_the_hash_is_the_same() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-relic-paths-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let wfcd_down = std::cell::Cell::new(true);
+        let asked = std::cell::RefCell::new(Vec::new());
+        let first = relic_data_with(&dir, false, downloads(&wfcd_down, &asked)).unwrap();
+        assert_eq!(first["paths"], json!({}), "WFCD's list failed: saved without paths");
+        assert_eq!(cached(&dir).unwrap()["relics"], first["relics"]);
+        // Within the twelve hours nothing is asked, as before.
+        asked.borrow_mut().clear();
+        assert_eq!(relic_data_with(&dir, false, downloads(&wfcd_down, &asked)).unwrap()["paths"], json!({}));
+        assert!(asked.borrow().is_empty(), "{:?}", asked.borrow());
+        // The next check, WFCD's list failing again: the copy is kept as it is, and only the paths were asked again.
+        let again = relic_data_with(&dir, true, downloads(&wfcd_down, &asked)).unwrap();
+        assert_eq!(again["paths"], json!({}));
+        assert_eq!(again["relics"], first["relics"]);
+        assert_eq!(*asked.borrow(), ["info.json", "Relics.json"]);
+        // The next check with WFCD's list there: the drop tables haven't changed (same hash), the paths come.
+        wfcd_down.set(false);
+        asked.borrow_mut().clear();
+        let checked = relic_data_with(&dir, true, downloads(&wfcd_down, &asked)).unwrap();
+        assert_eq!(checked["paths"]["/Lotus/Types/Game/Projections/T1VoidProjectionZ9Bronze"], "Lith Z9 Intact");
+        assert_eq!(checked["relics"], first["relics"]);
+        assert_eq!(*asked.borrow(), ["info.json", "Relics.json"], "the drop tables aren't read again for it");
+        assert_eq!(cached(&dir).unwrap()["paths"], checked["paths"], "and kept");
+        // With the paths in, a check with the same hash asks for nothing more.
+        asked.borrow_mut().clear();
+        assert_eq!(relic_data_with(&dir, true, downloads(&wfcd_down, &asked)).unwrap()["paths"], checked["paths"]);
+        assert_eq!(*asked.borrow(), ["info.json"]);
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
