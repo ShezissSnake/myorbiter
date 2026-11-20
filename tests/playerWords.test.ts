@@ -395,6 +395,22 @@ test("the last-copy words name Full mode, never Full access, in one sentence", (
   for (const [f, s] of [["App", app], ["automation", automation], ["Orders", orders]]) assert.doesNotMatch(words(s), /Full access/, f);
 });
 
+test("Settings, Orders' brief and the page hint never say kept at the market price, and say where a raise stops", () => {
+  const orders = src("src/lib/tabs/Orders.svelte");
+  assert.match(orders, /<PageHead title="Orders" brief="Your listings, repriced to the market price\."/);
+  const pages = src("src/lib/pages.ts");
+  assert.match(pages, /id: "market"[^\n]*hint: "Your warframe\.market listings, repriced to the market price"/);
+  for (const [f, s] of [["Orders", orders], ["pages", pages]]) assert.doesNotMatch(s, /kept at the market price/, f);
+  // Settings: the help line and the switch's body, each with where a raise stops.
+  const help = src("src/lib/help/settings.ts");
+  const page = help.slice(help.indexOf('title: "Apply automatically"'), help.indexOf("shot:", help.indexOf('title: "Apply automatically"')));
+  assert.match(page, /"Lowers to the second-cheapest seller, raises no higher than the cheapest, beyond a 2p\/5% gap\."/);
+  const sheet = src("src/lib/SettingsSheet.svelte");
+  const body = sheet.slice(sheet.indexOf('name="settings.auto-reprice"'), sheet.indexOf("</Switch>", sheet.indexOf('name="settings.auto-reprice"')));
+  assert.match(body, /more than \{BAND_WORDS\} from where Reprice would set it: down to the second-cheapest seller online or in game, so one bait listing is never followed, and up no higher than the cheapest;/);
+  for (const [f, s] of [["help", page], ["Settings", body]]) assert.match(s, /no higher than the cheapest/, f);
+});
+
 test("Arcanes, Mods and Parts take the one Full-mode-off case, as Inventory does", () => {
   for (const f of ["Arcanes", "Mods", "Parts"]) {
     const s = src(`src/lib/tabs/${f}.svelte`);

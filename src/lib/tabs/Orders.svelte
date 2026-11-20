@@ -770,7 +770,7 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => { if (e.key === "Escape" && askSold?.unmarked && !e.defaultPrevented) askSold = null; }} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, repriced to the market price: Reprice follows the second-cheapest seller online or in game down, and a raise goes no higher than the cheapest." />
+  <PageHead title="Orders" brief="Your listings, repriced to the market price." blurb="Your warframe.market listings, repriced to the market price: Reprice follows the second-cheapest seller online or in game down, and a raise goes no higher than the cheapest." />
 
   <!-- The figures you trade by, one tile each: the headline figures, so vessels (pass 2, §8). -->
   {#if mkt.linked}
