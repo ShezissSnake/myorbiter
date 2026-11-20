@@ -230,7 +230,7 @@
           </div>
         {/each}
       </div>
-      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}
+      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}
         <!-- Under the relics it's about: whether they're all one relic at one refinement. -->
         {#if share}<span class="share" class:off={!share.matched} title={share.matched ? "4×4 (a 4b4): all four players brought the same relic at the same refinement, so the four reward cards are four rolls on one table" : `4×4 (a 4b4) is all four players bringing the same relic at the same refinement. ${share.allDiffer ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</span>{/if}</p>
     {:else}
@@ -273,7 +273,7 @@
     {#if ranked.length}
       <div class="pool-head">
         <div class="hmark"><h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}</h2><HelpMark part="mission.pool" /></div>
-        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
+        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
       <table class="pool">

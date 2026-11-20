@@ -85,7 +85,7 @@
         if (planned && rules[c].on) return [c, { ...planned[c], estimate: false }];
         const t = estimate?.tally[c];
         // Imprints come from a patched TennoScope: until it has passed any, none can be counted.
-        const note = c === "imprints" && !model.imprints ? "TennoScope hasn't passed your imprints yet (it takes a patched TennoScope): none can be counted or listed until it does." : undefined;
+        const note = c === "imprints" && !model.imprints ? "TennoScope hasn't passed your imprints yet: none can be counted or listed until it does." : undefined;
         return [c, t ? { ...t, estimate: true, stale: !current, note } : undefined];
       }),
     ),

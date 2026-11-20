@@ -236,3 +236,22 @@ test("Home's Ready to list counts what isn't listed yet, and names its units", (
   // Everything listed already is not "Nothing spare".
   assert.match(home, /\{:else if worthy\.length && !byKind\.length\}\s*<p class="dim">Every spare worth your minimum or more is listed already/);
 });
+
+// TennoScope is "TennoScope" in the player's words; there is no other one to tell it from.
+
+test("the player's words never say \"the patched TennoScope\"", () => {
+  const places = ["src/lib/tabs/Home.svelte", "src/lib/tabs/Builds.svelte", "src/lib/ui/RelicRuns.svelte", "src/lib/tabs/Stats.svelte", "src/lib/tabs/InMission.svelte", "src/lib/tabs/Spares.svelte", "src/lib/tabs/Guide.svelte"];
+  for (const f of places) {
+    // Comments may say how TennoScope came to read it; what the page shows may not.
+    const shown = src(f).replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+    assert.doesNotMatch(shown, /patched TennoScope/i, f);
+  }
+});
+
+test("Home's Foundry card, with TennoScope off, links to where it is set up", () => {
+  const home = src("src/lib/tabs/Home.svelte");
+  assert.match(home, /setUpTennoscope = null/);
+  assert.match(home, /\{#if setUpTennoscope\} <button class="link" onclick=\{setUpTennoscope\}>Set up TennoScope<\/button>\{\/if\}/);
+  const app = src("src/App.svelte");
+  assert.match(app, /<Home [^\n]*setUpTennoscope=\{!noTennoScope && !ts\.running \? \(\) => \(showTennoscope = true\) : null\}/);
+});

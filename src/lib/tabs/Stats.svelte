@@ -184,7 +184,7 @@
 
   {#if hist.length === 1}<p class="dim small one" title="Each chart's line starts with the next read; the figures beside each title are from this one">One inventory read so far. The charts start with the next.</p>{/if}
   {#snippet chart(c: (typeof CHARTS)[number])}
-    <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs the patched TennoScope; fills in from its next reads." : undefined}>
+    <TimeChart single="" title={c.title} {at} series={[{ label: c.title, color: GOLD, values: hist.map(c.get) }]} empty={c.key === "credits" || c.key === "endo" || c.key === "platinum" ? "Needs TennoScope; fills in from its next reads." : undefined}>
       {#snippet icon()}<GameIcon name={c.icon} size={18} />{/snippet}
     </TimeChart>
   {/snippet}

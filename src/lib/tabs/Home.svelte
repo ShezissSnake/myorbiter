@@ -72,7 +72,7 @@
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, liveRead = true, console = false, reveal = null, bountyTables = null, sortieRewards = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; liveRead?: boolean; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null } = $props();
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, liveRead = true, console = false, reveal = null, bountyTables = null, sortieRewards = null, setUpTennoscope = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; liveRead?: boolean; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null; setUpTennoscope?: (() => void) | null } = $props();
   /** No inventory read (on PC): Ready to list can't tell what's spare, so it never says "Nothing spare". */
   const nothingRead = $derived(!console && noInventoryRead(model));
   /** …because Full mode is off: it says that, as the banner and the empty pages do. */
@@ -868,7 +868,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once the patched TennoScope reads your inventory."}</p>
+        <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once TennoScope reads your inventory."}{#if setUpTennoscope} <button class="link" onclick={setUpTennoscope}>Set up TennoScope</button>{/if}</p>
       {/if}
       {#if buildable.length}
         <div class="register sub" title="Everything you can make now, or nearly: built in the Foundry, or revived with Son for a captured infested companion">Every part in hand</div>
