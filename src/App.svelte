@@ -167,12 +167,12 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
+  import { gameStepTitle } from "./lib/core/firstStart";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import type { RedactOptions } from "./lib/core/redact";
-  import { gameStepTitle } from "./lib/core/firstStart";
   import { calm as reducedMotion, fold, reveal as unfold, QUICK } from "./lib/motion";
 
   /** Your choice from the fold button (kept in settings); until you make one, it folds by itself in a narrow window. */
