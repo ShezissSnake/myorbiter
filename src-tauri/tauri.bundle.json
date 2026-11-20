@@ -1,5 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "beforeBundleCommand": "node scripts/dependency-licences.mjs myorbiter"
+  },
   "bundle": {
     "resources": {
       "../vendor/tennoscope/": "tennoscope/"

@@ -8,6 +8,7 @@ import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSy
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { renderList, type Package } from "../scripts/dependency-licences.mjs";
 
 const root = resolve(".");
 const windows = process.platform === "win32";
@@ -317,12 +318,22 @@ const debCheck = (): string => {
   assert.ok(start >= 0 && end > start, "check_deb_notices in ci/build.sh");
   return text.slice(start, end + 3);
 };
+// A list of the dependencies' licences as scripts/dependency-licences.mjs writes it, for one made-up
+// crate with its text.
+const dependencies = (dir: string, program: "myorbiter" | "tennoscope", target = "x86_64-unknown-linux-gnu") => {
+  const p: Package = { kind: "rust", name: "made-up", version: "1.0.0", licence: "MIT", licenceForm: null, source: "registry", texts: [{ file: "LICENSE", sha256: "a".repeat(64), licence: true }] };
+  const { list, files } = renderList(program, target, [p], []);
+  for (const t of files) write(join(dir, t.name), "MIT text\n");
+  write(join(dir, "README.md"), list);
+};
 const deb = (f: Fixture, build: (notices: string) => void): ReturnType<typeof run> => {
   const tree = join(f.dir, "deb");
   const notices = join(tree, "usr/lib/myorbiter/THIRD-PARTY-NOTICES");
   write(join(notices, "README.md"), "# Third-party notices\n");
   write(join(notices, "fonts/OFL.txt"), "OFL\n");
   write(join(tree, "usr/lib/myorbiter/tennoscope/THIRD-PARTY-NOTICES/tesseract/SOURCES.md"), "Tesseract's\n");
+  dependencies(join(notices, "dependencies"), "myorbiter");
+  dependencies(join(tree, "usr/lib/myorbiter/tennoscope/THIRD-PARTY-NOTICES/dependencies"), "tennoscope");
   build(notices);
   const file = join(f.dir, "myorbiter_0.2.900_amd64.deb");
   assert.equal(spawnSync("tar", ["-cf", file, "-C", tree, "."]).status, 0);
@@ -378,4 +389,41 @@ test("the .deb check stops unless exactly one THIRD-PARTY-NOTICES/ is MyOrbiter'
   assert.equal(r.status, 1);
   assert.match(r.stderr, /expected one THIRD-PARTY-NOTICES\/ with README\.md and fonts\/, found 2/);
   rmSync(f.dir, { recursive: true });
+});
+
+test("the .deb check passes with both programs' lists of their dependencies' licences", { skip }, () => {
+  const f = fixture();
+  const r = deb(f, (n) => listed(f, n));
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, /dependencies: .*\/usr\/lib\/myorbiter\/THIRD-PARTY-NOTICES\/dependencies lists MyOrbiter's packages for Linux/);
+  assert.match(r.stdout, /dependencies: .*\/usr\/lib\/myorbiter\/tennoscope\/THIRD-PARTY-NOTICES\/dependencies lists TennoScope's packages for Linux/);
+  rmSync(f.dir, { recursive: true });
+});
+
+test("the .deb check stops without MyOrbiter's list, or TennoScope's, or with a text missing", { skip }, () => {
+  const tennoscope = (n: string) => join(n, "../tennoscope/THIRD-PARTY-NOTICES/dependencies");
+  for (const [breakIt, message] of [
+    [(n: string) => rmSync(join(n, "dependencies"), { recursive: true }), /myorbiter\/THIRD-PARTY-NOTICES\/dependencies: no README\.md/],
+    [(n: string) => rmSync(tennoscope(n), { recursive: true }), /tennoscope\/THIRD-PARTY-NOTICES\/dependencies: no README\.md/],
+    [(n: string) => rmSync(join(n, "dependencies/texts"), { recursive: true }), /names texts\/LICENSE-aaaaaaaaaa, which isn't there/],
+  ] as const) {
+    const f = fixture();
+    const r = deb(f, (n) => { listed(f, n); breakIt(n); });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, message);
+    rmSync(f.dir, { recursive: true });
+  }
+});
+
+test("the .deb check stops at the Windows list, or at MyOrbiter's list in TennoScope's place", { skip }, () => {
+  for (const swap of [
+    (n: string) => { rmSync(join(n, "dependencies"), { recursive: true }); dependencies(join(n, "dependencies"), "myorbiter", "x86_64-pc-windows-msvc"); },
+    (n: string) => { const t = join(n, "../tennoscope/THIRD-PARTY-NOTICES/dependencies"); rmSync(t, { recursive: true }); dependencies(t, "myorbiter"); },
+  ]) {
+    const f = fixture();
+    const r = deb(f, (n) => { listed(f, n); swap(n); });
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /not the list (for x86_64-unknown-linux-gnu|of tennoscope)/);
+    rmSync(f.dir, { recursive: true });
+  }
 });
