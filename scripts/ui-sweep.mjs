@@ -21,7 +21,8 @@
 // Orders by its "Skip past the listings" link; measures the click targets the 24 px rule names
 // (Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks: each must take a
 // click all round a 24 px square); and opens the folded sidebar's More menu by keyboard, where no
-// focus tip may cover the menu (keyboardExtras). Exits 1 when it finds any of these.
+// focus tip may cover the menu; and reads the list pages' headings, none of which may jump a level
+// (keyboardExtras). Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -883,6 +884,29 @@ function smallTargets(sel) {
   return { n, bad: [...bad] };
 }
 
+/** A list page's headings in the order a screen reader lists them, where one jumps a level. */
+const headingFindings = [];
+/** Pages whose headings were read. */
+let headingPages = 0;
+/** List pages: the cards' names are h3s, under the page's h1 (and the reward screen's, Current fissure). */
+const HEADING_PAGES = ["Current fissure", "Relics", "Mastery", "Foundry", "Inventory", "Prime parts", "Sets", "Mods", "Arcanes", "Rivens", "Browse market"];
+
+/** Runs in the page: the shown page's headings that are drawn, as their levels, and the first jump. */
+function headingLevels() {
+  const pane = document.querySelector(".pane.shown");
+  if (!pane) return { levels: [], jump: "no page shown" };
+  const levels = [];
+  let jump = null;
+  for (const h of pane.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (h.closest("[aria-hidden='true']")) continue;
+    if (typeof h.checkVisibility === "function" ? !h.checkVisibility() : !h.getClientRects().length) continue;
+    const n = Number(h.tagName[1]);
+    if (!jump && levels.length && n > levels[levels.length - 1] + 1) jump = `h${levels[levels.length - 1]} then h${n} "${(h.textContent ?? "").trim().slice(0, 40)}"`;
+    levels.push(n);
+  }
+  return { levels, jump };
+}
+
 /** Whether the focus tip is drawn over the open More menu. */
 function tipOverMenu() {
   const menu = document.querySelector(".moremenu");
@@ -938,6 +962,15 @@ async function keyboardExtras(size) {
   await measure("Sell spares", ".pane.shown .cat .box");
   await go("Home");
   await measure("Home", ".pane.shown button.tick");
+  // Headings on the list pages: none jumps a level (h1 then h3), so a section after the list doesn't
+  // read as part of its last card.
+  for (const label of HEADING_PAGES) {
+    await go(label);
+    const r = await p.evaluate(headingLevels);
+    headingPages++;
+    if (!r.levels.length) headingFindings.push(`${label}: no heading drawn`);
+    else if (r.jump) headingFindings.push(`${label}: ${r.jump} (${r.levels.slice(0, 12).join(" ")}${r.levels.length > 12 ? " …" : ""})`);
+  }
   // The More menu by keyboard: the sidebar folded (the full one shows no More).
   await p.locator(".rail button.fold").first().click();
   await pause(p, 800);
@@ -1179,6 +1212,8 @@ try {
     console.log(`${countFindings.length} press-count findings, ${targetFindings.length} click targets under 24 px, ${targetsMeasured} measured`);
     for (const f of menuTipFindings) console.log(`MENU TIP ${f}`);
     console.log(`${menuTipFindings.length} focus tips over the More menu`);
+    for (const f of headingFindings) console.log(`HEADINGS ${f}`);
+    console.log(`${headingFindings.length} list pages whose headings jump a level, of ${headingPages} read`);
   }
   // The help: every part with its "?", every "?" naming a part the list knows.
   const missingSeen = new Set();
@@ -1200,7 +1235,7 @@ try {
   console.log(requestsLine());
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
-  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
