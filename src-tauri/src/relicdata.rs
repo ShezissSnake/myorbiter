@@ -33,9 +33,8 @@ fn get(url: &str, timeout: u64) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(timeout))
         .call()
-        .map_err(|e| format!("{url}: {e}"))?
-        .into_json::<Value>()
         .map_err(|e| format!("{url}: {e}"))
+        .and_then(|r| crate::json_reply(r).map_err(|e| format!("{url}: {e}")))
 }
 
 /// "ETERNA" → "Eterna"; "A13" stays.
@@ -260,6 +259,17 @@ mod tests {
                 panic!("not one of the downloads: {url}")
             }
         }
+    }
+
+    /// A download larger than `MAX_BODY` ends in an error, and the copy on disk is used. Against a
+    /// server on this machine.
+    #[test]
+    fn an_answer_over_the_limit_is_an_error() {
+        let addr = crate::test_http::serve_padded(crate::MAX_BODY as usize + 2);
+        assert!(get(&addr, 30).is_err());
+        let (addr, served) = crate::test_http::serve_once(r#"{"hash": "h1"}"#);
+        assert_eq!(get(&addr, 30).unwrap()["hash"], "h1");
+        served.join().unwrap();
     }
 
     #[test]

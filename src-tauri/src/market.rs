@@ -340,11 +340,14 @@ fn log_path(url: &str) -> &str {
 
 /// A reply's body as JSON. Read whole first: failing to read it (a connection reset or cut off on
 /// the way) is "unreachable"; a whole body that isn't JSON is "unexpected". ureq's own
-/// `into_json` reports both as invalid data, so it can't tell them apart.
-fn json_body(mut body: impl std::io::Read) -> Result<Value, MarketError> {
+/// `into_json` reports both as invalid data, so it can't tell them apart (and reads with no limit).
+/// A body larger than `MAX_BODY` is unexpected too: the copy on disk is used where there is one.
+fn json_body(body: impl std::io::Read) -> Result<Value, MarketError> {
     // Bytes, not text: a whole body that isn't UTF-8 is an unexpected reply, not the network.
-    let mut bytes = Vec::new();
-    body.read_to_end(&mut bytes).map_err(|e| MarketError::Unreachable(e.to_string()))?;
+    let bytes = crate::read_body(body).map_err(|e| match e.kind() {
+        std::io::ErrorKind::FileTooLarge => MarketError::Unexpected(e.to_string()),
+        _ => MarketError::Unreachable(e.to_string()),
+    })?;
     serde_json::from_slice(&bytes).map_err(|e| MarketError::Unexpected(e.to_string()))
 }
 
@@ -2514,6 +2517,25 @@ mod odd_answers {
         assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": null } } })), Err(MarketError::Unexpected(_))));
         // A history with no days is one: nothing sold in 90 days.
         assert_eq!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": [] } } })).unwrap(), vec![]);
+    }
+
+    #[test]
+    fn an_answer_over_the_limit_is_unexpected_and_the_list_on_disk_is_used() {
+        use std::io::Read;
+        // JSON after as many spaces as it takes: as large as wanted, read in memory.
+        let padded = |size: u64| std::io::repeat(b' ').take(size - 2).chain(&b"[]"[..]);
+        assert!(matches!(json_body(padded(crate::MAX_BODY)), Ok(v) if v == json!([])), "up to the limit, read");
+        assert!(matches!(json_body(padded(crate::MAX_BODY + 1)), Err(MarketError::Unexpected(_))), "over it, not");
+        // Read from a server on this machine, as get_json reads the item list.
+        let addr = crate::test_http::serve_padded(crate::MAX_BODY as usize + 2);
+        let fetched = get_json(&format!("{addr}/v2/items"), 30);
+        assert!(matches!(fetched, Err(MarketError::Unexpected(_))), "{fetched:?}");
+        let dir = scratch("items-over-limit");
+        let path = dir.join("market-items.json");
+        let good = json!([{ "id": "i1", "slug": "thing_prime_set", "name": "Thing Prime Set", "thumb": null }]);
+        std::fs::write(&path, serde_json::to_vec(&good).unwrap()).unwrap();
+        assert_eq!(items_from(&path, fetched).unwrap(), good);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     fn book_row(id: &str) -> Value {

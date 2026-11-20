@@ -34,9 +34,8 @@ fn get(url: &str) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(20))
         .call()
-        .map_err(|e| format!("{url}: {e}"))?
-        .into_json::<Value>()
         .map_err(|e| format!("{url}: {e}"))
+        .and_then(|r| crate::json_reply(r).map_err(|e| format!("{url}: {e}")))
 }
 
 /// WFCD's node and mission-type tables, from the cache while it's under a week old.
@@ -348,6 +347,17 @@ mod tests {
         assert_eq!(tables_with(&dir, downloads(&[], &asked)).unwrap(), t);
         assert!(asked.borrow().is_empty(), "{:?}", asked.borrow());
         let _ = fs::remove_dir_all(dir);
+    }
+
+    /// A download (the game's worldstate, WFCD's tables) larger than `MAX_BODY` ends in an error, and
+    /// the copy on disk is used. Against a server on this machine.
+    #[test]
+    fn an_answer_over_the_limit_is_an_error() {
+        let addr = crate::test_http::serve_padded(crate::MAX_BODY as usize + 2);
+        assert!(get(&addr).is_err());
+        let (addr, served) = crate::test_http::serve_once(r#"{"SolNode1": {}}"#);
+        assert!(get(&addr).unwrap()["SolNode1"].is_object());
+        served.join().unwrap();
     }
 
     #[test]
