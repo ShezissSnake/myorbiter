@@ -3,6 +3,8 @@
 // Both are off for a new install and stay off until the player turns them on (backend.ts,
 // marketSafetyOf: only an explicit true survives loading).
 
+import { SYNC_READS_NOW } from "./fullModeOff";
+
 /** `autoTrades`: a sale read from the game's log closes or lowers the listing it sold from. */
 export const AUTO_TRADES_LINE =
   "Off unless you turn it on. On: when a trade in game shows you gave items for platinum, MyOrbiter marks the listing it sold from sold on warframe.market (recorded on your profile there) and logs the sale.";
@@ -17,4 +19,4 @@ export const AUTO_REP_SHORT = "Off unless you turn it on. Each partner gets +rep
 
 /** `lastCopy.optIn`: listings with one copy hidden on warframe.market while someone whispers you. */
 export const LAST_COPY_LINE =
-  "When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below, and only if an inventory read newer than the whisper still has the copy; until then it stays hidden. With Full access while Warframe runs, Sync asks TennoScope for a read now, and a listing's Shown switch on Orders shows it at any time, with the checks any listing you show yourself gets. A later whisper doesn't make the wait longer, and one you show or hide yourself is left as you set it until the next whisper.";
+  `When anyone whispers you in game (a buyer, a friend, or you whispering a seller), MyOrbiter hides every listing you have one copy of, so a second buyer doesn't message you for one that's already promised. The game's log says who whispered, not what about, so that's usually most of your listings. Each comes back after the time below, and only if an inventory read newer than the whisper still has the copy; until then it stays hidden. ${SYNC_READS_NOW}, and a listing's Shown switch on Orders shows it at any time, with the checks any listing you show yourself gets. A later whisper doesn't make the wait longer, and one you show or hide yourself is left as you set it until the next whisper.`;

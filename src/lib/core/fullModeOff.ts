@@ -21,3 +21,6 @@ export const SYNC_FULL_MODE_OFF = "Full mode off";
 
 /** An empty text: its own (`plain`), or the one sentence while Full mode is off and nothing was read. */
 export const emptyText = (plain: string, off: boolean): string => (off ? FULL_MODE_OFF : plain);
+
+/** What Sync does for a listing the last-copy rule still hides: said the same in Settings, on Orders and in the notification. */
+export const SYNC_READS_NOW = "In Full mode, while Warframe runs, Sync asks TennoScope for a read now";

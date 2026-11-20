@@ -142,7 +142,7 @@
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import { checkDue } from "./lib/core/schedule";
   import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
-  import { fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF } from "./lib/core/fullModeOff";
+  import { fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF, SYNC_READS_NOW } from "./lib/core/fullModeOff";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -1841,7 +1841,7 @@
       const names = untold.map((h) => mkt.item(mkt.orders.find((o) => o.id === h.id)?.itemId ?? "")?.name ?? "a listing");
       const one = names.length === 1;
       const list = `${names.slice(0, 4).join(", ")}${names.length > 4 ? ` and ${names.length - 4} more` : ""}`;
-      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. With Full access while Warframe runs, Sync asks TennoScope for a read now. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
+      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. ${SYNC_READS_NOW}. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
     }
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;

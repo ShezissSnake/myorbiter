@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { emptyText, fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF } from "../src/lib/core/fullModeOff";
+import * as fullModeWords from "../src/lib/core/fullModeOff";
 import { syncIdleWord } from "../src/lib/core/syncWord";
 import { plan, type BookOrder, type FloorRule, type MyOrder } from "../src/lib/core/market";
 import { unchangedWhy } from "../src/lib/core/willSet";
@@ -374,4 +375,22 @@ test("trades a day read against tradeAllowance: none before Mastery Rank 2", () 
   const guide = src("src/lib/tabs/Guide.svelte");
   assert.doesNotMatch(guide, /Trades left today \(as many as your Mastery Rank,/);
   assert.match(guide, /Trades left today \(as many as your Mastery Rank from rank 2, none at 0 or 1;/);
+});
+
+// Full mode has one name wherever the player reads it: the last-copy notification, the line
+// Settings and Orders show for Hide last copies, and the tooltip of Orders' still-hidden line.
+
+test("the last-copy words name Full mode, never Full access, in one sentence", () => {
+  const { SYNC_READS_NOW } = fullModeWords;
+  assert.equal(SYNC_READS_NOW, "In Full mode, while Warframe runs, Sync asks TennoScope for a read now");
+  const automation = src("src/lib/core/automation.ts");
+  assert.match(automation, /\$\{SYNC_READS_NOW\}, and a listing's Shown switch on Orders shows it at any time/);
+  const app = src("src/App.svelte");
+  const still = app.slice(app.indexOf("mkt.note(`Still hidden:"), app.indexOf("\n", app.indexOf("mkt.note(`Still hidden:")));
+  assert.match(still, /\$\{SYNC_READS_NOW\}\./);
+  const orders = src("src/lib/tabs/Orders.svelte");
+  const tip = orders.slice(orders.indexOf("The last-copy rule (Settings, Trades)"), orders.indexOf("hidden for now</span>"));
+  assert.match(tip, /\$\{SYNC_READS_NOW\}\./);
+  const words = (s: string) => s.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
+  for (const [f, s] of [["App", app], ["automation", automation], ["Orders", orders]]) assert.doesNotMatch(words(s), /Full access/, f);
 });
