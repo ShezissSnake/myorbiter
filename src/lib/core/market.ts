@@ -228,7 +228,9 @@ export interface FloorRule {
 
 export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule): Plan {
   const comp = competitor(order, book, me, rule.defaultSubtype ?? null, !!rule.drift);
-  const value = rule.capByAsks ? marketValue(rule.reference, comp) : (rule.reference ?? null);
+  // A market value that isn't a number (NaN, infinite) is no value: with it, no floor below would hold.
+  const known = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v : null);
+  const value = known(rule.capByAsks ? marketValue(known(rule.reference), comp) : rule.reference);
   // The hard floors (yours, which includes a relic's crack value and a prime's ducats, and the
   // minimum) stay put; the share of the market value moves with the asks, pass to pass.
   const hard = Math.max(1, rule.floor ?? 0, rule.min ?? 0);
