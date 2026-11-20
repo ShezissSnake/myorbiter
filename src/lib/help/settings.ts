@@ -307,7 +307,7 @@ const SETTINGS_TRADES: Walkthrough = {
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${TRADES} ${sw("settings.auto-reprice")}`,
+        part: `${TRADES} ${sw("settings.auto-reprice")} .label, ${TRADES} ${sw("settings.auto-reprice")} .track`,
         marks: [{ at: `${TRADES} ${sw("settings.auto-reprice")} .track`, is: "arrow", from: "left" }],
       },
     },
