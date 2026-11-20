@@ -2333,6 +2333,47 @@ mod tests {
         assert_eq!(v[0].user.status.as_deref(), Some("ingame"));
     }
 
+    /// What Rust checks last before an order is sent (audit A12, finding 6).
+    #[test]
+    fn the_pages_json_for_a_new_order_is_read_as_sent() {
+        // As backend.ts's `market.create` sends it.
+        let buy: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 2, "rank": 0, "subtype": null, "type": "buy" })).unwrap();
+        assert_eq!(buy.kind.as_deref(), Some("buy"), "a buy order");
+        assert_eq!((buy.item_id.as_str(), buy.platinum, buy.quantity, buy.rank, buy.visible), ("5dbe9b097ea27b0ffe3ca26c", 7, 2, Some(0), true));
+        let sell: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 1, "visible": true })).unwrap();
+        assert_eq!(sell.kind, None, "no type: a sell order (create sends \"sell\")");
+        let typed: NewOrder = serde_json::from_value(serde_json::json!({ "itemId": "5dbe9b097ea27b0ffe3ca26c", "platinum": 7, "quantity": 1, "type": "sell" })).unwrap();
+        assert_eq!(typed.kind.as_deref(), Some("sell"));
+    }
+
+    /// Refused before any request: the client is signed out (no token, the keyring never asked),
+    /// so a call that got past the check would end in "Not signed in" before anything was sent;
+    /// the range's own refusal shows the check came first. Nothing can reach warframe.market here.
+    #[test]
+    fn create_and_update_refuse_a_price_or_quantity_out_of_range_before_any_request() {
+        let client = Client::offline();
+        assert!(!client.linked());
+        let order = |platinum: u32, quantity: u32| NewOrder { item_id: "5dbe9b097ea27b0ffe3ca26c".into(), platinum, quantity, rank: None, subtype: None, visible: true, kind: None };
+        for (platinum, quantity) in [(0, 1), (900_001, 1), (7, 0), (7, 10_000)] {
+            let e = client.create(&order(platinum, quantity)).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "price or quantity out of range"), "{platinum}p × {quantity}: {e}");
+        }
+        // The ends of the range pass the check (and then stop at the sign-in, sending nothing).
+        for (platinum, quantity) in [(1, 1), (900_000, 9_999)] {
+            assert!(matches!(client.create(&order(platinum, quantity)), Err(MarketError::NotLinked)), "{platinum}p × {quantity}");
+        }
+        let change = |platinum: Option<u32>, quantity: Option<u32>| OrderChange { platinum, quantity, visible: None };
+        for p in [0, 900_001] {
+            let e = client.update("666666666666666666666666", &change(Some(p), None)).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "price out of range"), "{p}p: {e}");
+        }
+        for q in [0, 10_000] {
+            let e = client.update("666666666666666666666666", &change(None, Some(q))).unwrap_err();
+            assert!(matches!(&e, MarketError::Rejected(why) if why == "quantity out of range"), "× {q}: {e}");
+        }
+        assert!(matches!(client.update("666666666666666666666666", &change(Some(900_000), Some(9_999))), Err(MarketError::NotLinked)));
+    }
+
     /// Hits the network: `cargo test -p myorbiter -- --ignored`.
     #[test]
     #[ignore]
