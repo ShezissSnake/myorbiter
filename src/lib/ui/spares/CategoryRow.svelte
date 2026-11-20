@@ -69,7 +69,9 @@
   .cat { --fig-w: 13.5rem; border-bottom: 1px solid var(--rule); }
   .cat.open { background: rgb(255 255 255 / 1.6%); box-shadow: inset 2px 0 0 var(--gold-dim); }
   .head { display: grid; grid-template-columns: 2.1rem minmax(0, 1fr); align-items: stretch; }
-  .box { align-self: center; justify-self: center; width: .85rem; height: .85rem; padding: 0; border: 1px solid var(--rule-control); background: transparent; display: grid; }
+  .box { align-self: center; justify-self: center; width: .85rem; height: .85rem; padding: 0; border: 1px solid var(--rule-control); background: transparent; display: grid; position: relative; }
+  /* The click lands over 25 px round the box, though it is drawn 14 px. */
+  .box::before { content: ""; position: absolute; inset: -7px; }
   .box i { width: 100%; height: 100%; }
   .box.on { border-color: var(--gold); }
   .box.on i { background: var(--gold); }

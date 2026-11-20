@@ -16,7 +16,14 @@
 // that isn't square. It also checks every tag drawn (`.tag`) for words, and for 4.5:1 between them
 // and their fill (findTags). At 1280×800 it sorts Orders by each column, both ways, and checks
 // that no part of the table is left with a transform or an animation (sortCheck), and that the
-// rows read the same at rest with reduced motion on. Exits 1 when it finds any of these.
+// rows read the same at rest with reduced motion on. Also at 1280×800 it counts the Tab presses to
+// get past Inventory as Cards and as Table (the table must take about as many as the cards) and past
+// Orders by its "Skip past the listings" link, and reads the names of the controls on Orders' first
+// two listings (each must name its item); measures the click targets the 24 px rule names
+// (Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks: each must take a
+// click all round a 24 px square); and opens the folded sidebar's More menu by keyboard, where no
+// focus tip may cover the menu; and reads the list pages' headings, none of which may jump a level
+// (keyboardExtras). Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -816,6 +823,205 @@ async function sortCheck(size) {
   for (const p of pages) await p.close();
 }
 
+/**
+ * Tab presses from a page's title until the focus leaves the page (or `cap`), counted as a keyboard
+ * player gets past it. With `skip`, the link of that name is taken with Enter when Tab reaches it.
+ */
+async function pressesToLeave(p, cap, skip = null) {
+  await p.locator(".pane.shown h1").first().focus();
+  let presses = 0;
+  let skipped = false;
+  for (; presses < cap; presses++) {
+    const at = await p.evaluate(() => {
+      const el = document.activeElement;
+      return { inside: !!el?.closest(".pane.shown"), name: (el?.getAttribute("aria-label") ?? el?.textContent ?? "").trim() };
+    });
+    if (presses > 0 && !at.inside) break;
+    if (skip && !skipped && at.name === skip) {
+      skipped = true;
+      await p.keyboard.press("Enter");
+      await pause(p, 300);
+      continue;
+    }
+    await p.keyboard.press("Tab");
+  }
+  return { presses, left: presses < cap, skipped };
+}
+
+/** The keyboard's counts (page and presses), and what they found. */
+const keyCounts = [];
+const countFindings = [];
+/** Click targets under 24 px with nothing round them that takes the click, and how many were measured. */
+const targetFindings = [];
+let targetsMeasured = 0;
+/** The More menu opened by keyboard: a focus tip drawn over the menu itself. */
+const menuTipFindings = [];
+
+/**
+ * Runs in the page: each drawn control matching `sel` whose click does not reach it all round a
+ * 24 px square centred on it (elementFromPoint at the middle of each side, a hair inside). A hit
+ * counts when it lands on the control, inside it, or on a label that clicks it.
+ */
+function smallTargets(sel) {
+  const bad = new Set();
+  let n = 0;
+  for (const el of document.querySelectorAll(sel)) {
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const cx = r.left + r.width / 2;
+    const cy = r.top + r.height / 2;
+    const takes = (x, y) => {
+      const hit = document.elementFromPoint(x, y);
+      if (!hit) return false;
+      if (hit === el || el.contains(hit)) return true;
+      const label = hit.closest("label");
+      return !!label && (label.control === el || label.contains(el));
+    };
+    // Only one wholly in sight: its 24 px square inside the window and its middle taking the click
+    // (one cut by the window's or the page's edge is measured where it is shown whole).
+    if (cy - 12 < 0 || cy + 12 > innerHeight || cx - 12 < 0 || cx + 12 > innerWidth || !takes(cx, cy)) continue;
+    n++;
+    const named = (x) => (x ? `${x.tagName.toLowerCase()}${[...x.classList].filter((c) => !c.startsWith("svelte-")).map((c) => `.${c}`).join("")}` : "nothing");
+    const sides = { top: [cx, cy - 11.5], bottom: [cx, cy + 11.5], left: [cx - 11.5, cy], right: [cx + 11.5, cy] };
+    const missed = Object.entries(sides).filter(([, [x, y]]) => !takes(x, y)).map(([side, [x, y]]) => `${side} on ${named(document.elementFromPoint(x, y))}`);
+    if (missed.length) bad.add(`${named(el)} ${Math.round(r.width)}×${Math.round(r.height)} at y ${Math.round(r.top)}: ${missed.length} of 4 sides miss (${missed.join(", ")})`);
+  }
+  return { n, bad: [...bad] };
+}
+
+/** A list page's headings in the order a screen reader lists them, where one jumps a level. */
+const headingFindings = [];
+/** Pages whose headings were read. */
+let headingPages = 0;
+/** List pages: the cards' names are h3s, under the page's h1 (and the reward screen's, Current fissure). */
+const HEADING_PAGES = ["Current fissure", "Relics", "Mastery", "Foundry", "Inventory", "Prime parts", "Sets", "Mods", "Arcanes", "Rivens", "Browse market"];
+
+/** Runs in the page: the shown page's headings that are drawn, as their levels, and the first jump. */
+function headingLevels() {
+  const pane = document.querySelector(".pane.shown");
+  if (!pane) return { levels: [], jump: "no page shown" };
+  const levels = [];
+  let jump = null;
+  for (const h of pane.querySelectorAll("h1, h2, h3, h4, h5, h6")) {
+    if (h.closest("[aria-hidden='true']")) continue;
+    if (typeof h.checkVisibility === "function" ? !h.checkVisibility() : !h.getClientRects().length) continue;
+    const n = Number(h.tagName[1]);
+    if (!jump && levels.length && n > levels[levels.length - 1] + 1) jump = `h${levels[levels.length - 1]} then h${n} "${(h.textContent ?? "").trim().slice(0, 40)}"`;
+    levels.push(n);
+  }
+  return { levels, jump };
+}
+
+/** The names of the controls on Orders' first two listings, as a screen reader says them. */
+const orderNames = [];
+const nameFindings = [];
+
+/** Runs in the page: the aria-labels of the controls on Orders' first two listings, row by row. */
+function orderRowNames() {
+  return [...document.querySelectorAll(".pane.shown table.orders tbody tr.order")].slice(0, 2).map((tr) =>
+    [...tr.querySelectorAll("button, input, select, a, [role=switch], [tabindex='0']")].map((el) => el.getAttribute("aria-label") ?? "").filter(Boolean),
+  );
+}
+
+/** Whether the focus tip is drawn over the open More menu. */
+function tipOverMenu() {
+  const menu = document.querySelector(".moremenu");
+  const tip = document.querySelector(".focus-tip");
+  if (!menu) return "the menu isn't open";
+  if (!tip) return null;
+  const a = menu.getBoundingClientRect();
+  const b = tip.getBoundingClientRect();
+  return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom ? `the tip "${(tip.textContent ?? "").slice(0, 40)}" covers the menu` : null;
+}
+
+/**
+ * The keyboard's own counts: Tab presses to get past Inventory as Cards and as Table, and past
+ * Orders (and by its skip link); the click targets the 24 px rule names, measured; the More menu,
+ * opened by keyboard in the folded sidebar, with its focus tip off the menu.
+ */
+async function keyboardExtras(size) {
+  const p = await open(size);
+  // These checks read focus, names, headings and boxes, not pictures: every item picture is the
+  // sweep's own stand-in, so the pages they visit ask the picture cache for nothing.
+  await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
+  const go = async (label) => {
+    await p.locator("button.nav", { hasText: label }).first().click();
+    await pause(p, 2500);
+  };
+  const told = (r) => `${r.presses}${r.left ? "" : "+"}`;
+  await go("Inventory");
+  const cards = await pressesToLeave(p, 2000);
+  await p.locator(".pane.shown [role=radio][aria-label='Table']").first().click();
+  await pause(p, 2500);
+  const table = await pressesToLeave(p, 2000);
+  keyCounts.push(`Inventory as Cards ${told(cards)}`, `Inventory as Table ${told(table)}`);
+  if (!table.left || table.presses > cards.presses + 20) countFindings.push(`Inventory as Table takes ${told(table)} Tab presses to leave, as Cards ${told(cards)}`);
+  await p.locator(".pane.shown [role=radio][aria-label='Cards']").first().click();
+  await pause(p, 1000);
+  await go("Orders");
+  const listings = await p.locator(".pane.shown table.orders tbody tr.order").count();
+  const orders = await pressesToLeave(p, 2000);
+  const skipped = await pressesToLeave(p, 2000, "Skip past the listings");
+  keyCounts.push(`Orders (${listings} listings) ${told(orders)}`, `Orders by its skip link ${skipped.skipped ? told(skipped) : "(no link)"}`);
+  if (!skipped.skipped) countFindings.push('Orders: Tab reaches no "Skip past the listings" link');
+  else if (!skipped.left || skipped.presses > 60) countFindings.push(`Orders by its skip link still takes ${told(skipped)} Tab presses to leave`);
+  // Each listing's controls name its item ("Remove: Arcane Energize"), so two rows' read apart.
+  const rowsNamed = await p.evaluate(orderRowNames);
+  const items = rowsNamed.map((labels, i) => {
+    orderNames.push(`row ${i + 1}: ${labels.join(" | ") || "(none)"}`);
+    const named = new Set(labels.filter((l) => l.includes(": ")).map((l) => l.slice(l.lastIndexOf(": ") + 2)));
+    if (labels.filter((l) => l.includes(": ")).length < 3 || named.size !== 1) nameFindings.push(`Orders row ${i + 1}: its controls don't all name one item (${[...named].join(", ") || "none"})`);
+    return [...named][0];
+  });
+  if (rowsNamed.length < 2) nameFindings.push(`Orders: ${rowsNamed.length} listings drawn, two wanted`);
+  else if (items[0] && items[0] === items[1]) nameFindings.push(`Orders: the first two rows' controls have the same names (${items[0]})`);
+  // The click targets: Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks.
+  const measure = async (view, sel) => {
+    // Only what is in the window is measured: the first match brought into it (Home's ticks are below the fold).
+    await p.locator(sel).first().scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
+    await p.mouse.move(size.w - 5, size.h - 5);
+    await pause(p, 300);
+    const r = await p.evaluate(smallTargets, sel);
+    targetsMeasured += r.n;
+    if (!r.n) targetFindings.push(`${view}: nothing drawn matches ${sel}, not measured`);
+    for (const b of r.bad) targetFindings.push(`${view}: ${b}`);
+  };
+  await measure("Orders", ".pane.shown table.orders .tog");
+  await go("Inventory");
+  await measure("Inventory", ".pane.shown header.head button.more");
+  await go("Sell spares");
+  await measure("Sell spares", ".pane.shown .cat .box");
+  await go("Home");
+  await measure("Home", ".pane.shown button.tick");
+  // Headings on the list pages: none jumps a level (h1 then h3), so a section after the list doesn't
+  // read as part of its last card.
+  for (const label of HEADING_PAGES) {
+    await go(label);
+    const r = await p.evaluate(headingLevels);
+    headingPages++;
+    if (!r.levels.length) headingFindings.push(`${label}: no heading drawn`);
+    else if (r.jump) headingFindings.push(`${label}: ${r.jump} (${r.levels.slice(0, 12).join(" ")}${r.levels.length > 12 ? " …" : ""})`);
+  }
+  // The More menu by keyboard: the sidebar folded (the full one shows no More).
+  await p.locator(".rail button.fold").first().click();
+  await pause(p, 800);
+  const more = p.locator(".rail .foot button.more");
+  if (await more.count()) {
+    await more.focus();
+    await p.keyboard.press("Enter");
+    await pause(p, 400);
+    for (const step of ["Enter", "ArrowDown", "ArrowDown"]) {
+      if (step !== "Enter") {
+        await p.keyboard.press(step);
+        await pause(p, 300);
+      }
+      const bad = await p.evaluate(tipOverMenu);
+      if (bad) menuTipFindings.push(`after ${step}: ${bad}`);
+    }
+    await p.keyboard.press("Escape");
+  } else menuTipFindings.push("no More button in the folded sidebar: not checked");
+  await p.close();
+}
 
 /** Presses one of the sidebar foot's buttons by its name (`data-item`): in the full sidebar it shows
  *  in the foot; folded, it is in More's menu, opened first. */
@@ -998,6 +1204,8 @@ try {
   if (keys) {
     console.log(`sorting Orders, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
     await sortCheck(KEYS_SIZE);
+    console.log(`keyboard counts and click targets, ${KEYS_SIZE.w}×${KEYS_SIZE.h}`);
+    await keyboardExtras(KEYS_SIZE);
   }
   if (out) {
     mkdirSync(out, { recursive: true });
@@ -1029,6 +1237,17 @@ try {
     console.log(`keyboard stops: ${keyStops.join(", ")}`);
     const unique = new Set(keyFindings.map((f) => `${f.element}|${f.reason}`)).size;
     console.log(`${keyFindings.length} keyboard findings (${unique} distinct element and reason)`);
+    console.log(`Tab presses to leave: ${keyCounts.join(", ")}`);
+    for (const f of countFindings) console.log(`PRESSES ${f}`);
+    for (const f of targetFindings) console.log(`TARGET ${f}`);
+    console.log(`${countFindings.length} press-count findings, ${targetFindings.length} click targets under 24 px, ${targetsMeasured} measured`);
+    for (const f of menuTipFindings) console.log(`MENU TIP ${f}`);
+    console.log(`${menuTipFindings.length} focus tips over the More menu`);
+    console.log(`Orders' controls by name: ${orderNames.join("; ")}`);
+    for (const f of nameFindings) console.log(`NAMES ${f}`);
+    console.log(`${nameFindings.length} Orders rows whose controls don't name their item`);
+    for (const f of headingFindings) console.log(`HEADINGS ${f}`);
+    console.log(`${headingFindings.length} list pages whose headings jump a level, of ${headingPages} read`);
   }
   // The help: every part with its "?", every "?" naming a part the list knows.
   const missingSeen = new Set();
@@ -1050,7 +1269,7 @@ try {
   console.log(requestsLine());
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
-  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || nameFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
