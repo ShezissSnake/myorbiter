@@ -394,3 +394,13 @@ test("the last-copy words name Full mode, never Full access, in one sentence", (
   const words = (s: string) => s.replace(/<!--[\s\S]*?-->|\/\*[\s\S]*?\*\/|^\s*\/\/.*$/gm, "");
   for (const [f, s] of [["App", app], ["automation", automation], ["Orders", orders]]) assert.doesNotMatch(words(s), /Full access/, f);
 });
+
+test("Arcanes, Mods and Parts take the one Full-mode-off case, as Inventory does", () => {
+  for (const f of ["Arcanes", "Mods", "Parts"]) {
+    const s = src(`src/lib/tabs/${f}.svelte`);
+    assert.match(s, /const offFull = \$derived\(fullModeOff\(mkt\.fullMode, noInventoryRead\(model\)\)\)/, f);
+    const empties = [...s.matchAll(/empty=(\{emptyText\([^\n]*?, offFull\)\}|"[^"]*")/g)].map((m) => m[1]).filter((e) => /press Sync/.test(e));
+    assert.ok(empties.length, `${f}: an empty text that says press Sync`);
+    for (const e of empties) assert.match(e, /^\{emptyText\("[^"]*press Sync[^"]*", offFull\)\}$/, f);
+  }
+});
