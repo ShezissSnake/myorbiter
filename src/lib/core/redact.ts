@@ -15,7 +15,8 @@
 // - the player's in-game name and any other name MyOrbiter knows (trade partners, people who
 //   whispered), wherever they appear;
 // - this computer's user name, when MyOrbiter knows it (the name of the home folder in a path it
-//   holds or in the report's lines: "user names" at the end), wherever it stands as a word;
+//   holds or in the report's lines: "user names" at the end), wherever it stands as a word in what
+//   the rules above leave;
 // - names in whisper, trade and profile lines, by their shape, for names MyOrbiter doesn't know.
 //
 // It errs on the side of hiding: a report with "[player]" where an item name was is still useful;
@@ -28,73 +29,13 @@ export interface RedactOptions {
   others?: readonly (string | null | undefined)[];
   /** The name of this computer's home folder (the account's user name), as the paths MyOrbiter
    *  holds name it (`homeNames`) or a home folder in the report's own lines does
-   *  (`homeNamesIn`): shown as "[user]", the path rule's mark, wherever it stands as a word, unless
-   *  it is an ordinary word (`ordinaryName`). Held for the making of one report: never saved,
-   *  logged or sent. */
+   *  (`homeNamesIn`): hidden as "[user]", the path rule's mark, wherever it stands as a word in
+   *  the text every other rule has made (`hideUser`), unless it is an ordinary word
+   *  (`ordinaryName`). Held for the making of one report: never saved, logged or sent. */
   user?: readonly (string | null | undefined)[];
 }
 
 const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** This computer's user name while the rules run, and the marks for an in-game name that is also it:
- *  chosen for each text from letters and marks the text doesn't hold, so that what turns them into
- *  "[user]" at the end (`un`) touches nothing the text had.
- *  - `standIn`: the name with its first letter or digit written as one plain letter (`a`) and the
- *    rest as another (`b`), its spaces and marks as they are ("Orren O'Hal" as "abbbb b'bbb"), so
- *    that each rule reads it as it reads the name and takes with it what it takes with the name. It
- *    names no one, is no folder the path rule keeps and no word the rules for names pass over.
- *  - `self`, `other`: an in-game name (the player's, or another player's) that is also the user
- *    name, as a mark every rule reads as it reads "[you]" or "[player]" (as long, in brackets, and
- *    the second runs on in a path as "[player]" does).
- *  - `un`: the marks, the stand-ins left at the end and what is left of one a rule took part of, as
- *    "[user]" (an encoded slash, colon or space before one is no letter, as for the name). */
-type StandIn = { standIn: (m: string) => string; whole: RegExp; self: string; other: string; cut: RegExp; un: (s: string) => string };
-const standInWith = (a: string, b: string, self: string, other: string): StandIn => {
-  const bare = "(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))";
-  const run = new RegExp(`\\[user\\](?:(?:\\s|%20)+${b}+)+(?![\\p{L}\\p{N}_])`, "gu");
-  const one = new RegExp(`${bare}${a}${b}*(?:(?:%20|[\\s'.-])+${b}+)*(?![\\p{L}\\p{N}_])`, "gu");
-  const rest = new RegExp(`${bare}${b}{2,}(?![\\p{L}\\p{N}_])`, "gu");
-  return {
-    standIn: (m) => m.replace(/%20|[\p{L}\p{M}\p{N}_]/gu, (c) => (c === "%20" ? c : b)).replace(b, a),
-    whole: new RegExp(`^${a}${b}*(?:(?:%20|[^\\p{L}\\p{N}_])+${b}+)*$`, "u"),
-    self,
-    other,
-    cut: new RegExp(`^\\[(user|player|${other.slice(1, -1)})\\]\\s`),
-    un: (s) => s.replaceAll(self, "[user]").replaceAll(other, "[user]").replace(run, "[user]").replace(one, "[user]").replace(rest, "[user]"),
-  };
-};
-/** Letters for the stand-in: none starts a word the rules for names pass over (`STOP`), and two of
- *  them spell no folder the path rule keeps, no file's ending and no placeholder. */
-const STAND_IN_LETTERS = [..."QZXJKVUBGHCqzxjkvubghc"];
-const MARK_CORES = [..."abcdefghijklmnopqrstuvwxyz"].flatMap((c) => [`us${c}`]);
-/** Where the letters `a` and `b` alone make a word of `words` (split as `un` splits: at anything
- *  not a letter, digit or `_`, and at an encoded slash, colon or space). */
-const onlyOf = (a: string, b: string, words: Iterable<string>, flags = "") => {
-  const re = new RegExp(`^[${a}${b}]+$`, flags);
-  for (const w of words) if (re.test(w)) return true;
-  return false;
-};
-/** No user name known: nothing stands in, and nothing is turned into "[user]". */
-const NO_STAND_IN: StandIn = { standIn: (m) => m, whole: /(?!)/, self: "\0", other: "\0", cut: /^\[(user|player)\]\s/, un: (s) => s };
-/** The stand-in of the text being redacted (`knownAndRules` sets it; every step after reads it). */
-let SI: StandIn = NO_STAND_IN;
-/** The stand-in for `text`: letters the text doesn't hold, else letters that alone make none of its
- *  words; marks the text doesn't hold. */
-function standInFor(text: string): StandIn {
-  // The encoded marks go first, so that `]%2FQ` gives the word `Q` as `un` reads it, not `2FQ`.
-  const words = text.replace(/%(?:2[Ff0]|5[Cc]|3[Aa])/g, " ").split(/[^\p{L}\p{N}_]+/u).filter(Boolean);
-  const pairs = (PAIRS ??= standInPairs());
-  const [a, b] = pairs.find(([a, b]) => !text.includes(a) && !text.includes(b)) ?? pairs.find(([a, b]) => !onlyOf(a, b, words)) ?? pairs[0];
-  const core = MARK_CORES.find((c) => !text.includes(`[${c}]`) && !text.includes(`[ply${c}]`)) ?? MARK_CORES[0];
-  return standInWith(a, b, `[${core}]`, `[ply${core}]`);
-}
-let PAIRS: (readonly [string, string])[] | undefined;
-function standInPairs() {
-  const fixed = [...KEEP_FOLDERS, ...STOP.split("|"), "user", "player", "players", "you", "folder", "drive", "host", "redacted", "webhook", "email", "ip", "id", "chat", "hidden"];
-  const ends = [1, 2, 3, 4, 5, 6].map((n) => "b".repeat(n));
-  return STAND_IN_LETTERS.flatMap((a) => STAND_IN_LETTERS.filter((b) => b.toLowerCase() !== a.toLowerCase()).map((b) => [a, b] as const)).filter(
-    ([a, b]) => !onlyOf(a, b, fixed, "i") && !ends.some((e) => FILE_EXT.test(`x.${e.replaceAll("b", b)}`) || FILE_EXT.test(`x.${a}${e.slice(1).replaceAll("b", b)}`)),
-  );
-}
 /** A Warframe or warframe.market name: letters, digits, `_`, `-` and `.`, up to 24 (a platform mark may follow). */
 const NAME = "[A-Za-z0-9][A-Za-z0-9_.-]{1,23}";
 
@@ -102,9 +43,7 @@ const NAME = "[A-Za-z0-9][A-Za-z0-9_.-]{1,23}";
 const SECRET_KEY = "(?:(?:access|refresh|id|auth|csrf|xsrf|session|bearer)?[_-]?token|secret|client[_-]?secret|passw(?:or)?d|pwd|cookie|session(?:[_-]?id)?|sid|nonce|jwt|auth(?:orization)?|api[_-]?key|signature|sig|credentials?|account[_-]?id|user[_-]?id|player[_-]?id|steam[_-]?id|ingame[_-]?name|e-?mail|ip(?:[_-]?addr(?:ess)?)?|webhook(?:[_-]?url)?)";
 const KEY_VALUE = new RegExp(`(["']?\\b${SECRET_KEY}["']?\\s*[=:]\\s*)(?!\\[redacted)("[^"]*"|'[^']*'|[^\\s,;&}\\]]+)`, "gi");
 
-type Rule = [RegExp, string | ((...m: string[]) => string)];
-/** Sign-ins, secrets, webhooks, e-mail and IP addresses. */
-const SECRETS: Rule[] = [
+const RULES: [RegExp, string | ((...m: string[]) => string)][] = [
   // Headers that carry a sign-in: everything after them on the line.
   [/\b((?:set-)?cookie|authorization|proxy-authorization|x-api-key|x-auth-token)\s*:\s*[^\n]+/gi, (_m, h) => `${h}: [redacted]`],
   // JWTs anywhere (three base64url runs, the first starting eyJ), and one cut short after its
@@ -122,9 +61,7 @@ const SECRETS: Rule[] = [
   [/(?<![\d.])(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(?![\d.])/g, "[ip]"],
   // IPv6: at least three groups with colons, or a "::" form.
   [/(?<![\w:])(?:[0-9a-f]{1,4}:){3,7}[0-9a-f]{1,4}(?![\w:])|(?<![\w:])(?:[0-9a-f]{1,4}:){1,6}:(?:[0-9a-f]{1,4}(?::[0-9a-f]{1,4}){0,5})?(?![\w:])/gi, "[ip]"],
-];
-/** Home folders: the user name in the path. */
-const HOMES: Rule[] = [
+  // Home folders: the user name in the path.
   [/(\/(?:home|Users|var\/home|run\/media|media)\/)(?!\[user\])[^/\s"':]+/g, (_m, p) => `${p}[user]`],
   // The same under Wine's Z: drive, which maps / (Z:\home\<name>\…).
   [/(\b[A-Za-z]:\\+home\\+)(?!\[user\])[^\\\s"':]+/gi, (_m, p) => `${p}[user]`],
@@ -132,9 +69,7 @@ const HOMES: Rule[] = [
   [/(drive_c[\\/]+users[\\/]+)(?!steamuser\b|Public\b|\[user\])[^\\/\s"':]+/gi, (_m, p) => `${p}[user]`],
   // A Windows user name may have spaces in it: up to the next separator.
   [/(\b[A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+)(?!\[user\])[^\\/\n"':]+/gi, (_m, p) => `${p}[user]`],
-];
-/** Ids: 16+ hex digits (a 7–12 digit commit hash stays), and 24+ letters and digits mixed. */
-const IDS: Rule[] = [
+  // Ids: 16+ hex digits (a 7–12 digit commit hash stays), and 24+ letters and digits mixed.
   [/\b[0-9a-f]{16,}\b/gi, "[id]"],
   [/\b(?=[A-Za-z0-9_-]*\d)(?=[A-Za-z0-9_-]*[A-Za-z])[A-Za-z0-9_-]{24,}\b/g, (m) => (/^[a-z]+(_[a-z]+)+$/.test(m) ? m : "[id]")],
 ];
@@ -164,57 +99,26 @@ const NAME_LINES: [RegExp, (...m: string[]) => string][] = [
   // "partner": "Name", "buyer": Name, "seller=Name", "from_player": …
   [new RegExp(`(["']?\\b(?:partner|buyer|seller|player|ingame_?name|user(?:name)?)["']?\\s*[=:]\\s*["']?)(?!\\[)${NAME}`, "gi"), (_m, lead) => `${lead}[player]`],
 ];
-// Where one of them takes the user name's stand-in alone ("buyer: Name"), it reads "[user]", as the
-// name does everywhere else; with more of a name glued to it ("buyer: Name-Alt"), the rule's own
-// "[player]", as when the user name isn't known.
-for (const rule of NAME_LINES) {
-  const to = rule[1];
-  rule[1] = (...m) => {
-    const put = to(...m);
-    const lead = typeof m[1] === "string" ? m[1].length : 0;
-    return put.slice(lead) === "[player]" && SI.whole.test(m[0].slice(lead)) ? `${put.slice(0, lead)}[user]` : put;
-  };
-}
 
-/** Known names, then the secrets, ids, this computer's user name and home folders: the steps before
- *  the names by their shape. */
-function knownAndRules(text: string, opts: RedactOptions): { s: string; stood: boolean } {
+/** Known names, then RULES: the steps before the names by their shape. */
+function knownAndRules(text: string, opts: RedactOptions): string {
   let s = text;
-  const user = userPatterns(opts.user);
-  SI = user.patterns.length > 0 ? standInFor(text) : NO_STAND_IN;
   // Known names first, longest first so "Name_2" goes before "Name". Case-insensitive, whole words.
-  // One that is also this computer's user name reads as the path rule's "[user]" (through its mark,
-  // `SI.self` or `SI.other`, which the later rules read as they read "[you]" or "[player]").
   const named = (list: readonly (string | null | undefined)[] | undefined, as: string) =>
-    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, user.keys.has(n.toLowerCase()) ? (as === "[you]" ? SI.self : SI.other) : as] as const);
-  // `wrote` counts where the name went in as a mark or a stand-in.
-  let wrote = 0;
+    [...new Set((list ?? []).map((n) => (typeof n === "string" ? n.trim() : "")).filter((n) => n.length >= 2))].sort((a, b) => b.length - a.length).map((n) => [n, as] as const);
   for (const [name, as] of [...named(opts.self, "[you]"), ...named(opts.others, "[player]")]) {
-    s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), () => {
-      if (as === SI.self || as === SI.other) wrote++;
-      return as;
-    });
+    s = s.replace(new RegExp(`(?<![A-Za-z0-9_.-])${escapeRe(name)}(?![A-Za-z0-9_-])`, "gi"), as);
   }
-  // This computer's user name after the secrets and ids, so it can't break one apart and leave the
-  // rest of it ("password=name-…"), and before the home folders. It is written as its stand-in
-  // (`SI.standIn`), so every rule after this reads it as it reads the name itself and takes with it
-  // what it takes with the name ("buyer: Name-Alt", "/home/Name)…", "~Name/…"): knowing the name
-  // hides nothing less. The stand-in becomes "[user]" at the end (`SI.un`).
-  for (const [re, to] of [...SECRETS, ...IDS]) s = s.replace(re, to as never);
-  for (const re of user.patterns) s = s.replace(re, (m) => (wrote++, SI.standIn(m)));
-  // A text the name isn't in goes on as if no name were known: nothing of it is read as the
-  // stand-in or turned into "[user]", whatever letters it holds.
-  if (wrote === 0) SI = NO_STAND_IN;
-  for (const [re, to] of HOMES) s = s.replace(re, to as never);
-  return { s, stood: wrote > 0 };
+  for (const [re, to] of RULES) s = s.replace(re, to as never);
+  return s;
 }
 
-/** Known names, the rules before them (`knownAndRules`) and the rules for names and chats, each a plain replace and nothing else:
+/** Known names, RULES and the rules for names and chats, each a plain replace and nothing else:
  *  what the names step hides when no path is read. The tests compare `redact` with it. */
 export function hideNames(text: string, opts: RedactOptions = {}): string {
-  let { s, stood } = knownAndRules(text, opts);
+  let s = knownAndRules(text, opts);
   for (const [re, to] of NAME_LINES) s = s.replace(re, to as never);
-  return stood ? SI.un(s) : s;
+  return hideUser(s, opts.user);
 }
 
 /** A placeholder a rule for names wrote over the text from `at` to `end` (in the text the rules
@@ -298,7 +202,7 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   // them; only then is a placeholder whose text ran into a path's root given back that root
   // (rootTail), so no rule reads a text hideNames' rules don't, and every word a placeholder was
   // written over stays under it but a root's own.
-  const { s, stood } = knownAndRules(text, opts);
+  const s = knownAndRules(text, opts);
   const roots = [...s.matchAll(PATH_START)].map((m) => [m.index, m.index + m[0].length] as const);
   const { text: named, from, hidden } = hideNamesMarked(s);
   const write = (tilde: boolean) => {
@@ -318,8 +222,8 @@ export function redact(text: string, opts: RedactOptions = {}): string {
   const first = write(true);
   // A `~name` given back whose path wasn't cleaned (nothing after its slash, or read inside the
   // path before it) would show the user name: then every such root stays under its placeholder.
-  const out = first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out)) ? write(false).out : first.out;
-  return stood ? SI.un(out) : out;
+  if (first.users.some((u) => new RegExp(`~${escapeRe(u)}(?![A-Za-z0-9._-])`).test(first.out))) return hideUser(write(false).out, opts.user);
+  return hideUser(first.out, opts.user);
 }
 
 // ---------------------------------------------------------------- paths
@@ -440,7 +344,7 @@ const PATH_AHEAD = /^(?:[A-Za-z]:[\\/%]|[~$%\\/]|\.{1,2}[\\/]|[A-Za-z][A-Za-z0-9
 /** Whether a last name (no spaces) would be hidden: then it may run on over spaces. A `[user]` or
  *  `[player]` an early rule left runs on too: those rules stop at a space ("/home/[user] Smith",
  *  "/profile/[player] Smith"). */
-const hiddenName = (t: string) => t === "[user]" || t === "[player]" || t === SI.other || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
+const hiddenName = (t: string) => t === "[user]" || t === "[player]" || !(PLACEHOLDER.test(t) || /^\d+$/.test(t) || KEEP_FOLDERS.has(t.toLowerCase()) || FILE_EXT.test(t) || t === "." || t === "..");
 
 /** Where the path whose names start at `from` ends. `quote`: the quote it is in, if any.
  *  `spacedFirst`: whether its first name may have spaces in it. */
@@ -498,13 +402,11 @@ function cleanFolder(name: string, before: string[], kind: PathKind, last: boole
   const low = name.toLowerCase();
   const prev = (before[before.length - 1] ?? "").toLowerCase();
   const prev2 = (before[before.length - 2] ?? "").toLowerCase();
-  // This computer's user name (its stand-in), as a folder or a computer's name of its own.
-  if (SI.whole.test(name)) return "[user]";
   if (kind === "share" && before.length === 0) return "[host]";
   if (PLACEHOLDER.test(name) || name === "." || name === "..") return name;
   // A user's or player's name with a space in it, which an early rule cut at the space: all of it
   // is the name.
-  const cut = SI.cut.exec(name);
+  const cut = /^\[(user|player)\]\s/.exec(name);
   if (cut) return `[${cut[1]}]`;
   // The user name: under /home, /Users, C:\Users, and Wine's drive_c\users (where Proton's is steamuser).
   if (prev === "home" || prev === "users" || prev === "documents and settings") return low === "public" || low === "default" || low === "steamuser" ? name : "[user]";
@@ -566,20 +468,29 @@ function cleanPaths(s: string): string {
 // of the home folder in the paths the page already holds (`homeNames`: the game log's file and
 // TennoScope's folder, as saved in Settings or as found) and in a home folder written in the
 // report's own lines (`homeNamesIn`). It is the folder's name, which is the account's user name on
-// a usual setup. Known, it is hidden as "[user]" wherever it stands as a word, in any case, also
-// outside paths and in the paths the path rule above leaves as written; never out of a longer word
-// ("alice" stays in "malice" and "alice_2"; "alice-pc" is two words). A name with spaces is hidden
-// whole when none of its words is ordinary, and each of its words on its own too, but an ordinary one. Unknown (no such path held, none in the lines), only the path rule hides it.
+// a usual setup. Unknown (no such path held, none in the lines), only the path rule hides it.
+//
+// Known, it is hidden last (`hideUser`), in the text the rules above have made exactly as they make
+// it with no user name known: nothing runs before them or inside them that changes what they read,
+// so whatever they hide stays hidden whatever the name is. In what they leave, the name is hidden as
+// "[user]" wherever it stands as a word, in any case, also outside paths and in the paths the path
+// rule leaves as written; never out of a longer word ("alice" stays in "malice" and "alice_2";
+// "alice-pc" is two words). A name with spaces is hidden whole, with any spaces or `%20` between its
+// words, and each of its words on its own but an ordinary one. Where a rule above has hidden part
+// of the name and left the rest glued to its mark ("[player]én" from "Orrén", "[user]'Brien" from
+// "O'Brien", "[you].Alt" from "Orren.Alt", "ex'[player] whispered you" from "ex'vnb8j"), the rest
+// goes too.
 //
 // A name that is also a word a report needs is not hidden as a word, so a report keeps its words
 // ("deck", the Steam Deck's account, in "Steam Deck"): `ordinaryName`. It stays hidden where the path
 // rule hides a user name (`/home/deck/…` becomes `/home/[user]/…`).
 
 /** Words a user name can be that a report needs as words: the names systems and devices give an
- *  account (deck, admin, guest, pi…), the marks redaction writes, the words of the details' own
- *  lines (the system, the architecture, the channel, TennoScope's state), and the small words of a
- *  sentence a name of several words can hold (the, new, my…; the names step's `STOP` words too).
- *  The folder names the path rule keeps (`KEEP_FOLDERS`: home, user, steam, games…) count too. */
+ *  account (deck, admin, guest, pi…), the words of the marks redaction writes, the words of the
+ *  details' own lines (the system, the architecture, the channel, TennoScope's state), and the small
+ *  words of a sentence a name of several words can hold (the, new, my…; the names step's `STOP`
+ *  words too). The folder names the path rule keeps (`KEEP_FOLDERS`: home, user, steam, games…)
+ *  count too. */
 const ORDINARY_WORDS = new Set([
   "deck", "admin", "administrator", "guest", "owner", "pc", "player", "players", "gamer", "gaming", "pi", "test", "dev", "live", "main", "desktop", "laptop", "computer", "system", "account", "name",
   "ubuntu", "fedora", "debian", "arch", "steamos", "bazzite", "nobara", "mint",
@@ -590,56 +501,80 @@ const ORDINARY_WORDS = new Set([
   "new", "old", "big", "little", "our", "his", "her", "their", "one", "two", "three", "mr", "mrs", "ms", "miss", "dr", "jr", "sr", "family", "office", "work", "school", "kids", "other", "second", "first", "backup", "temp", "local",
 ]);
 
-/** Words the rules after the user name read as an anchor (a rule's lead, an address's path, a
- *  share's scheme or root): a user name equal to one would take the anchor away with its stand-in,
- *  and with it what the rule hides. */
-const RULE_WORDS = new Set([
-  "sitechat", "people", "whisper", "whispered", "whispering", "message", "messaged", "chatted", "sold", "gave", "give", "giving", "traded", "trading", "bought", "invite", "invited", "rep", "tell",
-  "profile", "review", "reviews", "chats", "partner", "buyer", "seller", "username",
-  "smb", "file", "unc",
-]);
-
-/** A price ("20p", "300plat"), which the rule for a seller reads before "from". */
-const PRICE_WORD = /^\d+(?:p|plat|platinum)$/i;
-/** A word a rule reads: one of `RULE_WORDS`, or a price. */
-const ruleWord = (w: string) => RULE_WORDS.has(w.toLowerCase()) || PRICE_WORD.test(w);
-
 /** Whether a user name is an ordinary word, and so hidden only where the path rule hides one:
- *  fewer than 3 characters, no letter in it (a number), one of `ORDINARY_WORDS` or `KEEP_FOLDERS`,
- *  or a word a rule reads (`RULE_WORDS`, a price). A name of several words is ordinary when every
- *  word of it is. */
+ *  fewer than 3 characters, no letter in it (a number), or one of `ORDINARY_WORDS` or
+ *  `KEEP_FOLDERS`. A name of several words is ordinary when every word of it is. */
 export function ordinaryName(name: string): boolean {
   const words = name.trim().split(/\s+/).filter(Boolean);
-  return !words.length || words.every((w) => w.length < 3 || !/\p{L}/u.test(w) || ORDINARY_WORDS.has(w.toLowerCase()) || KEEP_FOLDERS.has(w.toLowerCase()) || ruleWord(w));
+  return !words.length || words.every((w) => w.length < 3 || !/\p{L}/u.test(w) || ORDINARY_WORDS.has(w.toLowerCase()) || KEEP_FOLDERS.has(w.toLowerCase()));
 }
 
-/** A user name as a whole word, in any case: not inside a longer word (letters and digits of any
- *  script, and `_`, on either side; a hyphen or a dot joins two words, so `Name-PC` and `Name.local`
- *  hide it, and so does `@`: `name@host`, `@name`; an e-mail address went whole before this runs).
- *  The rules after it read it as a name (its stand-in), so another player's name by its shape that
- *  holds it ("buyer: Name-Alt") goes whole as "[player]", and a `~name/` path loses its folders.
- *  An encoded slash, colon or space before it (`%2F`, `%5C`, `%3A`, `%20`) is no letter. Its words
- *  may be apart by any spaces or `%20`. A name that begins with two hex digits is not read right
- *  after a bare `%`, where they are an encoded mark's (`2Fmnt` in `%2Fmnt%2F…` is the encoded `/mnt`
- *  the path rule reads, not the name). */
-const userPattern = (words: string[]) =>
-  new RegExp(`${/^[0-9A-Fa-f]{2}/.test(words[0]) ? "(?<!%)" : ""}(?<![\\p{L}\\p{N}_](?<!%(?:2[Ff0]|5[Cc]|3[Aa])))${words.map(escapeRe).join("(?:\\s|%20)+")}(?![\\p{L}\\p{N}_])`, "giu");
+/** Where a word of the user name may start: after no letter or digit of any script and no `_` (a
+ *  hyphen, a dot, `@` or any mark is a gap: `Name-PC`, `Name.local`, `name@host`, `@name`), or right
+ *  after an encoded character (`%2F`, `%20`, any `%` and two hex digits, encoded again as
+ *  `%252F`) or a written-out escape (`\n`, `\r`, `\t`, or `\u` and four hex digits). */
+const USER_GAP = "(?<![\\p{L}\\p{N}_](?<!%(?:25)*[0-9A-Fa-f]{2}|\\\\[nrt]|\\\\u[0-9A-Fa-f]{4}))";
+/** The marks the rules above write over what they hide (every word of them is ordinary). */
+export const MARKS = ["[you]", "[player]", "[players]", "[user]", "[folder]", "[drive]", "[host]", "[id]", "[ip]", "[email]", "[redacted]", "[redacted webhook]", "[chat hidden]"];
+const MARK = `(?:${MARKS.map(escapeRe).join("|")})`;
 
-/** The patterns that hide the user names in `list`, longest first: each name that isn't ordinary,
- *  whole (but not one of several words that holds an ordinary word: "to", "you", "buyer" may be a
- *  rule's anchor, and the whole name would take it away), and each word of a name of several words
- *  that isn't ordinary on its own; and those names and words, in lower case. */
-function userPatterns(list: readonly (string | null | undefined)[] | undefined): { patterns: RegExp[]; keys: Set<string> } {
+/** The names in `list` to hide, longest first: each name that isn't ordinary, whole, and each word
+ *  of a name of several words that isn't ordinary on its own, as their words. */
+function userWords(list: readonly (string | null | undefined)[] | undefined): string[][] {
   const seen = new Map<string, string[]>();
   for (const n of list ?? []) {
     if (typeof n !== "string") continue;
     const words = n.trim().split(/\s+/).filter(Boolean);
     for (const w of words.length > 1 ? [words, ...words.map((x) => [x])] : [words]) {
       const key = w.join(" ").toLowerCase();
-      if (w.length && !ordinaryName(key) && !(w.length > 1 && w.some((x) => ordinaryName(x))) && !seen.has(key)) seen.set(key, w);
+      if (w.length && !ordinaryName(key) && !seen.has(key)) seen.set(key, w);
     }
   }
-  return { patterns: [...seen.entries()].sort((a, b) => b[0].length - a[0].length).map(([, w]) => userPattern(w)), keys: new Set(seen.keys()) };
+  return [...seen.entries()].sort((a, b) => b[0].length - a[0].length).map(([, w]) => w);
+}
+
+/** A word as a pattern in any case: as written, and in lower and upper case too, for the letters
+ *  whose other case is longer or shorter (`İ`, `ß`), which a case-blind match doesn't fold. */
+const anyCase = (w: string) => `(?:${[...new Set([w, w.toLowerCase(), w.toUpperCase()])].sort((a, b) => b.length - a.length).map(escapeRe).join("|")})`;
+
+/** What a rule above can leave of a word of the user name after hiding part of it. `tails`: the
+ *  rest from a character no rule for names and no known name takes on (anything but an ASCII
+ *  letter, a digit or `_`: an accented letter, `'`, `.`, `-`), or from the 25th character on (a name
+ *  by its shape is 24 at most). `heads`: the front up to such a character, where a rule took the
+ *  rest from after it ("Name whispered you" takes `NVX` of `uGpöNVX`). Each with a letter or digit
+ *  in it. */
+function userPieces(names: string[][]): { heads: string[]; tails: string[] } {
+  const heads = new Set<string>();
+  const tails = new Set<string>();
+  for (const w of names.flat()) {
+    const chars = [...w];
+    chars.forEach((c, k) => {
+      if (k === 0) return;
+      const rest = chars.slice(k).join("");
+      const front = chars.slice(0, k).join("");
+      if ((k === 24 || !/[A-Za-z0-9_]/.test(c)) && /[\p{L}\p{N}]/u.test(rest)) tails.add(rest);
+      if (!/[A-Za-z0-9_]/.test(chars[k - 1]) && /[\p{L}\p{N}]/u.test(front)) heads.add(front);
+    });
+  }
+  const longest = (xs: Set<string>) => [...xs].sort((a, b) => b.length - a.length).map(anyCase);
+  return { heads: longest(heads), tails: longest(tails) };
+}
+
+/** This computer's user name, hidden in `s`, a text the rules above have already made: each name
+ *  and word of `userWords` as a whole word, in any case, its words apart by any spaces or `%20`, as
+ *  "[user]" (one "[user]" for one right after a "[user]" a rule wrote or this wrote: the path rule's
+ *  "/home/[user] Smith" reads "/home/[user]"); then what a rule left of one glued to its mark
+ *  (`userPieces`) goes, the mark staying. It only writes "[user]" over the text or takes text away,
+ *  so it never shows what the rules hid. */
+function hideUser(s: string, list: RedactOptions["user"]): string {
+  const names = userWords(list);
+  if (!names.length) return s;
+  const alts = names.map((w) => w.map(anyCase).join("(?:\\s|%20)+")).join("|");
+  let out = s.replace(new RegExp(`(?:\\[user\\](?:\\s|%20)+)?${USER_GAP}(?:${alts})(?![\\p{L}\\p{N}_])`, "giu"), "[user]");
+  const { heads, tails } = userPieces(names);
+  if (tails.length) out = out.replace(new RegExp(`(?<=${MARK})(?:${tails.join("|")})(?![\\p{L}\\p{N}_])`, "giu"), "");
+  if (heads.length) out = out.replace(new RegExp(`${USER_GAP}(?:${heads.join("|")})(?=${MARK})`, "giu"), "");
+  return out;
 }
 
 /** A home folder's name that is no one's: Proton's, Windows' shared ones, a placeholder, a variable. */
@@ -694,12 +629,13 @@ const LINE_HOMES = [
 
 /** The home folders written in a report's own lines (`LINE_HOMES`, and a `~name/`): their names. A
  *  name with spaces in it counts whole only when a slash follows it (`C:\Users\Alice Smith\x`);
- *  otherwise its first word does, as the words after it may be the sentence's. A warframe.market
- *  chat's words, a stranger's, are not read. */
+ *  otherwise its first word does, as the words after it may be the sentence's. A name with an
+ *  apostrophe in it (`/home/O'Brien/x`) counts both whole and up to the apostrophe, which may be a
+ *  closing quote. A warframe.market chat's words, a stranger's, are not read. */
 export function homeNamesIn(lines: readonly string[]): string[] {
   const out: string[] = [];
   const add = (n: string) => {
-    const t = n.trim().replace(/[.,;!)]+$/, "");
+    const t = n.trim().replace(/[.,;!)']+$/, "");
     if (t && !notAUser(t) && !out.includes(t)) out.push(t);
   };
   for (const raw of lines) {
@@ -707,10 +643,12 @@ export function homeNamesIn(lines: readonly string[]): string[] {
     for (const re of LINE_HOMES) {
       for (const m of line.matchAll(re)) {
         const at = m.index + m[0].length;
-        const run = /^[^\\/\n"':<>|*?]+/.exec(line.slice(at))?.[0] ?? "";
-        const slash = /[\\/]/.test(line[at + run.length] ?? "");
-        if (slash && run === run.trim() && run.split(/\s+/).length <= 4) add(run);
-        else add(run.split(/\s/)[0]);
+        for (const stop of [/^[^\\/\n"':<>|*?]+/, /^[^\\/\n":<>|*?]+/]) {
+          const run = stop.exec(line.slice(at))?.[0] ?? "";
+          const slash = /[\\/]/.test(line[at + run.length] ?? "");
+          if (slash && run === run.trim() && run.split(/\s+/).length <= 4) add(run);
+          else add(run.split(/\s/)[0]);
+        }
       }
     }
     for (const m of line.matchAll(/(?<=^|[\s"'(=[,;<>:`{|])~([A-Za-z][A-Za-z0-9._-]*)[\\/](?=[^\s\\/])/g)) add(m[1]);

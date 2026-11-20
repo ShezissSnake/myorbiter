@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ordinaryName, redact } from "../src/lib/core/redact";
+import { MARKS, ordinaryName, redact } from "../src/lib/core/redact";
 import { cleanBlock, cleanLine, HIDDEN_CHARS, stripHidden } from "../src/lib/core/untrusted";
 import { buildReport, issueText, reportMarkdown, type ReportDetails } from "../src/lib/core/bugReport";
 import { LINK_SITES, openable } from "../src/lib/core/links";
@@ -23,6 +23,20 @@ const randomName = (r: Rng) => {
   return a[r.int(0, a.length - 1)] + Array.from({ length: r.int(3, 15) }, () => b[r.int(0, b.length - 1)]).join("") + a[r.int(0, 25)];
 };
 const casing = (r: Rng, s: string) => r.pick([s, s.toLowerCase(), s.toUpperCase()]);
+/** A user name the names step's `NAME` doesn't take where it stands, or takes only part of: one
+ *  that begins with a digit, with a non-ASCII letter, or with a small word and a mark, or has a
+ *  non-ASCII letter or an apostrophe inside. */
+const oddName = (r: Rng) => {
+  const base = randomName(r).replace(/[.]/g, "x");
+  const other = r.pick(["Ø", "É", "é", "ö", "ñ", "Ł", "Ж", "鈴", "ß", "İ"]);
+  return r.pick([
+    `${r.int(1, 9999)}${base}`,
+    `${other}${base}`,
+    `${r.pick(["the", "your", "my", "a", "it", "all", "free", "now", "trade", "sale"])}${r.pick(["-", ".", "'"])}${base}`,
+    `${base.slice(0, 3)}${other}${base.slice(3)}`,
+    `${base.slice(0, 2)}'${base.slice(2)}`,
+  ]);
+};
 const hex = (r: Rng, n: number) => Array.from({ length: n }, () => "0123456789abcdef"[r.int(0, 15)]).join("");
 
 /** Secrets of every kind, each with the text that must not survive. */
@@ -123,7 +137,8 @@ test("bug reports: nothing private survives the report or the text to paste, and
 
 test("bug reports: this computer's user name, held or seen in a home folder, survives as no word, in any shape or case", () => {
   forAll("user", (r, seed) => {
-    const words = r.bool(0.4) ? [randomName(r), randomName(r)] : [randomName(r)];
+    const first = r.bool(0.3) ? oddName(r) : randomName(r);
+    const words = r.bool(0.4) ? [first, randomName(r)] : [first];
     const user = words.join(" ");
     if (words.some((w) => ordinaryName(w))) return;
     const one = !user.includes(" ");
@@ -189,14 +204,29 @@ test("redact: knowing this computer's user name never lets out what was hidden w
   }, 1500);
 });
 
+/** Lines that read two names under one lead: the first is where the user name may stand. */
+const SECOND_NAME = [
+  (a: string, b: string) => `sold Ash Prime Set to ${a} for ${b}`,
+  (a: string, b: string) => `traded with ${a} for ${b}`,
+  (a: string, b: string) => `whispering with ${a} for ${b}`,
+  (a: string, b: string) => `gave Ash Prime Set to ${a} with ${b}`,
+  (a: string, b: string) => `bought Ash Prime Set from ${a} with ${b}`,
+  (a: string, b: string) => `chatted with ${a} for ${b}`,
+  (a: string, b: string) => `3 people whispered you: ${a} — ${b}, Tamsel`,
+  (a: string, b: string) => `3 people whispered you: ${a}, ${b}, Tamsel`,
+];
+
 /** Lines each rule reads by an anchor word (a lead, a scheme, a share's or a home's root, a method),
- *  with random names, hosts and folders, and the secrets and shapes above. */
-function anchored(r: Rng): string {
-  const P = () => casing(r, randomName(r).replace(/[.]/g, "x"));
-  const F = () => randomName(r).replace(/[.]/g, "x");
+ *  with random names, hosts and folders, and the secrets and shapes above. With `user`, the user
+ *  name stands in some of the name, host and folder slots, and first in a line that reads a second
+ *  name under the same lead. */
+function anchored(r: Rng, user: string | null = null): string {
+  const P = () => (user && r.bool(0.3) ? casing(r, user) : casing(r, randomName(r).replace(/[.]/g, "x")));
+  const F = () => (user && r.bool(0.15) ? user : randomName(r).replace(/[.]/g, "x"));
   const self = randomName(r);
   const other = randomName(r);
   const lines = [
+    ...SECOND_NAME.map((l) => l(P(), P())),
     `buyer: ${P()}`, `"seller": "${P()}"`, `partner=${P()}`, `username: ${P()}`, `ingame_name: ${P()}`, `player: ${P()}`,
     `sold Ash Prime Set to ${P()}`, `bought Ash Prime Set from ${P()}`, `traded with ${P()}`, `gave Ash Prime Set to ${P()}`, `trading Ash Prime Set with ${P()}`, `invited by ${P()}`, `whispering with ${P()}`, `chatted with ${P()}`, `+rep to ${P()}`,
     `${P()} whispered you`, `${P()} messaged you`, `3 people whispered you: ${P()}, ${P()}, ${P()}`, `Ash Prime Set: 20p from ${P()}`, `Couldnt give ${P()} +rep`,
@@ -207,19 +237,24 @@ function anchored(r: Rng): string {
     `/run/media/${F()}/${F()}/x`, `/var/home/${F()}/${F()}/x`, `/home/${F()}/${F()}/x`, `/Users/${F()}/${F()}`, `/media/${F()}/${F()}/x`, `C:\\Documents and Settings\\${F()}\\${F()}\\x`, `C:\\Users\\${F()}\\${F()}\\x`, `Z:\\home\\${F()}\\${F()}`, `drive_c/users/${F()}/${F()}/x`,
     `GET /api/${F()}/x`, `PATCH https://api.warframe.market/v2/${F()}`, `POST /v1/${F()}/x`, `D:\\Games\\${F()}\\x`, `~/${F()}/x`, `~${F()}/${F()}/x`, `$HOME/${F()}/x`, `\${HOME}/${F()}/x`, `%APPDATA%\\${F()}\\x`, `%2Fmnt%2F${F()}%2Fx`,
     ...secrets(r, self, other).map((s) => s.text),
-    ...userShapes(r, randomName(r)).map((s) => s.text),
+    ...userShapes(r, user ?? randomName(r)).map((s) => s.text),
   ];
-  return Array.from({ length: r.int(1, 3) }, () => r.pick(lines)).join(r.pick(["\n", " ", ", "]));
+  const picked = Array.from({ length: r.int(1, 3) }, () => r.pick(lines));
+  if (user) picked.unshift(r.pick(SECOND_NAME)(casing(r, user), casing(r, randomName(r).replace(/[.]/g, "x"))));
+  return picked.join(r.pick(["\n", " ", ", "]));
 }
 
 /** Every word redaction may meet in its own rules: the words of redact.ts. */
 const RULE_SOURCE_WORDS = [...new Set(readFileSync("src/lib/core/redact.ts", "utf8").match(/[A-Za-z_][A-Za-z0-9_]{2,}/g) ?? [])];
-/** The words of `s`, apart from the placeholders redaction writes. */
-const wordsOf = (s: string) => s.replace(/\[[a-z][a-z ]*\]/g, " ").split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 2);
+/** The words of `s`, apart from the marks redaction writes. */
+const wordsOf = (s: string) => MARKS.reduce((t, m) => t.replaceAll(m, " "), s).split(/[^\p{L}\p{N}_]+/u).filter((w) => w.length >= 2);
 
 test("redact: a user name that is a word of the text or of the rules never lets out what was hidden without it", () => {
   forAll("user-words", (r, seed) => {
-    const t = anchored(r);
+    // A name the rules for names don't take whole where it stands (a digit, a non-ASCII letter, a
+    // small word and a mark first), set in the lines' name slots; or a word of the text or the rules.
+    const odd = r.bool(0.35) ? casing(r, r.bool(0.8) ? oddName(r) : `${oddName(r)} ${randomName(r).replace(/[.]/g, "x")}`) : null;
+    const t = anchored(r, odd);
     const own = wordsOf(t).filter((w) => w.length >= 3);
     const word = () => (own.length && r.bool(0.6) ? r.pick(own) : r.pick(RULE_SOURCE_WORDS));
     // Two or three words that stand next to each other in the text, short ones too.
@@ -227,7 +262,7 @@ test("redact: a user name that is a word of the text or of the rules never lets 
     const at = r.int(0, Math.max(0, all.length - 2));
     const run = all.slice(at, at + r.int(2, 3)).join(" ") || word();
     // One word, two words of the text or the rules, one with a made-up word, or a run of the text's.
-    const user = casing(r, r.pick([word(), word(), `${word()} ${word()}`, `${word()} ${randomName(r)}`, `${randomName(r)} ${word()}`, run, run]));
+    const user = odd ?? casing(r, r.pick([word(), word(), `${word()} ${word()}`, `${word()} ${randomName(r)}`, `${randomName(r)} ${word()}`, run, run]));
     const names = r.pick([{}, { self: [randomName(r)], others: [randomName(r)] }]);
     // Known as held, or learned only from a home folder another line of the log writes.
     const held = r.bool(0.7);
@@ -241,6 +276,14 @@ test("redact: a user name that is a word of the text or of the rules never lets 
     const hidden = [...new Set(wordsOf(line).map((w) => w.toLowerCase()))].filter((w) => !before.has(w));
     const after = shown(known);
     assert.deepEqual(hidden.filter((w) => after.has(w)), [], `PROPERTY_SEED=${seed}: user ${JSON.stringify(user)}: ${JSON.stringify(t)} → ${JSON.stringify(known)} (without: ${JSON.stringify(without)})`);
+    // Held, the name itself shows as no word (each of its words that isn't ordinary).
+    if (held) {
+      const out = MARKS.reduce((s, m) => s.replaceAll(m, " "), known);
+      for (const w of [user, ...user.split(" ")].filter((x) => x && !ordinaryName(x))) {
+        const word = new RegExp(`(?<![\\p{L}\\p{N}_])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{N}_])`, "iu");
+        assert.ok(!word.test(out), `PROPERTY_SEED=${seed}: user ${JSON.stringify(user)} shows: ${JSON.stringify(t)} → ${JSON.stringify(known)}`);
+      }
+    }
   }, 1500);
 });
 
