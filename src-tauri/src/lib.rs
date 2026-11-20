@@ -950,12 +950,21 @@ async fn market_use_token(app: tauri::AppHandle, token: String) -> Result<market
 
 #[tauri::command]
 async fn market_sign_out(app: tauri::AppHandle) -> Result<(), String> {
+    // Clearing the keyring entry waits on D-Bus. An error is the words the page shows: the sign-in
+    // is still where the next start finds it, so the app stays signed in (`TokenStore::clear`).
+    let client = app.clone();
+    let (out, linked) = tauri::async_runtime::spawn_blocking(move || {
+        let client = client.state::<market::Client>();
+        let out = client.sign_out();
+        (out, client.linked())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
     // Signed out: the status connection signed in with that account goes too.
-    app.state::<presence::Presence>().close();
-    // Clearing the keyring entry waits on D-Bus.
-    tauri::async_runtime::spawn_blocking(move || app.state::<market::Client>().sign_out())
-        .await
-        .map_err(|e| e.to_string())
+    if !linked {
+        app.state::<presence::Presence>().close();
+    }
+    out
 }
 
 #[tauri::command]
@@ -1144,9 +1153,13 @@ fn settings_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
 struct LoadedSettings {
     settings: Value,
     page: u64,
-    /// There was no settings file: a new install. False for a damaged file moved aside, whose
-    /// player had settings (their update channel among them) and isn't new.
+    /// There was no settings file: a new install.
     fresh: bool,
+    /// The name a damaged settings file was moved aside under at this start
+    /// (`settings.json.broken-<seconds>`, beside where it was), for the page to tell the player.
+    /// The name only: the page is never given the folder's path.
+    #[serde(rename = "movedAside")]
+    moved_aside: Option<String>,
 }
 
 /// One token per process: the window's page calls this once as it starts (`loadSettings` in
@@ -1158,31 +1171,57 @@ fn load_settings(app: tauri::AppHandle) -> Result<LoadedSettings, String> {
     // Read under the save lock: a save from the page before is either on disk by now or dropped.
     let mut gate = SETTINGS_GATE.lock().unwrap_or_else(|e| e.into_inner());
     let page = gate.page_loaded();
-    let (settings, fresh) = read_settings(&path)?;
-    Ok(LoadedSettings { settings, page, fresh })
+    let SettingsRead { settings, fresh, moved_aside } = read_settings(&path)?;
+    Ok(LoadedSettings { settings, page, fresh, moved_aside })
 }
 
-/// The settings, and whether there was no file at all.
-fn read_settings(path: &Path) -> Result<(Value, bool), String> {
+/// What `read_settings` found.
+struct SettingsRead {
+    /// The settings as saved; null when there were none to read.
+    settings: Value,
+    /// There was no file at all: a new install.
+    fresh: bool,
+    /// The file was damaged and is now kept under this name, in the same folder.
+    moved_aside: Option<String>,
+}
+
+/// The settings, whether there was no file at all, and the name a damaged one was moved aside under.
+fn read_settings(path: &Path) -> Result<SettingsRead, String> {
     // No file yet: a first run. Any other failure (a file held by an antivirus or a backup, no
     // permission) is an error, so the page doesn't start from defaults and save them over it.
     let bytes = match fs::read(path) {
         Ok(b) => b,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok((Value::Null, true)),
-        Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(SettingsRead { settings: Value::Null, fresh: true, moved_aside: None }),
+        // The file's name only: the page shows this error, and the folder holds the user's name.
+        Err(e) => return Err(format!("couldn't read {}: {e}", file_name_of(path))),
     };
-    Ok((match serde_json::from_slice(&bytes) {
-        Ok(v) => v,
-        Err(_) => {
-            // Keep a damaged file (floors, tiers...) instead of letting the defaults overwrite it.
-            // If it can't be moved aside (held by an antivirus or a backup), say so: starting from
-            // the defaults would save them over the only copy.
-            let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
-            let aside = path.with_extension(format!("json.broken-{stamp}"));
-            rename_replacing(path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", path.display()))?;
-            Value::Null
-        }
-    }, false))
+    let why = match serde_json::from_slice::<Value>(&bytes) {
+        Ok(settings) if settings.is_object() => return Ok(SettingsRead { settings, fresh: false, moved_aside: None }),
+        // JSON, but not a settings object (a number, a list, text, null): as damaged as one cut short.
+        Ok(_) => "it holds no settings object".to_string(),
+        Err(why) => why.to_string(),
+    };
+    // Keep a damaged file (floors, sales...) instead of letting the defaults overwrite it.
+    // If it can't be moved aside (held by an antivirus or a backup), say so: starting from
+    // the defaults would save them over the only copy.
+    let stamp = std::time::SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let aside = path.with_extension(format!("json.broken-{stamp}"));
+    rename_replacing(path, &aside).map_err(|e| format!("{} is damaged and couldn't be moved aside: {e}", file_name_of(path)))?;
+    let name = file_name_of(&aside);
+    log::warn!(target: "myorbiter::settings", "{}", moved_aside_line(&name, &why));
+    Ok(SettingsRead { settings: Value::Null, fresh: false, moved_aside: Some(name) })
+}
+
+/// A file's name without its folder, for words the page shows.
+fn file_name_of(path: &Path) -> String {
+    path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()
+}
+
+/// The log's line for a damaged settings file moved aside: its new name only, never the folder.
+/// `why` is the JSON reader's reason (where the file stops making sense, no part of the file), or
+/// that it holds no settings object.
+fn moved_aside_line(name: &str, why: &str) -> String {
+    format!("the saved settings couldn't be read ({why}), so MyOrbiter started with the usual settings; the old file is kept as {name} in the settings folder, and nothing is read back from it")
 }
 
 #[tauri::command(async)]
@@ -1375,13 +1414,18 @@ fn log_folder_path(which: LogFolder, myorbiter: Option<PathBuf>, data: impl FnOn
 /// none), checked as a path the page sent is (`data_dir`). Read only: a damaged settings file is an
 /// error here, not moved aside (`read_settings` does that, once, as the page starts).
 fn saved_data_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let path = settings_path(app)?;
-    let bytes = match fs::read(&path) {
-        Ok(b) => Some(b),
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
-        Err(e) => return Err(format!("couldn't read {}: {e}", path.display())),
-    };
+    let bytes = saved_settings_bytes(&settings_path(app)?)?;
     data_dir(settings_data_dir(bytes.as_deref())?)
+}
+
+/// The saved settings' bytes, or None when there is no file. The error names the file without its
+/// folder (which holds the user's name): the page shows it, in a button's tooltip.
+fn saved_settings_bytes(path: &Path) -> Result<Option<Vec<u8>>, String> {
+    match fs::read(path) {
+        Ok(b) => Ok(Some(b)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(format!("couldn't read {}: {e}", file_name_of(path))),
+    }
 }
 
 /// `dataDir` from the saved settings' bytes (none saved: None).
@@ -1923,6 +1967,125 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn a_damaged_settings_file_is_moved_aside_named_and_logged_by_its_name_alone() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-settings-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        let names = || {
+            let mut n: Vec<String> = fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            n.sort();
+            n
+        };
+
+        // No file: a new install, nothing moved.
+        let read = read_settings(&path).unwrap();
+        assert_eq!((read.settings.clone(), read.fresh, read.moved_aside.clone()), (Value::Null, true, None));
+
+        // A readable file: read as before, left where it is, nothing named.
+        let saved = br#"{"tab":"sales","updates":{"channel":"beta"}}"#;
+        fs::write(&path, saved).unwrap();
+        let read = read_settings(&path).unwrap();
+        assert_eq!((read.settings.clone(), read.fresh, read.moved_aside.clone()), (serde_json::json!({"tab": "sales", "updates": {"channel": "beta"}}), false, None));
+        assert_eq!(names(), ["settings.json"]);
+        assert_eq!(fs::read(&path).unwrap(), saved);
+
+        // A damaged file (cut short, or emptied): moved aside whole, and its new name given.
+        for damaged in [&b"{\"tab\":\"sal"[..], b""] {
+            fs::write(&path, damaged).unwrap();
+            let read = read_settings(&path).unwrap();
+            assert_eq!((read.settings.clone(), read.fresh), (Value::Null, false));
+            let name = read.moved_aside.clone().expect("the moved file is named");
+            let stamp = name.strip_prefix("settings.json.broken-").expect(&name);
+            assert!(!stamp.is_empty() && stamp.bytes().all(|b| b.is_ascii_digit()), "{name}");
+            assert!(!path.exists(), "moved, not copied");
+            assert_eq!(fs::read(dir.join(&name)).unwrap(), damaged, "kept whole");
+            // The log line: the name alone, never the folder; the log's redaction leaves it whole.
+            let line = moved_aside_line(&name, "EOF while parsing a string at line 1 column 11");
+            assert!(line.contains(&name), "{line}");
+            assert!(!line.contains('/') && !line.contains('\\') && !line.contains(&*dir.to_string_lossy()), "{line}");
+            assert_eq!(applog::redact(&line), line);
+            fs::remove_file(dir.join(&name)).unwrap();
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// JSON that isn't a settings object (made by hand) was read as nothing and saved over at the
+    /// first save, without a word: now it is a damaged file like any other.
+    #[test]
+    fn a_settings_file_of_json_that_is_no_settings_object_is_moved_aside_and_named() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-settings-other-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        for other in [&b"5"[..], b"[]", b"[{\"tab\":\"sales\"}]", b"\"settings\"", b"null", b"true", b" {} "] {
+            fs::write(&path, other).unwrap();
+            let read = read_settings(&path).unwrap();
+            if other == b" {} " {
+                // An empty object is a settings object: read as before, left in place.
+                assert_eq!((read.settings.clone(), read.moved_aside.clone()), (serde_json::json!({}), None));
+                assert_eq!(fs::read(&path).unwrap(), other);
+                continue;
+            }
+            let shown = String::from_utf8_lossy(other);
+            assert_eq!((read.settings.clone(), read.fresh), (Value::Null, false), "{shown}");
+            let name = read.moved_aside.clone().unwrap_or_else(|| panic!("{shown}: moved aside and named"));
+            assert!(name.starts_with("settings.json.broken-"), "{name}");
+            assert!(!path.exists(), "{shown}: moved, so nothing is saved over it");
+            assert_eq!(fs::read(dir.join(&name)).unwrap(), other, "kept whole");
+            fs::remove_file(dir.join(&name)).unwrap();
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The page shows these errors in a banner and its tooltip: the file's name, never the folder
+    /// (which holds the user's name), as the log line after a damaged file does.
+    #[test]
+    fn a_settings_file_that_cannot_be_read_or_moved_aside_is_named_without_its_folder() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-settings-held-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        let folder = dir.to_string_lossy().into_owned();
+        let no_folder = |e: &str| {
+            assert!(e.contains("settings.json"), "{e}");
+            assert!(!e.contains(&*folder) && !e.contains('/') && !e.contains('\\'), "{e}");
+        };
+
+        // Can't be read: here a folder stands where the file goes.
+        fs::create_dir(&path).unwrap();
+        let e = read_settings(&path).err().expect("a folder can't be read as the settings");
+        assert!(e.starts_with("couldn't read settings.json: "), "{e}");
+        no_folder(&e);
+        // TennoScope's log folder, opened from Settings, reads the same file: its error too.
+        let e = saved_settings_bytes(&path).err().expect("a folder can't be read as the settings");
+        assert!(e.starts_with("couldn't read settings.json: "), "{e}");
+        no_folder(&e);
+        fs::remove_dir(&path).unwrap();
+        assert_eq!(saved_settings_bytes(&path), Ok(None), "no file: none saved");
+        fs::write(&path, b"{\"dataDir\":\"\"}").unwrap();
+        assert_eq!(saved_settings_bytes(&path), Ok(Some(b"{\"dataDir\":\"\"}".to_vec())));
+        fs::remove_file(&path).unwrap();
+
+        // Damaged, and can't be moved aside: here a folder that lets nothing be renamed in it.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::write(&path, b"{\"tab\":\"sal").unwrap();
+            fs::set_permissions(&dir, fs::Permissions::from_mode(0o555)).unwrap();
+            let read = read_settings(&path);
+            fs::set_permissions(&dir, fs::Permissions::from_mode(0o755)).unwrap();
+            // A user who may rename anyway (root) moves it: nothing to check then.
+            if let Err(e) = read {
+                assert!(e.starts_with("settings.json is damaged and couldn't be moved aside: "), "{e}");
+                no_folder(&e);
+                assert!(path.exists(), "left where it was");
+            }
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn every_pick_up_of_tennoscope_s_data_says_what_it_took_in_or_why_not() {
