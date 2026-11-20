@@ -17,13 +17,26 @@ class Toasts {
   private left = new Map<string, number>();
   private due = new Map<string, number>();
 
-  push(n: Notice) {
+  /** Kept out of a burst's fold while shown (`push`'s `keepOut`); never saved. */
+  private keptOut = new Set<string>();
+
+  /**
+   * `keepOut`: this one is not folded by the burst that follows it (what leaving the setup page
+   * switched off, which leaving's own burst of notices would otherwise fold at once).
+   */
+  push(n: Notice, keepOut = false) {
+    if (keepOut) this.keptOut.add(n.id);
     // At most MAX_SHOWN at once: a burst folds the oldest into the "N more" line, keeping a sale
-    // whose +rep is still to give (its button is on the toast).
+    // whose +rep is still to give (its button is on the toast) and a kept-out one. Only when all
+    // the others are those does a kept-out one fold, and a +rep sale only where it did before.
     const kept = [n, ...this.list.filter((t) => t.id !== n.id)];
     while (kept.length > MAX_SHOWN) {
       let i = kept.length - 1;
-      while (i > 0 && kept[i].rep) i--;
+      while (i > 0 && (kept[i].rep || this.keptOut.has(kept[i].id))) i--;
+      if (i === 0) {
+        i = kept.length - 1;
+        while (i > 0 && kept[i].rep) i--;
+      }
       const [gone] = kept.splice(i > 0 ? i : kept.length - 1, 1);
       this.forget(gone.id);
       this.more++;
@@ -59,6 +72,7 @@ class Toasts {
     this.list = this.list.filter((t) => t.id !== id);
   }
   private forget(id: string) {
+    this.keptOut.delete(id);
     clearTimeout(this.timers.get(id));
     this.timers.delete(id);
     this.left.delete(id);

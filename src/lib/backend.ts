@@ -1184,11 +1184,11 @@ export async function loadSettings(): Promise<Settings> {
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
     // Settings from before updates: Stable, never checked. No settings object to read (no file at
-    // all, or a damaged one moved aside, JSON that isn't a settings object included): no channel
-    // chosen yet, and the new-install rule settles it at the first check (updates.svelte.ts). A file
-    // that couldn't be read at all is never saved over; until a restart reads it, Stable stands in
-    // as the chosen channel, so the update checks ask Stable and offer its builds.
-    updates: raw ? sanitizeUpdates(raw.updates) : loadFailed == null ? newInstallUpdates() : defaultUpdates(),
+    // all, a damaged one moved aside, JSON that isn't a settings object, or a file that couldn't be
+    // read at all): no channel chosen yet, and the new-install rule settles it at the first check
+    // (updates.svelte.ts). A file that couldn't be read is still never saved over (flushSettings),
+    // so the channel settled or picked at that start lasts until a restart reads the file again.
+    updates: raw ? sanitizeUpdates(raw.updates) : newInstallUpdates(),
     // Told once, until dismissed: this start's moved file, else one an earlier start named.
     movedAside: movedAside ?? movedAsideOf(raw?.movedAside),
   };
