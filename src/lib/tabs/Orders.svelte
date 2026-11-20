@@ -1028,6 +1028,9 @@
       <HelpMark part="orders.reprice" />
     </div>
 
+    <!-- Each row's controls stay Tab stops (each must be reachable), about eight a listing: a
+         keyboard player can jump past them all, as Skip to page jumps the sidebar. Shown on focus. -->
+    {#if rows.length}<a class="skiprows" href="#orders-after" title="Jump past the listings' table" onclick={(e) => { e.preventDefault(); document.getElementById("orders-after")?.focus(); }}>Skip past the listings</a>{/if}
     <table class="orders" class:ownfloors={rows.some((o) => floorOf(o) != null)}>
       <thead data-card="sort">
         <tr>
@@ -1208,6 +1211,7 @@
         <tbody><tr><td colspan="10" class="nothing">No sell listings yet</td></tr></tbody>
       {/each}
     </table>
+    <span id="orders-after" tabindex="-1" aria-label="Past the listings"></span>
     {#if mkt.orders.length}
       <!-- Away from the buttons you press every day: it takes every listing down. -->
       <div class="danger-zone">
@@ -1455,6 +1459,11 @@
   .sparesline:active .go { transform: translateX(1px); }
   .sparesline .sub { flex: 1; min-width: 0; display: inline-flex; align-items: center; gap: .25rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .sparesline .go { display: inline-flex; align-items: center; gap: .35rem; color: var(--platinum-dim); transition: transform var(--snap) var(--out); }
+  /* Skip past the listings: a screen-reader box until the keyboard reaches it, then drawn where it
+     stands, over the table's head, moving nothing (as App's Skip to page). */
+  .skiprows { position: absolute; z-index: 3; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .skiprows:focus { width: auto; height: auto; overflow: visible; clip-path: none; padding: .55rem .9rem; background: var(--plate); color: var(--platinum); border: 1px solid var(--gold); font-size: .85rem; }
+  #orders-after:focus { outline: none; }
   .danger-zone .warn { color: var(--alert); }
   .danger-zone { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; justify-content: flex-end; margin-top: .7rem; }
   .danger-zone :global(.removeall:not(.done):not(.failed)) { color: var(--platinum-deep); white-space: nowrap; }
