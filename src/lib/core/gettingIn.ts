@@ -113,3 +113,22 @@ export function leaveSetup(how: "later" | "overlay", m: AutoSwitches, firstStart
   const off = (Object.keys(NAMES) as (keyof AutoSwitches)[]).filter((k) => m[k]).map((k) => NAMES[k]);
   return { next: { auto: false, autoTrades: false, autoRep: false }, off };
 }
+
+/** Each switch as Orders' Auto panel names it, where it is turned on again (Settings, Trades, has the same three). */
+const SWITCH_LABEL: Record<keyof AutoSwitches, string> = { auto: "Apply automatically", autoTrades: "Mark sales sold from the game", autoRep: "Give +rep by itself" };
+
+/**
+ * What the player is told after leaving the setup page switched automatic actions off: `off` is
+ * what `leaveSetup` returned. Null when nothing was switched off, so nothing is said.
+ */
+export function leftSetupNotice(how: "later" | "overlay", off: string[]): { title: string; body: string } | null {
+  const keys = (Object.keys(NAMES) as (keyof AutoSwitches)[]).filter((k) => off.includes(NAMES[k]));
+  if (!keys.length) return null;
+  const names = keys.map((k) => SWITCH_LABEL[k]);
+  const list = names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+  const way = how === "overlay" ? "\"Not now: overlay only\"" : "Finish later";
+  return {
+    title: names.length === 1 ? "Automatic action switched off" : "Automatic actions switched off",
+    body: `Leaving the setup page with ${way} switched off ${list}. ${names.length === 1 ? "It stays" : "They stay"} off until you turn ${names.length === 1 ? "it" : "them"} on again: on Orders, under the Auto line, or in Settings, Trades.`,
+  };
+}

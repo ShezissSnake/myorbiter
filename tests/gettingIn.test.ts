@@ -3,7 +3,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { carryOnEmpty, leaveSetup, missingWords, notReadYet, saveTroubleWords, stillWithout } from "../src/lib/core/gettingIn";
+import { carryOnEmpty, leaveSetup, leftSetupNotice, missingWords, notReadYet, saveTroubleWords, stillWithout } from "../src/lib/core/gettingIn";
 import { inventoryLine } from "../src/lib/core/firstStart";
 
 const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
@@ -43,7 +43,37 @@ test("Finish later, Esc and the overlay step go through leaveSetup, and the log 
   assert.match(app, /setupOpen && e\.key === "Escape"\) \{\s*e\.preventDefault\(\);\s*finishLater\(\);/);
   assert.match(app, /else if \(a === "overlay"\) \{\s*void ts\.ask\("--access=overlay"\);\s*finishLater\("overlay"\);/);
   // The button's words are then true.
-  assert.match(app, /data-field="setup\.later" title="[^"]*Automatic actions stay off\. \(Esc\)"/);
+  assert.match(app, /data-field="setup\.later" title="[^"]*Automatic actions go off; a notification names those that were on\. \(Esc\)"/);
+});
+
+test("leaving the setup page names exactly the automatic actions it switched off, and where they go on again", () => {
+  const where = /on Orders, under the Auto line, or in Settings, Trades\.$/;
+  const told = (m: typeof on, how: "later" | "overlay" = "later", first = false) => leftSetupNotice(how, leaveSetup(how, m, first).off);
+  // One of them.
+  const one = told({ auto: false, autoTrades: true, autoRep: false });
+  assert.deepEqual(one, { title: "Automatic action switched off", body: "Leaving the setup page with Finish later switched off Mark sales sold from the game. It stays off until you turn it on again: on Orders, under the Auto line, or in Settings, Trades." });
+  // Two of them.
+  const two = told({ auto: true, autoTrades: false, autoRep: true });
+  assert.equal(two?.title, "Automatic actions switched off");
+  assert.match(two?.body ?? "", /^Leaving the setup page with Finish later switched off Apply automatically and Give \+rep by itself\. They stay off/);
+  assert.doesNotMatch(two?.body ?? "", /Mark sales/);
+  assert.match(two?.body ?? "", where);
+  // All three, on a first start too, and by the overlay step on a first start.
+  for (const first of [true, false]) assert.match(told(on, "later", first)?.body ?? "", /switched off Apply automatically, Mark sales sold from the game and Give \+rep by itself\./);
+  assert.match(told(on, "overlay", true)?.body ?? "", /^Leaving the setup page with "Not now: overlay only" switched off Apply automatically, Mark sales sold from the game and Give \+rep by itself\./);
+  // None on: nothing is said, whichever way out.
+  for (const how of ["later", "overlay"] as const) for (const first of [true, false]) assert.equal(told(off, how, first), null, `${how}, first start: ${first}`);
+  // "Not now: overlay only" after the first start switches nothing, so says nothing.
+  assert.equal(told(on, "overlay", false), null);
+});
+
+test("Finish later, Esc and the overlay step tell the player, once, by the app's notifications and never Discord", () => {
+  const body = app.slice(app.indexOf("function finishLater("), app.indexOf("let firstStartRun"));
+  assert.match(body, /withoutInventory\(\);\s*tellSwitchedOff\(how, off\);/);
+  const told = body.slice(body.indexOf("function tellSwitchedOff("));
+  assert.match(told, /const words = leftSetupNotice\(how, off\);\s*if \(!words\) return;/);
+  assert.match(told, /settings\.game\.notices = logNotice\(settings\.game\.notices, \{ at: Date\.now\(\), kind: "market", \.\.\.words \}\);\s*void popUp\(settings\.game\.notices\[0\], "market"\);/);
+  assert.doesNotMatch(told, /toDiscord|tell\(/);
 });
 
 test("saving trouble: a write that failed is tried again; settings that couldn't be read are never saved over", () => {
