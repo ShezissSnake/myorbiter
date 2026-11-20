@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { defaultNotify } from "../src/lib/backend";
-import { NOTICE_KINDS, growNotice, kindsFor, logNotice, NOTICE_LOG, outcomeOf, outcomeText, routeOf, splitTarget, type NoticeOutcome, type PopupFacts } from "../src/lib/notices";
+import { NOTICE_KINDS, growNotice, kindsFor, logNotice, NOTICE_LOG, outcomeOf, outcomeText, pageOf, routeOf, splitTarget, type NoticeKind, type NoticeOutcome, type PopupFacts } from "../src/lib/notices";
 import { noticesOf } from "../src/lib/core/savedGame";
 import { PAGES } from "../src/lib/pages";
 
@@ -41,7 +41,7 @@ test("a growing notice changes in place and moves to the top, unread", () => {
 
 // ---------------------------------------------------------------- what became of a pop-up
 // By default: not paused, not quiet, away from MyOrbiter (the game in front), both places on.
-const facts = (o: Partial<PopupFacts> = {}): PopupFacts => ({ paused: false, quietKind: false, quietFissure: false, focused: false, toasts: true, desktop: true, ...o });
+const facts = (o: Partial<PopupFacts> = {}): PopupFacts => ({ paused: false, quietKind: false, quietFissure: false, focused: false, toasts: true, desktop: true, onItsPage: false, ...o });
 
 test("a notification goes to the desktop when MyOrbiter isn't in front, and inside it when it is", () => {
   assert.deepEqual(routeOf(facts()), { how: "desktop" });
@@ -70,6 +70,24 @@ test("a place whose switch is off shows nothing, and says so", () => {
   assert.deepEqual(routeOf(facts({ toasts: false })), { how: "desktop" });
 });
 
+test("inside MyOrbiter, a notification whose page is on screen doesn't pop up over it; the desktop's is unchanged", () => {
+  // The reward to take, while Current fissure shows its cards: under the bell only, and it says why.
+  assert.deepEqual(routeOf(facts({ focused: true, onItsPage: true })), { how: "held", why: "page" });
+  // Away from MyOrbiter it goes to the desktop as before, whatever page was left open.
+  assert.deepEqual(routeOf(facts({ onItsPage: true })), { how: "desktop" });
+  // Pop-ups inside MyOrbiter off: that's what it says, as before.
+  assert.deepEqual(routeOf(facts({ focused: true, toasts: false, onItsPage: true })), { how: "off", where: "app" });
+  // Another page on screen: it pops up.
+  assert.deepEqual(routeOf(facts({ focused: true, onItsPage: false })), { how: "app" });
+});
+
+test("the page a notification opens: its own target, else its kind's, without the card", () => {
+  const n = (kind: NoticeKind, to?: string) => ({ id: "x", at: 0, kind, title: "t", body: "", read: false, ...(to ? { to } : {}) });
+  assert.equal(pageOf(n("reward")), "mission");
+  assert.equal(pageOf(n("baro")), "home");
+  assert.equal(pageOf(n("market", "spares#cat-mods")), "spares");
+});
+
 test("every outcome has its words", () => {
   const words: [NoticeOutcome, string][] = [
     [{ how: "desktop" }, "Sent to the desktop"],
@@ -77,6 +95,7 @@ test("every outcome has its words", () => {
     [{ how: "held", why: "paused" }, "Held: paused"],
     [{ how: "held", why: "quiet" }, "Held: on the quiet list"],
     [{ how: "held", why: "fissure" }, "Held: quiet in a fissure"],
+    [{ how: "held", why: "page" }, "Held: its page was on screen"],
     [{ how: "off", where: "app" }, "Not shown: pop-ups inside MyOrbiter are off"],
     [{ how: "off", where: "desktop" }, "Not sent: desktop notifications are off"],
     [{ how: "failed", why: "no notification service" }, "Could not be sent: no notification service"],
@@ -85,7 +104,7 @@ test("every outcome has its words", () => {
 });
 
 test("a saved outcome reads back; one of another shape is left off and its entry stays", () => {
-  for (const o of [{ how: "desktop" }, { how: "app" }, { how: "held", why: "fissure" }, { how: "off", where: "desktop" }, { how: "failed", why: "x" }] as NoticeOutcome[]) assert.deepEqual(outcomeOf(o), o);
+  for (const o of [{ how: "desktop" }, { how: "app" }, { how: "held", why: "fissure" }, { how: "held", why: "page" }, { how: "off", where: "desktop" }, { how: "failed", why: "x" }] as NoticeOutcome[]) assert.deepEqual(outcomeOf(o), o);
   for (const bad of [null, 5, "desktop", {}, { how: "held" }, { how: "held", why: "nap" }, { how: "off", where: "moon" }, { how: "failed" }, { how: "failed", why: 3 }]) assert.equal(outcomeOf(bad), undefined);
   assert.equal((outcomeOf({ how: "failed", why: "x".repeat(900) }) as { why: string }).why.length, 300);
   const n = { id: "1-abc", at: 3, kind: "whispers", title: "A whispered you", body: "", read: false };

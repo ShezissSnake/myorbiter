@@ -150,7 +150,7 @@
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import Wordmark from "./lib/ui/Wordmark.svelte";
   import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
-  import { growNotice, logNotice, noticeKind, outcomeText, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, outcomeText, pageOf, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import Toasts from "./lib/ui/Toasts.svelte";
@@ -853,8 +853,8 @@
     void popUp(n, kind, { rep });
     return n.id;
   }
-  /** What decides where a notification of this kind pops up right now. */
-  function popupFacts(gate: NoticeKind | "test"): PopupFacts {
+  /** What decides where notification `n`, of this kind, pops up right now. */
+  function popupFacts(gate: NoticeKind | "test", n: Notice): PopupFacts {
     const o = settings.notifyOptions;
     return {
       paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
@@ -864,6 +864,10 @@
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
+      // The page it opens is the one on screen (the reward to take over Current fissure's cards):
+      // under the bell only. The Settings test has no page of its own, and a pop-up already up (a
+      // repricing pass's, as it grows) is kept up to date.
+      onItsPage: gate !== "test" && pageOf(n) === settings.tab && !toasts.list.some((t) => t.id === n.id),
     };
   }
   /**
@@ -876,7 +880,7 @@
    * the notices that follow it (toasts.svelte.ts). Resolves to what it noted, or null.
    */
   async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean; keepOut?: boolean } = {}): Promise<NoticeOutcome | null> {
-    const route = routeOf(popupFacts(gate));
+    const route = routeOf(popupFacts(gate, n));
     let outcome: NoticeOutcome | null = route;
     if (route.how === "app") {
       // Not shown by this call (a repricing pass that settled after its pop-up went): nothing to note.
@@ -891,6 +895,9 @@
         });
       }
     } else if (route.how === "off" && route.where === "desktop" && o.desktop === false) {
+      outcome = null;
+    } else if (route.how === "held" && route.why === "page" && o.toast === false) {
+      // Held only from a pop-up inside MyOrbiter, which this call wasn't to show: nothing to note.
       outcome = null;
     }
     if (outcome && o.note !== false) noteOutcome(n, gate, outcome);

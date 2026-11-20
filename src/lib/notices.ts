@@ -68,6 +68,11 @@ export function splitTarget(to: string): { page: string; card: string | null } {
   return { page, card: card ?? null };
 }
 
+/** The page a notification opens (its own target, else its kind's), without the card. */
+export function pageOf(n: Pick<Notice, "kind" | "to">): string {
+  return splitTarget(n.to ?? noticeKind[n.kind]?.to ?? "home").page;
+}
+
 /** One notification, as kept in the history. */
 export interface Notice {
   id: string;
@@ -84,8 +89,8 @@ export interface Notice {
   read: boolean;
 }
 
-/** Why a notification's pop-up was held back: all three leave it in Recent only. */
-export type HeldWhy = "paused" | "quiet" | "fissure";
+/** Why a notification's pop-up was held back: each leaves it in Recent only. */
+export type HeldWhy = "paused" | "quiet" | "fissure" | "page";
 /** Which place's switch was off when it would have popped up. */
 export type OffWhere = "app" | "desktop";
 
@@ -118,18 +123,21 @@ export interface PopupFacts {
   toasts: boolean;
   /** "Desktop notifications" is on. */
   desktop: boolean;
+  /** The page the notification opens is the one on screen: a pop-up inside MyOrbiter would repeat it, over it. */
+  onItsPage: boolean;
 }
 
 /**
  * Where a notification goes, before anything is sent: held back (paused, then the quiet list, then a
- * fissure), a pop-up inside MyOrbiter while its window has focus, else the desktop's; or nowhere
- * because the switch for that place is off. "desktop" here is the intent: the send may still fail.
+ * fissure), a pop-up inside MyOrbiter while its window has focus (unless the page it opens is the
+ * one on screen: held then, under the bell only), else the desktop's; or nowhere because the switch
+ * for that place is off. "desktop" here is the intent: the send may still fail.
  */
 export function routeOf(f: PopupFacts): Exclude<NoticeOutcome, { how: "failed" }> {
   if (f.paused) return { how: "held", why: "paused" };
   if (f.quietKind) return { how: "held", why: "quiet" };
   if (f.quietFissure) return { how: "held", why: "fissure" };
-  if (f.focused) return f.toasts ? { how: "app" } : { how: "off", where: "app" };
+  if (f.focused) return !f.toasts ? { how: "off", where: "app" } : f.onItsPage ? { how: "held", why: "page" } : { how: "app" };
   return f.desktop ? { how: "desktop" } : { how: "off", where: "desktop" };
 }
 
@@ -141,7 +149,7 @@ export function outcomeText(o: NoticeOutcome): string {
     case "app":
       return "Shown in the app";
     case "held":
-      return o.why === "paused" ? "Held: paused" : o.why === "quiet" ? "Held: on the quiet list" : "Held: quiet in a fissure";
+      return o.why === "paused" ? "Held: paused" : o.why === "quiet" ? "Held: on the quiet list" : o.why === "fissure" ? "Held: quiet in a fissure" : "Held: its page was on screen";
     case "off":
       return o.where === "app" ? "Not shown: pop-ups inside MyOrbiter are off" : "Not sent: desktop notifications are off";
     case "failed":
@@ -154,7 +162,7 @@ export function outcomeOf(x: unknown): NoticeOutcome | undefined {
   if (!x || typeof x !== "object") return undefined;
   const o = x as Record<string, unknown>;
   if (o.how === "desktop" || o.how === "app") return { how: o.how };
-  if (o.how === "held" && (o.why === "paused" || o.why === "quiet" || o.why === "fissure")) return { how: "held", why: o.why };
+  if (o.how === "held" && (o.why === "paused" || o.why === "quiet" || o.why === "fissure" || o.why === "page")) return { how: "held", why: o.why };
   if (o.how === "off" && (o.where === "app" || o.where === "desktop")) return { how: "off", where: o.where };
   if (o.how === "failed" && typeof o.why === "string") return { how: "failed", why: o.why.slice(0, 300) };
   return undefined;
