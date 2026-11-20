@@ -1498,7 +1498,7 @@ class MarketStore {
           const prices: Record<string, number> = {};
           for (const sub of it.subtypes ?? ["intact", "exceptional", "flawless", "radiant"]) {
             // At least two sales in 30 days: one is too thin to decide on.
-            const p = recentPrice(points, null, sub, 30, 2);
+            const p = recentPrice(points, null, sub, 30, 2, now);
             if (p != null) prices[sub] = p;
           }
           out[base] = { at: now, prices, how: "median" };

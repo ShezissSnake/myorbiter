@@ -49,7 +49,8 @@ function weighted(days: Day[]): number | null {
   return n ? days.reduce((s, d) => s + d.median * d.volume, 0) / n : null;
 }
 
-export function trend(days: Day[], now = days.length ? days[days.length - 1].at + DAY : Date.now()): Trend {
+/** Counted back from `now`, today: a thing that last sold weeks ago has no week, and no sales a day lately. */
+export function trend(days: Day[], now = Date.now()): Trend {
   const week = weighted(days.filter((d) => d.at > now - 7 * DAY));
   const month = weighted(days.filter((d) => d.at <= now - 7 * DAY && d.at > now - 37 * DAY));
   const last30 = days.filter((d) => d.at > now - 30 * DAY);
@@ -57,14 +58,12 @@ export function trend(days: Day[], now = days.length ? days[days.length - 1].at 
 }
 
 /**
- * What one sold for lately: the median of each day's sales over the last `days` days, weighted by
- * how many sold that day. Null when fewer than `minSold` sold in that time: one sale is a guess.
+ * What one sold for lately: the median of each day's sales over the last `days` days before `now`
+ * (today, not the last day it sold), weighted by how many sold that day. Null when fewer than
+ * `minSold` sold in that time: one sale is a guess, and nothing sold lately is no price.
  */
-export function recentPrice(points: PricePoint[], rank: number | null, subtype: string | null, days = 30, minSold = 1): number | null {
-  const all = daysFor(points, rank, subtype);
-  if (!all.length) return null;
-  const end = all[all.length - 1].at;
-  const d = all.filter((x) => x.at > end - days * DAY);
+export function recentPrice(points: PricePoint[], rank: number | null, subtype: string | null, days = 30, minSold = 1, now = Date.now()): number | null {
+  const d = daysFor(points, rank, subtype).filter((x) => x.at > now - days * DAY);
   if (d.reduce((n, x) => n + x.volume, 0) < minSold) return null;
   const w = weightedMedian(d);
   return w == null ? null : Math.round(w * 10) / 10;
