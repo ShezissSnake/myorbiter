@@ -41,6 +41,11 @@ test("Settings shows the About beside the line on how MyOrbiter is written, each
   const block = sheet.slice(about, sheet.indexOf("</div>\n", about));
   for (const name of ["ABOUT_UNOFFICIAL", "ABOUT_LICENCE", "ABOUT_WARRANTY", "ABOUT_FILES"]) assert.ok(block.includes(name), name);
   assert.match(block, /\{#each ABOUT_FILES as f \(f\.url\)\}<button type="button" class="link" title=\{`Open \$\{f\.label\} \$\{f\.what\}/);
+  // The one sentence on the three files is THIRD-PARTY-NOTICES/README.md's own: "Every download carries ...".
+  const carries = "Every download carries the same three files.";
+  assert.ok(flat("THIRD-PARTY-NOTICES/README.md").includes(carries.slice(0, carries.indexOf(" the same"))), "the README's words: Every download carries");
+  assert.equal(ABOUT_FILES.length, 3, "three files, as the sentence says");
+  assert.ok(sheet.slice(about, sheet.indexOf("</section>", about)).includes(`<p class="hint">${carries}</p>`), "the sentence is drawn as written, in the About");
 });
 
 test("the wiki's credit is the one its licence file states: the contributors, the address, the licence's name and version", () => {
@@ -63,6 +68,8 @@ test("Arcanes, where the Vosfor figures show, and Builds' recipes carry that cre
   assert.match(recipes, /<p class="dim small gaps">\{#if r\.gaps\.length\}\{`\$\{r\.gaps\.join\(" "\)\} `\}\{\/if\}<WikiCredit \/><\/p>/, "shown whether or not the recipe has gaps");
   assert.doesNotMatch(recipes, /CC BY-NC-SA\./, "the old short credit is gone");
   const credit = readFileSync("src/lib/ui/WikiCredit.svelte", "utf8");
+  assert.ok(credit.includes('<span class="wiki-credit">Data from {WIKI_CREDIT.contributors} (<button'), "the words drawn start as wikiCreditText's");
+  assert.ok(credit.includes('</button>), {WIKI_CREDIT.host}, under the {WIKI_CREDIT.licence} licence ({WIKI_CREDIT.short}).</span>'), "and end as wikiCreditText's");
   assert.match(credit, /aria-busy=\{links\.isOpening\(WIKI_CREDIT_URL\)\} onclick=\{\(\) => openUrl\(WIKI_CREDIT_URL\)\}/);
   assert.match(credit, /title="Open the Warframe Wiki \(wiki\.warframe\.com\) in your browser"/);
 });

@@ -352,7 +352,7 @@
       <p class="hint"><b>{ABOUT_UNOFFICIAL.lead}</b> {ABOUT_UNOFFICIAL.text}</p>
       <p class="hint"><b>{ABOUT_LICENCE.name}</b> {ABOUT_LICENCE.text} {ABOUT_WARRANTY}</p>
       <div class="row files">{#each ABOUT_FILES as f (f.url)}<button type="button" class="link" title={`Open ${f.label} ${f.what} on GitHub, in your browser`} aria-busy={links.isOpening(f.url)} onclick={() => openUrl(f.url)}><Opening url={f.url}>{f.label}</Opening></button>{/each}</div>
-      <p class="hint">The same three files come with MyOrbiter, in the folder it is installed in.</p>
+      <p class="hint">Every download carries the same three files.</p>
     </div>
     {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
