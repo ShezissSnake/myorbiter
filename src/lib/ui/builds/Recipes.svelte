@@ -5,6 +5,7 @@
   import type { Model } from "../../core/model";
   import { recipesFor, type KitgunSlot, type RecipePart, type Stat } from "../../core/recipes";
   import Seg from "../Seg.svelte";
+  import WikiCredit from "../WikiCredit.svelte";
 
   let { model, unique }: { model: Model; unique: string } = $props();
 
@@ -65,7 +66,8 @@
     {#if r.combos.length > LIMIT}
       <button type="button" class="link more" aria-expanded={all} title={all ? `Back to the top ${LIMIT}` : `Every combination, ranked (${r.combos.length})`} onclick={() => (all = !all)}>{all ? `Top ${LIMIT} only` : `Show all ${r.combos.length}`}</button>
     {/if}
-    {#if r.gaps.length}<p class="dim small gaps">{r.gaps.join(" ")} Stats: the Warframe Wiki, CC BY-NC-SA.</p>{/if}
+    <!-- The part stats are the wiki's: its credit shows with every recipe list, after what they leave out. -->
+    <p class="dim small gaps">{#if r.gaps.length}{`${r.gaps.join(" ")} `}{/if}<WikiCredit /></p>
     {#if r.how}<p class="dim small how">{r.how}</p>{/if}
   </section>
 {/if}
