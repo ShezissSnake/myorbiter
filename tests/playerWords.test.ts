@@ -178,3 +178,19 @@ test("Sales' Delete question says warframe.market keeps its change", () => {
   assert.match(SALE_DELETE_KEEPS, /stays closed or lowered/);
   assert.match(SALE_DELETE_KEEPS, /sale stays on your profile/);
 });
+
+// "Market" is Orders' word for the second-cheapest seller now; Sales compares with the daily
+// median when the thing sold, and names it.
+
+test("Sales names the median, never \"Vs market\"", () => {
+  const sales = src("src/lib/tabs/Sales.svelte");
+  assert.doesNotMatch(sales, /Vs market/);
+  assert.match(sales, /<Stat label="Vs median, 30 days"/);
+  assert.match(sales, />Vs median<\/th>/);
+  assert.match(sales, /title="[^"]*daily median[^"]*not Orders' Market price[^"]*">Vs median<\/th>/);
+  const help = src("src/lib/help/trade.ts");
+  assert.doesNotMatch(help, /against the market price that day/);
+  assert.match(help, /Lists each sale against the daily median when it sold/);
+  const guide = src("src/lib/tabs/Guide.svelte");
+  assert.doesNotMatch(guide, /each sale against the market/);
+});

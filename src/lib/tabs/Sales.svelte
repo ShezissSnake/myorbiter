@@ -236,7 +236,7 @@
     {#snippet ticker()}<Ticker id="sales" label="Your sales, live" items={tape} />{/snippet}
     {#snippet band()}
       <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big tick /></Stat>
-      {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}><Count value={Math.round(vsMonth * 100)} format={(n) => `${Math.round(n)}%`} /></Stat>{/if}
+      {#if vsMonth != null}<Stat label="Vs median, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}><Count value={Math.round(vsMonth * 100)} format={(n) => `${Math.round(n)}%`} /></Stat>{/if}
       <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big tick /></Stat>
     {/snippet}
 
@@ -310,7 +310,7 @@
   {#if sales.length}
     <div class="reveal" transition:reveal><div>
     <table class="log">
-      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
+      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it): what it sold for that day, not Orders' Market price, which is the second-cheapest seller now">Vs median</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
         {#each log as { s, key } (key)}
           <tr class:added={added === keyOf(s)} out:leave>

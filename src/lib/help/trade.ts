@@ -226,7 +226,7 @@ const SALES: Walkthrough = {
   does: [
     { text: "Shows what you sold today, in 7 days and in 30", icon: "platinum" },
     { text: "Charts platinum per day over 7 or 30 days" },
-    { text: "Lists each sale against the market price that day" },
+    { text: "Lists each sale against the daily median when it sold" },
     { text: "Logs sales made in game, once you turn that on" },
   ],
   pages: [
