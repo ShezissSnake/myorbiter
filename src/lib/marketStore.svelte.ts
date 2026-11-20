@@ -103,6 +103,8 @@ const APPLY_TTL = 2 * 60_000;
 const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
 const PLAN_FRESH_MS = 10 * 60_000;
+/** Whether something read at `at` is still fresh: younger than `maxAge`, and not read "in the future" (the clock stepped back since). */
+const fresh = (at: number, maxAge: number, now = Date.now()) => now - at >= 0 && now - at < maxAge;
 /** How long the live feed stays connected after the watchlist empties (see `wantFeed`). */
 export const FEED_LINGER_MS = 10 * 60_000;
 
@@ -576,7 +578,7 @@ class MarketStore {
 
   async book(slug: string, maxAge = BOOK_TTL): Promise<BookOrder[]> {
     const hit = this.books[slug];
-    if (hit && Date.now() - hit.at < maxAge) return hit.orders;
+    if (hit && fresh(hit.at, maxAge)) return hit.orders;
     const orders = await market.book(slug);
     this.books = { ...this.books, [slug]: { at: Date.now(), orders } };
     return orders;
@@ -1457,7 +1459,7 @@ class MarketStore {
   private histories = new Map<string, { at: number; points: Promise<PricePoint[]> }>();
   history(slug: string): Promise<PricePoint[]> {
     const hit = this.histories.get(slug);
-    if (hit && Date.now() - hit.at < 3_600_000) return hit.points;
+    if (hit && fresh(hit.at, 3_600_000)) return hit.points;
     const points = market.history(slug);
     this.histories.set(slug, { at: Date.now(), points });
     points.catch(() => this.histories.delete(slug));
@@ -1715,8 +1717,9 @@ class MarketStore {
     const shown = this.bulk;
     if (!shown || this.busy || !this.me) return null;
     // Prices move: a plan looked at a while ago is worked out again from fresh order books first,
-    // the lines skipped this time still skipped.
-    if (Date.now() - shown.at > PLAN_FRESH_MS) {
+    // the lines skipped this time still skipped. One made "in the future" (the clock stepped back) too.
+    const age = Date.now() - shown.at;
+    if (age < 0 || age > PLAN_FRESH_MS) {
       await this.planBulk(m, s, advice, shown.skipped);
       if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
       return { sent: 0, failed: 0, outcome: "replanned" };
