@@ -867,8 +867,7 @@ function smallTargets(sel) {
   let n = 0;
   for (const el of document.querySelectorAll(sel)) {
     const r = el.getBoundingClientRect();
-    if (!r.width || !r.height || r.bottom < 0 || r.top > innerHeight) continue;
-    n++;
+    if (!r.width || !r.height) continue;
     const cx = r.left + r.width / 2;
     const cy = r.top + r.height / 2;
     const takes = (x, y) => {
@@ -878,9 +877,14 @@ function smallTargets(sel) {
       const label = hit.closest("label");
       return !!label && (label.control === el || label.contains(el));
     };
-    const misses = [[cx, cy - 11.5], [cx, cy + 11.5], [cx - 11.5, cy], [cx + 11.5, cy]].filter(([x, y]) => !takes(x, y)).length;
-    const cls = [...el.classList].filter((c) => !c.startsWith("svelte-")).join(".");
-    if (misses) bad.add(`${el.tagName.toLowerCase()}.${cls} ${Math.round(r.width)}×${Math.round(r.height)}: ${misses} of 4 sides miss`);
+    // Only one wholly in sight: its 24 px square inside the window and its middle taking the click
+    // (one cut by the window's or the page's edge is measured where it is shown whole).
+    if (cy - 12 < 0 || cy + 12 > innerHeight || cx - 12 < 0 || cx + 12 > innerWidth || !takes(cx, cy)) continue;
+    n++;
+    const named = (x) => (x ? `${x.tagName.toLowerCase()}${[...x.classList].filter((c) => !c.startsWith("svelte-")).map((c) => `.${c}`).join("")}` : "nothing");
+    const sides = { top: [cx, cy - 11.5], bottom: [cx, cy + 11.5], left: [cx - 11.5, cy], right: [cx + 11.5, cy] };
+    const missed = Object.entries(sides).filter(([, [x, y]]) => !takes(x, y)).map(([side, [x, y]]) => `${side} on ${named(document.elementFromPoint(x, y))}`);
+    if (missed.length) bad.add(`${named(el)} ${Math.round(r.width)}×${Math.round(r.height)} at y ${Math.round(r.top)}: ${missed.length} of 4 sides miss (${missed.join(", ")})`);
   }
   return { n, bad: [...bad] };
 }
