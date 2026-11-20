@@ -9,7 +9,7 @@
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
-  import { nearTraceCap, traceCap, voidTraces } from "../core/traces";
+  import { traceCap, traceCapWord, voidTraces } from "../core/traces";
   import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
@@ -129,6 +129,7 @@
   );
   const traces = $derived(voidTraces(model));
   const cap = $derived(traceCap(masteryRank));
+  const capWord = $derived(traceCapWord(traces, cap));
   const clock = (h: { started_at: number | null; uptime: number }) =>
     h.started_at != null
       ? new Date(h.started_at * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
@@ -316,7 +317,7 @@
       {#if sessionValue}<span title="What the rewards you took sell for, at daily median prices"><P v={sessionValue} /></span>{/if}
       {#if sessionDucats}<span title="What they'd fetch from Baro, in ducats"><GameIcon name="ducats" size={13} />{sessionDucats.toLocaleString("en")}</span>{/if}
       {#if sessionForGear.length}<span class="gold" title={`Parts of gear you haven't built or mastered: ${sessionForGear.map((x) => x.name).join(", ")}`}>{sessionForGear.length} toward gear you haven't built</span>{/if}
-      <span class="dim" class:near={nearTraceCap(traces, cap)} title="Void Traces you hold (as of the last inventory read) and the most you can: past the cap, a crack's traces are lost"><GameIcon name="void-traces" size={13} />{traces.toLocaleString("en")}{cap != null ? ` / ${cap.toLocaleString("en")}` : ""} traces{nearTraceCap(traces, cap) ? " · near the cap: refine some" : ""}</span>
+      <span class="dim" class:near={!!capWord} title="Void Traces you hold (as of the last inventory read) and the most you can: past the cap, a crack's traces are lost"><GameIcon name="void-traces" size={13} />{traces.toLocaleString("en")}{cap != null ? ` / ${cap.toLocaleString("en")}` : ""} traces{capWord ? ` · ${capWord}` : ""}</span>
     </p>
     <table class="pool history">
       <thead><tr><th>Time</th><th>Mission</th><th>Relics</th><th>Rewards</th><th class="right" title="What the rewards are worth on warframe.market">Plat</th></tr></thead>

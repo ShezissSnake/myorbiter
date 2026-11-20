@@ -11,6 +11,7 @@ import { unchangedWhy } from "../src/lib/core/willSet";
 import * as saleWords from "../src/lib/core/saleLog";
 import { notListedYet } from "../src/lib/core/readyToList";
 import * as firstStartWords from "../src/lib/core/firstStart";
+import * as traceWords from "../src/lib/core/traces";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -281,4 +282,22 @@ test("the setup page has Report a bug beside Try again, and says the sidebar wai
   const row = app.slice(app.indexOf("{#each setup.actions.filter("), app.indexOf("{/each}", app.indexOf("{#each setup.actions.filter(")) + 200);
   assert.match(row, /\{#if setup\.actions\.includes\("retry"\)\}<button data-field="setup\.bug" onclick=\{\(\) => bugReport\.show\(\)\}>Report a bug<\/button>\{\/if\}/);
   assert.match(app, /Three steps, once; you can finish later at any of them\. Meanwhile the sidebar waits: its pages open once you're set up, or after Finish later\./);
+});
+
+// Void Traces near, at or over the cap: one note for Current fissure and the Planner, "over" when
+// over, and the "!" amber always carries.
+
+test("Void Traces near, at or over the cap read the same on both pages, with the amber note's !", () => {
+  const { traceCapWord } = traceWords;
+  assert.equal(traceCapWord(500, 1000), null, "far under: no note");
+  assert.equal(traceCapWord(950, 1000), "! near the cap: refine some");
+  assert.equal(traceCapWord(1000, 1000), "! at the cap: refine some");
+  assert.equal(traceCapWord(1080, 1000), "! over the cap: refine some");
+  assert.equal(traceCapWord(1080, null), null, "no rank: no cap");
+  const fissure = src("src/lib/tabs/InMission.svelte");
+  const plate = src("src/lib/ui/RelicPlate.svelte");
+  for (const [f, s] of [["InMission", fissure], ["RelicPlate", plate]] as const) {
+    assert.match(s, /traceCapWord\(traces, cap\)/, f);
+    assert.doesNotMatch(s, /"(near|at) the cap: refine some"/, f);
+  }
 });
