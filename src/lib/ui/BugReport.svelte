@@ -97,7 +97,9 @@
   let busy = false;
   let openedTimer: ReturnType<typeof setTimeout> | null = null;
   // The report goes on the clipboard first, and the page opens with only the version and platform: github.com
-  // gets none of the report until the player pastes it in and presses Submit new issue.
+  // gets none of the report until the player pastes it in and presses Submit new issue. Kept
+  // reachable while there's nothing to send yet (aria-disabled), so the keyboard gets its reason
+  // too; pressed then, it does nothing.
   async function openOnGitHub() {
     if (empty || reading || busy) return;
     busy = true;
@@ -192,7 +194,7 @@
       <p class="privacy small"><Icon name="lock" size={11} /> Opening the form tells github.com only the version and platform: the report goes there when you paste it in and press Submit new issue.</p>
       <div class="acts">
         <CopyButton text={() => reportMarkdown(report)} label="Copy report" copied="Copied" sizer={["Couldn't copy"]} title="Put the report on the clipboard as Markdown, to paste into an issue yourself, or send it another way if you don't have a GitHub account" />
-        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} disabled={empty || reading} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open the new-issue form on GitHub in your browser, to paste it into. The form's address holds only the version and platform."} onclick={openOnGitHub}>
+        <button bind:this={openButton} type="button" class="stamp gold go" class:done={opened} aria-disabled={empty || reading || undefined} title={empty ? "Say what happened first" : reading ? "Reading MyOrbiter's log…" : "Put the report on the clipboard and open the new-issue form on GitHub in your browser, to paste it into. The form's address holds only the version and platform."} onclick={openOnGitHub}>
           <span class="lbls">
             <span class:on={!opened}>Open on GitHub<Icon name="external" size={11} /></span>
             <span class:on={opened}>Opened in your browser<Icon name="check" size={11} /></span>
