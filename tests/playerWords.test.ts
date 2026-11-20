@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { emptyText, fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF } from "../src/lib/core/fullModeOff";
 import { syncIdleWord } from "../src/lib/core/syncWord";
+import { plan, type BookOrder, type FloorRule, type MyOrder } from "../src/lib/core/market";
+import { unchangedWhy } from "../src/lib/core/willSet";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -55,4 +57,76 @@ test("the banner, the empty pages and Home's Ready to list take the one Full-mod
   const home = src("src/lib/tabs/Home.svelte");
   // No inventory read: never "Nothing spare".
   assert.match(home, /\{:else if nothingRead\}\s*<p class="dim">\{offFull \? FULL_MODE_OFF : NO_READ_YET\}<\/p>\s*\{:else if !byKind\.length\}/);
+});
+
+// What Reprice does to a price: it follows the second-cheapest seller down, a raise stops at the
+// cheapest seller, and a change inside the dead band isn't sent. "matched" is said only when the
+// price is the market price.
+
+const me = { id: "me", ingameName: "ExamplePlayer", platform: "pc", crossplay: true };
+let sellerN = 0;
+const seller = (platinum: number): BookOrder => ({ id: `s${++sellerN}`, type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, user: { id: `u${sellerN}`, ingameName: `Seller${sellerN}`, status: "ingame", platform: "pc", crossplay: true } });
+const listing = (platinum: number): MyOrder => ({ id: "o", itemId: "it", type: "sell", platinum, quantity: 1, rank: null, subtype: null, visible: true, updatedAt: null });
+const drift: FloorRule = { floor: null, minShare: 0, reference: null, min: 1, drift: true };
+const why = (price: number, book: BookOrder[], rule: Partial<FloorRule> = {}) => {
+  const p = plan(listing(price), book, me, { ...drift, ...rule });
+  assert.equal(p.change, false, "Reprice leaves it");
+  return { reason: p.reason, ...unchangedWhy(p, price) };
+};
+
+test("Will set names why Reprice leaves a price: one text per reason plan returns", () => {
+  // The audit's Arcane Energize: 139p, sellers at 139p and 196p: the market price is 196p, but a
+  // raise stops at the cheapest seller.
+  const held = why(139, [seller(139), seller(196), seller(200)]);
+  assert.deepEqual([held.reason, held.word], ["already", "held at cheapest"]);
+  assert.match(held.title, /196p.*no higher than the cheapest seller online or in game \(139p\)/);
+  // The audit's Boltor Prime Set: 100p against a market of 96p: inside the dead band.
+  const band = why(100, [seller(95), seller(96), seller(130)]);
+  assert.deepEqual([band.reason, band.word], ["steady", "within 2p/5%"]);
+  // At the market price already.
+  const at = why(50, [seller(45), seller(50), seller(60)]);
+  assert.deepEqual([at.reason, at.word], ["already", "matched"]);
+  // On its floor, under the market.
+  const floor = why(80, [seller(40), seller(50), seller(60)], { floor: 80 });
+  assert.deepEqual([floor.reason, floor.word], ["floor", "on its floor"]);
+  // One seller: no market price.
+  const none = why(80, [seller(40)]);
+  assert.deepEqual([none.reason, none.word], ["no-sellers", "no market price"]);
+  // Every reason has its own words (the record in unchangedWhy is keyed on Plan["reason"]).
+  for (const reason of ["match", "median"] as const) assert.ok(unchangedWhy({ reason, competitor: plan(listing(50), [seller(45), seller(50)], me, drift).competitor, floor: 1 }, 50).word);
+});
+
+test("Orders' Will set takes its word from unchangedWhy, never a bare \"matched\"", () => {
+  const orders = src("src/lib/tabs/Orders.svelte");
+  assert.doesNotMatch(orders, /<span class="register ok">matched<\/span>/);
+  assert.match(orders, /\{:else if p\}\{@const u = unchangedWhy\(p, o\.platinum\)\}<span class="register ok" title=\{u\.title\}>\{u\.word\}<\/span>/);
+});
+
+test("Orders, the Guide and the Sell dialog say a raise stops at the cheapest seller", () => {
+  const orders = src("src/lib/tabs/Orders.svelte");
+  const guide = src("src/lib/tabs/Guide.svelte");
+  const dialog = src("src/lib/ui/ListDialog.svelte");
+  // Nothing says a listing is kept at the second-cheapest seller.
+  for (const [f, s] of [["Orders", orders], ["Guide", guide], ["ListDialog", dialog]]) {
+    assert.doesNotMatch(s, /kept at the market price[,:] (the )?second-cheapest/, f);
+    assert.doesNotMatch(s, /keeps it at the market price/, f);
+  }
+  const RAISE = /a raise (goes|stops) no higher than the cheapest/;
+  // Orders' Details sentence, the Market price column's help and the row switch's tooltip.
+  assert.match(orders.slice(orders.indexOf("<PageHead"), orders.indexOf("/>", orders.indexOf("<PageHead"))), RAISE);
+  assert.match(orders.slice(orders.indexOf('sh("cheapest"'), orders.indexOf("Sort by it\")", orders.indexOf('sh("cheapest"'))), RAISE);
+  assert.match(orders.slice(orders.indexOf('<td class="center c-auto"'), orders.indexOf("</td>", orders.indexOf('<td class="center c-auto"'))), RAISE);
+  // The Guide's Orders sentence and its line in the page list.
+  assert.match(guide.slice(guide.indexOf('"Your listings,'), guide.indexOf("New listing finds what you hold")), RAISE);
+  assert.doesNotMatch(guide, /Reprice moves it there/);
+  // The Sell dialog.
+  assert.match(dialog.slice(dialog.indexOf("It joins your Orders"), dialog.indexOf("</p>", dialog.indexOf("It joins your Orders"))), RAISE);
+});
+
+test("the Undercut tile says how many of its listings Reprice leaves, and why", () => {
+  const orders = src("src/lib/tabs/Orders.svelte");
+  const tile = orders.slice(orders.indexOf("Undercut: ${undercut}"), orders.indexOf('<span class="register">Undercut</span>'));
+  assert.match(tile, /\$\{undercutLeft\}/);
+  assert.match(tile, /follows the second-cheapest seller down/);
+  assert.match(orders, /const undercutLeft = \$derived\(/);
 });

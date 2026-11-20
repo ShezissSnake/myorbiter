@@ -16,6 +16,7 @@
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
+  import { unchangedWhy } from "../core/willSet";
   import { AUTO_REP_LINE, AUTO_REP_SHORT, AUTO_TRADES_LINE, AUTO_TRADES_SHORT, LAST_COPY_LINE } from "../core/automation";
   import { AUTO_FLOOR_SHARE, AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
   import { EVERY_CHOICES, everyWords, nextCheckShown, nextCheckWhy, whenWords } from "../core/schedule";
@@ -160,6 +161,8 @@
   /** The shown listings with a cheapest seller to stand against, and how many of them are undercut. */
   const against = $derived(orders.filter((o) => isShown(o)).map((o) => againstLowest(o, plans.get(o.id))).filter((d): d is number => d != null));
   const undercut = $derived(against.filter((d) => d > 0).length);
+  /** The undercut listings Reprice leaves as they are (left alone, or no change: Will set says why). */
+  const undercutLeft = $derived(orders.filter((o) => isShown(o) && (againstLowest(o, plans.get(o.id)) ?? 0) > 0 && (isPaused(settings.paused, o) || !plans.get(o.id)?.change)).length);
 
   // New listing: anything tradable you hold, searchable. On a console: anything tradable.
   const sellable = $derived.by(whileShown("market", () => {
@@ -766,7 +769,7 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => { if (e.key === "Escape" && askSold?.unmarked && !e.defaultPrevented) askSold = null; }} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." />
+  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, repriced to the market price: Reprice follows the second-cheapest seller online or in game down, and a raise goes no higher than the cheapest." />
 
   <!-- The figures you trade by, one tile each: the headline figures, so vessels (pass 2, §8). -->
   {#if mkt.linked}
@@ -788,7 +791,7 @@
         <div class="fv"><span class="mark fig plat"><P v={listed} big /></span></div>
         <p class="note">platinum, at your prices</p>
       </div>
-      <div class="tile" title={checkedAt ? `Undercut: ${undercut} of your ${against.length} shown listing${against.length === 1 ? "" : "s"} with another seller online or in game ask more than the cheapest of those sellers, at the check of ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}. Reprice follows the second-cheapest, so it may leave some of these as they are` : "Undercut: press Check prices to compare"}>
+      <div class="tile" title={checkedAt ? `Undercut: ${undercut} of your ${against.length} shown listing${against.length === 1 ? "" : "s"} with another seller online or in game ask more than the cheapest of those sellers, at the check of ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}. ${undercutLeft ? `Reprice leaves ${undercutLeft} of them as they are` : "Reprice changes each of them"}: it follows the second-cheapest seller down (never the cheapest alone), sends no change within ${BAND_WORDS}, and skips listings set to be left alone; Will set says why` : "Undercut: press Check prices to compare"}>
         <span class="register">Undercut</span>
         {#if checkedAt && against.length}
           <div class="fv"><span class="mark fig" class:bad={undercut}>{undercut}</span>
@@ -1031,8 +1034,8 @@
     <table class="orders" class:ownfloors={rows.some((o) => floorOf(o) != null)}>
       <thead data-card="sort">
         <tr>
-          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest, not this">Against lowest</th>
-          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the market price, the second-cheapest seller online or in game (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each, and how many sellers there are, from the last check. Reprice follows it down (the cheapest alone isn't followed: it may be bait); a raise goes no higher than the cheapest seller. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest, not this">Against lowest</th>
+          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: Reprice moves this listing to the market price, down to the second-cheapest seller online or in game (never under its floor); a raise goes no higher than the cheapest seller. Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <!-- One body a listing (its row, and the rows under it), so it can leave whole. It fades in its
@@ -1101,10 +1104,10 @@
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
               {:else if paused}<span class="register" title="Auto-price is off: MyOrbiter leaves this price as you set it">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
-              {:else if p}<span class="register ok">matched</span>{/if}
+              {:else if p}{@const u = unchangedWhy(p, o.platinum)}<span class="register ok" title={u.title}>{u.word}</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
-            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: Reprice follows the second-cheapest seller online or in game down; a raise goes no higher than the cheapest seller"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A

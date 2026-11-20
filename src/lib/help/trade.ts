@@ -80,7 +80,7 @@ const ORDERS: Walkthrough = {
     {
       title: "Each listing, row by row",
       lines: [
-        "Will set: what Reprice would change the price to, tagged when not the market price.",
+        "Will set: what Reprice would set; else why not (matched, held at cheapest, within 2p/5%).",
         "Auto-price off leaves that listing's price as you set it.",
         "Shown off hides the listing from buyers.",
         "Sold marks one copy sold and logs the sale, with a few seconds to undo.",
