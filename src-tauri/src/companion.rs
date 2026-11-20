@@ -283,6 +283,9 @@ enum NoReport {
     Unreadable,
     /// Older than `REPORT_FRESH_MS`: written by a TennoScope that stopped writing.
     Stale(u64),
+    /// Dated this many seconds ahead of the clock: written before the clock was set back, so not
+    /// fresh, however long ago that was.
+    Ahead(u64),
     /// Written by a TennoScope that isn't running any more (an old file).
     Gone,
 }
@@ -294,6 +297,7 @@ impl NoReport {
             NoReport::NoFile => "it hasn't written one".into(),
             NoReport::Unreadable => "its report can't be read".into(),
             NoReport::Stale(secs) => format!("its last report is {secs} s old"),
+            NoReport::Ahead(secs) => format!("its last report is dated {secs} s ahead of the clock (the clock was set back since)"),
             NoReport::Gone => "the report there is from a TennoScope that has ended".into(),
         }
     }
@@ -307,7 +311,8 @@ fn report_in(dir: &Path, live: &[u32], now: u64) -> Result<serde_json::Value, No
     if !pid.map_or(true, |p| live.contains(&p)) {
         return Err(NoReport::Gone);
     }
-    let age = now.saturating_sub(at);
+    // An age below zero is not fresh (as the relic and recipe caches count it).
+    let age = now.checked_sub(at).ok_or_else(|| NoReport::Ahead((at - now).div_ceil(1000)))?;
     if age >= REPORT_FRESH_MS {
         return Err(NoReport::Stale(age / 1000));
     }
@@ -1279,6 +1284,21 @@ mod tests {
         let long = "y".repeat(5000);
         let seen = Seen::of(true, &Ok(serde_json::json!({ "at": 1, "setup": { "access_mode": long }, "health": { "game_reader": { "state": long, "message": long } } })));
         assert!(seen.changes(&Seen::default()).iter().all(|l| l.chars().count() < 500), "{:?}", seen.changes(&Seen::default()));
+    }
+
+    #[test]
+    fn a_report_dated_ahead_of_the_clock_is_not_fresh() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-report-ahead-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join(STATUS_FILE), r#"{"at": 100000, "pid": 7, "game_running": true}"#).unwrap();
+        assert!(read_report_in(&dir, &[7], 100_000).is_some(), "written this very moment");
+        // Written before the clock was set back a minute: not fresh until real time catches up.
+        assert!(read_report_in(&dir, &[7], 40_000).is_none(), "a minute ahead");
+        assert!(read_report_in(&dir, &[7], 99_999).is_none(), "a millisecond ahead");
+        assert_eq!(report_in(&dir, &[7], 40_000), Err(NoReport::Ahead(60)));
+        assert_eq!(report_in(&dir, &[7], 99_999), Err(NoReport::Ahead(1)));
+        assert_eq!(NoReport::Ahead(60).words(), "its last report is dated 60 s ahead of the clock (the clock was set back since)");
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
