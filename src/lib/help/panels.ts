@@ -383,7 +383,7 @@ const FIRST_RUN: Walkthrough = {
       title: "Getting set up, step by step",
       lines: [
         "Each step says where it is: Warframe not running, at sign-in, or signed in.",
-        "Finish later or Esc: no inventory yet; automatic actions go off; a notification names them.",
+        "Finish later or Esc: no inventory yet; automatic actions on go off, with a notification.",
         "Every wait ends at a limit, saying why; Try again starts it over.",
         "The sidebar waits meanwhile; its Game and Inventory lines say the same.",
       ],
