@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import HelpMark from "../ui/HelpMark.svelte";
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { exportFile } from "../backend";
@@ -27,6 +30,8 @@
   import { reveal } from "../motion";
 
   let { model, settings }: { model: Model; settings: Settings } = $props();
+  /** Full mode is off and nothing was read: the empty texts say so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
   // Export: a tick on the button when saved, the reason in oxblood beside it when not.
   let exported = $state<string | null>(null);
   const exportJob = new Job();
@@ -65,7 +70,7 @@
     { key: "worth", label: "Inventory value", value: last ? Math.round(last.worth) : null, plat: true, title: "Inventory value: every copy you hold at the daily median (Market value), at the last inventory read" },
     { key: "change", label: "Change", value: last && prev ? Math.round(last.worth - prev.worth) : null, text: last && prev ? signed(last.worth - prev.worth) : "–", plat: !!(last && prev), sub: prev ? `since ${day(prev.at)}` : "shows after the next read", tone: last && prev && last.worth < prev.worth ? "dim" : undefined, title: last && prev ? `Change in inventory value between the read of ${day(prev.at)} and the last one, ${day(last.at)}` : "Change in inventory value: shows from the next inventory read" },
     { key: "liquid", label: "Quick-sale value", value: last ? Math.round(last.liquid) : null, plat: true, sub: last && prev ? signed(last.liquid - prev.liquid) : undefined, title: "Quick-sale value: everything you hold of what trades daily, kept copies too, no more of each than the market sells in a month, at the last read (beside it, the change since the read before)" },
-    { key: "read", label: "Last read", value: last?.at ?? null, text: last ? day(last.at) : "none yet", still: true, tone: "dim", title: last ? `The last inventory read MyOrbiter worked these out at: ${new Date(last.at).toLocaleString()}` : "No inventory read yet: press Sync while Warframe is running" },
+    { key: "read", label: "Last read", value: last?.at ?? null, text: last ? day(last.at) : "none yet", still: true, tone: "dim", title: last ? `The last inventory read MyOrbiter worked these out at: ${new Date(last.at).toLocaleString()}` : emptyText("No inventory read yet: press Sync while Warframe is running", offFull) },
   ]);
   // CSS colours (app.css tokens): the chart draws its lines with them as styles.
   const GOLD = "var(--chart-gold)";

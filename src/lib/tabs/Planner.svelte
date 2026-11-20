@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import { arrive, fresh } from "../motion";
   import Count from "../ui/Count.svelte";
   import PTick from "../ui/PTick.svelte";
@@ -32,6 +35,8 @@
   // fissures: the live ones, so a relic you can crack right now says so.
   // wishlist: what you starred; relics you hold for it are marked, and can be the only ones shown.
   let { model, settings = $bindable(), mode = $bindable("sets"), fissures = null, wishlist = [], masteryRank = null }: { model: Model; settings: AdviceSettings; mode?: "sets" | "radiant"; fissures?: Fissure[] | null; wishlist?: string[]; masteryRank?: number | null } = $props();
+  /** Full mode is off and nothing was read: the empty texts say so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
   const forWish = $derived.by(whileShown("planner", () => wishlistRelics(model, wishlist)));
   let wishOnly = $state(false);
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
@@ -254,7 +259,7 @@
   {/if}
   {#if drawnRadiant}
     <div class="view swap" class:off={mode !== "radiant"} use:fresh={mode === "radiant"} in:arrive={{ y: 0 }}>
-      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty="No relics left to refine: every relic you hold is radiant already, or none has been read yet (press Sync while Warframe is running)." />
+      <Table rows={radRows} columns={radCols} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort={sortRad} clear={radAnyFilter ? clear : null} empty={emptyText("No relics left to refine: every relic you hold is radiant already, or none has been read yet (press Sync while Warframe is running).", offFull)} />
     </div>
   {/if}
 </div></div>

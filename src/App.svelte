@@ -142,6 +142,7 @@
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import { checkDue } from "./lib/core/schedule";
   import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
+  import { fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF } from "./lib/core/fullModeOff";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -2259,6 +2260,8 @@
   const syncJob = new Job(undefined, 15_000);
   let syncButton = $state<{ flash: () => void } | null>(null);
   const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
+  /** Full mode is off and no inventory was read: no sync can bring one, and Sync says so. */
+  const syncFullModeOff = $derived(!onConsole && fullModeOff(mkt.fullMode, noInventory));
   /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
   let syncStep = $state<string | null>(null);
   /** How the last sync ended, for its word between syncs (`syncIdleWord`). */
@@ -2331,7 +2334,7 @@
           world.done();
         }
         if (error) throw new JobError("Not read", loadProblem(error));
-        return "Up to date";
+        return syncFullModeOff ? SYNC_FULL_MODE_OFF : "Up to date";
       } finally {
         syncStep = null;
       }
@@ -3059,8 +3062,8 @@
         <HelpMark part="rail.foot" corner />
       </div>
       <div class="tools" class:grid={!compact}>
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle)} sizer={["Waiting…", "Up to date", "Not synced"]}
-        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle, syncFullModeOff)} sizer={["Waiting…", "Up to date", "Not synced", SYNC_FULL_MODE_OFF]}
+        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope in Full mode, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
       <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {#if compact}
@@ -3174,7 +3177,7 @@
     {:else}
       {#if noInventory && !onConsole}
         <div class="stale" role="status">
-          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
+          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : fullModeOff(mkt.fullMode, true) ? FULL_MODE_OFF : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
         </div>
       {/if}
@@ -3461,8 +3464,8 @@
   .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); }
   .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
-  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
-     picture without pointing at it; its name is the picture and the tooltip. */
+  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Full mode off", "Not synced")
+     reads beside its picture without pointing at it; its name is the picture and the tooltip. */
   .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 4px; padding: 0 0 0 6px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   /* Two cells are narrow for the register's capitals: the state in plain words there. */
@@ -3493,7 +3496,7 @@
   .foot :global(.tool.on) { color: var(--platinum); border-color: var(--rule-control); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .foot :global(.tool.on .ti) { opacity: 1; }
   .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
+  /* Sync's state word at the far end, small: Reading…, Up to date, Full mode off, Not synced. */
   .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }

@@ -12,6 +12,8 @@
   import { proxy } from "../proxy.svelte";
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { fullModeOff, FULL_MODE_OFF, NO_READ_YET } from "../core/fullModeOff";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { catOfItem, catOfTarget, minimumForItem, resolve, sellTargets, KIND_LABEL, BULK_KINDS, type BulkKind } from "../core/bulk";
   import { minimumFor, minimumsText, SPARE_CATEGORIES, type SpareCategory } from "../core/sparesRules";
@@ -70,6 +72,10 @@
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
   let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, liveRead = true, console = false, reveal = null, bountyTables = null, sortieRewards = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; liveRead?: boolean; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null } = $props();
+  /** No inventory read (on PC): Ready to list can't tell what's spare, so it never says "Nothing spare". */
+  const nothingRead = $derived(!console && noInventoryRead(model));
+  /** …because Full mode is off: it says that, as the banner and the empty pages do. */
+  const offFull = $derived(fullModeOff(mkt.fullMode, nothingRead));
   let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
@@ -640,6 +646,8 @@
       {@render head("platinum", null, "Ready to list", "spares", "Sell spares", "home.ready")}
       {#if !ticked}
         <p class="dim">Nothing ticked on <b>Sell spares</b>.</p>
+      {:else if nothingRead}
+        <p class="dim">{offFull ? FULL_MODE_OFF : NO_READ_YET}</p>
       {:else if !byKind.length}
         <p class="dim" title="Your minimum prices (Sell spares): {minimumsText(settings.market)}">Nothing spare worth your minimum or more in what you ticked.</p>
       {:else}
