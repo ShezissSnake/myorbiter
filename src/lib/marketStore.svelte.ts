@@ -177,6 +177,8 @@ class MarketStore {
   drafting = $state<string | null>(null);
   /** What the form just listed, shown in it for a moment before it closes. */
   draftDone = $state<string | null>(null);
+  /** Counts the listing forms opened and closed: a load that ends after its form closed (or another opened) leaves it be. */
+  private draftTurn = 0;
 
   get me(): Me | null {
     return this.account?.profile ?? null;
@@ -1031,6 +1033,7 @@ class MarketStore {
 
   /** Opens the listing form for something from your collection, priced at the cheapest in-game seller. */
   async startListing(m: Model, name: string, req: ListRequest = {}) {
+    const turn = ++this.draftTurn;
     this.draft = null;
     this.draftError = null;
     this.draftDone = null;
@@ -1038,10 +1041,13 @@ class MarketStore {
     try {
       await this.ensureItems();
     } catch (e) {
+      if (turn !== this.draftTurn) return;
       this.draftError = `Couldn't load warframe.market's item list: ${clean(e)}`;
       this.drafting = null;
       return;
     }
+    // Closed while the item list loaded, or another form opened: this one stays shut.
+    if (turn !== this.draftTurn) return;
     const it = findItem(this.index, name, req.unique);
     if (!it) {
       this.draftError = `${name} isn't tradable on warframe.market.`;
@@ -1217,6 +1223,7 @@ class MarketStore {
   }
 
   closeDraft() {
+    this.draftTurn++;
     this.draft = null;
     this.draftError = null;
     this.drafting = null;
@@ -1371,6 +1378,8 @@ class MarketStore {
   /** The buy order form, open on one item. */
   buyDraft = $state<BuyDraft | null>(null);
   buyError = $state<string | null>(null);
+  /** Counts the buy forms opened (startBuy). */
+  private buyTurn = 0;
 
   /**
    * Opens the buy order form for something you're after, priced from the order book: one more
@@ -1378,14 +1387,17 @@ class MarketStore {
    * the 30-day median when nobody's buying.
    */
   async startBuy(name: string, req: { unique?: string | null; rank?: number | null; subtype?: string | null; quantity?: number; known?: number | null } = {}) {
+    // Only the form opened last is filled in: an older one's read (another item, rank or variant) ending later leaves it be.
+    const turn = ++this.buyTurn;
     this.buyError = null;
     this.buyDraft = null;
     try {
       await this.ensureItems();
     } catch (e) {
-      this.buyError = `Couldn't load warframe.market's item list: ${clean(e)}`;
+      if (turn === this.buyTurn) this.buyError = `Couldn't load warframe.market's item list: ${clean(e)}`;
       return;
     }
+    if (turn !== this.buyTurn) return;
     const it = findItem(this.index, name, req.unique ?? null);
     if (!it) {
       this.buyError = `${name} isn't tradable on warframe.market.`;
@@ -1399,8 +1411,9 @@ class MarketStore {
     try {
       // Buying: who is selling right now, so a fresh read.
       const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => [] as PricePoint[])]);
-      if (this.buyDraft?.itemId !== it.id) return;
-      const me = (this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
+      // Closed while the book loaded (the form's Close empties buyDraft), or another one opened.
+      if (turn !== this.buyTurn || !this.buyDraft) return;
+      const me =(this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
       const same = (o: BookOrder) => o.visible && (rank == null || (o.rank ?? 0) === rank) && (subtype == null || (o.subtype ?? it.subtypes?.[0] ?? null) === subtype) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";
       const buys = book.filter((o) => o.type === "buy" && same(o)).map((o) => o.platinum);
       const sells = book.filter((o) => o.type === "sell" && same(o)).map((o) => o.platinum);
@@ -1411,7 +1424,8 @@ class MarketStore {
       if (price != null && cheapestSell != null && price >= cheapestSell) price = Math.max(1, cheapestSell - 1);
       this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, loading: false };
     } catch (e) {
-      if (this.buyDraft?.itemId === it.id) this.buyDraft = { ...draft, loading: false };
+      if (turn !== this.buyTurn || !this.buyDraft) return;
+      this.buyDraft = { ...draft, loading: false };
       this.buyError = `Couldn't read the order book: ${clean(e)}`;
     }
   }

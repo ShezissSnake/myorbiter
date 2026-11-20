@@ -5,6 +5,7 @@
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { oneAtATime } from "./lib/core/oneAtATime";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
@@ -1961,7 +1962,9 @@
       await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
     })().catch(() => {});
   }
-  async function scanRivens() {
+  // A scan that outlasts the five minutes (warframe.market slow to answer) isn't joined by a second
+  // one: it would ask again for the same rivens and tell of the same finds twice.
+  const scanRivens = oneAtATime(async () => {
     const found: string[] = [];
     const ids: string[] = [];
     const seen = new Set(settings.game.rivensNotified);
@@ -1985,7 +1988,7 @@
     if (!ids.length) return;
     settings.game.rivensNotified = [...ids, ...settings.game.rivensNotified].slice(0, 500);
     if (settings.notify.rivens) tell("rivens", found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
-  }
+  });
 
   // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
   // read once a day: whether one is worth more sold than cracked depends on it (Inventory's spare
