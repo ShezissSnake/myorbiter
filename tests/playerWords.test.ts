@@ -14,6 +14,7 @@ import * as firstStartWords from "../src/lib/core/firstStart";
 import * as traceWords from "../src/lib/core/traces";
 import * as buildWords from "../src/lib/core/buildsPage";
 import type { Build } from "../src/lib/core/builds";
+import * as guardWords from "../src/lib/core/listGuard";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -321,4 +322,33 @@ test("a build with empty slots says how many beside You have everything it takes
   const card = src("src/lib/ui/builds/BuildCard.svelte");
   assert.match(card, /haveAllWord\(emptySlots\(b\)\)/);
   assert.doesNotMatch(card, /<span class="good">You have everything it takes<\/span>/);
+});
+
+// The listing form: no number the last check (guardListing: never more than spareNow's free) would
+// refuse, and "the rest" said truly.
+
+test("the listing form's figures never pass what the last check lets go, and say what the rest are", () => {
+  const { formRoom, spareLine, tooManyLine } = guardWords;
+  // 5 can be spared: 3 on a listing already, 2 free.
+  const now = { free: 2, same: 3, across: null };
+  assert.equal(formRoom(5, false, null, now), 2, "a second listing: the free copies only");
+  assert.equal(formRoom(5, true, 3, now), 2, "added to the listing: the same");
+  assert.equal(formRoom(5, true, 1, now), 2, "another listing of it holds copies too: still the free ones");
+  assert.equal(formRoom(5, false, null, null), 5, "nothing counted: the page's count");
+  assert.equal(spareLine(5, null, false, now), "You can spare 5, 3 on your listings already");
+  assert.equal(spareLine(5, null, true, now), "You can spare 5");
+  assert.equal(spareLine(4, ", less 2 inside your Example Prime Set listing", false, { free: 4, same: 0, across: "2 inside your Example Prime Set listing" }), "You can spare 4, less 2 inside your Example Prime Set listing");
+  assert.equal(tooManyLine({ available: 5, room: 2, quantity: 4, merging: false, existingQty: 3, now }), "That's more than the 2 that can go up: 3 of the 5 you can spare are on your listings already.");
+  assert.equal(tooManyLine({ available: 5, room: 2, quantity: 7, merging: false, existingQty: 3, now }), "That's more than the 2 that can go up: 3 of the 5 you can spare are on your listings already; the rest are copies MyOrbiter keeps back for you.");
+  assert.equal(tooManyLine({ available: 3, room: 3, quantity: 5, merging: false, existingQty: null, now: { free: 3, same: 0, across: null } }), "That's more than the 3 you can spare; the rest are copies MyOrbiter keeps back for you.");
+  const across = { free: 3, same: 0, across: "2 inside your Example Prime Set listing" };
+  const cut = tooManyLine({ available: 3, room: 3, quantity: 5, merging: false, existingQty: null, now: across });
+  assert.equal(cut, "That's more than the 3 you can spare; the rest are kept back for you or offered already (2 inside your Example Prime Set listing).");
+  assert.doesNotMatch(cut, /the rest are copies MyOrbiter keeps back/);
+  assert.equal(tooManyLine({ available: 5, room: 2, quantity: 4, merging: true, existingQty: 3, now }), "You can spare 5 and 3 are listed already, so 2 more at most.");
+  const form = src("src/lib/ui/ListDialog.svelte");
+  assert.match(form, /mkt\.spareNow\(model, item, d\.rank, d\.subtype\)/);
+  assert.match(form, /const room = \$derived\(d\?\.available == null \? null : formRoom\(/);
+  assert.match(form, /\{spareLine\(d\.available, d\.spareWhy \?\? null, merging, now\)\}/);
+  assert.doesNotMatch(form, /`That's more than the \$\{d\.available\} you can spare; the rest are copies MyOrbiter keeps back for you\.`/);
 });
