@@ -896,7 +896,7 @@ impl Client {
             return Err(MarketError::Rejected("bad item".into()));
         }
         let v = self.call("GET", &format!("{V1}/items/{slug}/statistics"), None, false)?;
-        Ok(parse_history(&v))
+        parse_history(&v)
     }
 
     /// Your chats on warframe.market's own messenger, with how many messages you haven't read.
@@ -1170,9 +1170,14 @@ pub struct PricePoint {
     pub subtype: Option<String>,
 }
 
-fn parse_history(v: &Value) -> Vec<PricePoint> {
-    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else { return Vec::new() };
-    days.iter()
+/// An item's history from a statistics reply. A reply without it is an error, not "nothing sold":
+/// the page would stamp the item as read with no price (a relic's prices) or draw an empty history.
+fn parse_history(v: &Value) -> Result<Vec<PricePoint>, MarketError> {
+    let Some(days) = v["payload"]["statistics_closed"]["90days"].as_array() else {
+        return Err(MarketError::Unexpected("no price history in the reply".into()));
+    };
+    Ok(days
+        .iter()
         .filter_map(|d| {
             Some(PricePoint {
                 at: d["datetime"].as_str()?.to_owned(),
@@ -1184,7 +1189,7 @@ fn parse_history(v: &Value) -> Vec<PricePoint> {
                 subtype: d["subtype"].as_str().map(str::to_owned),
             })
         })
-        .collect()
+        .collect())
 }
 
 /// One chat on warframe.market's messenger.
@@ -1322,11 +1327,11 @@ pub struct OrderChange {
 // ------------------------------------------------------------------ item list (cached daily)
 
 /// Caches a list whole (temp file and rename): a crash mid-write must not leave a cache that
-/// fails to parse, since offline it's the only copy. An empty list (warframe.market answered,
-/// but not with data) isn't worth keeping over a good one.
+/// fails to parse, since offline it's the only copy. An empty list, or riven lists with one of
+/// the two missing or empty (warframe.market answered, but not with data), isn't worth keeping
+/// over a good one.
 fn keep(path: &Path, value: &Value) {
-    let empty = value.as_array().is_some_and(Vec::is_empty) || value.get("weapons").and_then(Value::as_array).is_some_and(Vec::is_empty);
-    if empty {
+    if !whole(value) {
         return;
     }
     if let Ok(bytes) = serde_json::to_vec(value) {
@@ -1343,45 +1348,80 @@ fn thumb_name(v: &Value) -> Value {
         .map_or(Value::Null, |f| Value::String(format!("wfm.{f}")))
 }
 
-/// `/v2/items`, trimmed to what MyOrbiter needs and cached for a day.
-pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
-    let path = cache_dir.join("market-items.json");
-    let fresh = std::fs::metadata(&path)
+/// A list with something in it (the item list), or riven lists with both of theirs.
+fn whole(value: &Value) -> bool {
+    match value {
+        Value::Array(list) => !list.is_empty(),
+        Value::Object(_) => ["weapons", "attributes"].iter().all(|k| value[*k].as_array().is_some_and(|l| !l.is_empty())),
+        _ => false,
+    }
+}
+
+/// The list in a reply's `data`. A reply without one, or with an empty one, is a reply of another
+/// shape (a changed API, maintenance served as 200), not "nothing": `Unexpected`, so the copy on
+/// disk is used where there is one.
+fn data_list<'a>(reply: &'a Value, what: &str) -> Result<&'a Vec<Value>, MarketError> {
+    match reply["data"].as_array() {
+        Some(list) if !list.is_empty() => Ok(list),
+        _ => {
+            log::warn!(target: "myorbiter::market", "the reply for the {what} has no list; the copy on disk is used if there is one");
+            Err(MarketError::Unexpected(format!("no {what} in the reply")))
+        }
+    }
+}
+
+/// A copy on disk under a day old, if `usable` takes it.
+fn fresh_copy(path: &Path, usable: impl Fn(&Value) -> bool) -> Option<Value> {
+    let fresh = std::fs::metadata(path)
         .and_then(|m| m.modified())
         .ok()
         .and_then(|t| t.elapsed().ok())
         .is_some_and(|age| age < Duration::from_secs(86_400));
-    if fresh {
-        // A list saved before it carried thumbnails is fetched again.
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| v[0].get("thumb").is_some()) {
-            return Ok(v);
-        }
+    if !fresh {
+        return None;
     }
-    let fetched = get_json(&format!("{V2}/items"), 30);
-    match fetched {
-        Ok(v) => {
-            let slim: Vec<Value> = v["data"]
-                .as_array()
-                .map(|items| {
-                    items
-                        .iter()
-                        .map(|i| {
-                            serde_json::json!({
-                                "id": i["id"], "slug": i["slug"], "gameRef": i["gameRef"],
-                                "name": i["i18n"]["en"]["name"], "maxRank": i["maxRank"],
-                                "subtypes": i["subtypes"], "tags": i["tags"],
-                                "thumb": thumb_name(&i["i18n"]["en"]["thumb"]),
-                            })
-                        })
-                        .collect()
+    std::fs::read(path).ok().and_then(|b| serde_json::from_slice::<Value>(&b).ok()).filter(|v| usable(v))
+}
+
+/// The copy on disk, whatever its age: offline, an old list is better than none.
+fn copy_on_disk(path: &Path) -> Option<Value> {
+    std::fs::read(path).ok().and_then(|b| serde_json::from_slice(&b).ok())
+}
+
+/// `/v2/items`, trimmed to what MyOrbiter needs and cached for a day.
+pub fn items(cache_dir: &Path) -> Result<Value, MarketError> {
+    let path = cache_dir.join("market-items.json");
+    // A list saved before it carried thumbnails is fetched again.
+    if let Some(v) = fresh_copy(&path, |v| v[0].get("thumb").is_some()) {
+        return Ok(v);
+    }
+    items_from(&path, get_json(&format!("{V2}/items"), 30))
+}
+
+/// The item list from warframe.market's reply, kept on disk; the copy on disk when there is no
+/// reply, or one without the list.
+fn items_from(path: &Path, fetched: Result<Value, MarketError>) -> Result<Value, MarketError> {
+    let read = fetched.and_then(|v| {
+        let slim: Vec<Value> = data_list(&v, "item list")?
+            .iter()
+            .map(|i| {
+                serde_json::json!({
+                    "id": i["id"], "slug": i["slug"], "gameRef": i["gameRef"],
+                    "name": i["i18n"]["en"]["name"], "maxRank": i["maxRank"],
+                    "subtypes": i["subtypes"], "tags": i["tags"],
+                    "thumb": thumb_name(&i["i18n"]["en"]["thumb"]),
                 })
-                .unwrap_or_default();
-            let out = Value::Array(slim);
-            keep(&path, &out);
+            })
+            .collect();
+        Ok(Value::Array(slim))
+    });
+    match read {
+        Ok(out) => {
+            keep(path, &out);
             Ok(out)
         }
-        // Offline: an old list is better than none.
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        // Offline, or an answer of another shape: an old list is better than none.
+        Err(e) => copy_on_disk(path).ok_or(e),
     }
 }
 
@@ -1405,40 +1445,42 @@ fn query_value(s: &str) -> String {
 /// for a day. Each carries `gameRef`: the weapon path and the stat tag the game's own riven uses.
 pub fn riven_meta(cache_dir: &Path) -> Result<Value, MarketError> {
     let path = cache_dir.join("market-rivens.json");
-    let fresh = std::fs::metadata(&path)
-        .and_then(|m| m.modified())
-        .ok()
-        .and_then(|t| t.elapsed().ok())
-        .is_some_and(|age| age < Duration::from_secs(86_400));
-    if fresh {
-        if let Some(v) = std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()) {
-            return Ok(v);
-        }
+    if let Some(v) = fresh_rivens(&path) {
+        return Ok(v);
     }
     let get = |what: &str| get_json(&format!("{V2}/riven/{what}"), 30);
-    let fetched = get("weapons").and_then(|w| get("attributes").map(|a| (w, a)));
-    match fetched {
-        Ok((w, a)) => {
-            let weapons: Vec<Value> = w["data"]
-                .as_array()
-                .map(|xs| xs.iter().map(|x| serde_json::json!({ "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "group": x["group"], "rivenType": x["rivenType"] })).collect())
-                .unwrap_or_default();
-            let attributes: Vec<Value> = a["data"]
-                .as_array()
-                .map(|xs| {
-                    xs.iter()
-                        .map(|x| serde_json::json!({
-                            "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "unit": x["unit"],
-                            "positiveOnly": x["positiveOnly"], "negativeOnly": x["negativeOnly"], "exclusiveTo": x["exclusiveTo"],
-                        }))
-                        .collect()
-                })
-                .unwrap_or_default();
-            let out = serde_json::json!({ "weapons": weapons, "attributes": attributes });
-            keep(&path, &out);
+    rivens_from(&path, get("weapons").and_then(|w| get("attributes").map(|a| (w, a))))
+}
+
+/// A fresh copy of the riven lists on disk, used only with both of its lists, as the item list's
+/// is only with its thumbnails: one kept before both were checked is fetched again.
+fn fresh_rivens(path: &Path) -> Option<Value> {
+    fresh_copy(path, whole)
+}
+
+/// The riven lists from warframe.market's two replies, kept on disk; the copy on disk when there
+/// are no replies, or one without its list.
+fn rivens_from(path: &Path, fetched: Result<(Value, Value), MarketError>) -> Result<Value, MarketError> {
+    let read = fetched.and_then(|(w, a)| {
+        let weapons: Vec<Value> = data_list(&w, "riven weapons")?
+            .iter()
+            .map(|x| serde_json::json!({ "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "group": x["group"], "rivenType": x["rivenType"] }))
+            .collect();
+        let attributes: Vec<Value> = data_list(&a, "riven attributes")?
+            .iter()
+            .map(|x| serde_json::json!({
+                "slug": x["slug"], "gameRef": x["gameRef"], "name": x["i18n"]["en"]["name"], "unit": x["unit"],
+                "positiveOnly": x["positiveOnly"], "negativeOnly": x["negativeOnly"], "exclusiveTo": x["exclusiveTo"],
+            }))
+            .collect();
+        Ok(serde_json::json!({ "weapons": weapons, "attributes": attributes }))
+    });
+    match read {
+        Ok(out) => {
+            keep(path, &out);
             Ok(out)
         }
-        Err(e) => std::fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok()).ok_or(e),
+        Err(e) => copy_on_disk(path).ok_or(e),
     }
 }
 
@@ -1664,7 +1706,7 @@ mod tests {
     #[test]
     fn reads_price_history() {
         let v: Value = serde_json::from_str(r#"{"payload": {"statistics_closed": {"48hours": [], "90days": [{"datetime": "2026-10-26T00:00:00.000+00:00", "volume": 123, "min_price": 5.0, "max_price": 9.0, "median": 7.0, "mod_rank": 0}, {"datetime": "2026-10-26T00:00:00.000+00:00", "volume": 3, "min_price": 110.0, "max_price": 130.0, "median": 120.0, "mod_rank": 5}]}}}"#).unwrap();
-        let h = parse_history(&v);
+        let h = parse_history(&v).unwrap();
         assert_eq!(h.len(), 2);
         assert_eq!((h[1].median, h[1].volume, h[1].rank), (120.0, 3, Some(5)));
     }
@@ -2360,5 +2402,77 @@ mod slug_tests {
         }
         assert_eq!(user_slug("Tenno_Alpha"), Some("tenno_alpha".into()));
         assert_eq!(user_slug("x.y-z"), Some("x.y-z".into()));
+    }
+}
+
+/// Answers of another shape than the one asked for: none of them costs a good copy or reads as
+/// "nothing". Nothing here is sent anywhere: the replies are given to the functions that read them.
+#[cfg(test)]
+mod odd_answers {
+    use super::*;
+    use serde_json::json;
+
+    /// A folder of its own for one test, empty.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("myorbiter-odd-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn an_answer_without_the_item_list_gives_the_good_copy_on_disk() {
+        let dir = scratch("items");
+        let path = dir.join("market-items.json");
+        let good = json!([{ "id": "i1", "slug": "thing_prime_set", "name": "Thing Prime Set", "thumb": null }]);
+        std::fs::write(&path, serde_json::to_vec(&good).unwrap()).unwrap();
+        for odd in [json!({ "data": null }), json!({}), json!({ "data": [] }), json!({ "data": { "items": [] } })] {
+            assert_eq!(items_from(&path, Ok(odd.clone())).unwrap(), good, "{odd}");
+        }
+        assert_eq!(copy_on_disk(&path).unwrap(), good, "and the copy stays");
+        // With no copy on disk, an answer without the list is an error, not an empty list.
+        std::fs::remove_file(&path).unwrap();
+        assert!(matches!(items_from(&path, Ok(json!({ "data": null }))), Err(MarketError::Unexpected(_))));
+        // A list is read and kept.
+        let reply = json!({ "data": [{ "id": "i2", "slug": "x_prime_set", "i18n": { "en": { "name": "X Prime Set", "thumb": "items/images/en/thumbs/x.png" } } }] });
+        let read = items_from(&path, Ok(reply)).unwrap();
+        assert_eq!((read[0]["slug"].as_str(), read[0]["thumb"].as_str()), (Some("x_prime_set"), Some("wfm.x.png")));
+        assert_eq!(copy_on_disk(&path).unwrap(), read);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn the_riven_lists_are_kept_and_used_only_whole() {
+        let dir = scratch("rivens");
+        let path = dir.join("market-rivens.json");
+        let weapon = json!({ "slug": "braton", "gameRef": "/Lotus/Weapons/Braton", "i18n": { "en": { "name": "Braton" } } });
+        let stat = json!({ "slug": "damage", "gameRef": "WeaponDamageAmountMod", "i18n": { "en": { "name": "Damage" } } });
+        // Weapons and no attributes: not kept, and with nothing on disk an error.
+        assert!(matches!(rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({ "data": null })))), Err(MarketError::Unexpected(_))));
+        assert!(copy_on_disk(&path).is_none(), "half a copy isn't kept");
+        assert!(rivens_from(&path, Ok((json!({}), json!({ "data": [stat] })))).is_err(), "nor the other half");
+        assert!(copy_on_disk(&path).is_none());
+        // Both: kept, and an odd answer after it gives that copy.
+        let whole = rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({ "data": [stat] })))).unwrap();
+        assert_eq!(copy_on_disk(&path).unwrap(), whole);
+        assert_eq!(rivens_from(&path, Ok((json!({ "data": [weapon] }), json!({})))).unwrap(), whole);
+        assert_eq!(copy_on_disk(&path).unwrap(), whole, "the whole copy stays");
+        // A fresh copy on disk is used only when it has both lists (one kept before this check).
+        std::fs::write(&path, br#"{"weapons":[{"slug":"braton"}],"attributes":[]}"#).unwrap();
+        assert_eq!(fresh_rivens(&path), None, "half a copy is fetched again");
+        std::fs::write(&path, br#"{"weapons":[{"slug":"braton"}]}"#).unwrap();
+        assert_eq!(fresh_rivens(&path), None);
+        std::fs::write(&path, serde_json::to_vec(&whole).unwrap()).unwrap();
+        assert_eq!(fresh_rivens(&path), Some(whole));
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_statistics_answer_without_the_history_is_an_error_not_an_empty_history() {
+        assert!(matches!(parse_history(&json!({})), Err(MarketError::Unexpected(_))));
+        assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": {} } })), Err(MarketError::Unexpected(_))));
+        assert!(matches!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": null } } })), Err(MarketError::Unexpected(_))));
+        // A history with no days is one: nothing sold in 90 days.
+        assert_eq!(parse_history(&json!({ "payload": { "statistics_closed": { "90days": [] } } })).unwrap(), vec![]);
     }
 }
