@@ -139,7 +139,8 @@ export interface UpdateSettings {
   from: { version: string; channel: Channel } | null;
   /**
    * Whether `channel` stands: chosen in Settings, kept from settings saved before, or settled by a
-   * new install's first check. False only on a new install (no settings saved yet) until then:
+   * new install's first check. False only on a new install (no settings saved yet, or a damaged
+   * settings file moved aside, whose channel can't be read) until then:
    * `channel` is only what Settings shows meanwhile, and the first check that hears back from the
    * channels settles it (`newInstallStep`), once.
    */
@@ -148,7 +149,10 @@ export interface UpdateSettings {
 
 export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null, picked: true });
 
-/** A new install's (no settings saved yet): its channel is settled by its first check (`newInstallStep`). */
+/**
+ * A new install's (no settings saved yet), and a start's whose settings file was damaged and moved
+ * aside (`loadSettings`): its channel is settled by its first check (`newInstallStep`).
+ */
 export const newInstallUpdates = (): UpdateSettings => ({ ...defaultUpdates(), picked: false });
 
 /**
@@ -251,7 +255,8 @@ export function sanitizeUpdates(raw: unknown): UpdateSettings {
     later: typeof r.later === "string" && VERSION.test(r.later) ? r.later : "",
     lastCheck: typeof r.lastCheck === "number" && Number.isFinite(r.lastCheck) && r.lastCheck > 0 ? r.lastCheck : null,
     from: from && typeof from.version === "string" && VERSION.test(from.version) && isChannel(from.channel) ? { version: from.version, channel: from.channel } : null,
-    // Saved settings keep their channel: only a new install that hasn't settled yet saves false.
+    // Saved settings keep their channel: only a new install that hasn't settled yet saves false
+    // (a start after a damaged settings file is one too).
     picked: r.picked !== false,
   };
 }

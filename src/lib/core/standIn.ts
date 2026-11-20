@@ -8,6 +8,12 @@ import type { TennoscopeReport, TennoscopeStatus } from "../backend";
 export const STAND_IN_KEY = "orbiter-demo-tennoscope";
 /** "1": the demo's update channels as a new channel has them: Stable and Beta empty, Experimental with this build. */
 export const EMPTY_CHANNEL_KEY = "orbiter-demo-empty-channel";
+/**
+ * "1": the start goes as the desktop app's does after it moved a damaged settings file aside
+ * (`read_settings` in lib.rs): no settings, not a new install, and this name for the moved file.
+ */
+export const DAMAGED_SETTINGS_KEY = "orbiter-demo-damaged-settings";
+export const DAMAGED_SETTINGS_NAME = "settings.json.broken-1793814960";
 
 export type StandIn =
   /** Starts, and never writes a report. */
