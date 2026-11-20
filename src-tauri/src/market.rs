@@ -1013,15 +1013,20 @@ fn changed_line(id: &str, change: &OrderChange) -> String {
     format!("order {id} changed: {}", parts.join(", "))
 }
 
-/// The rows of an order list (`data`), read row by row as `parse_closed_orders` reads its own: one
-/// row that doesn't parse (a price with a fraction, a null quantity, no user) is left out rather
-/// than failing the whole list, with one log line that counts them and names no one. A reply
-/// with no list at all is still `Unexpected`, never "no orders".
+/// The rows of an order list (`data`), read whole or not at all. A list with a row that doesn't
+/// parse (a price with a fraction, a null quantity, no user) is an answer of another shape, and
+/// so is one none of whose rows parse: taken as the rows that could be read, the player's own
+/// listings would read as gone (an approval ended, a sale "not listed", a second listing
+/// planned) and an order book short of a seller could move a price. The error counts rows and
+/// quotes nothing from them. An empty list is a list; a reply with no list is `Unexpected` too.
 fn order_rows<T: serde::de::DeserializeOwned>(reply: &Value, what: &str) -> Result<Vec<T>, MarketError> {
     let list = reply["data"].as_array().ok_or_else(|| MarketError::Unexpected(format!("no list of {what} in the reply")))?;
     let rows: Vec<T> = list.iter().filter_map(|row| T::deserialize(row).ok()).collect();
+    if rows.is_empty() && !list.is_empty() {
+        return Err(MarketError::Unexpected(format!("none of the {} rows of {what} could be read", list.len())));
+    }
     if rows.len() < list.len() {
-        log::warn!(target: "myorbiter::market", "{} of {} rows of {what} couldn't be read and were left out", list.len() - rows.len(), list.len());
+        return Err(MarketError::Unexpected(format!("{} of the {} rows of {what} couldn't be read", list.len() - rows.len(), list.len())));
     }
     Ok(rows)
 }
@@ -2584,28 +2589,44 @@ mod odd_answers {
                 "user": { "id": "aaaaaaaaaaaaaaaaaaaaaaaa", "ingameName": "ExampleSeller", "status": "ingame", "platform": "pc", "crossplay": true } })
     }
 
+    /// What `my_orders` and `order_book` make of a list: read whole or not at all, as on main. A
+    /// shorter list would read as listings gone (an approval ended, a sale "not listed", a second
+    /// listing planned) or as a book without its cheapest seller (a price moved without a click).
     #[test]
-    fn one_odd_row_leaves_out_that_row_not_the_whole_list() {
-        let good = book_row("bbbbbbbbbbbbbbbbbbbbbbbb");
+    fn an_order_list_with_a_row_that_cant_be_read_is_an_error_not_a_shorter_list() {
         let mut null_quantity = book_row("cccccccccccccccccccccccc");
         null_quantity["quantity"] = Value::Null;
         let mut fraction = book_row("dddddddddddddddddddddddd");
         fraction["platinum"] = json!(12.5);
         let mut no_user = book_row("eeeeeeeeeeeeeeeeeeeeeeee");
         no_user.as_object_mut().unwrap().remove("user");
-        let rows: Vec<BookOrder> = order_rows(&json!({ "data": [good, null_quantity, fraction, no_user] }), "an order book").unwrap();
-        assert_eq!(rows.iter().map(|o| o.id.as_str()).collect::<Vec<_>>(), ["bbbbbbbbbbbbbbbbbbbbbbbb"]);
-        // The player's own orders, read the same way.
-        let mine = json!({ "data": [
-            { "id": "111111111111111111111111", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": 1, "visible": true },
-            { "id": "222222222222222222222222", "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": null, "visible": true },
-        ] });
-        let rows: Vec<Order> = order_rows(&mine, "your orders").unwrap();
-        assert_eq!(rows.iter().map(|o| o.id.as_str()).collect::<Vec<_>>(), ["111111111111111111111111"]);
-        // A reply with no list at all is still not a list: not "no orders".
+        let book = |rows: Vec<Value>| order_rows::<BookOrder>(&json!({ "data": rows }), "an order book");
+        let why = |r: Result<Vec<BookOrder>, MarketError>| match r {
+            Err(MarketError::Unexpected(why)) => why,
+            other => panic!("not an answer of another shape: {other:?}"),
+        };
+        // An item's order book with one row that can't be read, then with none that can.
+        assert_eq!(why(book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("ffffffffffffffffffffffff"), null_quantity.clone()])), "1 of the 3 rows of an order book couldn't be read");
+        assert_eq!(why(book(vec![null_quantity, fraction, no_user])), "none of the 3 rows of an order book could be read");
+        let whole = book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("ffffffffffffffffffffffff")]).unwrap();
+        assert_eq!(whole.len(), 2, "a list read whole is the list");
+
+        // The player's own orders, the same.
+        let own = |id: &str, quantity: Value| json!({ "id": id, "itemId": "5dbe9b097ea27b0ffe3ca26c", "type": "sell", "platinum": 7, "quantity": quantity, "visible": true });
+        let mine = |rows: Vec<Value>| order_rows::<Order>(&json!({ "data": rows }), "your orders");
+        let e = mine(vec![own("111111111111111111111111", json!(1)), own("222222222222222222222222", Value::Null)]).unwrap_err();
+        assert!(matches!(&e, MarketError::Unexpected(why) if why == "1 of the 2 rows of your orders couldn't be read"), "{e}");
+        let e = mine(vec![own("222222222222222222222222", Value::Null)]).unwrap_err();
+        assert!(matches!(&e, MarketError::Unexpected(why) if why == "none of the 1 rows of your orders could be read"), "{e}");
+        // The error counts rows and quotes nothing from one: no id, no name, no value.
+        for word in ["222222222222222222222222", "5dbe9b097ea27b0ffe3ca26c", "ExampleSeller", "null", "12.5"] {
+            assert!(!e.to_string().contains(word) && !why(book(vec![book_row("bbbbbbbbbbbbbbbbbbbbbbbb"), book_row("cccccccccccccccccccccccc"), json!({ "user": { "ingameName": "ExampleSeller" }, "platinum": 12.5 })])).contains(word), "{word}");
+        }
+        assert_eq!(mine(vec![own("111111111111111111111111", json!(1))]).unwrap().len(), 1);
+        // An empty list is a list (no orders); a reply with no list at all is not "no orders".
+        assert_eq!(mine(vec![]).unwrap().len(), 0, "an empty list is one");
         assert!(matches!(order_rows::<Order>(&json!({ "data": null }), "your orders"), Err(MarketError::Unexpected(_))));
         assert!(matches!(order_rows::<BookOrder>(&json!({}), "an order book"), Err(MarketError::Unexpected(_))));
-        assert_eq!(order_rows::<Order>(&json!({ "data": [] }), "your orders").unwrap().len(), 0, "an empty list is one");
     }
 
     #[test]
