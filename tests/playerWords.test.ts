@@ -12,6 +12,8 @@ import * as saleWords from "../src/lib/core/saleLog";
 import { notListedYet } from "../src/lib/core/readyToList";
 import * as firstStartWords from "../src/lib/core/firstStart";
 import * as traceWords from "../src/lib/core/traces";
+import * as buildWords from "../src/lib/core/buildsPage";
+import type { Build } from "../src/lib/core/builds";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -300,4 +302,23 @@ test("Void Traces near, at or over the cap read the same on both pages, with the
     assert.match(s, /traceCapWord\(traces, cap\)/, f);
     assert.doesNotMatch(s, /"(near|at) the cap: refine some"/, f);
   }
+});
+
+// Builds: "You have everything it takes" never stands alone over empty slots.
+
+test("a build with empty slots says how many beside You have everything it takes", () => {
+  const { emptySlots, haveAllWord } = buildWords;
+  const mod = { path: "/Lotus/Upgrades/Mods/Example" };
+  const b = (x: Partial<Build>): Build => ({ id: "b", item: "/Lotus/Example/Gun", kind: "primary", mods: [], arcanes: [], shards: [], source: "pasted", importedAt: 0, ...x });
+  // A rifle: 8 mod slots, an exilus, one arcane.
+  const full = b({ mods: Array(8).fill(mod), exilus: mod, arcanes: [mod] });
+  assert.equal(emptySlots(full), 0);
+  assert.equal(haveAllWord(0), "You have everything it takes");
+  const sparse = b({ mods: [mod, null, mod, mod, mod, mod], arcanes: [mod] });
+  assert.equal(emptySlots(sparse), 4, "slot 2, slots 7 and 8, and the exilus");
+  assert.equal(haveAllWord(4), "You have everything it takes · 4 slots empty");
+  assert.equal(haveAllWord(1), "You have everything it takes · 1 slot empty");
+  const card = src("src/lib/ui/builds/BuildCard.svelte");
+  assert.match(card, /haveAllWord\(emptySlots\(b\)\)/);
+  assert.doesNotMatch(card, /<span class="good">You have everything it takes<\/span>/);
 });

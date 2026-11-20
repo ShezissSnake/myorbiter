@@ -613,3 +613,15 @@ export function copyLine(a: { stale: boolean; error?: string; fetchedAt: number 
 export function savedFrom<T extends Pick<Build, "source">>(builds: readonly T[], url: string): T | undefined {
   return builds.find((b) => isSite(b.source) && b.source.url === url);
 }
+
+/** Slots the Arsenal grid shows empty: the aura, stance or exilus the gear has, its mod slots, its arcane slots. */
+export function emptySlots(b: Build): number {
+  const l = slotLayout(b.kind);
+  const open = (on: boolean, m: unknown) => (on && !m ? 1 : 0);
+  let n = open(l.aura, b.aura) + open(l.stance, b.stance) + open(l.exilus, b.exilus);
+  for (let i = 0; i < l.mods; i++) if (!b.mods[i]) n++;
+  return n + Math.max(0, l.arcanes - b.arcanes.length);
+}
+
+/** Nothing left to get: said with how many slots stay empty, so it never reads as a full build. */
+export const haveAllWord = (empty: number) => `You have everything it takes${empty ? ` · ${empty} slot${empty === 1 ? "" : "s"} empty` : ""}`;

@@ -11,7 +11,7 @@
   import type { Model } from "../../core/model";
   import { bonusElement, ELEMENT_LABEL, missing, type Build, type MissingLine, type MissingReport } from "../../core/builds";
   import type { Loadout, LoadoutPick, WeaponRiven } from "../../core/builds/suggest";
-  import { ageLine, BASIS_WORD, helminthShow, noteShown, rivenShort, shardSlots, sourceName, tierWord, withItLines, TIER_TIP, UNSURE_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
+  import { ageLine, BASIS_WORD, emptySlots, haveAllWord, helminthShow, noteShown, rivenShort, shardSlots, sourceName, tierWord, withItLines, TIER_TIP, UNSURE_TIP, type Shown, type WithItLine } from "../../core/buildsPage";
   import { familyOfTag } from "./tags";
   import { openable } from "../../core/links";
   import { info } from "../../hover.svelte";
@@ -201,7 +201,7 @@
 
       <section class="miss" aria-label="What you're missing">
         <h4 class="register">
-          {#if todo.length}What you're missing · <span class="cnt">{todo.length} to get</span>{:else}<span class="good">You have everything it takes</span>{/if}
+          {#if todo.length}What you're missing · <span class="cnt">{todo.length} to get</span>{:else}<span class="good">{haveAllWord(emptySlots(b))}</span>{/if}
           {#if report.endo}<span class="endoall" title="Endo to rank every mod as the build wants"><GameIcon name="endo" size={12} />{report.endo.toLocaleString("en")} Endo</span>{/if}
         </h4>
         {#if todo.length}<ul class="lines">{#each todo as l, i (`${l.kind}${l.path ?? l.name}${i}`)}{@render line(l)}{/each}</ul>{/if}
