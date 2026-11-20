@@ -617,7 +617,7 @@
   function keepRow(e: Event) {
     const from = e.currentTarget as HTMLElement;
     const row = from.closest(".acts, li");
-    refocus(from, () => row?.querySelector<HTMLElement>('[aria-label="Remove"], [aria-label="Take down"]'));
+    refocus(from, () => row?.querySelector<HTMLElement>("[data-remove]"));
   }
   // Sold waits a few seconds, with Undo, before it's sent: marking sold on warframe.market goes on
   // your profile and lowers or closes the listing, which a slip of the mouse shouldn't do.
@@ -1055,10 +1055,11 @@
           {@const paused = isPaused(settings.paused, o)}
           {@const held = stock(o)}
           {@const change = changeOf(o)}
+          {@const nm = it?.name ?? o.itemId}
           <tr class="order" class:hidden={!shown}>
             <td class="fade c-item">
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId}>
-                {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
+                {#if it}<button type="button" class="charted" class:on={charted === o.id} aria-label="Price history: {nm}" aria-expanded={charted === o.id} title="What it sold for over the last 90 days, against your price" onclick={() => (charted = charted === o.id ? null : o.id)}><Icon name="chart" size={13} /></button>{/if}
                 {#if rankLabel(o)}<span class="tag">{rankLabel(o)}</span>{/if}
                 {#if it && collecting.has(it.name) && !o.rank}{@const c = collecting.get(it.name)!}<span class="tag ok" title="You're collecting copies to max it ({c.copies} of {c.needed}, on Arcanes): selling these sets you back">still collecting</span>{/if}
               </Named>
@@ -1066,11 +1067,11 @@
             </td>
             <td class="right c-qty" data-label="Qty">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.quantity != null} value={edits[o.id]?.quantity ?? o.quantity}
-                oninput={(e) => edit(o, "quantity", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Quantity" />
+                oninput={(e) => edit(o, "quantity", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Quantity: {nm}" />
             </td>
             <td class="right c-price" data-label="Your price">
               <input type="number" min="1" inputmode="numeric" class:edited={change?.platinum != null} value={edits[o.id]?.platinum ?? o.platinum}
-                oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price" />
+                oninput={(e) => edit(o, "platinum", e.currentTarget.value)} onkeydown={(e) => editKey(o, e)} onwheel={(e) => e.currentTarget.blur()} aria-label="Your price: {nm}" />
               <!-- Narrow windows hide Will set: what Reprice would do shows under the price instead. -->
               {#if p?.change && !paused && shown && !change}<div class="willnote" class:up={p.target > o.platinum} title={p.reason === "floor" ? "Reprice sets this, held up by the floor" : "Reprice sets this"}>→ {p.target}p{p.reason === "floor" ? (p.competitor.price != null && p.target > p.competitor.price ? " · over market" : " · floor") : ""}</div>{/if}
               {#if badEdit(o)}<p class="err small">{badEdit(o)}</p>{/if}
@@ -1078,8 +1079,8 @@
                 {@const over = overHeld(o)}
                 {#if over}<p class="err small">{over}</p>{/if}
                 <div class="save">
-                  <ProgressButton variant="icon" icon="check" tone="gold" job={rowBusy.get(o.id)} state={rowBusy.get(o.id).working ? "working" : "idle"} label="Save" working="Saving…" title={over ?? "Save: update the listing on warframe.market (Enter)"} disabled={!!mkt.op || !!over} onclick={() => save(o)} />
-                  <IconButton icon="undo" tone="quiet" label="Undo" title="Undo: put back {o.quantity} at {o.platinum}p (Esc)" onclick={() => revert(o)} />
+                  <ProgressButton variant="icon" icon="check" tone="gold" job={rowBusy.get(o.id)} state={rowBusy.get(o.id).working ? "working" : "idle"} label="Save: {nm}" working="Saving…" title={over ?? "Save: update the listing on warframe.market (Enter)"} disabled={!!mkt.op || !!over} onclick={() => save(o)} />
+                  <IconButton icon="undo" tone="quiet" label="Undo: {nm}" title="Undo: put back {o.quantity} at {o.platinum}p (Esc)" onclick={() => revert(o)} />
                 </div>
               {/if}
             </td>
@@ -1106,9 +1107,9 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
-            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
-            <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
+            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor: {nm}" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
+            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: {nm}" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers: {nm}" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
@@ -1116,23 +1117,23 @@
                 {#if pendingSold[o.id]}
                   <span class="pendrow">
                     <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {pendingSold[o.id]}<i aria-hidden="true"></i></span>
-                    <button type="button" class="link undo" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => acts?.querySelector<HTMLElement>('[aria-label="Remove"]')); undoSale(o.id); }}>Undo</button>
+                    <button type="button" class="link undo" aria-label="Undo the sale: {nm}" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => acts?.querySelector<HTMLElement>("[data-remove]")); undoSale(o.id); }}>Undo</button>
                   </span>
                 {:else if selling?.id === o.id}
                   {@const n = selling.n}
                   {@const bad = n < 1 ? "At least 1" : n > o.quantity ? `Only ${o.quantity} listed` : null}
-                  <input type="number" min="1" max={o.quantity} inputmode="numeric" class:bad value={selling.n} aria-label="How many you sold" title={bad ?? "How many you sold"} use:focusIt oninput={(e) => selling && (selling.n = Math.round(Number(e.currentTarget.value)) || 0)} onkeydown={(e) => { if (e.key === "Enter") recordSale(o, selling?.n ?? 1); else if (e.key === "Escape") { e.stopPropagation(); selling = null; } }} onwheel={(e) => e.currentTarget.blur()} />
-                  <IconButton icon="check" tone="gold" label={bad ?? `Sold ${n}`} title={bad ?? `Mark ${n} sold on warframe.market and log the sale`} disabled={!!bad} onclick={() => recordSale(o, selling?.n ?? 1)} />
-                  <IconButton icon="close" tone="quiet" label="Cancel" onclick={() => (selling = null)} />
+                  <input type="number" min="1" max={o.quantity} inputmode="numeric" class:bad value={selling.n} aria-label="How many you sold: {nm}" title={bad ?? "How many you sold"} use:focusIt oninput={(e) => selling && (selling.n = Math.round(Number(e.currentTarget.value)) || 0)} onkeydown={(e) => { if (e.key === "Enter") recordSale(o, selling?.n ?? 1); else if (e.key === "Escape") { e.stopPropagation(); selling = null; } }} onwheel={(e) => e.currentTarget.blur()} />
+                  <IconButton icon="check" tone="gold" label="{bad ?? `Sold ${n}`}: {nm}" title={bad ?? `Mark ${n} sold on warframe.market and log the sale`} disabled={!!bad} onclick={() => recordSale(o, selling?.n ?? 1)} />
+                  <IconButton icon="close" tone="quiet" label="Cancel: {nm}" title="Cancel" onclick={() => (selling = null)} />
                 {:else if removing === o.id}
                   <span class="ask register">Remove?</span>
-                  <IconButton icon="trash" tone="danger" label="Remove it" title="Remove it: take {it?.name ?? 'this listing'} off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o); }} onkeydown={onEsc(() => (removing = null), true)} />
-                  <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>
+                  <IconButton icon="trash" tone="danger" label="Remove it: {nm}" title="Remove it: take {nm} off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o); }} onkeydown={onEsc(() => (removing = null), true)} />
+                  <button type="button" class="ib quiet" aria-label="Keep: {nm}" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>
                 {:else}
-                  <IconButton icon="sold" tone="gold" disabled={rowBusy.busy(o.id)} label={o.quantity > 1 ? "Sold one" : "Sold"} title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
-                  {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" disabled={rowBusy.busy(o.id)} label="Sold several" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
+                  <IconButton icon="sold" tone="gold" disabled={rowBusy.busy(o.id)} label="{o.quantity > 1 ? 'Sold one' : 'Sold'}: {nm}" title="Sold {o.quantity > 1 ? 'one' : 'it'} in game: marked sold on warframe.market (recorded on your profile), the listing goes down by one and the sale is logged. You get a few seconds to undo." onclick={() => recordSale(o, 1)} />
+                  {#if o.quantity > 1}<IconButton icon="sold-many" tone="quiet" disabled={rowBusy.busy(o.id)} label="Sold several: {nm}" title="Sold several at once: say how many" onclick={() => (selling = { id: o.id, n: 2 })} />{:else}<span class="slot"></span>{/if}
                   <!-- Set apart from the sale buttons: a slip of the mouse shouldn't land on it. -->
-                  <span class="apart"><IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this listing off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} /></span>
+                  <span class="apart"><IconButton icon="trash" tone="danger quiet" label="Remove: {nm}" data-remove title="Remove: take this listing off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} /></span>
                 {/if}
               </span>
             </td>
@@ -1232,16 +1233,17 @@
         <ul>
           {#each mkt.buys as o (o.id)}
             {@const it = mkt.item(o.itemId)}
+            {@const nm = it?.name ?? o.itemId}
             <li out:leave animate:flip>
               <Named file={model.imageOf(it?.name ?? "")} name={it?.name ?? o.itemId} size={26}>{#if o.rank != null}<span class="tag">R{o.rank}</span>{/if}{#if !o.visible}<span class="tag">hidden</span>{/if}</Named>
               <span class="dim small">wants {o.quantity}</span>
               {@render rowStatus(o.id)}
               <P v={o.platinum} />
               {#if removing === o.id}
-                <IconButton icon="trash" tone="danger" label="Take it down" title="Take this buy order off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o, true); }} onkeydown={onEsc(() => (removing = null), true)} />
-                <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>
+                <IconButton icon="trash" tone="danger" label="Take it down: {nm}" title="Take this buy order off warframe.market" disabled={!rowFree(o.id)} onclick={() => { removing = null; removeRow(o, true); }} onkeydown={onEsc(() => (removing = null), true)} />
+                <button type="button" class="ib quiet" aria-label="Keep: {nm}" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>
               {:else}
-                <IconButton icon="trash" tone="danger quiet" label="Remove" title="Remove: take this buy order off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} />
+                <IconButton icon="trash" tone="danger quiet" label="Remove: {nm}" data-remove title="Remove: take this buy order off warframe.market" disabled={rowBusy.busy(o.id)} onclick={() => (removing = o.id)} />
               {/if}
             </li>
           {/each}
@@ -1273,7 +1275,7 @@
                   <IconButton icon="trash" tone="danger" label="Take it down" title="Close this auction (it stays among your profile's closed auctions)" disabled={auctionBusy === a.id} onclick={() => { removing = null; void takeDownAuction(a); }} onkeydown={onEsc(() => (removing = null), true)} />
                   <button type="button" class="ib quiet" aria-label="Keep" title="Keep it" onclick={(e) => { keepRow(e); removing = null; }} onkeydown={onEsc(() => (removing = null), true)} use:focusIt><Icon name="close" /></button>
                 {:else}
-                  <ProgressButton variant="icon" icon="trash" tone="danger quiet" state={auctionBusy === a.id ? "working" : "idle"} label="Take down" working="Taking down…" title="Take down: close this auction on warframe.market" onclick={() => (removing = `auction:${a.id}`)} />
+                  <ProgressButton variant="icon" icon="trash" tone="danger quiet" state={auctionBusy === a.id ? "working" : "idle"} label="Take down" data-remove working="Taking down…" title="Take down: close this auction on warframe.market" onclick={() => (removing = `auction:${a.id}`)} />
                 {/if}
               {/if}
             </li>
