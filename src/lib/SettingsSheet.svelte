@@ -24,6 +24,7 @@
   import { links, openUrl } from "./links.svelte";
   import Opening from "./ui/Opening.svelte";
   import { updates } from "./updates.svelte";
+  import { ABOUT_FILES, ABOUT_LICENCE, ABOUT_UNOFFICIAL, ABOUT_WARRANTY } from "./core/about";
   import { CHANNELS, CHANNEL_LABEL, REPO_URL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
   import TimingSetting from "./ui/TimingSetting.svelte";
@@ -345,6 +346,14 @@
     <div class="hmark"><h3 class="register">Updates</h3><HelpMark part="settings.updates" /></div>
     <p class="ver"><img class="wordmark" src={wordmark} alt="This is MyOrbiter" height="28" /> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
     <p class="hint">MyOrbiter is written largely by AI (Claude, by Anthropic), directed by its maintainer, who decides what is built and what is released. <button type="button" class="link" title="Open MyOrbiter's source on GitHub (its README) in your browser" aria-busy={links.isOpening(SOURCE_PAGE)} onclick={() => openUrl(SOURCE_PAGE)}><Opening url={SOURCE_PAGE}>The code is open for anyone to read</Opening></button>.</p>
+    <!-- About: the repository's own words (core/about.ts says from where), and its notice files. -->
+    <div class="about" data-field="settings.about">
+      <h4 class="sub">About</h4>
+      <p class="hint"><b>{ABOUT_UNOFFICIAL.lead}</b> {ABOUT_UNOFFICIAL.text}</p>
+      <p class="hint"><b>{ABOUT_LICENCE.name}</b> {ABOUT_LICENCE.text} {ABOUT_WARRANTY}</p>
+      <div class="row files">{#each ABOUT_FILES as f (f.url)}<button type="button" class="link" title={`Open ${f.label} ${f.what} on GitHub, in your browser`} aria-busy={links.isOpening(f.url)} onclick={() => openUrl(f.url)}><Opening url={f.url}>{f.label}</Opening></button>{/each}</div>
+      <p class="hint">The same three files come with MyOrbiter, in the folder it is installed in.</p>
+    </div>
     {#if info && installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
@@ -452,6 +461,10 @@
   .ver b { color: var(--platinum); font-weight: 600; }
   .mono { font-family: var(--face-figures); font-variant-numeric: tabular-nums; }
   .link.out { display: inline-flex; align-items: center; gap: .35rem; }
+  /* About: under the line on how MyOrbiter is written, its own heading, the notice files in a row. */
+  .about { display: grid; gap: .5rem; }
+  .about p, .about .sub { margin: 0; }
+  .about .files { flex-wrap: wrap; gap: .4rem 1.2rem; }
   .offer-in { display: grid; gap: .7rem; padding: .9rem 1rem; background: var(--raised); border: 1px solid var(--gold-dim); box-shadow: inset 3px 0 0 var(--gold); }
   .offer-in p { margin: 0; }
   .notes { margin: 0; padding-left: 1.1rem; display: grid; gap: .2rem; font-size: .8rem; color: var(--platinum-dim); }
