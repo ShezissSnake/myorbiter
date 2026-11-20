@@ -37,8 +37,9 @@
       try {
         await mkt.ensureItems();
         const it = findItem(mkt.index, name, unique);
+        // Not in warframe.market's item list: its history wasn't read, which isn't "nobody sold one".
         if (!it) {
-          if (current === want) days = [];
+          if (current === want) failed = true;
           return;
         }
         const points = await mkt.history(it.slug);

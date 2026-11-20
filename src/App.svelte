@@ -1662,11 +1662,15 @@
     const [lines, u] = await Promise.all([
       wait ? outcomeOf(key, wait) : Promise.resolve(null),
       // +rep by hand: whether the buyer is on warframe.market (one lookup, shared with the trade history's).
-      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => undefined) : Promise.resolve(undefined),
+      // A lookup that failed is false: not found (null) and not looked up (undefined) are others.
+      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => false as const) : Promise.resolve(undefined),
     ]);
-    const { title, body } = saleNotice(t, lines);
     const at = t.at ? t.at * 1000 : Date.now();
-    const offer = repOffered({ key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!u, rep: settings.market.rep, trades: settings.market.trades });
+    const asked = { key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, rep: settings.market.rep, trades: settings.market.trades };
+    const offer = repOffered({ ...asked, onMarket: !!u });
+    // The notification says it couldn't look the buyer up only when that is what keeps +rep off it.
+    const unread = u === false && repOffered({ ...asked, onMarket: true });
+    const { title, body } = saleNotice(t, lines, unread);
     const id = tell("sold", title, body, "sales", offer ? { key, partner: t.partner } : undefined);
     if (id) toldNotice.set(key, id);
   }

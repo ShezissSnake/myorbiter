@@ -1434,7 +1434,8 @@ class MarketStore {
     this.buyDraft = draft;
     try {
       // Buying: who is selling right now, so a fresh read.
-      const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => [] as PricePoint[])]);
+      // A history that couldn't be read is null, not "no sales": the form says it couldn't read it.
+      const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => null)]);
       // Closed while the book loaded (the form's Close empties buyDraft), or another one opened.
       if (turn !== this.buyTurn || !this.buyDraft) return;
       const me =(this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
@@ -1443,10 +1444,10 @@ class MarketStore {
       const sells = book.filter((o) => o.type === "sell" && same(o)).map((o) => o.platinum);
       const topBuy = buys.length ? Math.max(...buys) : null;
       const cheapestSell = sells.length ? Math.min(...sells) : null;
-      const median = recentPrice(points, rank, subtype, 30, 2);
+      const median = points ? recentPrice(points, rank, subtype, 30, 2) : null;
       let price = topBuy != null ? topBuy + 1 : median != null ? Math.max(1, Math.round(median * 0.8)) : cheapestSell != null ? Math.max(1, cheapestSell - 1) : null;
       if (price != null && cheapestSell != null && price >= cheapestSell) price = Math.max(1, cheapestSell - 1);
-      this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, loading: false };
+      this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, historyUnread: !points, loading: false };
     } catch (e) {
       if (turn !== this.buyTurn || !this.buyDraft) return;
       this.buyDraft = { ...draft, loading: false };
@@ -1523,8 +1524,13 @@ class MarketStore {
     });
     return read;
   }
+  /** The relics the last read asked for and couldn't read (every one when the item list didn't
+   *  come): they keep the prices read before, or TennoScope's, until the next read. */
+  relicUnread = $state.raw<string[]>([]);
   private async readRelics(stale: string[], had: RelicMarket, now: number): Promise<RelicMarket | null> {
     const out: RelicMarket = { ...had };
+    const unread: string[] = [];
+    this.relicUnread = [];
     try {
       await this.ensureItems();
       let failing = 0;
@@ -1546,11 +1552,14 @@ class MarketStore {
         } catch {
           // Not answering: tried again on the next read.
           failing++;
+          unread.push(base);
         }
       }
     } catch {
+      this.relicUnread = stale;
       return null;
     }
+    this.relicUnread = unread;
     return out;
   }
 
@@ -2006,6 +2015,8 @@ export interface BuyDraft {
   topBuy: number | null;
   cheapestSell: number | null;
   median: number | null;
+  /** The price history couldn't be read (so `median` is null for that, not for want of sales). */
+  historyUnread?: boolean;
   /** What the card that opened the form gave as its price, shown when the order book has none. */
   known?: number | null;
   loading: boolean;
