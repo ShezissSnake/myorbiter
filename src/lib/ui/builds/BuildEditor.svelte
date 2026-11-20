@@ -15,6 +15,7 @@
   import ModGrid from "./ModGrid.svelte";
   import { parseTags } from "../../core/buildsPage";
   import { KNOWN_TAGS, TAG_FAMILIES } from "./tags";
+  import { leaving } from "./leaving";
 
   let { model, item, kind, build, copy, onsave, onclose }: { model: Model; item: CatalogItem; kind: GearKind; build: Build; copy: boolean; onsave: (b: Build) => void; onclose: () => void } = $props();
 
@@ -147,6 +148,24 @@
     const c = model.catalogByUnique.get(s.path);
     return !!c && !fitsSlot(s.role, c, idx);
   }
+  /** What the player can change, as one string: compared with how it was when the dialog opened. */
+  const typed = () => JSON.stringify([slots.map((s) => [s.text, s.rank]), shards, helminth, title, tags, tagText, note]);
+  // svelte-ignore state_referenced_locally
+  const atOpen = typed();
+  /** Leaving with something changed asks first (leaving.ts); the question takes the focus on Keep editing. */
+  let asking = $state(false);
+  let cancelButton = $state<HTMLButtonElement | null>(null);
+  function leave() {
+    const step = leaving(typed() !== atOpen, asking);
+    if (step === "close") onclose();
+    else if (step === "ask") asking = true;
+    else keepEditing();
+  }
+  function keepEditing() {
+    asking = false;
+    void tick().then(() => cancelButton?.focus());
+  }
+  const focusIt = (node: HTMLButtonElement) => node.focus();
   function save() {
     for (const s of slots) if (s.text.trim() && (!s.path || misplaced(s))) commit(s);
     if (slots.some((s) => s.problem)) return;
@@ -158,9 +177,9 @@
 {#each ["aura", "stance", "exilus", "mod", "arcane"] as const as r (r)}<datalist id={listId(r)}>{#each names[r] as n (n)}<option value={n}></option>{/each}</datalist>{/each}
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
+<div class="scrim" use:scrim={leave} in:shade|global out:shade|global>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="{copy ? 'Edit a copy' : 'Edit the build'} for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="{copy ? 'Edit a copy' : 'Edit the build'} for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: leave }} onclick={(e) => e.stopPropagation()}>
     <div class="register head"><span>{copy ? "Edit a copy" : "Edit"} · {item.name}</span><HelpMark part="builds.editor" /></div>
     <div class="cols">
       <div class="slots">
@@ -206,9 +225,15 @@
       <div class="pv"><ModGrid {model} build={draft} {tier} /><p class="dim small">{tier.reasons[0]}</p></div>
     </div>
     <div class="row end">
+      {#if asking}
+        <span class="warn small">Discard what you changed?</span>
+        <button type="button" class="danger" title="Close it and lose what you changed" onclick={onclose}>Discard</button>
+        <button type="button" title="Go back to the build: nothing is lost" onclick={keepEditing} use:focusIt>Keep editing</button>
+      {:else}
       {#if problems}<span class="warn small">{problems} name{problems === 1 ? "" : "s"} to fix</span>{/if}
-      <button type="button" onclick={onclose} title="Close without saving">Cancel</button>
+      <button type="button" onclick={leave} bind:this={cancelButton} title="Close without saving">Cancel</button>
       <button type="button" class="stamp gold" disabled={problems > 0} title={problems ? "Fix or clear the names MyOrbiter couldn't match first" : copy ? "Save it as your own build" : "Save the changes"} onclick={save}>{copy ? "Save as mine" : "Save"}</button>
+      {/if}
     </div>
   </div>
 </div>

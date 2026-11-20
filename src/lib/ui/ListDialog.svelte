@@ -144,7 +144,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={() => mkt.closeDraft()}>
+  <div class="scrim" use:scrim={() => mkt.closeDraft()} in:shade|global out:shade|global>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
       <div class="register head"><span>Sell on warframe.market</span><HelpMark part="sell" /></div>

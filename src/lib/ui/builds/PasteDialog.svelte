@@ -16,6 +16,7 @@
   import { opens, shade } from "../../motion";
   import { trap } from "../trap";
   import ModGrid from "./ModGrid.svelte";
+  import { leaving } from "./leaving";
 
   let { model, item, kind, onsave, onclose }: { model: Model; item: CatalogItem; kind: GearKind; onsave: (b: Build) => void; onclose: () => void } = $props();
 
@@ -119,13 +120,28 @@
     if (!draft || !found || !linkOk) return;
     onsave({ ...draft, importedAt: Date.now() });
   }
-  const ROLE: Record<string, string> = { aura: "Aura", exilus: "Exilus", stance: "Stance", mod: "Mod", arcane: "Arcane" };
+  /** Leaving with something typed or picked asks first (leaving.ts); the question takes the focus on Keep editing. */
+  const changed = () => !![text, link, title, author, tagText].some((t) => t.trim()) || picks.length > 0;
+  let asking = $state(false);
+  let cancelButton = $state<HTMLButtonElement | null>(null);
+  function leave() {
+    const step = leaving(changed(), asking);
+    if (step === "close") onclose();
+    else if (step === "ask") asking = true;
+    else keepEditing();
+  }
+  function keepEditing() {
+    asking = false;
+    void tick().then(() => cancelButton?.focus());
+  }
+  const focusIt = (node: HTMLButtonElement) => node.focus();
+  const ROLE: Record<string, string> ={ aura: "Aura", exilus: "Exilus", stance: "Stance", mod: "Mod", arcane: "Arcane" };
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" use:scrim in:shade|global out:shade|global onclick={onclose}>
+<div class="scrim" use:scrim={leave} in:shade|global out:shade|global>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="dialog" role="dialog" aria-modal="true" aria-label="Paste a build for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: onclose }} onclick={(e) => e.stopPropagation()}>
+  <div class="dialog" role="dialog" aria-modal="true" aria-label="Paste a build for {item.name}" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: leave }} onclick={(e) => e.stopPropagation()}>
     <div class="register head"><span>Paste a build · {item.name}</span><HelpMark part="builds.paste" /></div>
     <label class="field">
       <span class="register">The build</span>
@@ -208,8 +224,14 @@
     {/if}
 
     <div class="row end">
-      <button type="button" onclick={onclose} title="Close without saving">Cancel</button>
+      {#if asking}
+        <span class="warn small">Discard what you pasted?</span>
+        <button type="button" class="danger" title="Close it and lose what you pasted and typed" onclick={onclose}>Discard</button>
+        <button type="button" title="Go back to the build: nothing is lost" onclick={keepEditing} use:focusIt>Keep editing</button>
+      {:else}
+      <button type="button" onclick={leave} bind:this={cancelButton} title="Close without saving">Cancel</button>
       <button type="button" class="stamp gold" disabled={linkOnlyNow ? false : !draft || !found || !linkOk} title={linkOnlyNow ? "Keep the link to it on Overframe" : !draft || !found ? "Paste a build first: MyOrbiter needs at least one mod or arcane it knows" : !linkOk ? "The link isn't a web address" : `Save it to ${item.name}'s builds`} onclick={save}>{linkOnlyNow ? "Save link" : "Save build"}</button>
+      {/if}
     </div>
   </div>
 </div>

@@ -124,7 +124,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="scrim" use:scrim in:shade|global out:shade|global onclick={close}>
+<div class="scrim" use:scrim={close} in:shade|global out:shade|global>
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
   <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="bug-title" tabindex="-1" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
     <header class="top">
