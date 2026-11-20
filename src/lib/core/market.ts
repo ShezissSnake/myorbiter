@@ -345,13 +345,18 @@ export function typedFloor(floors: Readonly<Record<string, number>>, o: Keyed, d
 }
 
 /**
- * What Orders' Floor field makes of `typed`: a floor (whole platinum), null to clear it (empty, 0
- * or less), or "over" when it is above `max`, which the field refuses rather than save a floor the
- * next start would not keep.
+ * What Orders' Floor field makes of `typed`: a floor (whole platinum, a fraction rounded up, so it
+ * is never under what was typed), null to clear it (the box emptied: the automatic floor), "over"
+ * when it is above `max`, which the field refuses rather than save a floor the next start would
+ * not keep, or "keep" for what is no floor: 0 or less, or what the browser couldn't read as a
+ * number (`badInput`: it then gives an empty value, which isn't an emptied box).
  */
-export function floorTyped(typed: string, max: number): number | null | "over" {
-  const n = Math.round(Number(typed));
-  if (!typed.trim() || !Number.isFinite(n) || n <= 0) return null;
+export function floorTyped(typed: string, max: number, badInput = false): number | null | "over" | "keep" {
+  if (badInput) return "keep";
+  if (!typed.trim()) return null;
+  const x = Number(typed);
+  if (!Number.isFinite(x) || x <= 0) return "keep";
+  const n = Math.ceil(x);
   return n > max ? "over" : n;
 }
 

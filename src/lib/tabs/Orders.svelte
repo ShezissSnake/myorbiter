@@ -257,8 +257,13 @@
     for (const t of floorRefusalTimers.values()) clearTimeout(t);
   });
   function setFloor(o: MyOrder, input: HTMLInputElement) {
-    const floor = floorTyped(input.value, MAX_SAVED_PRICE);
+    const floor = floorTyped(input.value, MAX_SAVED_PRICE, input.validity.badInput);
     floorRefusalGone(o.id);
+    // No floor typed (0, or what isn't a number): the box shows the floor kept.
+    if (floor === "keep") {
+      input.value = String(floorOf(o) ?? "");
+      return;
+    }
     if (floor === "over") {
       // Refused here rather than saved and cut at the next start: the floor stays as it was.
       floorRefused = { ...floorRefused, [o.id]: true };
