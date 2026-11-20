@@ -30,7 +30,7 @@ const ORDERS: Walkthrough = {
       lines: [
         "Listings: yours, hidden too, of warframe.market's 100, less your buy orders.",
         "Undercut: shown listings with a cheaper seller online or in game, at the last check.",
-        "Trades left today: as many as your Mastery Rank, reset at 00:00 UTC.",
+        "Trades left (PC, rank read): Mastery Rank, none at 0 or 1; resets 00:00 UTC.",
         "Your status: what buyers see. Invisible hides your listings; Offline shows you as offline.",
       ],
       shot: {
@@ -419,7 +419,7 @@ const ORDERS_AUTO: Walkthrough = {
       title: "Checking and changing prices",
       lines: [
         "Check automatically only reads prices, every minute to weekly.",
-        "Apply automatically sends past a 2p/5% gap, or up to a listing's floor or Never under.",
+        "Apply automatically sends past a 2p/5% gap; lifts to your floors, crack value, ducats, Never under.",
         `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of your approved price, nor your floors; never more than halved.`,
         "Hourly, six a day per listing, floor lifts aside. Missed checks run once after restart.",
       ],
