@@ -278,7 +278,8 @@ web requests; its status connection sends no User-Agent.
 - **Overframe is never contacted.** Its popular-build list ships with MyOrbiter as a file; a build
   link you click opens overframe.gg in your browser.
 - **Nox's Frame** (`noxsframe.com`): an item's top builds, read when you open the item on Builds,
-  and a build's page when you open it (on unless you turn it off in Settings). At most one request
+  and a build's page when you open it (on unless you turn it off in Settings; a settings file whose
+  value for it is damaged, neither on nor off, reads as off). At most one request
   every 3 seconds; each answer kept a week (Refresh reads it again; a page MyOrbiter can't read
   isn't kept); after a refusal or a browser check, nothing goes out for 15 minutes. These requests say
   `MyOrbiter/<version> (Warframe companion; build lookup; contact via noxsframe Discord)`.
