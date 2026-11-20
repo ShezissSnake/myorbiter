@@ -23,6 +23,13 @@ fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_secs())
 }
 
+/// Tables saved at `at` still hold at `now`. Saved later than now (the clock ran ahead then, and
+/// was set right since) is old, as relicdata.rs and recipes.rs count it: else they would hold
+/// for the step and a week.
+fn fresh(at: u64, now: u64) -> bool {
+    at <= now && now - at < TABLES_FRESH
+}
+
 fn get(url: &str) -> Result<Value, String> {
     crate::request("GET", url)
         .timeout(Duration::from_secs(20))
@@ -34,12 +41,17 @@ fn get(url: &str) -> Result<Value, String> {
 
 /// WFCD's node and mission-type tables, from the cache while it's under a week old.
 fn tables(dir: &Path) -> Result<Value, String> {
+    tables_with(dir, get)
+}
+
+/// `tables`, with `get` for each download.
+fn tables_with(dir: &Path, get: impl Fn(&str) -> Result<Value, String>) -> Result<Value, String> {
     let path = dir.join(TABLES);
     let cached: Option<Value> = fs::read(&path).ok().and_then(|b| serde_json::from_slice(&b).ok());
     if let Some(c) = &cached {
         // A copy saved without the sortie table or the bounty names (they failed to download, or
         // it's from before bounties were read) is read again next time.
-        if now().saturating_sub(c["at"].as_u64().unwrap_or(0)) < TABLES_FRESH && c["sorties"]["bosses"].is_object() && c["jobs"].is_object() {
+        if fresh(c["at"].as_u64().unwrap_or(0), now()) && c["sorties"]["bosses"].is_object() && c["jobs"].is_object() {
             return Ok(c.clone());
         }
     }
@@ -292,6 +304,48 @@ fn parts(ws: &Value, nodes: &Value, missions: &Value, now_ms: i64) -> Map<String
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A folder of its own for one test, empty.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("myorbiter-tables-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Stands in for the four downloads; `failing` names the ones that fail. Counts what was asked.
+    fn downloads<'a>(failing: &'static [&'static str], asked: &'a std::cell::RefCell<Vec<String>>) -> impl Fn(&str) -> Result<Value, String> + 'a {
+        move |url: &str| {
+            asked.borrow_mut().push(url.to_string());
+            if failing.contains(&url) {
+                return Err(format!("{url}: timed out"));
+            }
+            Ok(match url {
+                NODES => json!({ "SolNode1": { "value": "Fresh Node (Mercury)" } }),
+                MISSIONS => json!({ "MT_DEFENSE": { "value": "Defense" } }),
+                SORTIES => json!({ "bosses": { "SORTIE_BOSS_FRESH": { "name": "Fresh Boss" } } }),
+                LANGUAGES => json!({ "/lotus/types/gameplay/eidolon/jobs/freshjob": { "value": "Fresh Job" } }),
+                _ => panic!("not one of the four tables: {url}"),
+            })
+        }
+    }
+
+    #[test]
+    fn tables_stamped_ahead_of_the_clock_are_not_fresh() {
+        let dir = scratch("ahead");
+        // Saved while the clock ran an hour ahead, then set right: read again now, not in a week and an hour.
+        let ahead = json!({ "at": now() + 3600, "nodes": { "SolNode1": { "value": "Old Node" } }, "missions": {}, "sorties": { "bosses": {} }, "jobs": {} });
+        fs::write(dir.join(TABLES), serde_json::to_vec(&ahead).unwrap()).unwrap();
+        let asked = std::cell::RefCell::new(Vec::new());
+        let t = tables_with(&dir, downloads(&[], &asked)).unwrap();
+        assert_eq!(t["nodes"]["SolNode1"]["value"], "Fresh Node (Mercury)");
+        assert!(t["at"].as_u64().unwrap() <= now());
+        // A copy saved now holds: nothing is asked again.
+        asked.borrow_mut().clear();
+        assert_eq!(tables_with(&dir, downloads(&[], &asked)).unwrap(), t);
+        assert!(asked.borrow().is_empty(), "{:?}", asked.borrow());
+        let _ = fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn sortie_and_archon_hunt_from_the_game() {
