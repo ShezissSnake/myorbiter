@@ -64,6 +64,31 @@ export function saveTroubleWords(t: SaveTrouble): string {
   return `Couldn't save your settings (${t.cause}): what you change now may not be kept. MyOrbiter keeps trying.`;
 }
 
+/**
+ * Where MyOrbiter's settings folder is on each system (Tauri's config folder for
+ * `dev.myorbiter.app`; on Linux under `$XDG_CONFIG_HOME` when that is set).
+ */
+export const SETTINGS_FOLDER = {
+  linux: "~/.config/dev.myorbiter.app, or $XDG_CONFIG_HOME/dev.myorbiter.app when that is set",
+  windows: "%APPDATA%\\dev.myorbiter.app",
+  macos: "~/Library/Application Support/dev.myorbiter.app",
+} as const;
+
+/** Which system the window runs on, from the web view's user agent, for `SETTINGS_FOLDER`. */
+export const systemOf = (userAgent: string): keyof typeof SETTINGS_FOLDER => (/Windows/i.test(userAgent) ? "windows" : /Mac OS X|Macintosh/i.test(userAgent) ? "macos" : "linux");
+
+/**
+ * The banner's words after a damaged settings file was moved aside (`read_settings` in lib.rs):
+ * shown over every page, the setup page and the "Can't read" pages included, until dismissed.
+ * Nothing is read back from the old file by itself. "Was moved aside", not "is kept": the player
+ * may have deleted it since. The platform is back on PC, unless the player is signed in to
+ * warframe.market and it answers at this start: then the account sets it (App.svelte, after
+ * mkt.init). An offline start leaves PC until a later start.
+ */
+export function movedAsideWords(name: string, system: keyof typeof SETTINGS_FOLDER): string {
+  return `Your saved settings and records (sales, trades, value over time) couldn't be read, so MyOrbiter started with the usual settings, as on a first start. The old file was moved aside as ${name} in MyOrbiter's settings folder (${SETTINGS_FOLDER[system]}); nothing is read back from it. Look through Settings again, your platform first: it is back on PC, unless you are signed in to warframe.market and it answered as MyOrbiter started, when your account set it.`;
+}
+
 /** The three automatic actions on warframe.market (Settings, warframe.market). */
 export interface AutoSwitches {
   auto: boolean;

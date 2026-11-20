@@ -45,6 +45,14 @@ line below is a check to do on Windows 10 or 11 with the setup.exe of a release 
       permission is missing): the same keys and the wheel, and the next start is at 100 %
       again. On both, the window drawn down to 900 by 500 keeps the foot of the sidebar (Sync
       and the buttons under it) on screen.
+- [ ] **The sidebar's pages at a high zoom in the smallest window.** In the 900 by 500 window,
+      folded and unfolded, every page and every button of the foot is reached with the mouse at
+      each zoom. Up to about 125 % the page list scrolls between the top and the foot as at
+      100 %; higher, the whole sidebar scrolls as one, a fade at its foot (and at its top once
+      scrolled) saying there is more, and the mouse wheel over any part of it scrolls it. Tab
+      through the sidebar brings each button into view. On Windows, at WebView2's steps (125,
+      150, 175, 200, 250, 300 %). On Linux, in WebKitGTK, at the script's steps (120, 140,
+      160 … 300 %).
 - [ ] **The three native dialogs** open from Rust and work: Settings → TennoScope → *Choose…*
       (TennoScope's program), a step back to an older build (it names both builds; needs a real
       older build), and a new Discord webhook address.

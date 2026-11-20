@@ -13,7 +13,7 @@
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
-import { flushSettings, logLine, updater, type UpdateCheck, type UpdateInfo } from "./backend";
+import { flushSettings, logLine, settingsMovedAside, updater, type UpdateCheck, type UpdateInfo } from "./backend";
 import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
@@ -21,6 +21,12 @@ import { afterPaint } from "./ui/soon";
 
 /** The longest a check may take, as the page sees it: past the app's own limit (updates.rs, 10 s). */
 export const CHECK_LIMIT = 20 * 1000;
+
+/**
+ * Whose channel the log says just settled: a new install's, or a start's whose settings file was
+ * damaged and moved aside (backend.ts, loadSettings), which settles the same way but isn't new.
+ */
+export const settledWho = () => (settingsMovedAside() ? "after a damaged settings file" : "new install");
 
 /** An update on offer: a newer build, or (after a switch to a more stable channel) an older one. */
 export interface Offer {
@@ -81,7 +87,7 @@ export class Updates {
         // hears back from the channels (`settle`). Saved settings keep theirs.
         const u = this.get?.();
         const checks = installChecks(i.install);
-        if (u && !settlesByAsking(i.version, checks) && settleChannel(u, i.version)) logLine("info", "updates", `new install: on ${CHANNEL_LABEL[u.channel]}, ${buildNumber(i.version) == null ? "a local build" : "the channel this build was published to (this copy doesn't check for updates)"}`);
+        if (u && !settlesByAsking(i.version, checks) && settleChannel(u, i.version)) logLine("info", "updates", `${settledWho()}: on ${CHANNEL_LABEL[u.channel]}, ${buildNumber(i.version) == null ? "a local build" : "the channel this build was published to (this copy doesn't check for updates)"}`);
         if (!checks) return;
         // Not before the first frame, and not while the page is busy, so the start stays as quick;
         // but not held back for long either.
@@ -286,7 +292,7 @@ export class Updates {
     }
     u.channel = step;
     u.picked = true;
-    logLine("info", "updates", `new install: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta, experimental)}`);
+    logLine("info", "updates", `${settledWho()}: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta, experimental)}`);
     return step;
   }
 
@@ -338,7 +344,7 @@ export class Updates {
   }
 
 
-  /** Later: this version's notice goes until a newer one is out. */
+  /** Later: this version's notice goes; another version, newer or lower, shows (`noticeShows`). */
   later() {
     const o = this.offer;
     const u = this.get?.();

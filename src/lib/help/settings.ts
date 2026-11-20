@@ -301,8 +301,8 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "Change my prices by itself (off to start): also sends them; Apply automatically on Orders.",
         "It follows the second-cheapest seller online or in game, past a 2p and 5% gap.",
-        "Once an hour at most, six a day per listing.",
-        `Never under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,
+        "Hourly at most, six a day per listing; a floor lift waits for neither.",
+        `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,
       ],
       shot: {
         open: "settings",
@@ -314,7 +314,7 @@ const SETTINGS_TRADES: Walkthrough = {
   ],
   good: {
     warn: true,
-    text: `Unattended, a price never goes under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved in MyOrbiter, nor under your floors, and is never more than halved.`,
+    text: `Unattended, a price is never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved for that listing in MyOrbiter, nor under your floors, nor more than halved.`,
   },
   covers: { "settings.trades": 3, "settings.selling": 2 },
 };

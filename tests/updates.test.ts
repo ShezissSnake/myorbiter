@@ -58,11 +58,17 @@ test("versions compare by number, and a CI build's number is its release", () =>
   for (const v of ["0.2.152", "0.2.119", "0.1.0"]) assert.ok(openable(releasePage(v)), v);
 });
 
-test("Later hides that version's notice until a newer one", () => {
+test("Later hides that version's notice, and only that version's", () => {
   assert.equal(noticeShows("0.1.52", ""), true);
   assert.equal(noticeShows("0.1.52", "0.1.52"), false);
-  assert.equal(noticeShows("0.1.51", "0.1.52"), false);
+  assert.equal(noticeShows("0.1.51", "0.1.52"), true, "a lower build offered later shows");
   assert.equal(noticeShows("0.1.53", "0.1.52"), true);
+});
+
+test("Later on a version a manifest once named doesn't hide the builds below it", () => {
+  // A channel's file named 9.0.0 for a while, and Later was pressed on it.
+  assert.equal(noticeShows("0.2.150", "9.0.0"), true);
+  assert.equal(noticeShows("9.0.0", "9.0.0"), false, "that version itself stays put off");
 });
 
 test("the version line says where the build came from", () => {
@@ -232,15 +238,18 @@ test("an unsettled new install says so: the version line names no channel, and S
   assert.equal(sanitizeUpdates({ picked: false }).picked, false, "only an unsettled new install saves false");
 });
 
-test("a new install, as the settings load it: only when nothing was saved", () => {
+test("a new install, as the settings load it: whenever no settings object was read, but for a file that couldn't be read", () => {
+  // The new-install rule settles the channel after a damaged file too (the maintainer, 2026-11-12):
+  // only a file that couldn't be read at all, which is never saved over, keeps Stable as shown.
+  // Run against a stand-in app in tests/damagedSettings.test.ts.
   const src = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
-  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : fresh \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before; only no file at all is a new install");
-  // No file at all, said by the desktop app (not a damaged file moved aside), or nothing in the browser's storage.
+  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : loadFailed == null \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before");
+  // No file at all, said by the desktop app, or nothing in the browser's storage.
   assert.match(src, /fresh = loaded\.fresh === true;/);
   assert.match(src, /fresh = saved == null;/);
   const rs = readFileSync(new URL("../src-tauri/src/lib.rs", import.meta.url), "utf8");
-  assert.match(rs, /NotFound => return Ok\(\(Value::Null, true\)\)/, "a missing file is fresh");
-  assert.match(rs, /Value::Null\n\s*\}\n\s*\}, false\)\)/, "a damaged file moved aside isn't");
+  assert.match(rs, /NotFound => return Ok\(SettingsRead \{ settings: Value::Null, fresh: true, moved_aside: None \}\)/, "a missing file is fresh");
+  assert.match(rs, /Ok\(SettingsRead \{ settings: Value::Null, fresh: false, moved_aside: Some\(name\) \}\)/, "a damaged file moved aside isn't, and is named");
 });
 
 test("an empty channel is said plainly, never as a failure, and the nearest channel comes first", () => {

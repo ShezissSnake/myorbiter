@@ -8,10 +8,10 @@
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
   import { tradeAllowance } from "../core/tradeLimit";
   import { until } from "../core/traders";
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
-  import type { AdviceSettings, MarketSettings, OrderSortKey } from "../backend";
-  import { heldFor, holdings, listingKey, overAsked, overListed, wtsLines, type MyOrder, type Plan } from "../core/market";
+  import { MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
+  import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
   import { minimumOf, minimumsText } from "../core/sparesRules";
@@ -46,7 +46,7 @@
   import { rivens } from "../rivenStore.svelte";
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
-  import { claimTradeSale, copiesToSend, markedForTrade, soldAfterTrade, soldAfterUnmarked, soldAnswers, tradeSaleLine, type SoldListing } from "../core/soldMarks";
+  import { copiesToSend, markTradeSale, soldAfterUnmarked, soldAnswers, soldQuestion, type SoldListing } from "../core/soldMarks";
   import { SvelteSet } from "svelte/reactivity";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
@@ -133,7 +133,7 @@
   const hiddenOrders = $derived(orders.filter((o) => !o.visible));
   /** The folded repricer settings, in one line: "Auto: check every 5 min · floor 50% · min 10p". */
   const autoLine = $derived(`Auto: ${settings.auto ? `apply ${everyWords(settings.every)}` : settings.autoCheck ? `check ${everyWords(settings.every)}` : "off"} · floor ${settings.minShare ? `${settings.minShare * 100}%` : "none"} · min ${minimumsText(settings)}`);
-  const pending = $derived(orders.filter((o) => o.visible && !settings.paused[listingKey(o)] && plans.get(o.id)?.change).length);
+  const pending = $derived(orders.filter((o) => o.visible && !isPaused(settings.paused, o) && plans.get(o.id)?.change).length);
   // The timer waits longer while warframe.market isn't answering (passDelay): the next check is then, not at your interval.
   const passWait = $derived(mkt.passDelay(settings.every * 60_000));
   /** The last check: this run's, or the one saved from an earlier run (core/schedule.ts). */
@@ -239,17 +239,38 @@
   const rankLabel = (o: { rank: number | null; subtype: string | null }) =>
     [o.rank != null ? `R${o.rank}` : null, o.subtype].filter(Boolean).join(" · ");
 
-  function setFloor(o: MyOrder, v: string) {
-    const n = Math.round(Number(v));
-    const key = listingKey(o);
-    const floors = { ...settings.floors };
-    if (!v || !Number.isFinite(n) || n <= 0) delete floors[key];
-    else floors[key] = n;
-    settings.floors = floors;
+  /** The item's first variant: a listing that names none is that one (core/market.ts › typedFloor). */
+  const firstVariant = (o: MyOrder) => mkt.item(o.itemId)?.subtypes?.[0] ?? null;
+  /** The floor typed for this listing (core/market.ts › typedFloor); one it falls back on shows in the placeholder, as the plan counts it. */
+  const floorOf = (o: MyOrder) => typedFloor(settings.floors, o, firstVariant(o));
+  /** Listings whose Floor field refused the last value typed (over the limit), by order id. */
+  let floorRefused = $state<Record<string, boolean>>({});
+  /** How long the Floor field's refusal stays up (it sits over the next row): it also goes when the field is used again. */
+  const FLOOR_REFUSAL_MS = 8000;
+  const floorRefusalTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  function floorRefusalGone(id: string) {
+    clearTimeout(floorRefusalTimers.get(id));
+    floorRefusalTimers.delete(id);
+    if (floorRefused[id]) floorRefused = Object.fromEntries(Object.entries(floorRefused).filter(([k]) => k !== id));
+  }
+  onDestroy(() => {
+    for (const t of floorRefusalTimers.values()) clearTimeout(t);
+  });
+  function setFloor(o: MyOrder, input: HTMLInputElement) {
+    const floor = floorTyped(input.value, MAX_SAVED_PRICE);
+    floorRefusalGone(o.id);
+    if (floor === "over") {
+      // Refused here rather than saved and cut at the next start: the floor stays as it was.
+      floorRefused = { ...floorRefused, [o.id]: true };
+      floorRefusalTimers.set(o.id, setTimeout(() => floorRefusalGone(o.id), FLOOR_REFUSAL_MS));
+      input.value = String(floorOf(o) ?? "");
+      return;
+    }
+    settings.floors = withOwnFloor(settings.floors, o, firstVariant(o), floor);
   }
   function togglePause(o: MyOrder) {
-    const key = listingKey(o);
-    settings.paused = { ...settings.paused, [key]: !settings.paused[key] };
+    // Kept under the listing's own key: a filled sculpture's pause is its own once set here.
+    settings.paused = { ...settings.paused, [listingKey(o)]: !isPaused(settings.paused, o) };
   }
   // Quantity and price change a live listing, so an edit is held (gold) until you press Enter or
   // Save; Esc or Undo puts the listing's value back.
@@ -610,10 +631,11 @@
     if (on) focusIt(node);
   };
   /**
-   * A Sold click on a listing a trade from the game lowered in the last ten minutes: it may be the
-   * same sale, so it asks before lowering the listing again (soldAfterTrade).
+   * A Sold click on a listing a trade from the game lowered in the last ten minutes (`marked`), or
+   * that a trade's copies not marked sold wait for (`unmarked`), or both: it may be that sale, so
+   * it asks before lowering the listing again (soldQuestion).
    */
-  let askSold = $state<{ id: string; n: number; count: number; partner: string | null; unmarked: { trades: number; guess: boolean } | null } | null>(null);
+  let askSold = $state<{ id: string; n: number; marked: { count: number; partner: string | null } | null; unmarked: { count: number; partner: string | null; trades: number; guess: boolean } | null } | null>(null);
   /** Trades with a "that sale" out (claimTradeSale): none is sent twice for their copies. */
   const thatOut = new SvelteSet<string>();
   /** A listing as the trade's-sale question compares it (soldAfterUnmarked). */
@@ -622,14 +644,14 @@
     if (n < 1 || n > o.quantity) return;
     selling = null;
     askSold = null;
-    // Or a trade logged a sale of this listing minutes ago but couldn't mark it sold (its
-    // notification said "see Orders"): the click may be that sale (soldAfterUnmarked).
-    const l = soldListing(o);
-    const lowered = sure ? null : soldAfterTrade(o.id, settings.sales, settings.trades, Date.now());
-    const unmarked = sure || lowered || !l.name ? null : soldAfterUnmarked(l, settings.sales, settings.trades, Date.now(), thatOut);
-    if (lowered) askSold = { id: o.id, n, ...lowered, unmarked: null };
-    else if (unmarked) askSold = { id: o.id, n, count: unmarked.count, partner: unmarked.partner, unmarked: { trades: unmarked.trades, guess: unmarked.guess } };
-    if (askSold) return;
+    // A trade marked this listing sold minutes ago, or logged a sale of it but couldn't mark it
+    // sold (its notification said "see Orders"), or both: the click may be that sale.
+    const q = sure ? null : soldQuestion(soldListing(o), settings.sales, settings.trades, Date.now(), thatOut);
+    if (q) {
+      const u = q.unmarked;
+      askSold = { id: o.id, n, marked: q.marked, unmarked: u && { count: u.count, partner: u.partner, trades: u.trades, guess: u.guess } };
+      return;
+    }
     clearTimeout(soldTimers.get(o.id));
     pendingSold = { ...pendingSold, [o.id]: n };
     soldFrom.set(o.id, o.quantity);
@@ -684,24 +706,16 @@
     sending[o.id] = o;
     keptPlans.set(o.id, plans.get(o.id));
     const words = { working: `Sending ${count} sold…`, done: `Sold ${count}`, fail: "Couldn't mark sold" };
-    return rowAct(o.id, words, async () => {
-      // Never more than is still not marked (claimTradeSale): another listing's answer may have marked some.
-      const claim = claimTradeSale(l, settings.sales, Date.now(), thatOut, count);
-      if (!claim) throw new Error("already being marked sold from another listing");
-      // Set afresh on each try (Try again runs this again): the count sent.
-      words.done = tradeSaleLine(claim.send, count);
-      words.working = `Sending ${claim.send} sold…`;
-      rowBusy.get(o.id).phase = words.working;
-      if (!claim.send) return;
-      try {
-        let why = "";
-        const sale = await mkt.sold(o, claim.send, { failed: (r) => (why = r) });
-        if (!sale) throw new Error(why || "warframe.market didn't take it");
-        settings.sales = markedForTrade(settings.sales, l, sale.quantity, Date.now());
-      } finally {
-        for (const k of claim.keys) thatOut.delete(k);
-      }
-    });
+    return rowAct(o.id, words, () =>
+      markTradeSale(l, count, words, {
+        sales: () => settings.sales,
+        setSales: (sales) => (settings.sales = sales),
+        out: thatOut,
+        now: Date.now,
+        close: (n, failed) => mkt.sold(o, n, { failed }),
+        phase: (w) => (rowBusy.get(o.id).phase = w),
+      }),
+    );
   }
   /**
    * Rows gone from your listings (sold out, or removed), still showing how it went: "Sending…" or
@@ -979,8 +993,8 @@
           <section class="pg" aria-labelledby="auto-apply-h">
             <h3 class="register" id="auto-apply-h">Changing prices</h3>
             <div class="grp"><Chip bind:on={settings.auto} label="Apply automatically" title={`Off unless you turn it on. Also send the new prices to warframe.market on that timer, without asking. ${DRIFT_RULES}. ${console ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. ${GREY_AREA}.`} onchange={(on) => { if (on) settings.autoCheck = true; }} /></div>
-            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS} or to lift one under your own floors or Never under: at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing.</p>
-            <p class="dim small why">Never under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you last set or approved, nor under the floors below; more than halving waits for Reprice. {GREY_AREA}.</p>
+            <p class="dim small why">Off unless you turn it on. It sends new prices on that timer without asking, only past a drift of {BAND_WORDS}, at most once {every(DRIFT.cooldownMs)} and {DRIFT.perDay} times a day per listing; a listing under its own floor (in its row), a relic's crack value, a Prime part's or set's ducats, or Never under is lifted to at least that at once, waiting for neither limit.</p>
+            <p class="dim small why">It never lowers a price under {Math.round(AUTO_FLOOR_SHARE * 100)}% of the one you last set or approved for that listing, nor under the floors below; that mark never holds back a raise, and more than halving waits for Reprice. {GREY_AREA}.</p>
             <div class="grp">
               <span class="register">Floor</span>
               <select bind:value={settings.minShare} aria-label="Floor" title="Never lower a listing under this share of the item's daily market price (or a listing's own floor in the table, if higher)">
@@ -1014,7 +1028,7 @@
       <HelpMark part="orders.reprice" />
     </div>
 
-    <table class="orders" class:ownfloors={rows.some((o) => settings.floors[listingKey(o)] != null)}>
+    <table class="orders" class:ownfloors={rows.some((o) => floorOf(o) != null)}>
       <thead data-card="sort">
         <tr>
           {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest, not this">Against lowest</th>
@@ -1035,7 +1049,7 @@
           {:else}
           {@const p = plans.get(o.id)}
           {@const shown = isShown(o)}
-          {@const paused = settings.paused[listingKey(o)]}
+          {@const paused = isPaused(settings.paused, o)}
           {@const held = stock(o)}
           {@const change = changeOf(o)}
           <tr class="order" class:hidden={!shown}>
@@ -1089,7 +1103,7 @@
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
               {:else if p}<span class="register ok">matched</span>{/if}
             </td>
-            <td class="right floorcol"><input type="number" min="1" style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" title="Your own floor for this listing; empty uses the automatic one" value={settings.floors[listingKey(o)] ?? ""} onchange={(e) => setFloor(o, e.currentTarget.value)} /></td>
+            <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor for this listing" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
             <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: follow the market price" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
@@ -1122,22 +1136,27 @@
           </tr>
           {#if askSold?.id === o.id}
             {@const ask = askSold}
-            <!-- A trade from the game lowered this listing minutes ago: the click may be that same sale. -->
+            <!-- A trade from the game lowered this listing minutes ago, or logged a sale of it it couldn't mark: the click may be that same sale. -->
             <tr class="fixrow asksold"><td colspan="10">
                 {#if ask.unmarked}
-                {@const a = soldAnswers(ask.n, Math.min(ask.count, o.quantity))}
+                {@const u = ask.unmarked}
+                {@const a = soldAnswers(ask.n, Math.min(u.count, o.quantity), !!ask.marked)}
+                {@const theirs = u.trades > 1 ? `${u.trades} trades (the last with ${u.partner ?? "a buyer"}) logged ${u.count} between them` : `trade${u.partner ? ` with ${u.partner}` : ""} logged ${u.count}`}
                 <!-- Off while a "that sale" for these trades is out from another listing (claimTradeSale). -->
                 {@const busy = soldAfterUnmarked(soldListing(o), settings.sales, settings.trades, Date.now(), thatOut)?.busy !== false}
-                <!-- A trade logged this sale but couldn't mark it sold: "That sale" marks those copies and logs nothing more. -->
-                <div class="fix" role="group" aria-label="The trade's sale?">
-                  <span class="small q"><b class="held">{ask.unmarked.trades > 1 ? `Your ${ask.unmarked.trades} trades (the last with ${ask.partner ?? "a buyer"}) logged ${ask.count} between them` : `Your trade${ask.partner ? ` with ${ask.partner}` : ""} logged ${ask.count}`}, not marked sold.</b> <span class="dim">· This sale?{ask.unmarked.guess ? ` Yes lowers this listing (${o.platinum}p).` : ""}</span></span>
+                <!-- A trade logged this sale but couldn't mark it sold: "That sale" marks those copies and logs nothing more. With a trade's copies also marked on this listing, a third answer: that one, and nothing is sent. -->
+                <div class="fix" role="group" aria-label={ask.marked ? "Which sale?" : "The trade's sale?"}>
+                  <span class="small q"><b class="held">{ask.marked ? `MyOrbiter already marked ${ask.marked.count} sold from your trade${ask.marked.partner ? ` with ${ask.marked.partner}` : ""}; your ${theirs}` : `Your ${theirs}`}, not marked sold.</b> <span class="dim">· This sale?{u.guess ? ` Yes lowers this listing (${o.platinum}p).` : ""}</span></span>
                   <!-- The focus starts on the answer that sends least; Esc closes it wherever the focus is, and sends nothing. -->
                   <button class="stamp" use:focusIf={a.focus === "that"} disabled={!rowFree(o.id) || busy} onclick={() => void sendTradeSale(o, a.that)} onkeydown={onEsc(() => (askSold = null))} title="The trade's sale: mark {a.that} sold on warframe.market; no second sale is logged">Yes, that sale: mark {a.that}</button>
+                  {#if a.same}
+                    <button class="stamp" use:focusIf={a.focus === "same"} onclick={() => (askSold = null)} onkeydown={onEsc(() => (askSold = null))} title="The sale MyOrbiter already marked: nothing is sent">No, the one marked already</button>
+                  {/if}
                   <button class="stamp" use:focusIf={a.focus === "another"} onclick={() => recordSale(o, a.another, true)} onkeydown={onEsc(() => (askSold = null))} title="Another sale: mark {a.another} sold on warframe.market and log it">No, another: mark {a.another}</button>
                 </div>
-                {:else}
+                {:else if ask.marked}
                 <div class="fix" role="group" aria-label="Sold again?">
-                  <span class="small q"><b class="held">MyOrbiter already marked {ask.count} sold from your trade{ask.partner ? ` with ${ask.partner}` : ""}.</b> <span class="dim">· Sold {ask.n} more since?</span></span>
+                  <span class="small q"><b class="held">MyOrbiter already marked {ask.marked.count} sold from your trade{ask.marked.partner ? ` with ${ask.marked.partner}` : ""}.</b> <span class="dim">· Sold {ask.n} more since?</span></span>
                   <button class="stamp" onclick={() => recordSale(o, ask.n, true)} title="Another sale: mark {ask.n} sold on warframe.market and log it">Yes: mark {ask.n} more sold</button>
                   <button class="stamp" use:focusIt onclick={() => (askSold = null)} onkeydown={onEsc(() => (askSold = null))} title="The same sale: nothing is sent">No, that was the same sale</button>
                 </div>
@@ -1466,6 +1485,9 @@
   .willnote.up { color: var(--verdigris); }
   :global(html[data-room~="lt950"]) .willnote { display: block; }
   /* "auto 10" whole: the floor's placeholder without the wide capitals (and the box set wide enough, inline). */
+  /* The column is narrow: the refusal shows under the field, over the next row, in one line. */
+  .floorcol { position: relative; }
+  .floorerr { position: absolute; z-index: 4; right: .6rem; top: calc(100% - .5rem); margin: 0; padding: .2rem .45rem; white-space: nowrap; color: var(--oxblood); background: var(--plate); border: 1px solid var(--oxblood); box-shadow: 0 .4rem 1rem rgb(0 0 0 / 45%); }
   .floorcol input::placeholder { text-transform: none; letter-spacing: 0; font-size: .74rem; }
   /* The per-listing floor box goes next (your floors still apply, and the overall floor is above
      the table): half a 1080p screen leaves the page about 800 px, where it no longer fits. */

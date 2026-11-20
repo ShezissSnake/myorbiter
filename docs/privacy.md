@@ -324,8 +324,10 @@ meanwhile stays, and its updates are looked for at once. That first read goes th
 own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
 use, it gets no answer, and such an install has a channel only once you pick one. A local build
 starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
-An install that has saved settings keeps its channel, even when that file turns out damaged and is moved
-aside (it then starts on Stable, as installs did before channels). An update downloads only when you click, from where
+An install that has saved settings keeps its channel. One whose settings file turns out damaged, and
+is moved aside (below), can't read the channel saved in it, so it starts as a new install does: no
+channel until its first check hears back, then the most stable one with its build or a newer one.
+An update downloads only when you click, from where
 that `latest.json` points, and only if that is one of this project's own addresses for the version
 on offer and your system: a `build-<n>` release of this project on github.com, which hands the
 download to GitHub's file storage (`release-assets.githubusercontent.com` or
@@ -513,8 +515,9 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
 
 ### MyOrbiter's own files
 
-- `~/.config/dev.myorbiter.app/` (`%APPDATA%\dev.myorbiter.app` on Windows):
-  - `settings.json`: your settings (the Discord address you entered among them); your records:
+- `~/.config/dev.myorbiter.app/` (under `$XDG_CONFIG_HOME` when that is set; `%APPDATA%\dev.myorbiter.app` on Windows):
+  - `settings.json`: your settings (the Discord address you entered among them, and with each
+    listing's approved price your warframe.market account's id and the platform); your records:
     the sales log, the trade log (other players' names, items, platinum), value history, riven
     history, relic runs and drops, notifications, who you gave +rep, the whispers and chats already
     seen; and what MyOrbiter last learned of your account from TennoScope, kept so alerts and
@@ -522,6 +525,11 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
     platinum, credits, Endo, rivens, imprints, each copy of your gear, the warframes fed to the
     Helminth, the sets your loose parts were saved for, the gear you chose to keep, and what it has
     already told you about;
+  - `settings.json.broken-<seconds>`: a `settings.json` that couldn't be read as it started
+    (damaged, or JSON that holds no settings object), moved aside whole rather than saved over. MyOrbiter then starts with the usual settings, says so in a
+    banner that names the file until you dismiss it, and writes one line naming it (never the
+    folder) in its log. It never reads one back: to use it again, close MyOrbiter and repair it by
+    hand as `settings.json`, or delete it;
   - `relic-data.json` (drop tables), `recipe-data.json` (Foundry recipes),
     `worldstate-tables.json` (the world state's place names);
   - `tennoscope-program` (a TennoScope you chose in Settings), and on Linux `rendering` and
@@ -563,6 +571,7 @@ by you, and offers it to the desktop again the next time *Allow screen capture* 
   the config folder keep starts apart: `dev.myorbiter.app.copy.lock` while a start copies, and
   `dev.myorbiter.app.lock` for as long as MyOrbiter runs, so a second start leaves the folders
   alone. A sign-in kept in the system keyring under the old name isn't read: sign in once more.
+  Signing out removes it where the keyring answers (below).
 
 ### Your warframe.market sign-in
 
@@ -571,6 +580,16 @@ Keyring, or KWallet with Secret Service on; the Credential Manager on Windows), 
 `dev.myorbiter.app` / `warframe.market`. When the keyring can't store it, it goes to `market-token`
 in the config folder (readable only by your user on Linux; on Windows it has the folder's usual
 permissions).
+
+Signing out (Orders) removes the token from the keyring and the file, and the sign-in kept under
+the old name, `dev.orbiter.app` / `warframe.market`, if there is one. When the keyring refuses to
+let go of the token or doesn't answer while it holds it, or the file can't be deleted, MyOrbiter
+says so and stays signed in; when only the one under the old name stays, it signs out and says so.
+When the sign-in in use was kept in the file and no keyring answers, or the keyring won't let go of
+what it holds, it signs out from the file and says that a sign-in kept in the keyring before, if
+there is one, stays there: one under `dev.myorbiter.app` would sign MyOrbiter in again at its next
+start, and one under `dev.orbiter.app` isn't read. A `market-token` in the old `dev.orbiter.app` config folder stays, as
+the old folders are only read.
 
 ### Removing what is kept
 
@@ -584,7 +603,7 @@ writes `settings.json` as it runs):
   `dev.myorbiter.app.before-copy-<n>`; the config ones keep an old `settings.json`, with the trade
   log it held then;
 - the sign-in in the system keyring, `dev.myorbiter.app` / `warframe.market` (and, if one was kept,
-  the one under the old name);
+  the one under the old name), which signing out removes too where the keyring answers;
 - TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
   Linux `screencast.token`.
 

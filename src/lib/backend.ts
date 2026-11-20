@@ -21,7 +21,7 @@ import { gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf 
 import type { GearCopy } from "./core/notNeeded";
 import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, hideMinutesOf, type HiddenForWhisper } from "./core/lastCopy";
-import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
+import { isStandIn, STAND_IN_KEY, EMPTY_CHANNEL_KEY, DAMAGED_SETTINGS_KEY, DAMAGED_SETTINGS_NAME, standInLoadError, standInSignedIn, standInStatus, type StandIn } from "./core/standIn";
 import type { Invasion } from "./core/invasions";
 import type { SaveTrouble } from "./core/gettingIn";
 import { everyOf, lastCheckOf } from "./core/schedule";
@@ -276,6 +276,11 @@ export interface Settings {
   recordTimings: boolean;
   /** Updates: the release channel, a version put off with Later, the last check (core/updates.ts). */
   updates: UpdateSettings;
+  /**
+   * The name a damaged settings file was moved aside under (`settings.json.broken-<seconds>`, in the
+   * settings folder), kept until the banner that says so is dismissed; null otherwise.
+   */
+  movedAside: string | null;
 }
 
 export interface RivenWatch {
@@ -594,7 +599,12 @@ export const defaultSettings = (): Settings => ({
   buildsFromNox: true,
   recordTimings: false,
   updates: defaultUpdates(),
+  movedAside: null,
 });
+
+/** The name `read_settings` (lib.rs) gives a damaged settings file it moved aside, and nothing else. */
+const MOVED_ASIDE = /^settings\.json\.broken-\d{1,20}$/;
+const movedAsideOf = (v: unknown): string | null => (typeof v === "string" && MOVED_ASIDE.test(v) ? v : null);
 
 const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 /** Set by vite.config.ts: true only on the demo dev server (MYORBITER_DEMO=1), false in a build and in `npm run dev`. */
@@ -929,7 +939,7 @@ export async function relicData(force = false): Promise<RelicData | null> {
 const numIn = (v: unknown, lo: number, hi: number, fallback: number) => (typeof v === "number" && Number.isFinite(v) && v >= lo && v <= hi ? v : fallback);
 
 /** The largest price a saved price may be: the limit floors and minimum prices already have. */
-const MAX_SAVED_PRICE = 100_000;
+export const MAX_SAVED_PRICE = 100_000;
 
 /**
  * A group of yes-or-no switches as loaded: the fields of `base` and no others. A field missing
@@ -1003,8 +1013,12 @@ function marketSafetyOf(raw: unknown, base: MarketSettings): Pick<MarketSettings
     // 6 hours; past a week, once a week); no number, or one under a minute, is the usual one.
     every: everyOf(r.every, base.every),
     lastCheck: lastCheckOf(r.lastCheck),
-    floors: Object.fromEntries(record(r.floors).filter(([, v]) => Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 100_000)) as Record<string, number>,
-    paused: Object.fromEntries(record(r.paused).filter(([, v]) => v === true)) as Record<string, boolean>,
+    // A floor saved above the limit (typed before Orders' field refused it) is cut to the limit,
+    // never dropped: dropping it would let repricing go under where the player put it.
+    floors: Object.fromEntries(record(r.floors).flatMap(([k, v]) => (Number.isInteger(v) && (v as number) >= 1 ? [[k, Math.min(v as number, MAX_SAVED_PRICE)]] : []))) as Record<string, number>,
+    // A pause turned off is kept as false: for a filled sculpture it says "not paused" over a pause
+    // saved under the empty sculpture's key, which it otherwise falls back on (core/market.ts › isPaused).
+    paused: Object.fromEntries(record(r.paused).filter(([, v]) => typeof v === "boolean")) as Record<string, boolean>,
     // Repricing's recent changes: only real times of the last day count (never a reason to change sooner).
     changes: changesOf(r.changes, Date.now()),
     // Automatic actions on warframe.market: on only when a file says true. A missing key is off,
@@ -1034,17 +1048,20 @@ export async function loadSettings(): Promise<Settings> {
   let raw: Partial<Settings> | null = null;
   /** No settings file at all: a new install. */
   let fresh = false;
+  movedAside = null;
   if (inTauri) {
     // A file briefly held by something else (an antivirus, a backup): tried a few times. Still
     // unreadable, MyOrbiter runs on defaults but never saves over the file (see flushSettings).
     for (let i = 0; ; i++) {
       try {
-        const loaded = await invoke<{ settings: Partial<Settings> | null; page: number; fresh?: boolean }>("load_settings");
+        const loaded = await invoke<{ settings: Partial<Settings> | null; page: number; fresh?: boolean; movedAside?: unknown }>("load_settings");
         // A reply without a page token can't be saved to: taken as unreadable, so nothing is
         // saved over the file.
         if (typeof loaded?.page !== "number" || !("settings" in loaded)) throw new Error("load_settings gave an unexpected reply");
         raw = loaded.settings;
         fresh = loaded.fresh === true;
+        // A damaged file this start moved aside: its new name, for the banner (App.svelte).
+        movedAside = movedAsideOf(loaded.movedAside);
         savePage = loaded.page;
         break;
       } catch (e) {
@@ -1063,12 +1080,23 @@ export async function loadSettings(): Promise<Settings> {
     } catch {
       raw = null;
     }
+    // Browser dev mode: the desktop app's start after a damaged file was moved aside, stood in for.
+    try {
+      if (localStorage.getItem(DAMAGED_SETTINGS_KEY) === "1") {
+        raw = null;
+        fresh = false;
+        movedAside = DAMAGED_SETTINGS_NAME;
+      }
+    } catch {
+      // No storage: nothing stood in for.
+    }
   }
   const base = defaultSettings();
-  // A file that isn't a settings object at all (a number, a list, text): the usual settings.
+  // A file that isn't a settings object at all (a number, a list, text): the usual settings. The
+  // desktop app moves such a file aside as a damaged one (read_settings in lib.rs).
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) raw = null;
   // Read whole: a settings object, or no file at all (a new install). Not when the file couldn't be
-  // read, was damaged (moved aside) or held something else: then the defaults stand in for it.
+  // read, was damaged (moved aside) or held something else: then the usual settings stand in for it.
   loadedWhole = loadFailed == null && (raw != null || fresh);
   // Schema 2: cracking alone became the default for Relics and Planner alike.
   if (raw && (raw.schema ?? 1) < 2 && raw.advice && typeof raw.advice === "object") raw.advice.squad = 1;
@@ -1155,10 +1183,14 @@ export async function loadSettings(): Promise<Settings> {
     buildsFromNox: raw?.buildsFromNox !== false,
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
-    // Settings from before updates: Stable, never checked. A new install (no settings file at all;
-    // not a damaged one moved aside, nor one that couldn't be read): the channel its build came
-    // from, once that's known (updates.svelte.ts).
-    updates: raw ? sanitizeUpdates(raw.updates) : fresh ? newInstallUpdates() : defaultUpdates(),
+    // Settings from before updates: Stable, never checked. No settings object to read (no file at
+    // all, or a damaged one moved aside, JSON that isn't a settings object included): no channel
+    // chosen yet, and the new-install rule settles it at the first check (updates.svelte.ts). A file
+    // that couldn't be read at all is never saved over; until a restart reads it, Stable stands in
+    // as the chosen channel, so the update checks ask Stable and offer its builds.
+    updates: raw ? sanitizeUpdates(raw.updates) : loadFailed == null ? newInstallUpdates() : defaultUpdates(),
+    // Told once, until dismissed: this start's moved file, else one an earlier start named.
+    movedAside: movedAside ?? movedAsideOf(raw?.movedAside),
   };
 }
 
@@ -1272,6 +1304,8 @@ export async function flushSettings() {
 let saveFailed = false;
 /** Why the saved settings couldn't be read at start, if they couldn't: nothing is saved then. */
 let loadFailed: string | null = null;
+/** The name the settings file was moved aside under at this start, being damaged (see loadSettings). */
+let movedAside: string | null = null;
 /** Whether the settings at start came from a settings object, or there was no file (see loadSettings). */
 let loadedWhole = false;
 let saveListener: ((trouble: SaveTrouble | null) => void) | null = null;
@@ -1285,6 +1319,8 @@ export const settingsUnreadable = () => loadFailed != null;
 export const settingsUnreadableWhy = () => loadFailed;
 /** Whether the saved settings were read whole at start, or there were none (a new install). */
 export const settingsReadWhole = () => loadedWhole;
+/** The name the settings file was moved aside under at this start, being damaged; null otherwise. */
+export const settingsMovedAside = () => movedAside;
 
 /**
  * Opens a link MyOrbiter has already checked (`openable` in core/links.ts) in your browser: the

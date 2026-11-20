@@ -220,7 +220,7 @@ test("on a timer: a move the 70% floor brings within the band isn't sent", async
   book = [seller(40), seller(40)];
   await timedPass(s);
   assert.deepEqual(sent, [], "72p → 70p (70% of 100p) is within the 2p band");
-  assert.ok(mkt.log.some((l) => /stays at 72p, near 70% of the 100p/.test(l.text)), "held at the 70% floor, and it says so");
+  assert.ok(mkt.log.some((l) => /stays at 72p, too close to 70% of the 100p you last set \(70p\) for a change/.test(l.text)), "held at the 70% floor, and it says so");
 });
 
 test("Reprice by hand isn't held by the cooldown, and counts for it", async () => {
@@ -312,7 +312,7 @@ test("on a timer: at most six changes a day per listing, with a category minimum
   assert.ok(sent.some(([, p]) => p === 95), "held at the minimum, not at 90p");
 });
 
-test("a listing under its category minimum is raised to it, once the cooldown allows", async () => {
+test("a listing under its category minimum is raised to it, whatever the gap", async () => {
   await asMod();
   const s = { ...settings(), minPrice: 10, minByCategory: { mods: 40 }, approved: { "it||": 30 } };
   mine = [order(30)];
