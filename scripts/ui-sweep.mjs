@@ -937,6 +937,9 @@ function tipOverMenu() {
  */
 async function keyboardExtras(size) {
   const p = await open(size);
+  // These checks read focus, names, headings and boxes, not pictures: every item picture is the
+  // sweep's own stand-in, so the pages they visit ask the picture cache for nothing.
+  await p.route(/\/WFCD\/warframe-items\/[^/]+\/data\/img\//, (r) => r.fulfill({ contentType: "image/png", body: WIDE_PICTURE }));
   const go = async (label) => {
     await p.locator("button.nav", { hasText: label }).first().click();
     await pause(p, 2500);
@@ -970,6 +973,8 @@ async function keyboardExtras(size) {
   else if (items[0] && items[0] === items[1]) nameFindings.push(`Orders: the first two rows' controls have the same names (${items[0]})`);
   // The click targets: Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks.
   const measure = async (view, sel) => {
+    // Only what is in the window is measured: the first match brought into it (Home's ticks are below the fold).
+    await p.locator(sel).first().scrollIntoViewIfNeeded({ timeout: 3000 }).catch(() => {});
     await p.mouse.move(size.w - 5, size.h - 5);
     await pause(p, 300);
     const r = await p.evaluate(smallTargets, sel);
