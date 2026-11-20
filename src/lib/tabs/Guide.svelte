@@ -162,7 +162,7 @@
     <h3 class="register lead">What MyOrbiter can and can't do on {platform}</h3>
     <ul>
       <li>MyOrbiter can't read a game running on a console, so it doesn't know what you own or when a trade goes through. It doesn't list things for you or mark them sold by itself: you pick what to list, and press <b>Sold</b> when you've sold one.</li>
-      <li>What it does by itself: if you turn it on, keeps your listings near the market price (the second-cheapest seller online or in game), changing a price only when it has drifted (Orders, Apply automatically), holds the warframe.market status you choose on Orders while it's open, and tells you when a fissure or riven you're watching for turns up.</li>
+      <li>What it does by itself: if you turn it on, keeps your listings near the market price (down to the second-cheapest seller online or in game, a raise no higher than the cheapest), changing a price only when it has drifted (Orders, Apply automatically), holds the warframe.market status you choose on Orders while it's open, and tells you when a fissure or riven you're watching for turns up.</li>
       <li>Everything else in MyOrbiter (your collection, relics, mastery, spares to sell) needs your inventory, which it can only read from Warframe on a PC. Switch Settings → Platform to PC if you play there too: with cross-save, it's the same account.</li>
       <li>Everything MyOrbiter records (sales, settings) stays on this computer. Your warframe.market sign-in is kept in the system keyring (a private file if there isn't one).</li>
     </ul>
