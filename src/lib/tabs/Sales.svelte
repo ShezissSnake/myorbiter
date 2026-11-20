@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SALE_DELETE_KEEPS } from "../core/saleLog";
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { localDayStart, salesByDay } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
@@ -320,8 +321,8 @@
             <td class="right">{#if ratio(s) != null}{@const r = ratio(s) ?? 0}<span class="vs" class:under={r < UNDER} class:over={r >= 1.1} title="Median {Math.round(market(s) ?? 0)}p">{Math.round(r * 100)}%</span>{:else}<span class="dim" title={unnamedImprint(s) ? `${s.item}: an imprint, logged by its pet's name. Its breed isn't in the last inventory read or the name, so there's no market price to compare with.` : undefined}>–</span>{/if}</td>
             <td class="right"><P v={s.quantity * s.platinum} /></td>
             <td class="right">
-              {#if removing === keyOf(s)}<span class="acts"><span class="ask register">Delete?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>
-              {:else}<span class="del"><IconButton icon="trash" tone="danger quiet" label="Delete" title="Delete: take this sale out of the log (warframe.market isn't touched)" onclick={() => (removing = keyOf(s))} /></span>{/if}
+              {#if removing === keyOf(s)}<span class="acts"><span class="ask register" title={SALE_DELETE_KEEPS}>Delete from the log only?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>
+              {:else}<span class="del"><IconButton icon="trash" tone="danger quiet" label="Delete" title={`Delete: take this sale out of the log. ${SALE_DELETE_KEEPS}`} onclick={() => (removing = keyOf(s))} /></span>{/if}
             </td>
           </tr>
         {/each}

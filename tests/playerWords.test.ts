@@ -8,6 +8,7 @@ import { emptyText, fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF } from "../sr
 import { syncIdleWord } from "../src/lib/core/syncWord";
 import { plan, type BookOrder, type FloorRule, type MyOrder } from "../src/lib/core/market";
 import { unchangedWhy } from "../src/lib/core/willSet";
+import * as saleWords from "../src/lib/core/saleLog";
 
 const root = join(import.meta.dirname, "..");
 const src = (f: string) => readFileSync(join(root, f), "utf8");
@@ -161,4 +162,19 @@ test("automatic repricing has one name, Apply automatically, on Orders and in Se
   assert.doesNotMatch(help, /title: "Automatic repricing"/);
   assert.match(help, /title: "Apply automatically"/);
   assert.doesNotMatch(words(src("src/lib/tabs/Orders.svelte")), /automatic repricing/i);
+});
+
+// Sales: deleting a sale takes it out of the log only; warframe.market keeps what Sold changed.
+
+test("Sales' Delete question says warframe.market keeps its change", () => {
+  const sales = src("src/lib/tabs/Sales.svelte");
+  const ask = sales.slice(sales.indexOf("{#if removing === keyOf(s)}"), sales.indexOf("{/if}", sales.indexOf("{#if removing === keyOf(s)}")));
+  assert.doesNotMatch(ask, />Delete\?</, "not a bare Delete?");
+  assert.match(ask, />Delete from the log only\?</);
+  assert.match(ask, /title=\{SALE_DELETE_KEEPS\}/);
+  assert.match(sales, /title=\{`Delete: take this sale out of the log\. \$\{SALE_DELETE_KEEPS\}`\}/);
+  const { SALE_DELETE_KEEPS } = saleWords;
+  assert.match(SALE_DELETE_KEEPS, /warframe\.market keeps/);
+  assert.match(SALE_DELETE_KEEPS, /stays closed or lowered/);
+  assert.match(SALE_DELETE_KEEPS, /sale stays on your profile/);
 });
