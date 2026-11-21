@@ -6,7 +6,7 @@ import { buildPlan, shortLine, type BuildTier } from "./buildPlan";
 import { NO_MASTERY, REFINEMENTS, REVIVE_WITH_SON, TIER_ERA, UNOBTAINABLE, baseId, capturedCount, relicRewardRarity, splitRelicName, type Model, type PrimePart, type Refinement, type RelicSource } from "./model";
 export { relicRewardRarity };
 import type { CatalogItem, InventoryRow } from "./types";
-import { acquisition, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
+import { acquisition, comesWith, masteryPoints, vendorBlueprint, type Acquisition } from "./acquire";
 import { perModel } from "./memo";
 import { dropsVersion } from "./drops";
 
@@ -639,7 +639,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
   const partPrices = missingParts.map((p) => m.price(p.name));
   // Each missing copy is bought: two Blades still to get cost two Blades.
   const buyFor = missingParts.length && partPrices.every((x) => x != null) ? Math.round(missingParts.reduce((a, p, i) => a + (partPrices[i] as number) * p.need, 0)) : null;
-  const acq: Acquisition = captured
+  const made: Acquisition = captured
     ? { method: "revive", difficulty: 1, how: `You've captured one: ${REVIVE_WITH_SON}.`, icon: "mastery", available: true, tradable: false, researched: true, wiki: item.wikiaUrl ?? null }
     : acquisition(m, item, {
     isPrime,
@@ -655,6 +655,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     ownedRelicsForIt: relicsForIt.size,
     buyFor,
   });
+  const acq = owned ? made : withCompanion(m, item, made);
   return {
     name: item.name,
     unique: item.uniqueName,
@@ -680,6 +681,21 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     buildNames: plan ? plan.short.map((r) => r.name) : status === "build" && !captured ? collectionItem(m, item).short : [],
     revive: captured,
   };
+}
+
+/**
+ * A prime companion's weapon comes with its companion (Deth Machine Rifle Prime with Dethcube
+ * Prime): as available, and as hard to get, as the companion is.
+ */
+function withCompanion(m: Model, item: CatalogItem, acq: Acquisition): Acquisition {
+  const name = comesWith(item.name);
+  const pet = name ? [...m.catalogByUnique.values()].find((i) => i.name === name && i.uniqueName !== item.uniqueName) : undefined;
+  if (!pet) return acq;
+  const its = masteryRow(m, pet).acq;
+  const out: Acquisition = { ...acq, available: its.available, difficulty: Math.max(1, its.difficulty) };
+  if (its.tradeOnly) out.tradeOnly = true;
+  else delete out.tradeOnly;
+  return out;
 }
 
 /**

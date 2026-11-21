@@ -75,6 +75,12 @@ export interface Acquisition {
   /** The syndicate or vendor icon that says where it comes from, when there is one. */
   icon: string | null;
   available: boolean;
+  /**
+   * Not available, but other players can sell it: a vaulted prime with a missing part that no relic
+   * in the drop tables, at Varzia or in the player's hands gives. Mastery holds these behind its
+   * Vaulted checkbox, apart from what can't be got at all.
+   */
+  tradeOnly?: boolean;
   /** Its blueprint or parts can be bought from players. */
   tradable: boolean;
   /** Researched on the wiki rather than worked out from drop data. */
@@ -109,6 +115,14 @@ export function researchedStep(name: string): string | null {
   if (!how) return null;
   const cut = how.search(/; |\. /);
   return cut < 0 ? how.replace(/\.$/, "") : how.slice(0, cut);
+}
+
+/**
+ * A prime companion's weapon, researched as coming with its companion ("Comes automatically with
+ * Dethcube Prime; …"): the companion's name. Null for anything else.
+ */
+export function comesWith(name: string): string | null {
+  return /^Comes automatically with ([^;:.]+?);/.exec(RESEARCH[name]?.how ?? "")?.[1] ?? null;
 }
 
 /** Researched ways in that are a vendor: bought with standing, or from an event's vendor. */
@@ -381,12 +395,15 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
   const copies = missing.reduce((n, p) => n + (p.need ?? 1), 0);
   const buy = ctx.buyFor != null ? ` Or buy the ${copies === 1 ? "part" : `${copies} parts`} for about ${ctx.buyFor}p.` : "";
   if (vaulted.length) {
+    // Farmable only if every missing part is: from the drop tables, Varzia or a relic in hand.
+    const farmable = missing.every((p) => p.availability !== "vaulted" || p.sources.some((s) => s.owned > 0));
     return {
       ...base,
       method: "relics",
       difficulty: covered === missing.length ? 3 : 4,
       how: `${vaulted.length === missing.length ? "Vaulted" : `${vaulted.length} of ${missing.length} missing parts vaulted`}: ${covered ? `your relics cover ${covered} of ${missing.length}` : "only from relics you'd have to trade for"}.${buy}${also}`,
-      available: covered > 0 || resurgence.length > 0,
+      available: farmable,
+      ...(farmable ? {} : { tradeOnly: true }),
     };
   }
   return {
