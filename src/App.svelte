@@ -4,9 +4,9 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { oneAtATime } from "./lib/core/oneAtATime";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
-  import { tradeLineSale } from "./lib/core/soldMarks";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1540,59 +1540,55 @@
       // A trade with no time (the log's session start wasn't seen) is acted on only once it turns
       // up new after this run's first read of that session: the first read can be hours late.
       const firstRead = !tradeSessionsRead.has(session ?? "?");
-      const { fresh, recent } = tradesToMark(trades, session, settings.market.tradesSeen, Date.now(), firstRead);
+      // Trades being handled count as seen: their keys are recorded as their sales are logged.
+      const { fresh, recent } = tradesToMark(trades, session, [...settings.market.tradesSeen, ...tradesHandling], Date.now(), firstRead);
       if (!fresh.length) return;
       tradeSessionsRead.add(session ?? "?");
+      const acting = settings.market.autoTrades ? recent : [];
+      // Those not acted on are recorded now. Those acted on are recorded by markTrades in the same
+      // step as their sales go into the log, so that a quit in between leaves both or neither.
       // This session's keys stay however many there are: the log shows its trades on every read.
-      settings.market.tradesSeen = keepSeen(fresh, settings.market.tradesSeen, 300, session == null ? "?" : String(session));
-      if (!settings.market.autoTrades) return;
-      if (recent.length) void handleTrades(recent, session);
+      const atOnce = seenAtOnce(fresh, acting, session);
+      if (atOnce.length) settings.market.tradesSeen = keepSeen(atOnce, settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+      if (!acting.length) return;
+      for (const t of acting) tradesHandling.add(tradeKey(session, t));
+      void handleTrades(acting, session);
     });
   });
   /** Game sessions whose trade log this run has read once (see the trade effect). */
   const tradeSessionsRead = new Set<number | string>();
+  /** Keys of the trades handleTrades has and hasn't reached yet: not in tradesSeen, and not handled twice. */
+  const tradesHandling = new Set<string>();
   async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
     // Each trade's sale notification waits for what this makes of it (saleOutcome).
     for (const t of trades) marking.add(tradeKey(session, t));
     let done = 0;
     try {
-      for (const t of trades) {
-        const key = tradeKey(session, t);
-        const sales = salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints);
-        if (!sales) {
-          saleOutcome(key, null);
-          continue;
-        }
-        const at = t.at ? t.at * 1000 : Date.now();
-        // What this trade logged before, if it's handled again: read before any line is logged.
-        const logged = loggedForTrade(settings.market.sales, key);
-        const lines: SoldLine[] = [];
-        for (const s of sales) {
-          // Copies this trade logged before (handled again), and copies logged by hand within ten
-          // minutes of it (the same item and rank), are counted already and not marked sold again;
-          // only the rest are. Only by hand: a sale this logged from an earlier trade (the same
-          // item to another buyer) is a sale of its own.
-          const placed = placeTradeLine(settings.market.sales, logged, s, at, key);
-          if (placed.sales !== settings.market.sales) settings.market.sales = placed.sales;
-          if (!placed.left) {
-            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
-            continue;
-          }
-          // Matched against the listings as they were when the trade was read: one an earlier sale
-          // in this trade (or a Sold click) closed meanwhile isn't listed any more.
-          const order = stillListed(s.order, mkt.orders);
-          const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
-          // Which listing this lowered, and the copies it couldn't mark: a Sold click soon after asks first.
-          const sale = tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order, marked: marked?.quantity ?? 0, now: Date.now() });
-          settings.market.sales = [sale, ...settings.market.sales].slice(0, 2000);
-          lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
-          done++;
-        }
-        saleOutcome(key, lines);
-      }
+      // Copies a trade logged before (handled again), and copies logged by hand within ten minutes
+      // of it (the same item and rank), are counted already and not marked sold again; only the
+      // rest are. Only by hand: a sale logged from an earlier trade (the same item to another
+      // buyer) is a sale of its own.
+      done = await markTrades(trades, session, {
+        sales: () => settings.market.sales,
+        setSales: (sales) => (settings.market.sales = sales),
+        seen: (key) => {
+          tradesHandling.delete(key);
+          settings.market.tradesSeen = keepSeen([key], settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+        },
+        salesOf: (t) => salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints),
+        orders: () => mkt.orders,
+        sold: (o, n) => mkt.sold(o, n, { quiet: true }),
+        outcome: saleOutcome,
+        failed: (key, e) => logLine("warn", "trades", `A sale from the game's trade ${key} hit an error: ${e instanceof Error ? e.message : String(e)}`),
+        now: () => Date.now(),
+      });
     } finally {
-      // Whatever went wrong part way: the notifications waiting on the rest go without it.
-      for (const t of trades) if (marking.has(tradeKey(session, t))) saleOutcome(tradeKey(session, t), null);
+      // Whatever went wrong part way: the notifications waiting on the rest go without it, and a
+      // trade not reached is read again (nothing of it was logged or sent).
+      for (const t of trades) {
+        tradesHandling.delete(tradeKey(session, t));
+        if (marking.has(tradeKey(session, t))) saleOutcome(tradeKey(session, t), null);
+      }
     }
     if (!done) return;
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
@@ -1683,11 +1679,15 @@
     const [lines, u] = await Promise.all([
       wait ? outcomeOf(key, wait) : Promise.resolve(null),
       // +rep by hand: whether the buyer is on warframe.market (one lookup, shared with the trade history's).
-      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => undefined) : Promise.resolve(undefined),
+      // A lookup that failed is false: not found (null) and not looked up (undefined) are others.
+      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => false as const) : Promise.resolve(undefined),
     ]);
-    const { title, body } = saleNotice(t, lines);
     const at = t.at ? t.at * 1000 : Date.now();
-    const offer = repOffered({ key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!u, rep: settings.market.rep, trades: settings.market.trades });
+    const asked = { key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, rep: settings.market.rep, trades: settings.market.trades };
+    const offer = repOffered({ ...asked, onMarket: !!u });
+    // The notification says it couldn't look the buyer up only when that is what keeps +rep off it.
+    const unread = u === false && repOffered({ ...asked, onMarket: true });
+    const { title, body } = saleNotice(t, lines, unread);
     const id = tell("sold", title, body, "sales", offer ? { key, partner: t.partner } : undefined);
     if (id) toldNotice.set(key, id);
   }
@@ -1831,8 +1831,9 @@
     const lc = settings.market.lastCopy;
     if (!lc.optIn || !mkt.linked) return;
     const toHide = lastCopies(mkt.orders);
-    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false) : [];
-    settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, hiddenNow, Date.now());
+    // Each one into the list as warframe.market takes it: a quit part way leaves none hidden that
+    // MyOrbiter doesn't know of (and so wouldn't show again).
+    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false, true, (o) => (settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, [o], Date.now()))) : [];
     if (hiddenNow.length) {
       const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
       mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back after that if a newer inventory read still has it`, "info");
@@ -1982,7 +1983,9 @@
       await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
     })().catch(() => {});
   }
-  async function scanRivens() {
+  // A scan that outlasts the five minutes (warframe.market slow to answer) isn't joined by a second
+  // one: it would ask again for the same rivens and tell of the same finds twice.
+  const scanRivens = oneAtATime(async () => {
     const found: string[] = [];
     const ids: string[] = [];
     const seen = new Set(settings.game.rivensNotified);
@@ -2006,7 +2009,7 @@
     if (!ids.length) return;
     settings.game.rivensNotified = [...ids, ...settings.game.rivensNotified].slice(0, 500);
     if (settings.notify.rivens) tell("rivens", found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
-  }
+  });
 
   // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
   // read once a day: whether one is worth more sold than cracked depends on it (Inventory's spare
@@ -2768,13 +2771,8 @@
       cardsPoll = setInterval(pollCards, 800);
       // warframe.market: sign-in state, your orders, and the auto-match timer.
       // Your warframe.market status: held again from where you left it (see Orders).
+      // Signed in: the store sets Settings → Platform from the account (marketStore › takePlatform).
       mkt.init().then(() => {
-        // Signed in: your account says which platform you play on.
-        const theirs = mkt.me?.platform;
-        if (theirs && theirs in PLATFORM_LABEL && theirs !== settings.market.platform) {
-          settings.market.platform = theirs as Platform;
-          settings.market.relicPrices = {};
-        }
         if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();

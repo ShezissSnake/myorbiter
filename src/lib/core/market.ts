@@ -228,7 +228,9 @@ export interface FloorRule {
 
 export function plan(order: MyOrder, book: BookOrder[], me: Me, rule: FloorRule): Plan {
   const comp = competitor(order, book, me, rule.defaultSubtype ?? null, !!rule.drift);
-  const value = rule.capByAsks ? marketValue(rule.reference, comp) : (rule.reference ?? null);
+  // A market value that isn't a number (NaN, infinite) is no value: with it, no floor below would hold.
+  const known = (v: number | null | undefined) => (v != null && Number.isFinite(v) ? v : null);
+  const value = known(rule.capByAsks ? marketValue(known(rule.reference), comp) : rule.reference);
   // The hard floors (yours, which includes a relic's crack value and a prime's ducats, and the
   // minimum) stay put; the share of the market value moves with the asks, pass to pass.
   const hard = Math.max(1, rule.floor ?? 0, rule.min ?? 0);
@@ -343,13 +345,18 @@ export function typedFloor(floors: Readonly<Record<string, number>>, o: Keyed, d
 }
 
 /**
- * What Orders' Floor field makes of `typed`: a floor (whole platinum), null to clear it (empty, 0
- * or less), or "over" when it is above `max`, which the field refuses rather than save a floor the
- * next start would not keep.
+ * What Orders' Floor field makes of `typed`: a floor (whole platinum, a fraction rounded up, so it
+ * is never under what was typed), null to clear it (the box emptied: the automatic floor), "over"
+ * when it is above `max`, which the field refuses rather than save a floor the next start would
+ * not keep, or "keep" for what is no floor: 0 or less, or what the browser couldn't read as a
+ * number (`badInput`: it then gives an empty value, which isn't an emptied box).
  */
-export function floorTyped(typed: string, max: number): number | null | "over" {
-  const n = Math.round(Number(typed));
-  if (!typed.trim() || !Number.isFinite(n) || n <= 0) return null;
+export function floorTyped(typed: string, max: number, badInput = false): number | null | "over" | "keep" {
+  if (badInput) return "keep";
+  if (!typed.trim()) return null;
+  const x = Number(typed);
+  if (!Number.isFinite(x) || x <= 0) return "keep";
+  const n = Math.ceil(x);
   return n > max ? "over" : n;
 }
 

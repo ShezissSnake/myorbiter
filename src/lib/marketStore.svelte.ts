@@ -1,6 +1,6 @@
 // Shared warframe.market state: account, your orders, cached order books, and the repricer.
 
-import { logLine, market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
+import { PLATFORM_LABEL, logLine, market, presence, type ChatSummary, type FeedState, type MarketAccount, type MarketSettings, type MarketUser, type Platform, type Sale, type Presence, type PresenceState } from "./backend";
 import {
   canTrade,
   findItem,
@@ -103,6 +103,8 @@ const APPLY_TTL = 2 * 60_000;
 const WRITE_FAILS = 3;
 /** A bulk plan older than this has its prices read again before it's applied. */
 const PLAN_FRESH_MS = 10 * 60_000;
+/** Whether something read at `at` is still fresh: younger than `maxAge`, and not read "in the future" (the clock stepped back since). */
+const fresh = (at: number, maxAge: number, now = Date.now()) => now - at >= 0 && now - at < maxAge;
 /** How long the live feed stays connected after the watchlist empties (see `wantFeed`). */
 export const FEED_LINGER_MS = 10 * 60_000;
 
@@ -175,6 +177,8 @@ class MarketStore {
   drafting = $state<string | null>(null);
   /** What the form just listed, shown in it for a moment before it closes. */
   draftDone = $state<string | null>(null);
+  /** Counts the listing forms opened and closed: a load that ends after its form closed (or another opened) leaves it be. */
+  private draftTurn = 0;
 
   get me(): Me | null {
     return this.account?.profile ?? null;
@@ -238,9 +242,31 @@ class MarketStore {
     this.log = [{ at, text, tone, ...(quiet ? { quiet } : {}) }, ...this.log].slice(0, 200);
   }
 
+  /** The account and its platform last taken into Settings → Platform ("id|platform"). */
+  private platformTaken: string | null = null;
+  /**
+   * Signed in: the account says which platform you play on, and Settings → Platform follows it;
+   * the relic prices read for the old platform go. After signing in (`always`), every time. At the
+   * start and at a reconnect, only when the account or its platform isn't the one last taken in:
+   * a platform picked by hand since stays.
+   */
+  private takePlatform(always: boolean) {
+    const me = this.me;
+    const s = this.rules;
+    const theirs = me?.platform;
+    if (!me?.id || !s || !theirs || !Object.hasOwn(PLATFORM_LABEL, theirs)) return;
+    const taken = `${me.id}|${theirs}`;
+    if (!always && taken === this.platformTaken) return;
+    this.platformTaken = taken;
+    if (theirs === s.platform) return;
+    s.platform = theirs as Platform;
+    s.relicPrices = {};
+  }
+
   async init() {
     try {
       this.account = await market.account();
+      this.takePlatform(false);
       await this.ensureItems();
       if (this.linked) await this.refresh();
     } catch (e) {
@@ -290,6 +316,7 @@ class MarketStore {
         await market.signIn(email, password);
         this.account = await market.account();
       });
+      this.takePlatform(true);
       await this.refresh();
     });
   }
@@ -300,6 +327,7 @@ class MarketStore {
         await market.useToken(token);
         this.account = await market.account();
       });
+      this.takePlatform(true);
       await this.refresh();
     });
   }
@@ -576,7 +604,7 @@ class MarketStore {
 
   async book(slug: string, maxAge = BOOK_TTL): Promise<BookOrder[]> {
     const hit = this.books[slug];
-    if (hit && Date.now() - hit.at < maxAge) return hit.orders;
+    if (hit && fresh(hit.at, maxAge)) return hit.orders;
     const orders = await market.book(slug);
     this.books = { ...this.books, [slug]: { at: Date.now(), orders } };
     return orders;
@@ -1029,6 +1057,7 @@ class MarketStore {
 
   /** Opens the listing form for something from your collection, priced at the cheapest in-game seller. */
   async startListing(m: Model, name: string, req: ListRequest = {}) {
+    const turn = ++this.draftTurn;
     this.draft = null;
     this.draftError = null;
     this.draftDone = null;
@@ -1036,10 +1065,13 @@ class MarketStore {
     try {
       await this.ensureItems();
     } catch (e) {
+      if (turn !== this.draftTurn) return;
       this.draftError = `Couldn't load warframe.market's item list: ${clean(e)}`;
       this.drafting = null;
       return;
     }
+    // Closed while the item list loaded, or another form opened: this one stays shut.
+    if (turn !== this.draftTurn) return;
     const it = findItem(this.index, name, req.unique);
     if (!it) {
       this.draftError = `${name} isn't tradable on warframe.market.`;
@@ -1215,6 +1247,7 @@ class MarketStore {
   }
 
   closeDraft() {
+    this.draftTurn++;
     this.draft = null;
     this.draftError = null;
     this.drafting = null;
@@ -1223,9 +1256,10 @@ class MarketStore {
 
   /**
    * Hides or shows several listings, then reloads them once (unless `reread` is false). Returns
-   * the ones warframe.market took; one it refuses is logged and left as it was.
+   * the ones warframe.market took; one it refuses is logged and left as it was. `each` is told of
+   * every listing taken, before the next is asked, so the caller can keep it at once.
    */
-  async setShown(orders: MyOrder[], visible: boolean, reread = true): Promise<MyOrder[]> {
+  async setShown(orders: MyOrder[], visible: boolean, reread = true, each?: (o: MyOrder) => void): Promise<MyOrder[]> {
     const done: MyOrder[] = [];
     for (const o of orders) {
       // Shown again (after a whisper, Show all hidden): only while it's still all spare, and at a
@@ -1245,6 +1279,7 @@ class MarketStore {
         this.orders = this.orders.map((x) => (x.id === o.id ? { ...x, visible } : x));
         // A read already on its way predates this: it mustn't bring the old visibility back.
         this.localEdits++;
+        each?.(o);
       } catch (e) {
         this.note(`${this.item(o.itemId)?.name ?? "A listing"}: couldn't ${visible ? "show" : "hide"} it (${clean(e)})`, "warn");
       }
@@ -1367,6 +1402,8 @@ class MarketStore {
   /** The buy order form, open on one item. */
   buyDraft = $state<BuyDraft | null>(null);
   buyError = $state<string | null>(null);
+  /** Counts the buy forms opened (startBuy). */
+  private buyTurn = 0;
 
   /**
    * Opens the buy order form for something you're after, priced from the order book: one more
@@ -1374,14 +1411,17 @@ class MarketStore {
    * the 30-day median when nobody's buying.
    */
   async startBuy(name: string, req: { unique?: string | null; rank?: number | null; subtype?: string | null; quantity?: number; known?: number | null } = {}) {
+    // Only the form opened last is filled in: an older one's read (another item, rank or variant) ending later leaves it be.
+    const turn = ++this.buyTurn;
     this.buyError = null;
     this.buyDraft = null;
     try {
       await this.ensureItems();
     } catch (e) {
-      this.buyError = `Couldn't load warframe.market's item list: ${clean(e)}`;
+      if (turn === this.buyTurn) this.buyError = `Couldn't load warframe.market's item list: ${clean(e)}`;
       return;
     }
+    if (turn !== this.buyTurn) return;
     const it = findItem(this.index, name, req.unique ?? null);
     if (!it) {
       this.buyError = `${name} isn't tradable on warframe.market.`;
@@ -1394,20 +1434,23 @@ class MarketStore {
     this.buyDraft = draft;
     try {
       // Buying: who is selling right now, so a fresh read.
-      const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => [] as PricePoint[])]);
-      if (this.buyDraft?.itemId !== it.id) return;
-      const me = (this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
+      // A history that couldn't be read is null, not "no sales": the form says it couldn't read it.
+      const [book, points] = await Promise.all([this.book(it.slug, 60_000), this.history(it.slug).catch(() => null)]);
+      // Closed while the book loaded (the form's Close empties buyDraft), or another one opened.
+      if (turn !== this.buyTurn || !this.buyDraft) return;
+      const me =(this.me ?? { id: "", platform: this.platform, crossplay: true }) as Me;
       const same = (o: BookOrder) => o.visible && (rank == null || (o.rank ?? 0) === rank) && (subtype == null || (o.subtype ?? it.subtypes?.[0] ?? null) === subtype) && o.user.id !== me.id && canTrade(me, o.user) && o.user.status !== "offline";
       const buys = book.filter((o) => o.type === "buy" && same(o)).map((o) => o.platinum);
       const sells = book.filter((o) => o.type === "sell" && same(o)).map((o) => o.platinum);
       const topBuy = buys.length ? Math.max(...buys) : null;
       const cheapestSell = sells.length ? Math.min(...sells) : null;
-      const median = recentPrice(points, rank, subtype, 30, 2);
+      const median = points ? recentPrice(points, rank, subtype, 30, 2) : null;
       let price = topBuy != null ? topBuy + 1 : median != null ? Math.max(1, Math.round(median * 0.8)) : cheapestSell != null ? Math.max(1, cheapestSell - 1) : null;
       if (price != null && cheapestSell != null && price >= cheapestSell) price = Math.max(1, cheapestSell - 1);
-      this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, loading: false };
+      this.buyDraft = { ...draft, platinum: price, topBuy, cheapestSell, median, historyUnread: !points, loading: false };
     } catch (e) {
-      if (this.buyDraft?.itemId === it.id) this.buyDraft = { ...draft, loading: false };
+      if (turn !== this.buyTurn || !this.buyDraft) return;
+      this.buyDraft = { ...draft, loading: false };
       this.buyError = `Couldn't read the order book: ${clean(e)}`;
     }
   }
@@ -1455,7 +1498,7 @@ class MarketStore {
   private histories = new Map<string, { at: number; points: Promise<PricePoint[]> }>();
   history(slug: string): Promise<PricePoint[]> {
     const hit = this.histories.get(slug);
-    if (hit && Date.now() - hit.at < 3_600_000) return hit.points;
+    if (hit && fresh(hit.at, 3_600_000)) return hit.points;
     const points = market.history(slug);
     this.histories.set(slug, { at: Date.now(), points });
     points.catch(() => this.histories.delete(slug));
@@ -1481,8 +1524,13 @@ class MarketStore {
     });
     return read;
   }
+  /** The relics the last read asked for and couldn't read (every one when the item list didn't
+   *  come): they keep the prices read before, or TennoScope's, until the next read. */
+  relicUnread = $state.raw<string[]>([]);
   private async readRelics(stale: string[], had: RelicMarket, now: number): Promise<RelicMarket | null> {
     const out: RelicMarket = { ...had };
+    const unread: string[] = [];
+    this.relicUnread = [];
     try {
       await this.ensureItems();
       let failing = 0;
@@ -1496,7 +1544,7 @@ class MarketStore {
           const prices: Record<string, number> = {};
           for (const sub of it.subtypes ?? ["intact", "exceptional", "flawless", "radiant"]) {
             // At least two sales in 30 days: one is too thin to decide on.
-            const p = recentPrice(points, null, sub, 30, 2);
+            const p = recentPrice(points, null, sub, 30, 2, now);
             if (p != null) prices[sub] = p;
           }
           out[base] = { at: now, prices, how: "median" };
@@ -1504,11 +1552,14 @@ class MarketStore {
         } catch {
           // Not answering: tried again on the next read.
           failing++;
+          unread.push(base);
         }
       }
     } catch {
+      this.relicUnread = stale;
       return null;
     }
+    this.relicUnread = unread;
     return out;
   }
 
@@ -1713,8 +1764,9 @@ class MarketStore {
     const shown = this.bulk;
     if (!shown || this.busy || !this.me) return null;
     // Prices move: a plan looked at a while ago is worked out again from fresh order books first,
-    // the lines skipped this time still skipped.
-    if (Date.now() - shown.at > PLAN_FRESH_MS) {
+    // the lines skipped this time still skipped. One made "in the future" (the clock stepped back) too.
+    const age = Date.now() - shown.at;
+    if (age < 0 || age > PLAN_FRESH_MS) {
       await this.planBulk(m, s, advice, shown.skipped);
       if (this.bulk) this.note("That plan was over 10 minutes old, so its prices were read again: look it over and apply again.", "warn");
       return { sent: 0, failed: 0, outcome: "replanned" };
@@ -1963,6 +2015,8 @@ export interface BuyDraft {
   topBuy: number | null;
   cheapestSell: number | null;
   median: number | null;
+  /** The price history couldn't be read (so `median` is null for that, not for want of sales). */
+  historyUnread?: boolean;
   /** What the card that opened the form gave as its price, shown when the order book has none. */
   known?: number | null;
   loading: boolean;

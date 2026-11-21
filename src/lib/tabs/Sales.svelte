@@ -21,7 +21,7 @@
   import { heldFor, knownName, overListed } from "../core/market";
   import { exportFile, market as wfm } from "../backend";
   import { salesCsv } from "../core/exportCsv";
-  import { importClosed } from "../core/closedOrders";
+  import { importedLog } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
   import { imprintNaming, setPartsOf } from "../core/trades";
   import { secondPress, tradeSaleNear } from "../core/soldMarks";
@@ -70,10 +70,9 @@
     importFailed = false;
     try {
       const closed = await wfm.closedOrders(me);
-      const r = importClosed(settings.market.sales, closed, setPartsOf(model));
-      if (r.added || r.matched) settings.market.sales = r.sales.slice(0, 2000);
-      const sells = closed.filter((c) => c.kind === "sell").length;
-      imported = !sells ? "warframe.market has no closed sales on your profile." : r.added ? `Added ${r.added} sale${r.added === 1 ? "" : "s"} from warframe.market; the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.` : `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;
+      const r = importedLog(settings.market.sales, closed, setPartsOf(model));
+      if (r.sales) settings.market.sales = r.sales;
+      imported = r.words;
     } catch (e) {
       imported = `Couldn't read your closed orders: ${String(e).replace(/^Error:\s*/, "")}`;
       importFailed = true;
