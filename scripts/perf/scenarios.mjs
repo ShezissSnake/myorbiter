@@ -352,15 +352,15 @@ const toBottom = (px, capMs, jump = false) => `new Promise((done) => {
   requestAnimationFrame(step);
 })`;
 
-/**
- * Runs `promise` (page code) in the page and waits for it in pieces: the inspector waits at most
- * 60 s for one answer, and a scaled list takes minutes to scroll to its bottom.
- */
 /** A page expression: whether the page draws a frame within `ms`. */
 const FRAME_WITHIN = (ms) => `new Promise((done) => { const t = setTimeout(done, ${ms}, false); requestAnimationFrame(() => (clearTimeout(t), done(true))); })`;
 /** A scenario part that ended because the page drew no frame for a minute (at the message's step). */
 class Stalled extends Error {}
 
+/**
+ * Runs `promise` (page code) in the page and waits for it in pieces: the inspector waits at most
+ * 60 s for one answer, and a scaled list takes minutes to scroll to its bottom.
+ */
 async function long(s, promise) {
   await s.eval(`(window.__long = { r: undefined }, (${promise}).then((v) => (window.__long.r = { v }), (e) => (window.__long.r = { e: String(e) })), 0)`);
   for (;;) {
@@ -428,7 +428,19 @@ SCENARIOS.listsAndFolds = {
         out.stalls.push({ step: out.step, waited: Date.now() - t0, ended: true });
         throw new Stalled(out.step);
       };
-      const measure = async (what, o) => (await framed(), s.measure(what, o));
+      // Frames that stop between that wait and the measurement's own first frame: the inspector
+      // gives up on the page after a minute. A stall too, with the error kept.
+      const measure = async (what, o) => {
+        await framed();
+        try {
+          return await s.measure(what, o);
+        } catch (e) {
+          if (!/no answer in 60 s/.test(String(e))) throw e;
+          out.stalls.push({ step: out.step, waited: 60_000, ended: true, inMeasure: true });
+          out.error = String(e.stack ?? e);
+          throw new Stalled(out.step);
+        }
+      };
       const settle = () => measure("void 0", { quiet: 1500, max: 6000 });
       try {
         const state = () => s.eval(INVENTORY_STATE);
@@ -462,15 +474,7 @@ SCENARIOS.listsAndFolds = {
         step("done");
       } catch (e) {
         if (e instanceof Stalled) out.stalled = e.message;
-        else {
-          out.error = String(e.stack ?? e);
-          // Frames that stopped between the wait above and the measurement's own first frame: the
-          // inspector gives up on the page after a minute. A stall too.
-          if (/no answer in 60 s/.test(out.error)) {
-            out.stalls.push({ step: out.step, waited: 60_000, ended: true, inMeasure: true });
-            out.stalled = out.step;
-          }
-        }
+        else out.error = String(e.stack ?? e);
       }
       return out;
     }
