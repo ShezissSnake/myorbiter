@@ -37,6 +37,19 @@ const SELF = fileURLToPath(import.meta.url).replace(/\\/g, "/");
 export const ALLOWED_FILE = "scripts/dependency-licences-allowed.txt";
 export const NO_TEXT_FILE = "scripts/dependency-licences-no-text.json";
 
+/**
+ * The processes a page's build may start: each by its exact command line, each shown to read no
+ * package's file, and each only on the system that starts it (`any`, or a `process.platform`): the
+ * system the build runs on, as Vite tells them apart, so a Windows half cross-built on Linux starts
+ * none of Windows'.
+ */
+const commandsOn = (lines, system = process.platform) => [...(lines.any ?? []), ...(lines[system] ?? [])];
+// Vite on Windows, the first time it takes a path to its real one (the page's root, in every build:
+// resolveConfig), runs `net use` and reads its answer, the network drives this machine has mapped,
+// to give a mapped drive's path by its letter (node_modules/vite/dist/node/chunks/node.js,
+// optimizeSafeRealPathSync). Its own output, no file: both pages build with that Vite.
+const VITE_ON_WINDOWS = ["net use"];
+
 export const PROGRAMS = {
   myorbiter: {
     name: "MyOrbiter", cargo: ".", pkg: "myorbiter",
@@ -45,8 +58,8 @@ export const PROGRAMS = {
       // The build's known tools: what may run while the page builds, with every package they use
       // (knownTools). Added to by hand, in the same change that adds a tool to the page's build.
       tools: ["vite", "@sveltejs/vite-plugin-svelte", "svelte"],
-      // The processes it may start: vite.config.ts's build stamp.
-      commands: ["git log -1 --format=%h%x20%cs"],
+      // The processes it may start: vite.config.ts's build stamp; Vite's, on Windows.
+      commands: commandsOn({ any: ["git log -1 --format=%h%x20%cs"], win32: VITE_ON_WINDOWS }),
     },
     out: "THIRD-PARTY-NOTICES/dependencies",
   },
@@ -55,7 +68,7 @@ export const PROGRAMS = {
     page: {
       root: "tennoscope/app", config: "tennoscope/app/vite.config.ts", lock: "pnpm", install: "pnpm install --frozen-lockfile in tennoscope/app",
       tools: ["vite", "vitest", "@vitejs/plugin-react"],
-      commands: [],
+      commands: commandsOn({ win32: VITE_ON_WINDOWS }),
     },
     out: "vendor/tennoscope/THIRD-PARTY-NOTICES/dependencies",
   },

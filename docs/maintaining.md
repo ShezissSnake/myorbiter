@@ -228,8 +228,11 @@ It stops as well when:
 - code other than the known tools reads a package's `package.json`, or a known tool does so for
   the config (the config is in the stack that called it);
 - the build starts a thread, or a process whose command line isn't one of the program's
-  `commands` in the script (MyOrbiter's config runs `git log` for its build stamp): what they read
-  isn't heard;
+  `commands` in the script for the system the build runs on (MyOrbiter's config runs `git log` for
+  its build stamp; on Windows, Vite runs `net use` in both pages' builds, to read which network
+  drives are mapped): what they read isn't heard. A command line goes there exactly as the build
+  starts it, for each program and system that start it, and only once it is shown to read no
+  package's file;
 - the build makes a symbolic link (`symlink`, `symlinkSync` or `fs.promises.symlink`), wherever it
   leads: what reads the output follows it later (the app's bundler takes in the file a link in the
   page's output leads to), where the script doesn't listen;

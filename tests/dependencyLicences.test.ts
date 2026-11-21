@@ -787,6 +787,91 @@ test("a process the build starts stops it, unless it is one the page's build is 
   assert.match(readFileSync("vite.config.ts", "utf8"), new RegExp(`execSync\\("${PROGRAMS.myorbiter.page.commands[0]}"`));
 });
 
+// The script's processes as a build on the given system knows them: loaded in a Node of its own whose
+// process.platform is made that system's before the script is (Vite tells Windows by it too).
+const commandsOn = (system: string): Record<string, { commands: string[]; stops: Record<string, string[]> }> => {
+  const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  try {
+    const preload = join(dir, "made-up-system.mjs");
+    writeFileSync(preload, `Object.defineProperty(process, "platform", { value: ${JSON.stringify(system)} });\n`);
+    const run = join(dir, "made-up-run.mjs");
+    writeFileSync(run, `import { PROGRAMS, pageRecorder } from ${JSON.stringify(pathToFileURL(join(process.cwd(), "scripts", "dependency-licences.mjs")).href)};\n` +
+      "const out = {};\nfor (const [p, prog] of Object.entries(PROGRAMS)) {\n" +
+      "  const stops = {};\n" +
+      '  for (const line of ["net use", "net use x:", "net  use", "net use > out.txt", "cmd /c net use"]) {\n' +
+      '    const r = pageRecorder("/r", undefined, { tools: new Set(), commands: prog.page.commands });\n' +
+      "    r.command(line);\n    stops[line] = r.stops();\n  }\n" +
+      "  out[p] = { commands: prog.page.commands, stops };\n}\nprocess.stdout.write(JSON.stringify(out));\n");
+    return JSON.parse(execFileSync(process.execPath, ["--import", pathToFileURL(preload).href, run], { encoding: "utf8" }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("on Windows, Vite's `net use` is a process both pages' builds are known to start, by that exact line; on Linux it stops the build", () => {
+  const windows = commandsOn("win32");
+  const linux = commandsOn("linux");
+  assert.deepEqual(windows.myorbiter.commands, ["git log -1 --format=%h%x20%cs", "net use"]);
+  assert.deepEqual(windows.tennoscope.commands, ["net use"]);
+  assert.deepEqual(linux.myorbiter.commands, ["git log -1 --format=%h%x20%cs"]);
+  assert.deepEqual(linux.tennoscope.commands, []);
+  for (const p of ["myorbiter", "tennoscope"]) {
+    assert.deepEqual(windows[p].stops["net use"], [], p);
+    // Any other line stops it, on Windows too: the exact line only.
+    for (const line of ["net use x:", "net  use", "net use > out.txt", "cmd /c net use"]) {
+      assert.deepEqual(windows[p].stops[line], [`the build started a process this script doesn't know, whose reads it doesn't hear: ${line}`], `${p} ${line}`);
+    }
+    assert.deepEqual(linux[p].stops["net use"], ["the build started a process this script doesn't know, whose reads it doesn't hear: net use"], p);
+  }
+});
+
+test("`net use` is what the installed Vite starts on Windows, reading only its list of network drives, in both pages' builds", () => {
+  // The evidence the known line rests on, as installed (node_modules/vite/dist/node/chunks/node.js):
+  // an upgrade that changes it fails here, before a Release run, and the line is looked at again.
+  const vite = readFileSync("node_modules/vite/dist/node/chunks/node.js", "utf8");
+  assert.equal(vite.split('"net use"').length - 1, 1, "one net use");
+  assert.ok(vite.includes('const isWindows$1 = typeof process !== "undefined" && process.platform === "win32";\n'));
+  assert.ok(vite.includes("let safeRealpathSync = isWindows$1 ? windowsSafeRealPathSync : fs.realpathSync.native;\n"));
+  assert.ok(vite.includes([
+    "function windowsSafeRealPathSync(path) {",
+    "\tif (!firstSafeRealPathSyncRun) {",
+    "\t\toptimizeSafeRealPathSync();",
+    "\t\tfirstSafeRealPathSyncRun = true;",
+    "\t}",
+    "\treturn fs.realpathSync(path);",
+    "}",
+    "function optimizeSafeRealPathSync() {",
+    "\ttry {",
+    '\t\tfs.realpathSync.native(path.resolve("./"));',
+    "\t} catch (error) {",
+    '\t\tif (error.message.includes("EISDIR: illegal operation on a directory")) {',
+    "\t\t\tsafeRealpathSync = fs.realpathSync;",
+    "\t\t\treturn;",
+    "\t\t}",
+    "\t}",
+    '\texec("net use", { windowsHide: true }, (error, stdout) => {',
+    "\t\tif (error) return;",
+    '\t\tconst lines = stdout.split("\\n");',
+    "\t\tfor (const line of lines) {",
+    "\t\t\tconst m = parseNetUseRE.exec(line);",
+    "\t\t\tif (m) windowsNetworkMap.set(m[2], m[1]);",
+    "\t\t}",
+    "\t\tif (windowsNetworkMap.size === 0) safeRealpathSync = fs.realpathSync.native;",
+    "\t\telse safeRealpathSync = windowsMappedRealpathSync;",
+    "\t});",
+    "}",
+  ].join("\n")), "optimizeSafeRealPathSync as read");
+  // Every build reaches it: resolveConfig takes the page's root through it (neither config sets
+  // resolve.preserveSymlinks).
+  assert.ok(vite.includes("\t\tnonNormalizedResolvedRoot = safeRealpathSync(nonNormalizedResolvedRoot);\n"));
+  for (const config of ["vite.config.ts", "tennoscope/app/vite.config.ts"]) assert.doesNotMatch(readFileSync(config, "utf8"), /preserveSymlinks/, config);
+  // TennoScope's page builds with the same Vite, byte for byte: the same version and integrity in
+  // both lockfiles.
+  const npm = JSON.parse(readFileSync("package-lock.json", "utf8")).packages["node_modules/vite"];
+  const pnpm = pnpmResolutions(readFileSync("tennoscope/app/pnpm-lock.yaml", "utf8")).get(`vite@${npm.version}`);
+  assert.equal(pnpm, `{integrity: ${npm.integrity}}`);
+});
+
 test("a public folder that is a package's, or holds a link into one, is in the page", unix, async () => {
   const dir = await pageBuild({
     "src/main.js": "console.log(1);\n",
