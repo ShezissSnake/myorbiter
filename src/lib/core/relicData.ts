@@ -78,3 +78,14 @@ export function mergeRelics(theirs: RelicEntry[], data: RelicData | null | undef
   return out;
 }
 
+/** What an answer holds, leaving out `checkedAt` (when it was checked, a new time at every check). */
+const heldIn = (x: { checkedAt: number }) => JSON.stringify({ ...x, checkedAt: 0 });
+
+/**
+ * The answer to keep, of `held` and the new answer `next` (the relic tables, or the recipes): `held`
+ * when `next` holds the same, so the model built from it stands. These come again at start and
+ * every 3 hours, nearly always the same; a new object would build the model again.
+ */
+export function keepSame<T extends { checkedAt: number }>(held: T | null, next: T): T {
+  return held && heldIn(held) === heldIn(next) ? held : next;
+}

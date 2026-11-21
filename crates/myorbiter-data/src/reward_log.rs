@@ -39,6 +39,54 @@ pub struct LoggedScreen {
 /// Every reward screen in TennoScope's logs (the current file and the ones it rotated out),
 /// oldest first. Logs that can't be read are skipped: this is history, not something to fail on.
 pub fn read_reward_logs(dirs: &[PathBuf]) -> Vec<LoggedScreen> {
+    reward_logs_since_with(dirs, None, &mut |f| crate::read_capped(f, LOG_MAX)).screens.unwrap_or_default()
+}
+
+/// A pass over TennoScope's logs: what they are now (`key`), and the screens in them, or `None`
+/// when they are as they were at the pass whose key was given.
+#[derive(Clone, Debug, Default, Serialize, PartialEq)]
+pub struct LoggedScreens {
+    pub key: String,
+    pub screens: Option<Vec<LoggedScreen>>,
+}
+
+/// `read_reward_logs`, skipped when the logs are as they were at the pass whose key is `since`.
+pub fn reward_logs_since(dirs: &[PathBuf], since: Option<&str>) -> LoggedScreens {
+    reward_logs_since_with(dirs, since, &mut |f| crate::read_capped(f, LOG_MAX))
+}
+
+/// `reward_logs_since`, each file read with `read`. The key is every log file's name, size and
+/// time: a file that grew, one rotated out and a new one each change it, and then every file is
+/// read whole, as without a key. Empty when a file couldn't be looked at or read, so the next pass
+/// reads again.
+fn reward_logs_since_with(dirs: &[PathBuf], since: Option<&str>, read: &mut dyn FnMut(&Path) -> std::io::Result<Vec<u8>>) -> LoggedScreens {
+    use std::hash::{Hash, Hasher};
+    let files = log_files(dirs);
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    let mut known = true;
+    for file in &files {
+        match fs::metadata(file).and_then(|m| Ok((m.len(), m.modified()?))) {
+            Ok(stamp) => (file, stamp).hash(&mut hasher),
+            Err(_) => known = false,
+        }
+    }
+    let mut key = if known && !files.is_empty() { format!("{}:{:016x}", files.len(), hasher.finish()) } else { String::new() };
+    if !key.is_empty() && since == Some(key.as_str()) {
+        return LoggedScreens { key, screens: None };
+    }
+    let mut screens = Vec::new();
+    for file in &files {
+        match read(file) {
+            Ok(bytes) => screens.extend(parse_reward_log(&String::from_utf8_lossy(&bytes))),
+            Err(_) => key.clear(),
+        }
+    }
+    screens.sort_by_key(|s| s.at);
+    LoggedScreens { key, screens: Some(merge_repeats(screens)) }
+}
+
+/// TennoScope's log files: those in the first of `dirs` that has any.
+fn log_files(dirs: &[PathBuf]) -> Vec<PathBuf> {
     let mut files: Vec<PathBuf> = Vec::new();
     for dir in dirs {
         let Ok(entries) = fs::read_dir(dir) else { continue };
@@ -53,14 +101,9 @@ pub fn read_reward_logs(dirs: &[PathBuf]) -> Vec<LoggedScreen> {
             break;
         }
     }
-    let mut screens = Vec::new();
-    for file in &files {
-        if let Ok(bytes) = crate::read_capped(file, LOG_MAX) {
-            screens.extend(parse_reward_log(&String::from_utf8_lossy(&bytes)));
-        }
-    }
-    screens.sort_by_key(|s| s.at);
-    merge_repeats(screens)
+    // In one order whatever order the folder lists them in, for `reward_logs_since`'s key.
+    files.sort();
+    files
 }
 
 /// The log folders to look in: `<data dir>/logs`, the default TennoScope folder's, and where
@@ -342,6 +385,63 @@ Failed to setup app: error encountered during setup hook: local store operation 
     #[test]
     fn unescapes_names() {
         assert_eq!(quoted(r#""A \"quoted\" name" 1.00, "" 0.5, "B" 0.9"#), vec![r#"A "quoted" name"#, "B"]);
+    }
+
+    /// A pass every 10 minutes: one where no log file's size or time changed reads nothing and says
+    /// so; a file that grew, a log rotated and a new file are read as before, so no screen that a
+    /// whole read finds is missed. Reads counted with the reader.
+    #[test]
+    fn a_pass_reads_nothing_when_no_log_changed() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-reward-since-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let dirs = [dir.join("missing"), dir.clone()];
+        let at = |t: &str| GOOD.replace("12:12:29", t);
+        fs::write(dir.join("tennoscope_2026-10-12.log"), format!("{GOOD}\n")).unwrap();
+        fs::write(dir.join("tennoscope.log"), format!("{}\n", at("13:00:00"))).unwrap();
+        let mut reads = 0;
+        let mut pass = |since: Option<&str>| reward_logs_since_with(&dirs, since, &mut |f| { reads += 1; crate::read_capped(f, LOG_MAX) });
+        let first = pass(None);
+        assert_eq!(first.screens.as_ref().map(Vec::len), Some(2));
+        let second = pass(Some(&first.key));
+        let third = pass(Some(&second.key));
+        drop(pass);
+        assert_eq!(reads, 2, "three passes with nothing changed read the two files once");
+        assert_eq!((second.screens, third.screens), (None, None), "and say nothing changed");
+        assert_eq!(second.key, first.key);
+
+        // Each change, read as a whole read reads it: the same screens, the new one among them.
+        let changes: [(&str, &dyn Fn()); 3] = [
+            ("a file that grew", &|| {
+                let mut f = fs::OpenOptions::new().append(true).open(dir.join("tennoscope.log")).unwrap();
+                use std::io::Write;
+                writeln!(f, "{}", at("13:10:00")).unwrap();
+            }),
+            ("a log rotated", &|| {
+                fs::rename(dir.join("tennoscope.log"), dir.join("tennoscope_2026-10-13.log")).unwrap();
+                fs::write(dir.join("tennoscope.log"), format!("{}\n", at("13:20:00"))).unwrap();
+            }),
+            ("a new file", &|| fs::write(dir.join("tennoscope_extra.log"), format!("{}\n", at("13:30:00"))).unwrap()),
+        ];
+        let mut key = first.key;
+        let mut count = 2;
+        for (what, change) in changes {
+            change();
+            count += 1;
+            let after = reward_logs_since(&dirs, Some(&key));
+            let screens = after.screens.unwrap_or_else(|| panic!("{what}: read"));
+            assert_eq!(screens, read_reward_logs(&dirs), "{what}: as a whole read");
+            assert_eq!(screens.len(), count, "{what}: the new screen found");
+            assert_ne!(after.key, key, "{what}");
+            key = after.key;
+            assert_eq!(reward_logs_since(&dirs, Some(&key)).screens, None, "{what}: then nothing until the next change");
+        }
+        // A file that can't be read isn't passed over at the next pass: no key is given.
+        let mut failing = |_: &Path| Err(std::io::Error::other("locked"));
+        let failed = reward_logs_since_with(&dirs, None, &mut failing);
+        assert!(failed.key.is_empty());
+        assert!(reward_logs_since(&dirs, Some(&failed.key)).screens.is_some());
+        fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

@@ -73,6 +73,30 @@ pub fn read_cards_in(dir: &Path) -> Option<ScreenCards> {
     serde_json::from_str(&text).ok()
 }
 
+/// The card file as last read: its size and time, and what it held.
+#[derive(Default)]
+pub struct CardsKept {
+    stamp: Option<(u64, std::time::SystemTime)>,
+    cards: Option<ScreenCards>,
+}
+
+/// The cards in `dir`: read with `read` (`read_cards_in`) only when the file's size or time changed
+/// since the last read, else the cards that read gave. A file that can't be parsed (TennoScope
+/// part way through a write) isn't kept, so the next poll reads it again.
+pub fn read_cards_kept(dir: &Path, kept: &mut CardsKept, read: impl FnOnce(&Path) -> Option<ScreenCards>) -> Option<ScreenCards> {
+    let stamp = fs::metadata(dir.join(CARDS_FILE)).ok().and_then(|m| Some((m.len(), m.modified().ok()?)));
+    let Some(stamp) = stamp else {
+        *kept = CardsKept::default();
+        return None;
+    };
+    if kept.stamp == Some(stamp) {
+        return kept.cards.clone();
+    }
+    let cards = read(dir);
+    *kept = CardsKept { stamp: cards.is_some().then_some(stamp), cards: cards.clone() };
+    cards
+}
+
 /// Written whole and renamed into place, so TennoScope never reads half a file. Each write has a
 /// temp file of its own: two picks written at once mustn't share (and fail on) one.
 pub fn write_pick_in(dir: &Path, pick: &Value) -> Result<(), String> {
@@ -125,14 +149,32 @@ pub fn relics_for_tennoscope(data: &Value) -> Value {
     Value::Array(out)
 }
 
-/// Written when MyOrbiter starts (from its cached tables) and whenever the tables are read again.
-pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
+/// The relic list for TennoScope, as written.
+fn relics_bytes(data: &Value) -> Result<Vec<u8>, String> {
     let list = relics_for_tennoscope(data);
     if !list.as_array().is_some_and(|a| !a.is_empty()) {
         return Err("no relics with a known path".into());
     }
-    let bytes = serde_json::to_vec(&list).map_err(|e| e.to_string())?;
+    serde_json::to_vec(&list).map_err(|e| e.to_string())
+}
+
+/// Written when MyOrbiter starts (from its cached tables), whatever is there.
+pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
+    let bytes = relics_bytes(data)?;
     crate::write_atomic(&dir.join(RELICS_FILE), &bytes, false).map_err(|e| e.to_string())
+}
+
+/// Written when the tables are read again, only if the list differs from the file there (or there
+/// is none): the same tables come back at nearly every read, and the file's time is a change the
+/// page reloads the collection for. Whether it was written.
+pub fn write_relics_changed(dir: &Path, data: &Value) -> Result<bool, String> {
+    let bytes = relics_bytes(data)?;
+    let path = dir.join(RELICS_FILE);
+    if fs::read(&path).is_ok_and(|held| held == bytes) {
+        return Ok(false);
+    }
+    crate::write_atomic(&path, &bytes, false).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 /// Written whenever the overlay settings change; TennoScope reads it when it's about to draw.
@@ -171,6 +213,53 @@ mod tests {
         assert_eq!(list.as_array().unwrap().len(), 3, "a relic with no known path is left out");
     }
 
+    /// The relic tables are read again at start and every 3 hours, and nearly always come back
+    /// the same: the file TennoScope reads (whose time also makes the page read the collection
+    /// again) is written only when what it holds changes, or when it is missing. Writes are counted
+    /// by the file's inode: each write puts a new file in its place.
+    #[cfg(unix)]
+    #[test]
+    fn the_relic_tables_are_written_again_only_when_they_changed() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = std::env::temp_dir().join(format!("myorbiter-relics-kept-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let data = |paths: serde_json::Value| serde_json::json!({
+            "hash": "h1",
+            "checkedAt": 1,
+            "relics": [{ "name": "Lith A1 Intact", "rewards": [{ "name": "Forma Blueprint", "chance": 25.33, "rarity": "Common" }] }],
+            "drops": { "Lith A1": [] },
+            "paths": paths
+        });
+        let one = data(serde_json::json!({ "/Lotus/Types/Game/Projections/T1VoidProjectionABronze": "Lith A1 Intact" }));
+        let inode = || fs::metadata(dir.join(RELICS_FILE)).unwrap().ino();
+        let mut writes = std::collections::BTreeSet::new();
+        for _ in 0..2 {
+            write_relics_changed(&dir, &one).unwrap();
+            writes.insert(inode());
+        }
+        assert_eq!(writes.len(), 1, "two calls with the same tables: one write");
+        // Checked again later (another `checkedAt`), the same: still not written.
+        let mut again = one.clone();
+        again["checkedAt"] = 2.into();
+        assert_eq!(write_relics_changed(&dir, &again), Ok(false));
+        // The same tables with a relic path more (WFCD's list read again): written.
+        let more = data(serde_json::json!({
+            "/Lotus/Types/Game/Projections/T1VoidProjectionABronze": "Lith A1 Intact",
+            "/Lotus/Types/Game/Projections/T1VoidProjectionBBronze": "Lith A1 Intact"
+        }));
+        assert_eq!(write_relics_changed(&dir, &more), Ok(true));
+        assert_ne!(inode(), *writes.iter().next().unwrap());
+        // Gone (TennoScope's folder cleared): written again.
+        fs::remove_file(dir.join(RELICS_FILE)).unwrap();
+        assert_eq!(write_relics_changed(&dir, &more), Ok(true));
+        assert!(dir.join(RELICS_FILE).is_file());
+        // At start it is written whatever is there.
+        let before = inode();
+        write_relics_in(&dir, &more).unwrap();
+        assert_ne!(inode(), before);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
     #[test]
     fn round_trip() {
         let dir = std::env::temp_dir().join(format!("myorbiter-bridge-{}", std::process::id()));
@@ -182,6 +271,41 @@ mod tests {
         assert_eq!(read_cards_in(&dir), None);
         write_pick_in(&dir, &serde_json::json!({"best": 1})).unwrap();
         assert_eq!(fs::read_to_string(dir.join(PICK_FILE)).unwrap(), r#"{"best":1}"#);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The card file is asked for every 0.8 s; it is read (and parsed) only when its size or time
+    /// changed since the last read. Counted with the reader.
+    #[test]
+    fn the_card_file_is_read_again_only_when_it_changed() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-cards-kept-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let mut kept = CardsKept::default();
+        let mut reads = 0;
+        let mut poll = |kept: &mut CardsKept| read_cards_kept(&dir, kept, |d| { reads += 1; read_cards_in(d) });
+        assert_eq!(poll(&mut kept), None, "no file: nothing");
+        fs::write(dir.join(CARDS_FILE), r#"{"at": 5, "cards": ["Rhino Prime Systems"]}"#).unwrap();
+        let first = poll(&mut kept);
+        assert_eq!(first.as_ref().map(|c| c.at), Some(5));
+        assert_eq!(poll(&mut kept), first, "the same file: the cards kept");
+        assert_eq!(poll(&mut kept), first);
+        drop(poll);
+        assert_eq!(reads, 1, "three polls of the same file read it once (the poll before it existed found no file)");
+
+        // A new screen: another size, so it is read.
+        let mut reads = 0;
+        fs::write(dir.join(CARDS_FILE), r#"{"at": 6, "cards": ["Rhino Prime Systems", "Forma Blueprint"]}"#).unwrap();
+        let next = read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) });
+        assert_eq!((reads, next.map(|c| c.at)), (1, Some(6)));
+        // A file that can't be parsed (half written) isn't kept: the next poll reads it again.
+        let mut reads = 0;
+        fs::write(dir.join(CARDS_FILE), "{not json").unwrap();
+        assert_eq!(read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) }), None);
+        assert_eq!(read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) }), None);
+        assert_eq!(reads, 2);
+        // Gone: nothing, and nothing kept.
+        fs::remove_file(dir.join(CARDS_FILE)).unwrap();
+        assert_eq!(read_cards_kept(&dir, &mut kept, read_cards_in), None);
         fs::remove_dir_all(&dir).unwrap();
     }
 

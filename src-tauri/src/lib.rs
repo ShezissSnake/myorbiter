@@ -436,6 +436,8 @@ pub(crate) fn rename_replacing(from: &Path, to: &Path) -> std::io::Result<()> {
 enum Unavailable {
     /// The API answered, just not with this part.
     Refused,
+    /// The API answered "too many requests" (429).
+    Limited,
     /// No answer at all (offline, DNS, timeout).
     Unreachable,
 }
@@ -453,6 +455,7 @@ fn get_json_at(url: &str) -> Result<Value, Unavailable> {
         .call()
     {
         Ok(resp) => json_reply(resp).map_err(|_| Unavailable::Refused),
+        Err(ureq::Error::Status(429, _)) => Err(Unavailable::Limited),
         Err(ureq::Error::Status(..)) => Err(Unavailable::Refused),
         Err(ureq::Error::Transport(_)) => Err(Unavailable::Unreachable),
     }
@@ -465,17 +468,31 @@ const WORLDSTATE_PARTS: &[&str] = &[
     "calendar", "descendia",
 ];
 
+/// After this many parts refused in a row, the rest of a read's parts aren't asked for: a service
+/// answering every address with an error would only be asked 21 times more.
+const REFUSED_IN_A_ROW: usize = 3;
+
 /// Each worldstate part asked for on its own, `null` where it isn't given. Once the API can't be
 /// reached at all (or `reachable` is false: the whole worldstate couldn't be), the other parts
-/// won't fare better: they aren't asked, rather than waiting out a timeout for each of them.
+/// won't fare better: they aren't asked, rather than waiting out a timeout for each of them. The
+/// same once it answers "too many requests" (429), and once `REFUSED_IN_A_ROW` parts in a row are
+/// refused; one refused part (a 404) says nothing about the others.
 fn each_part(mut get: impl FnMut(&str) -> Result<Value, Unavailable>, mut reachable: bool) -> serde_json::Map<String, Value> {
     let mut out = serde_json::Map::new();
+    let mut refused = 0;
     for part in WORLDSTATE_PARTS {
         let value = if reachable {
             match get(part) {
-                Ok(v) => Some(v),
-                Err(Unavailable::Refused) => None,
-                Err(Unavailable::Unreachable) => {
+                Ok(v) => {
+                    refused = 0;
+                    Some(v)
+                }
+                Err(Unavailable::Refused) => {
+                    refused += 1;
+                    reachable = refused < REFUSED_IN_A_ROW;
+                    None
+                }
+                Err(Unavailable::Limited | Unavailable::Unreachable) => {
                     reachable = false;
                     None
                 }
@@ -488,24 +505,30 @@ fn each_part(mut get: impl FnMut(&str) -> Result<Value, Unavailable>, mut reacha
     out
 }
 
+/// The worldstate's parts as `get` gives them: the whole worldstate in one request (the same parts
+/// as asking for each), one part at a time only if that answer can't be used (`each_part`), and
+/// not at all after "too many requests" or no answer.
+fn read_world(mut get: impl FnMut(&str) -> Result<Value, Unavailable>) -> serde_json::Map<String, Value> {
+    let mut out = serde_json::Map::new();
+    let whole = get("");
+    if let Ok(Value::Object(all)) = &whole {
+        for part in WORLDSTATE_PARTS {
+            out.insert((*part).to_string(), all.get(*part).cloned().unwrap_or(Value::Null));
+        }
+    }
+    if out.is_empty() {
+        out = each_part(get, !matches!(whole, Err(Unavailable::Unreachable | Unavailable::Limited)));
+    }
+    out
+}
+
 /// Active void fissures and Varzia's Prime Resurgence stock. Failures come back as `null` per
 /// field so the rest of the app keeps working offline.
 #[tauri::command]
 async fn worldstate(app: tauri::AppHandle) -> Value {
     let dir = app.path().app_config_dir().ok();
     tauri::async_runtime::spawn_blocking(move || {
-        let mut out = serde_json::Map::new();
-        // The whole worldstate in one request (the same parts as asking for each); one at a time
-        // only if that's refused.
-        let whole = get_json("");
-        if let Ok(Value::Object(all)) = &whole {
-            for part in WORLDSTATE_PARTS {
-                out.insert((*part).to_string(), all.get(*part).cloned().unwrap_or(Value::Null));
-            }
-        }
-        if out.is_empty() {
-            out = each_part(get_json, !matches!(whole, Err(Unavailable::Unreachable)));
-        }
+        let mut out = read_world(get_json);
         // api.warframestat.us down or behind the game: what it couldn't give, from the game's own file.
         const FROM_GAME: [&str; 10] = ["fissures", "voidTrader", "vaultTrader", "earthCycle", "cetusCycle", "vallisCycle", "cambionCycle", "sortie", "archonHunt", "syndicateMissions"];
         let missing = |out: &serde_json::Map<String, Value>, k: &str| match out.get(k) {
@@ -543,10 +566,12 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
             log::warn!(target: "myorbiter::relics", "drop tables couldn't be read: {e}");
             e
         })?;
-        // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE).
+        // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE): written when
+        // they changed, since its time makes the page read the collection again.
         if let Some(rt) = bridge::runtime_dir() {
-            match bridge::write_relics_in(&rt, &data) {
-                Ok(()) => log::info!(target: "myorbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+            match bridge::write_relics_changed(&rt, &data) {
+                Ok(true) => log::info!(target: "myorbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+                Ok(false) => {}
                 Err(e) => log::warn!(target: "myorbiter::relics", "writing the drop tables for TennoScope failed: {e}"),
             }
         }
@@ -829,32 +854,52 @@ async fn recipe_data(app: tauri::AppHandle) -> Result<Value, String> {
 
 /// Where `find_ee_log` last found the log, and when: it reads Steam's library list and checks
 /// every library, which needn't happen on every 2-second poll.
-static FOUND_LOG: Mutex<Option<(PathBuf, Instant)>> = Mutex::new(None);
+static FOUND_LOG: Mutex<Option<(Option<PathBuf>, Instant)>> = Mutex::new(None);
 const FIND_AGAIN: Duration = Duration::from_secs(60);
 
-fn ee_log_path() -> Option<PathBuf> {
-    let mut found = FOUND_LOG.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((path, at)) = found.as_ref() {
-        if at.elapsed() < FIND_AGAIN && path.is_file() {
+/// The log found by the last look while it is under `FIND_AGAIN` old and still there, and no log
+/// while a look that found none is under `FIND_AGAIN` old; else what `find` finds now (remembered
+/// from `now`, a miss too).
+fn kept_or_found(found: &mut Option<(Option<PathBuf>, Instant)>, now: Instant, find: impl FnOnce() -> Option<PathBuf>) -> Option<PathBuf> {
+    if let Some((Some(path), at)) = found.as_ref() {
+        if now.saturating_duration_since(*at) < FIND_AGAIN && path.is_file() {
             return Some(path.clone());
         }
     }
-    let (path, passed) = find_ee_log_passing_over();
-    static PASSED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-    if let Some(line) = passed_over_line(PASSED.swap(passed, std::sync::atomic::Ordering::Relaxed), passed) {
-        log::warn!(target: "myorbiter::ee_log", "{line}");
-    }
-    let before = found.as_ref().map(|(p, _)| p.clone());
-    // Said once when MyOrbiter starts looking, then whenever it changes.
-    static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-    if path != before || !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
-        match &path {
-            Some(p) => log::info!(target: "myorbiter::ee_log", "found at {}", p.display()),
-            None => log::warn!(target: "myorbiter::ee_log", "not found in any Steam library (set its path in Settings)"),
+    if let Some((None, at)) = found.as_ref() {
+        if now.saturating_duration_since(*at) < FIND_AGAIN {
+            return None;
         }
     }
-    *found = path.clone().map(|p| (p, Instant::now()));
+    let path = find();
+    *found = Some((path.clone(), now));
     path
+}
+
+/// The log to follow: the one set in Settings, else the one found (`search`).
+fn log_to_follow(set: Option<String>, search: impl FnOnce() -> Option<PathBuf>) -> Result<Option<PathBuf>, String> {
+    Ok(ee_log_from(set)?.or_else(search))
+}
+
+fn ee_log_path() -> Option<PathBuf> {
+    let mut found = FOUND_LOG.lock().unwrap_or_else(|e| e.into_inner());
+    let before = found.as_ref().and_then(|(p, _)| p.clone());
+    kept_or_found(&mut found, Instant::now(), || {
+        let (path, passed) = find_ee_log_passing_over();
+        static PASSED: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+        if let Some(line) = passed_over_line(PASSED.swap(passed, std::sync::atomic::Ordering::Relaxed), passed) {
+            log::warn!(target: "myorbiter::ee_log", "{line}");
+        }
+        // Said once when MyOrbiter starts looking, then whenever it changes.
+        static SAID: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+        if path != before || !SAID.swap(true, std::sync::atomic::Ordering::Relaxed) {
+            match &path {
+                Some(p) => log::info!(target: "myorbiter::ee_log", "found at {}", p.display()),
+                None => log::warn!(target: "myorbiter::ee_log", "not found in any Steam library (set its path in Settings)"),
+            }
+        }
+        path
+    })
 }
 
 /// The line for MyOrbiter's log when a look for the game's log passed over `now` logs another user
@@ -868,7 +913,7 @@ fn passed_over_line(before: usize, now: usize) -> Option<String> {
 /// "MODE_WINDOWED"). On Windows an overlay can't draw over exclusive fullscreen, so MyOrbiter says so.
 #[tauri::command(async)]
 fn warframe_window_mode(path: Option<String>) -> Option<String> {
-    window_mode_beside(&ee_log_from(path).ok()?.or_else(ee_log_path)?)
+    window_mode_beside(&log_to_follow(path, ee_log_path).ok()??)
 }
 
 /// The most of an EE.cfg read: the game's settings, a few KB.
@@ -893,7 +938,7 @@ fn window_mode(cfg: &str) -> Option<String> {
 async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Option<MissionState>, String> {
     // The first read of a long session's log can be large; keep it off the async workers.
     tauri::async_runtime::spawn_blocking(move || {
-        let Some(path) = ee_log_from(path)?.or_else(ee_log_path) else { return Ok(None) };
+        let Some(path) = log_to_follow(path, ee_log_path)? else { return Ok(None) };
         let follower = app.state::<Mutex<LogFollower>>();
         // A panic mid-read leaves the follower at a line boundary at worst; keep going.
         let mut follower = follower.lock().unwrap_or_else(|e| e.into_inner());
@@ -908,12 +953,14 @@ async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Op
 }
 
 /// Every relic reward screen TennoScope has read, from its own log files (the current one and
-/// the ones it rotated out), oldest first: the history behind Stats' relic runs.
+/// the ones it rotated out), oldest first: the history behind Stats' relic runs. With `since`, the
+/// key of the page's last pass: nothing is read, and no screens come back, when no log file's
+/// size or time changed since.
 #[tauri::command]
-async fn reward_screens(dir: Option<String>) -> Result<Vec<myorbiter_data::reward_log::LoggedScreen>, String> {
+async fn reward_screens(dir: Option<String>, since: Option<String>) -> Result<myorbiter_data::reward_log::LoggedScreens, String> {
     let dir = data_dir(dir)?;
     tauri::async_runtime::spawn_blocking(move || {
-        myorbiter_data::reward_log::read_reward_logs(&myorbiter_data::reward_log::reward_log_dirs(&dir))
+        myorbiter_data::reward_log::reward_logs_since(&myorbiter_data::reward_log::reward_log_dirs(&dir), since.as_deref())
     })
     .await
     .map_err(|e| e.to_string())
@@ -1527,7 +1574,10 @@ fn on_close_requested(window: &tauri::Window, api: &tauri::CloseRequestApi) {
 /// The reward cards a patched TennoScope read off the screen, if it wrote any.
 #[tauri::command(async)]
 fn reward_cards() -> Option<bridge::ScreenCards> {
-    bridge::read_cards_in(&bridge::runtime_dir()?)
+    static KEPT: Mutex<Option<bridge::CardsKept>> = Mutex::new(None);
+    let dir = bridge::runtime_dir()?;
+    let mut kept = KEPT.lock().unwrap_or_else(|e| e.into_inner());
+    bridge::read_cards_kept(&dir, kept.get_or_insert_with(Default::default), bridge::read_cards_in)
 }
 
 /// MyOrbiter's pick for those cards, for TennoScope's overlay to show.
@@ -1923,6 +1973,11 @@ pub(crate) mod test_http {
     /// (`http://127.0.0.1:<port>`) and a handle that yields the request's head (request line and
     /// headers) once it has been answered.
     pub fn serve_once(answer: &'static str) -> (String, std::thread::JoinHandle<String>) {
+        serve_status("200 OK", answer)
+    }
+
+    /// `serve_once`, with `status` ("429 Too Many Requests") as the reply's status.
+    pub fn serve_status(status: &'static str, answer: &'static str) -> (String, std::thread::JoinHandle<String>) {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("a local port");
         let addr = format!("http://{}", listener.local_addr().expect("its address"));
         let handle = std::thread::spawn(move || {
@@ -1947,7 +2002,7 @@ pub(crate) mod test_http {
                     Ok(n) => body += n,
                 }
             }
-            let reply = format!("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}", answer.len());
+            let reply = format!("HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{answer}", answer.len());
             let _ = stream.write_all(reply.as_bytes());
             head
         });
@@ -2668,6 +2723,94 @@ mod tests {
         assert_eq!(asked, WORLDSTATE_PARTS.len());
         assert_eq!(out["fissures"], Value::Null);
         assert_eq!(out["descendia"], Value::Bool(true));
+    }
+
+    /// A read the service refuses: counted, whole and part by part. "Too many requests" (429)
+    /// ends the read at once; any other refusal (a 5xx) asks for the parts as before, but stops
+    /// after three refused in a row. Every part is still there, `null` where it wasn't given, so
+    /// the game's own file fills what it can as before.
+    #[test]
+    fn a_refused_worldstate_read_asks_little_more() {
+        let refusing = |err: fn() -> Unavailable| {
+            let mut asked = Vec::new();
+            let out = read_world(|p| { asked.push(p.to_string()); Err(err()) });
+            assert_eq!(out.len(), WORLDSTATE_PARTS.len(), "every part, null where it wasn't given");
+            assert!(out.values().all(Value::is_null));
+            asked
+        };
+        assert_eq!(refusing(|| Unavailable::Limited), [""], "429: the whole worldstate asked once, and nothing more");
+        assert_eq!(refusing(|| Unavailable::Refused), ["", "fissures", "vaultTrader", "voidTrader"], "an error: three parts, then no more");
+        assert_eq!(refusing(|| Unavailable::Unreachable), [""], "unreachable: as before");
+
+        // A part answering 429 part way ends the read there.
+        let mut asked = 0;
+        let out = read_world(|p| { asked += 1; match p { "" => Err(Unavailable::Refused), "fissures" | "vaultTrader" => Ok(Value::Bool(true)), _ => Err(Unavailable::Limited) } });
+        assert_eq!(asked, 4, "the whole, two parts given, then the 429");
+        assert_eq!((out["fissures"].clone(), out["voidTrader"].clone(), out.len()), (Value::Bool(true), Value::Null, WORLDSTATE_PARTS.len()));
+
+        // Refusals that are not in a row don't stop the read: a part given starts the count again.
+        let mut asked = 0;
+        let out = read_world(|p| { asked += 1; if p.is_empty() || ["vaultTrader", "voidTrader", "nightwave", "sortie"].contains(&p) { Err(Unavailable::Refused) } else { Ok(Value::Bool(true)) } });
+        assert_eq!(asked, 1 + WORLDSTATE_PARTS.len(), "two refused, one given, two refused: every part asked");
+        assert_eq!(out["descendia"], Value::Bool(true));
+
+        // A whole answer is one request, as before.
+        let mut asked = 0;
+        let out = read_world(|_| { asked += 1; Ok(serde_json::json!({ "fissures": [] })) });
+        assert_eq!((asked, out["fissures"].is_array(), out["sortie"].is_null()), (1, true, true));
+    }
+
+    /// What the HTTP library gives for a 429 and a 5xx, from a server on this machine.
+    #[test]
+    fn a_429_is_told_from_other_refusals() {
+        let (addr, served) = test_http::serve_status("429 Too Many Requests", "{}");
+        assert!(matches!(get_json_at(&addr), Err(Unavailable::Limited)));
+        served.join().unwrap();
+        let (addr, served) = test_http::serve_status("503 Service Unavailable", "{}");
+        assert!(matches!(get_json_at(&addr), Err(Unavailable::Refused)));
+        served.join().unwrap();
+    }
+
+    /// The game's log looked for in Steam's libraries: a find is kept for 60 s, and a miss too,
+    /// so with no log the 2-second poll doesn't search on every tick. Counted with the finder.
+    #[test]
+    fn a_log_not_found_is_remembered_as_a_find_is() {
+        let t0 = Instant::now();
+        let mut found = None;
+        let mut searches = 0;
+        let mut look = |found: &mut Option<(Option<PathBuf>, Instant)>, secs: u64| kept_or_found(found, t0 + Duration::from_secs(secs), || { searches += 1; None });
+        // A minute of polls every 2 s with no log anywhere: one search.
+        for s in (0..60).step_by(2) {
+            assert_eq!(look(&mut found, s), None);
+        }
+        // 60 s on, it is looked for again.
+        assert_eq!(look(&mut found, 60), None);
+        drop(look);
+        assert_eq!(searches, 2, "a search a minute, as for a log found");
+
+        // A log found is kept while it is there; gone, it is looked for at once.
+        let dir = std::env::temp_dir().join(format!("myorbiter-ee-kept-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let log = dir.join("EE.log");
+        fs::write(&log, "").unwrap();
+        let mut searches = 0;
+        let mut found = None;
+        for s in [0, 2, 4] {
+            assert_eq!(kept_or_found(&mut found, t0 + Duration::from_secs(s), || { searches += 1; Some(log.clone()) }), Some(log.clone()));
+        }
+        assert_eq!(searches, 1);
+        fs::remove_file(&log).unwrap();
+        assert_eq!(kept_or_found(&mut found, t0 + Duration::from_secs(6), || { searches += 1; None }), None);
+        assert_eq!(searches, 2, "the log gone: looked for again at once");
+        fs::remove_dir_all(&dir).unwrap();
+
+        // A path set in Settings is taken at once, whatever the last search found: no search.
+        let mut searches = 0;
+        let set = dir.join("Warframe").join("EE.log").to_string_lossy().into_owned();
+        assert_eq!(log_to_follow(Some(set.clone()), || { searches += 1; None }).map(|p| p.is_some()), Ok(true));
+        assert_eq!(searches, 0);
+        assert_eq!(log_to_follow(None, || { searches += 1; None }), Ok(None));
+        assert_eq!(searches, 1, "none set: searched");
     }
 
     #[test]
