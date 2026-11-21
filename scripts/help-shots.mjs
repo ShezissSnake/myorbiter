@@ -109,6 +109,16 @@ async function openApp(browser, url, w, h, shot = {}) {
   // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
   await guard(p);
   await stopWorldState(p);
+  // One moment for the whole window: the demo server writes every file as of it (DEMO_NOW in
+  // vite.config.ts) rather than as of the minute each request comes in, so a shot that runs across
+  // a minute doesn't see the reward screen again and list its notice twice. Taken at the window's
+  // first file, once the app has compiled and started.
+  const demo = new URL(url).origin;
+  let now = null;
+  await p.route((u) => u.origin === demo && /^\/dev-[A-Za-z0-9_.-]+\.json$/.test(u.pathname), (r) => {
+    now ??= Date.now();
+    return r.continue({ headers: { ...r.request().headers(), "x-myorbiter-demo-now": String(now) } }).catch(() => {});
+  });
   p.on("pageerror", (e) => console.error(`help: ${hidePaths(e.message)}`));
   // Every page in the sidebar (Planner and Browse market are hidden to start), What's New and the
   // Full mode question seen, calm motion so nothing is caught half-way.
