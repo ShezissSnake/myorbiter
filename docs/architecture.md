@@ -319,8 +319,8 @@ TennoScope's own hosts are in `docs/privacy.md`. The browser dev mode (not Tauri
 `raw.githubusercontent.com` from the page (`backend.ts`, `imageUrl`); the desktop app never does. Links
 the player opens are a separate list: `LINK_SITES` in `src/lib/core/links.ts` and the matching list in
 `src-tauri/src/link.rs`, held equal by `tests/links.test.ts`. The window's permissions are event
-listening, webview zoom, window state and restart, with no opener or dialog (`src-
-tauri/capabilities/default.json`).
+listening, webview zoom, window state and restart, with no opener or dialog
+(`src-tauri/capabilities/default.json`).
 
 ### How money and trust code is told apart
 
