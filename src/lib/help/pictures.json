@@ -2,8 +2,8 @@
   "arcanes-1.webp": {
     "hash": "acc9b9fbf6908b77",
     "w": 1007,
-    "h": 434,
-    "bytes": 28896
+    "h": 440,
+    "bytes": 28868
   },
   "arcanes-2.webp": {
     "hash": "b2702727140e66f3",
@@ -242,8 +242,8 @@
   "inventory-2.webp": {
     "hash": "8d8e5aaed14a2fb2",
     "w": 989,
-    "h": 320,
-    "bytes": 19432
+    "h": 327,
+    "bytes": 19580
   },
   "inventory-3.webp": {
     "hash": "33491ba550790879",
@@ -344,8 +344,8 @@
   "mods-1.webp": {
     "hash": "2edfb8660584a7f2",
     "w": 1006,
-    "h": 414,
-    "bytes": 40524
+    "h": 420,
+    "bytes": 40894
   },
   "mods-2.webp": {
     "hash": "a60afb4a431599e6",
@@ -434,8 +434,8 @@
   "parts-1.webp": {
     "hash": "c9365feb7026c3d7",
     "w": 1006,
-    "h": 434,
-    "bytes": 42092
+    "h": 440,
+    "bytes": 41854
   },
   "parts-2.webp": {
     "hash": "b32cb7fe12423d22",
@@ -566,8 +566,8 @@
   "sets-1.webp": {
     "hash": "840abb0636fdebaa",
     "w": 1006,
-    "h": 414,
-    "bytes": 32698
+    "h": 420,
+    "bytes": 32536
   },
   "sets-2.webp": {
     "hash": "feb38ca1870d3855",
