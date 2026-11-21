@@ -6,7 +6,7 @@
   import Fold from "../ui/Fold.svelte";
   import GameIcon from "../ui/GameIcon.svelte";
   import { MAX_PLAT, MAX_QTY, wholeIn } from "../core/amounts";
-  import { tradeAllowance } from "../core/tradeLimit";
+  import { tradeAllowance, tradesADay } from "../core/tradeLimit";
   import { until } from "../core/traders";
   import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
@@ -16,7 +16,9 @@
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
   import { minimumOf, minimumsText } from "../core/sparesRules";
   import { BAND_WORDS, DRIFT, DRIFT_RULES, GREY_AREA, every } from "../core/drift";
+  import { unchangedWhy } from "../core/willSet";
   import { AUTO_REP_LINE, AUTO_REP_SHORT, AUTO_TRADES_LINE, AUTO_TRADES_SHORT, LAST_COPY_LINE } from "../core/automation";
+  import { SYNC_READS_NOW } from "../core/fullModeOff";
   import { AUTO_FLOOR_SHARE, AUTO_LIMITS, AUTO_LIMITS_CONSOLE } from "../core/approved";
   import { EVERY_CHOICES, everyWords, nextCheckShown, nextCheckWhy, whenWords } from "../core/schedule";
   import { arcaneRows, saveForSets, spareOf } from "../core/views";
@@ -153,13 +155,15 @@
    * A listing's price against the cheapest other seller online or in game at the last check: its price as it
    * is on warframe.market (never a price being typed), minus that seller's. Above zero, undercut.
    * Null when there's no check or nobody else sells it. Shown only; nothing is priced from it (the
-   * repricer follows the second-cheapest, core/drift.ts).
+   * repricer follows the second-cheapest down and raises no higher than the cheapest, core/drift.ts, core/market.ts).
    */
   const againstLowest = (o: MyOrder, p: Plan | null | undefined): number | null =>
     p?.competitor.lowest && o.platinum > 0 ? o.platinum - p.competitor.lowest.platinum : null;
   /** The shown listings with a cheapest seller to stand against, and how many of them are undercut. */
   const against = $derived(orders.filter((o) => isShown(o)).map((o) => againstLowest(o, plans.get(o.id))).filter((d): d is number => d != null));
   const undercut = $derived(against.filter((d) => d > 0).length);
+  /** The undercut listings Reprice leaves as they are (left alone, or no change: Will set says why). */
+  const undercutLeft = $derived(orders.filter((o) => isShown(o) && (againstLowest(o, plans.get(o.id)) ?? 0) > 0 && (isPaused(settings.paused, o) || !plans.get(o.id)?.change)).length);
 
   // New listing: anything tradable you hold, searchable. On a console: anything tradable.
   const sellable = $derived.by(whileShown("market", () => {
@@ -257,8 +261,13 @@
     for (const t of floorRefusalTimers.values()) clearTimeout(t);
   });
   function setFloor(o: MyOrder, input: HTMLInputElement) {
-    const floor = floorTyped(input.value, MAX_SAVED_PRICE);
+    const floor = floorTyped(input.value, MAX_SAVED_PRICE, input.validity.badInput);
     floorRefusalGone(o.id);
+    // No floor typed (0, or what isn't a number): the box shows the floor kept.
+    if (floor === "keep") {
+      input.value = String(floorOf(o) ?? "");
+      return;
+    }
     if (floor === "over") {
       // Refused here rather than saved and cut at the next start: the floor stays as it was.
       floorRefused = { ...floorRefused, [o.id]: true };
@@ -766,7 +775,7 @@
 <svelte:window onpointerdown={outside} onkeydown={(e) => { if (e.key === "Escape" && askSold?.unmarked && !e.defaultPrevented) askSold = null; }} />
 
 <div class="page"><div class="page-inner">
-  <PageHead title="Orders" brief="Your listings, kept at the market price." blurb="Your warframe.market listings, kept at the market price: the second-cheapest seller online or in game." />
+  <PageHead title="Orders" brief="Your listings, repriced to the market price." blurb="Your warframe.market listings, repriced to the market price: Reprice follows the second-cheapest seller online or in game down, and a raise goes no higher than the cheapest." />
 
   <!-- The figures you trade by, one tile each: the headline figures, so vessels (pass 2, §8). -->
   {#if mkt.linked}
@@ -788,7 +797,7 @@
         <div class="fv"><span class="mark fig plat"><P v={listed} big /></span></div>
         <p class="note">platinum, at your prices</p>
       </div>
-      <div class="tile" title={checkedAt ? `Undercut: ${undercut} of your ${against.length} shown listing${against.length === 1 ? "" : "s"} with another seller online or in game ask more than the cheapest of those sellers, at the check of ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}. Reprice follows the second-cheapest, so it may leave some of these as they are` : "Undercut: press Check prices to compare"}>
+      <div class="tile" title={checkedAt ? `Undercut: ${undercut} of your ${against.length} shown listing${against.length === 1 ? "" : "s"} with another seller online or in game ask more than the cheapest of those sellers, at the check of ${fmt(checkedAt)}${nextPass ? `; next at ${fmt(+nextPass)}` : ""}. ${undercutLeft ? `Reprice leaves ${undercutLeft} of them as they are` : "Reprice changes each of them"}: it follows the second-cheapest seller down (never the cheapest alone), sends no change within ${BAND_WORDS}, and skips listings set to be left alone; Will set says why` : "Undercut: press Check prices to compare"}>
         <span class="register">Undercut</span>
         {#if checkedAt && against.length}
           <div class="fv"><span class="mark fig" class:bad={undercut}>{undercut}</span>
@@ -801,7 +810,7 @@
       </div>
       {#if !console && trades.limit != null}
         {@const resets = until(new Date(trades.resets).toISOString(), minute)}
-        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. Trades a day are your Mastery Rank (${trades.limit}; extra trades from Founder status are not added), each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
+        <div class="tile" title={`Trades left today: ${trades.used} made since 00:00 UTC, refreshes in ${resets}. ${tradesADay(trades.limit)}, each counting once whatever it carried (up to 6 items each way). Counted from the game's log while MyOrbiter was reading it`}>
           <span class="register">Trades left</span>
           {#if trades.left != null}
             <div class="fv"><span class="mark fig" class:gold={trades.left <= 3}>{trades.left}</span>
@@ -920,7 +929,7 @@
           </span>
         {/each}
         <HelpMark part="orders.whispers" />
-        {#if settings.lastCopy.hidden.length}<span class="dim small" title="The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one. Each comes back after the wait only if an inventory read newer than the whisper still has the copy; with Full access while Warframe runs, Sync asks TennoScope for a read now. To show one sooner, use its Shown switch: the rule then leaves it as you set it until the next whisper">{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
+        {#if settings.lastCopy.hidden.length}<span class="dim small" title={`The last-copy rule (Settings, Trades): your last copies are hidden while a buyer whispers, so a second buyer doesn't come for the same one. Each comes back after the wait only if an inventory read newer than the whisper still has the copy. ${SYNC_READS_NOW}. To show one sooner, use its Shown switch: the rule then leaves it as you set it until the next whisper`}>{settings.lastCopy.hidden.length} last cop{settings.lastCopy.hidden.length === 1 ? "y" : "ies"} hidden for now</span>{/if}
       </section>
     {/if}
 
@@ -1034,8 +1043,8 @@
     <table class="orders" class:ownfloors={rows.some((o) => floorOf(o) != null)}>
       <thead data-card="sort">
         <tr>
-          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each (the cheapest alone isn't followed: it may be bait), and how many sellers there are, from the last check. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest, not this">Against lowest</th>
-          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Auto-price on: when you check prices, this listing is moved to the market price, the second-cheapest seller online or in game (never under its floor). Off: MyOrbiter leaves its price as you set it">Auto-price</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
+          {@render sh("name", "Item", "", "Sort by name")}{@render sh("qty", "Qty", "right", "Sort by how many you list")}{@render sh("price", "Your price", "right", "Sort by your price (click again for the other way)")}{@render sh("cheapest", "Market price", "", "The second-cheapest seller online or in game right now, one order each, and how many sellers there are, from the last check. Reprice follows it down (the cheapest alone isn't followed: it may be bait); a raise goes no higher than the cheapest seller. Sort by it")}<th class="vslow" title="Your price against the cheapest seller online or in game at the last check: +n when someone is under you (undercut), Even when you match them, −n when you're the cheapest. Reprice follows the second-cheapest seller down, not the cheapest; a raise goes no higher than the cheapest seller">Against lowest</th>
+          {@render sh("change", "Will set", "right willset", "What the repricer would change the price to, and why. Sort by the change (the biggest rises first, falls last)")}<th class="right floorcol" title="Never go below this">Floor</th><th class="center" title="Reprice on: you change this listing's price with Reprice, down to the second-cheapest seller online or in game (never under its floor), and a raise goes no higher than the cheapest seller; MyOrbiter changes it by itself only while Apply automatically is on. Off: left alone, its price stays as you set it">Reprice</th><th class="center" title="Whether buyers see the listing on warframe.market (hidden ones keep their place)">Shown</th><th></th>
         </tr>
       </thead>
       <!-- One body a listing (its row, and the rows under it), so it can leave whole. It fades in its
@@ -1086,7 +1095,7 @@
             </td>
             <td class="fade c-comp" data-label="Market price">
               {#if p && p.competitor.price != null}
-                <span class="comp"><P v={p.competitor.price} /> <span class="dim small"><span class="who" title={p.competitor.cheapest?.name ?? undefined}>{p.competitor.cheapest?.name}</span>&nbsp;· <span class="nowrap" title="Sellers online or in game, one order each">{p.competitor.sellers} online</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span class="nowrap" title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, the cheapest. The cheapest alone isn't followed, the second-cheapest is, so one listing (bait or a mistake) can't pull your price down. Buy it if it's a deal."> · cheapest {p.competitor.lowest.platinum}p</span>{/if}</span></span>
+                <span class="comp"><P v={p.competitor.price} /> <span class="dim small"><span class="who" title={p.competitor.cheapest?.name ?? undefined}>{p.competitor.cheapest?.name}</span>&nbsp;· <span class="nowrap" title="Sellers online or in game, one order each">{p.competitor.sellers} online</span>{#if p.competitor.lowest && p.competitor.lowest.platinum !== p.competitor.price}<span class="nowrap" title="{p.competitor.lowest.name ?? 'One seller'} asks {p.competitor.lowest.platinum}p, the cheapest. The cheapest alone isn't followed down, the second-cheapest is, so one listing (bait or a mistake) can't pull your price down; a raise stops at this price. Buy it if it's a deal."> · cheapest {p.competitor.lowest.platinum}p</span>{/if}</span></span>
                 {@const goes = goesFor(p)}
                 {#if goes != null}<div class="register goes" title="Every seller online or in game asks more than twice what it really goes for: what it sold for lately, or what sellers on the site ask if that's lower ({p.competitor.askLevel ?? '–'}p, in game or not). Priced at that, so it sells.">goes for ~{goes}p</div>
                 {:else if p.competitor.ladder.length > 1}<div class="register ladder" title="The market price and the next ones up, sellers online or in game">{p.competitor.ladder.join(" · ")}</div>{/if}
@@ -1103,12 +1112,12 @@
             <td class="right fade willset">
               {#if p?.change && !paused && shown}<span class="target" class:down={p.target < o.platinum} class:up={p.target > o.platinum}><span class="dim">{o.platinum} →</span> <P v={p.target} /> <span class="delta">{p.target > o.platinum ? "+" : "−"}{Math.abs(p.target - o.platinum)}</span>{#if p.reason === "floor" && crackHeld(o, p) != null}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><span class="tag ok" tabindex="0" title="Worth more cracked: a crack of it is worth about {crackHeld(o, p)}p, so it isn't listed under {p.floor}p. Take it down to crack it instead.">crack</span>{:else if p.reason === "floor" && p.competitor.price != null && p.target > p.competitor.price}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><span class="tag alert" tabindex="0" title={minimumHeld(o, p) != null ? `Your ${p.floor}p minimum (Sell spares) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower the minimum on Sell spares, or take it down.` : `Your floor (${p.floor}p) is over the market price (${p.competitor.price}p): at this price it's unlikely to sell. Lower this listing's floor, or take it down.`}>over market</span>{:else if p.reason === "floor"}<!-- svelte-ignore a11y_no_noninteractive_tabindex --><span class="tag ok" tabindex="0" title={minimumHeld(o, p) != null ? `Held up by your ${p.floor}p minimum (Sell spares)` : "Held up by the floor"}>{minimumHeld(o, p) != null ? "minimum" : "floor"}</span>{:else if p.reason === "median"}<span class="tag" title="Every seller online or in game asks more than twice what it really goes for ({p.competitor.lowest?.platinum ?? p.competitor.price}p and up): priced at that instead">sells for</span>{/if}</span>
               {:else if !shown}<span class="register" title="Hidden listings aren't repriced">hidden</span>
-              {:else if paused}<span class="register" title="Auto-price is off: MyOrbiter leaves this price as you set it">left alone</span>
+              {:else if paused}<span class="register" title="Its Reprice switch is off: neither Reprice nor Apply automatically changes this price">left alone</span>
               {:else if p && goesFor(p) != null}<span class="register ok" title="At what it really goes for: sellers online or in game ask {p.competitor.lowest?.platinum ?? p.competitor.price}p and up">at its value</span>
-              {:else if p}<span class="register ok">matched</span>{/if}
+              {:else if p}{@const u = unchangedWhy(p, o.platinum)}<span class="register ok" title={u.title}>{u.word}</span>{/if}
             </td>
             <td class="right floorcol"><input type="number" min="1" max={MAX_SAVED_PRICE} style:width="4.8rem" placeholder={p ? `auto ${p.floor}` : "auto"} aria-label="Floor: {nm}" aria-invalid={floorRefused[o.id] ? "true" : undefined} title="Your own floor for this listing, up to {MAX_SAVED_PRICE.toLocaleString("en")}p; empty uses the automatic one" value={floorOf(o) ?? ""} onfocus={() => floorRefusalGone(o.id)} onchange={(e) => setFloor(o, e.currentTarget)} />{#if floorRefused[o.id]}<p class="floorerr small" role="status">Not saved: a floor goes up to {MAX_SAVED_PRICE.toLocaleString("en")}p</p>{/if}</td>
-            <td class="center c-auto" data-label="Auto-price"><Toggle on={!paused && shown} disabled={!shown} label="Auto-price: {nm}" title={!shown ? "Hidden listings aren't repriced" : paused ? "Auto-price off: the price stays as you set it" : "Auto-price on: kept at the market price, the second-cheapest seller online or in game"} onchange={() => togglePause(o)} /></td>
+            <td class="center c-auto" data-label="Reprice"><Toggle on={!paused && shown} disabled={!shown} label="Reprice: {nm}" title={!shown ? "Hidden listings aren't repriced" : paused ? "Off: left alone. Neither Reprice nor Apply automatically changes its price; it stays as you set it" : `On: you change its price with Reprice${settings.auto ? ", and MyOrbiter changes it by itself too, since Apply automatically is on" : "; MyOrbiter changes it by itself only while Apply automatically is on (it's off)"}. Reprice follows the second-cheapest seller online or in game down; a raise goes no higher than the cheapest seller`} onchange={() => togglePause(o)} /></td>
             <td class="center c-shown" data-label="Shown"><span class="shake" use:shake={refusedShown[o.id]}><Toggle on={shown} label="Shown to buyers: {nm}" title={shown ? "Visible to buyers" : "Hidden from buyers"} disabled={!rowFree(o.id)} onchange={(v) => setVisible(o, v)} /></span></td>
             <td class="right c-acts">
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A

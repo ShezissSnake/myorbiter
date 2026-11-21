@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { buildModel } from "../src/lib/core/model";
 import { bulkPlan, minimumForItem, sellTargets, defaultBulkRules, LIMIT_WHY, LIMIT_WHY_TRADES, type BulkContext, type BulkRules } from "../src/lib/core/bulk";
-import { indexItems, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
+import { indexItems, plan as repricePlan, type BookOrder, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { defaultAdvice } from "../src/lib/backend";
 import type { Bundle, InventoryRow } from "../src/lib/core/types";
 
@@ -112,6 +112,21 @@ test("plan: new listings at the cheapest in-game price, existing ones resized an
   assert.equal(create.type === "create" && [create.item.name, create.quantity, create.platinum].join(), "Rhino Prime Set,2,55", "online-only sellers don't count");
   const update = plan.find((a) => a.type === "update")!;
   assert.equal(update.type === "update" && [update.quantity, update.platinum].join(), "2,14", "lowered to what's spare (one unranked kept to give away), matched to 14p");
+});
+
+test("plan: Sell spares moves a listing that Orders' Reprice leaves alone inside the dead band (recorded, not changed)", () => {
+  // The audit's Boltor Prime Set, on the Rhino set here: listed at 100p, sellers in game at 96p,
+  // 97p and 120p. Reprice (drift) leaves it: its target, 97p, is within 2p or 5% of 100p. Sell
+  // spares prices at the cheapest seller in game, with no dead band, so its plan lowers it to 96p.
+  const m = buildModel(bundle(rhino(3)));
+  const rules = only({ sets: true });
+  const listed = order("o1", "set", 2, 100);
+  const book = [seller(96), seller(97), seller(120)];
+  const r = repricePlan(listed, book, me, { floor: null, minShare: 0, reference: null, min: 1, drift: true });
+  assert.deepEqual([r.change, r.reason], [false, "steady"], "Orders: left as it is");
+  const actions = bulkPlan(ctx(m, [listed], { rhino_prime_set: book }), rules, sellTargets(m, rules, defaultAdvice()));
+  const update = actions.find((a) => a.type === "update");
+  assert.equal(update?.type === "update" && [update.order.id, update.quantity, update.platinum].join(), "o1,2,96", "Sell spares: lowered to the cheapest seller in game");
 });
 
 test("plan: under the minimum price or nothing left, a listing goes; left-alone and hidden ones stay", () => {

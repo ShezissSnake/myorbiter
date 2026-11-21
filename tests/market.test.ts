@@ -222,3 +222,18 @@ test("an odd cheap seller is skipped only when the next two agree, and never rai
   assert.equal(competitor(mine(60), [sell(2, "ingame"), sell(58, "ingame")], me).price, 2);
   assert.equal(competitor(mine(60), [sell(2, "ingame"), sell(20, "ingame"), sell(60, "ingame")], me).price, 2);
 });
+
+test("a market value that isn't a number is no value: the floors still hold", () => {
+  const cheap = [sell(2, "ingame"), sell(3, "ingame")];
+  // A reference that came through as NaN, alone or held to the asks: the minimum still holds.
+  for (const capByAsks of [false, true]) {
+    const p = plan(mine(30), cheap, me, { floor: null, minShare: 0.5, reference: Number.NaN, min: 10, capByAsks });
+    assert.equal(p.target, 10, `capByAsks ${capByAsks}`);
+    assert.equal(p.floor, 10);
+  }
+  // And a listing's own floor, with nobody in game.
+  const alone = plan(mine(5), [], me, { floor: 12, minShare: 0.5, reference: Number.POSITIVE_INFINITY });
+  assert.equal(alone.target, 12);
+  assert.equal(alone.value, null);
+  assert.equal(plan(mine(30), cheap, me, { floor: 8, minShare: 0.5, reference: Number.NaN }).target, 8);
+});

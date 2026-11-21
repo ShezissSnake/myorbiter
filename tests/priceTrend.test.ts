@@ -28,14 +28,34 @@ test("this week against the month before, weighted by sales", () => {
 test("recent price: the middle of the last 30 days' sales, for one refinement", async () => {
   const { recentPrice } = await import("../src/lib/core/priceTrend");
   const day = (d: string, median: number, volume: number, subtype: string | null) => ({ at: `2026-${d}T00:00:00.000+00:00`, median, volume, min: median, max: median, rank: null, subtype });
+  // Counted back from noon on the day of the last sale.
+  const NOW = Date.parse("2026-10-25T12:00:00.000Z");
   const pts = [day("08-01", 100, 50, "radiant"), day("10-20", 8, 3, "radiant"), day("10-25", 10, 1, "radiant"), day("10-25", 3, 9, "intact")];
-  assert.equal(recentPrice(pts, null, "radiant"), 8, "three at 8p, one at 10p");
-  assert.equal(recentPrice(pts, null, "intact"), 3);
-  assert.equal(recentPrice(pts, null, "flawless"), null);
-  assert.equal(recentPrice(pts, null, "radiant", 1), 10);
-  assert.equal(recentPrice(pts, null, "radiant", 1, 2), null, "one sale is too few");
+  assert.equal(recentPrice(pts, null, "radiant", 30, 1, NOW), 8, "three at 8p, one at 10p");
+  assert.equal(recentPrice(pts, null, "intact", 30, 1, NOW), 3);
+  assert.equal(recentPrice(pts, null, "flawless", 30, 1, NOW), null);
+  assert.equal(recentPrice(pts, null, "radiant", 1, 1, NOW), 10);
+  assert.equal(recentPrice(pts, null, "radiant", 1, 2, NOW), null, "one sale is too few");
   // Axi S20 radiant: one sale at 288p doesn't make nine at 2–2.5p worth 31p.
   const s20 = [day("10-10", 288, 1, "radiant"), day("10-12", 2.5, 6, "radiant"), day("10-14", 2, 1, "radiant"), day("10-20", 2, 2, "radiant")];
-  assert.equal(recentPrice(s20, null, "radiant"), 2.5);
-  assert.equal(recentPrice([day("10-10", 2, 1, null), day("10-12", 4, 1, null)], null, null), 3, "an even split: halfway");
+  assert.equal(recentPrice(s20, null, "radiant", 30, 1, NOW), 2.5);
+  assert.equal(recentPrice([day("10-10", 2, 1, null), day("10-12", 4, 1, null)], null, null, 30, 1, NOW), 3, "an even split: halfway");
+});
+
+test("nothing sold in the last 30 days: no recent price, and no trend, however recent the last sale was against itself", async () => {
+  const { recentPrice } = await import("../src/lib/core/priceTrend");
+  const now = Date.now();
+  // Sold on days 80 to 60 before today, nothing since.
+  const old = Array.from({ length: 21 }, (_, i) => ({ at: new Date(now - (80 - i) * DAY).toISOString(), median: 10 + i, volume: 3, min: 10, max: 30, rank: null, subtype: null }));
+  assert.equal(recentPrice(old, null, null), null, "counted back from today");
+  assert.equal(recentPrice(old, null, null, 30, 2), null);
+  const t = trend(daysFor(old, null, null));
+  assert.equal(t.week, null, "no week: nothing sold in it");
+  assert.equal(t.month, null, "no month before it either");
+  assert.equal(t.perDay, 0);
+  assert.equal(trendWords(t), null);
+  // One sold yesterday: that is the recent price, and the week has it.
+  const fresh = [...old, { at: new Date(now - DAY).toISOString(), median: 50, volume: 2, min: 50, max: 50, rank: null, subtype: null }];
+  assert.equal(recentPrice(fresh, null, null), 50);
+  assert.equal(trend(daysFor(fresh, null, null)).week, 50);
 });

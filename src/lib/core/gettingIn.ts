@@ -120,7 +120,7 @@ export function leaveSetup(how: "later" | "overlay", m: AutoSwitches, firstStart
  * two of them under other names.
  */
 export const SWITCH_LABEL: Record<keyof AutoSwitches, { orders: string; settings: string }> = {
-  auto: { orders: "Apply automatically", settings: "Change my prices on warframe.market by itself (automatic repricing)" },
+  auto: { orders: "Apply automatically", settings: "Change my prices on warframe.market by itself (Apply automatically)" },
   autoTrades: { orders: "Mark sales sold from the game", settings: "Mark sales sold from the game" },
   autoRep: { orders: "Give +rep by itself", settings: "Give +rep by itself after a trade" },
 };

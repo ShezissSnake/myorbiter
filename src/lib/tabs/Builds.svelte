@@ -425,7 +425,7 @@
                 <span title="Your copy's Orokin {kind === 'warframe' || kind === 'companion' || kind === 'archwing' || kind === 'necramech' ? 'Reactor' : 'Catalyst'}" class:on={!!(copy.f & 1)}>{copy.f & 1 ? "✓" : "✕"} {kind === "warframe" || kind === "companion" || kind === "archwing" || kind === "necramech" ? "Reactor" : "Catalyst"}</span>
                 <span title="Forma on your copy">{copy.p ?? 0} Forma</span>
                 {#if kind === "warframe" || kind === "primary" || kind === "secondary" || kind === "melee"}<span title="Your copy's Exilus slot" class:on={!!(copy.f & 2)}>{copy.f & 2 ? "✓" : "✕"} Exilus</span>{/if}
-              {:else}<span class="dim small">{model.gear ? "" : "Your copy's Catalyst and Forma show once the patched TennoScope reads your gear."}</span>{/if}
+              {:else}<span class="dim small">{model.gear ? "" : "Your copy's Catalyst and Forma show once TennoScope reads your gear."}</span>{/if}
             {:else}<span class="dim">You don't have it yet.</span>{/if}
           </p>
           {#if kinds.length > 1}

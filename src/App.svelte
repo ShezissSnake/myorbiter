@@ -4,9 +4,9 @@
   import { discordSent } from "./lib/discordStatus.svelte";
   import { onMount, untrack } from "svelte";
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
-  import { foldSetSales, loggedForTrade, placeTradeLine, repCandidates, salesFromTrade, stillListed, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
+  import { oneAtATime } from "./lib/core/oneAtATime";
   import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
-  import { tradeLineSale } from "./lib/core/soldMarks";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -142,6 +142,7 @@
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import { checkDue } from "./lib/core/schedule";
   import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
+  import { fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF, SYNC_READS_NOW } from "./lib/core/fullModeOff";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -166,6 +167,7 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
+  import { gameStepTitle } from "./lib/core/firstStart";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
   import { carryOnEmpty, dataMissing, leaveSetup, leftSetupNotice, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
@@ -1551,59 +1553,55 @@
       // A trade with no time (the log's session start wasn't seen) is acted on only once it turns
       // up new after this run's first read of that session: the first read can be hours late.
       const firstRead = !tradeSessionsRead.has(session ?? "?");
-      const { fresh, recent } = tradesToMark(trades, session, settings.market.tradesSeen, Date.now(), firstRead);
+      // Trades being handled count as seen: their keys are recorded as their sales are logged.
+      const { fresh, recent } = tradesToMark(trades, session, [...settings.market.tradesSeen, ...tradesHandling], Date.now(), firstRead);
       if (!fresh.length) return;
       tradeSessionsRead.add(session ?? "?");
+      const acting = settings.market.autoTrades ? recent : [];
+      // Those not acted on are recorded now. Those acted on are recorded by markTrades in the same
+      // step as their sales go into the log, so that a quit in between leaves both or neither.
       // This session's keys stay however many there are: the log shows its trades on every read.
-      settings.market.tradesSeen = keepSeen(fresh, settings.market.tradesSeen, 300, session == null ? "?" : String(session));
-      if (!settings.market.autoTrades) return;
-      if (recent.length) void handleTrades(recent, session);
+      const atOnce = seenAtOnce(fresh, acting, session);
+      if (atOnce.length) settings.market.tradesSeen = keepSeen(atOnce, settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+      if (!acting.length) return;
+      for (const t of acting) tradesHandling.add(tradeKey(session, t));
+      void handleTrades(acting, session);
     });
   });
   /** Game sessions whose trade log this run has read once (see the trade effect). */
   const tradeSessionsRead = new Set<number | string>();
+  /** Keys of the trades handleTrades has and hasn't reached yet: not in tradesSeen, and not handled twice. */
+  const tradesHandling = new Set<string>();
   async function handleTrades(trades: NonNullable<MissionState["trades"]>, session: number | null) {
     // Each trade's sale notification waits for what this makes of it (saleOutcome).
     for (const t of trades) marking.add(tradeKey(session, t));
     let done = 0;
     try {
-      for (const t of trades) {
-        const key = tradeKey(session, t);
-        const sales = salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints);
-        if (!sales) {
-          saleOutcome(key, null);
-          continue;
-        }
-        const at = t.at ? t.at * 1000 : Date.now();
-        // What this trade logged before, if it's handled again: read before any line is logged.
-        const logged = loggedForTrade(settings.market.sales, key);
-        const lines: SoldLine[] = [];
-        for (const s of sales) {
-          // Copies this trade logged before (handled again), and copies logged by hand within ten
-          // minutes of it (the same item and rank), are counted already and not marked sold again;
-          // only the rest are. Only by hand: a sale this logged from an earlier trade (the same
-          // item to another buyer) is a sale of its own.
-          const placed = placeTradeLine(settings.market.sales, logged, s, at, key);
-          if (placed.sales !== settings.market.sales) settings.market.sales = placed.sales;
-          if (!placed.left) {
-            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "hand" });
-            continue;
-          }
-          // Matched against the listings as they were when the trade was read: one an earlier sale
-          // in this trade (or a Sold click) closed meanwhile isn't listed any more.
-          const order = stillListed(s.order, mkt.orders);
-          const marked = order ? await mkt.sold(order, placed.left, { quiet: true }) : null;
-          // Which listing this lowered, and the copies it couldn't mark: a Sold click soon after asks first.
-          const sale = tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order, marked: marked?.quantity ?? 0, now: Date.now() });
-          settings.market.sales = [sale, ...settings.market.sales].slice(0, 2000);
-          lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: order ? (marked ? "marked" : "still listed") : "not listed" });
-          done++;
-        }
-        saleOutcome(key, lines);
-      }
+      // Copies a trade logged before (handled again), and copies logged by hand within ten minutes
+      // of it (the same item and rank), are counted already and not marked sold again; only the
+      // rest are. Only by hand: a sale logged from an earlier trade (the same item to another
+      // buyer) is a sale of its own.
+      done = await markTrades(trades, session, {
+        sales: () => settings.market.sales,
+        setSales: (sales) => (settings.market.sales = sales),
+        seen: (key) => {
+          tradesHandling.delete(key);
+          settings.market.tradesSeen = keepSeen([key], settings.market.tradesSeen, 300, session == null ? "?" : String(session));
+        },
+        salesOf: (t) => salesFromTrade(t, mkt.orders, mkt.index, model, settings.game.imprints),
+        orders: () => mkt.orders,
+        sold: (o, n) => mkt.sold(o, n, { quiet: true }),
+        outcome: saleOutcome,
+        failed: (key, e) => logLine("warn", "trades", `A sale from the game's trade ${key} hit an error: ${e instanceof Error ? e.message : String(e)}`),
+        now: () => Date.now(),
+      });
     } finally {
-      // Whatever went wrong part way: the notifications waiting on the rest go without it.
-      for (const t of trades) if (marking.has(tradeKey(session, t))) saleOutcome(tradeKey(session, t), null);
+      // Whatever went wrong part way: the notifications waiting on the rest go without it, and a
+      // trade not reached is read again (nothing of it was logged or sent).
+      for (const t of trades) {
+        tradesHandling.delete(tradeKey(session, t));
+        if (marking.has(tradeKey(session, t))) saleOutcome(tradeKey(session, t), null);
+      }
     }
     if (!done) return;
     // Your inventory changed: have TennoScope read it again so spares and listings line up.
@@ -1694,11 +1692,15 @@
     const [lines, u] = await Promise.all([
       wait ? outcomeOf(key, wait) : Promise.resolve(null),
       // +rep by hand: whether the buyer is on warframe.market (one lookup, shared with the trade history's).
-      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => undefined) : Promise.resolve(undefined),
+      // A lookup that failed is false: not found (null) and not looked up (undefined) are others.
+      !settings.market.autoRep && mkt.linked ? mkt.user(t.partner).catch(() => false as const) : Promise.resolve(undefined),
     ]);
-    const { title, body } = saleNotice(t, lines);
     const at = t.at ? t.at * 1000 : Date.now();
-    const offer = repOffered({ key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!u, rep: settings.market.rep, trades: settings.market.trades });
+    const asked = { key, partner: t.partner, at, now: Date.now(), autoRep: settings.market.autoRep, linked: mkt.linked, rep: settings.market.rep, trades: settings.market.trades };
+    const offer = repOffered({ ...asked, onMarket: !!u });
+    // The notification says it couldn't look the buyer up only when that is what keeps +rep off it.
+    const unread = u === false && repOffered({ ...asked, onMarket: true });
+    const { title, body } = saleNotice(t, lines, unread);
     const id = tell("sold", title, body, "sales", offer ? { key, partner: t.partner } : undefined);
     if (id) toldNotice.set(key, id);
   }
@@ -1842,8 +1844,9 @@
     const lc = settings.market.lastCopy;
     if (!lc.optIn || !mkt.linked) return;
     const toHide = lastCopies(mkt.orders);
-    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false) : [];
-    settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, hiddenNow, Date.now());
+    // Each one into the list as warframe.market takes it: a quit part way leaves none hidden that
+    // MyOrbiter doesn't know of (and so wouldn't show again).
+    const hiddenNow = toHide.length ? await mkt.setShown(toHide, false, true, (o) => (settings.market.lastCopy.hidden = hideNow(settings.market.lastCopy.hidden, [o], Date.now()))) : [];
     if (hiddenNow.length) {
       const names = hiddenNow.map((o) => mkt.item(o.itemId)?.name ?? "a listing");
       mkt.note(`${who.join(", ")} whispered you: hid ${names.length === 1 ? names[0] : `${names.length} last-copy listings (${names.slice(0, 4).join(", ")}${names.length > 4 ? "…" : ""})`} for ${lc.minutes >= 1 ? lc.minutes : DEFAULT_HIDE_MINUTES} min, back after that if a newer inventory read still has it`, "info");
@@ -1867,7 +1870,7 @@
       const names = untold.map((h) => mkt.item(mkt.orders.find((o) => o.id === h.id)?.itemId ?? "")?.name ?? "a listing");
       const one = names.length === 1;
       const list = `${names.slice(0, 4).join(", ")}${names.length > 4 ? ` and ${names.length - 4} more` : ""}`;
-      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. With Full access while Warframe runs, Sync asks TennoScope for a read now. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
+      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. ${SYNC_READS_NOW}. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
     }
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
@@ -1993,7 +1996,9 @@
       await writeRivenCycle({ ...shown, current: { ...shown.current, price: cur?.mid ?? null }, next: { ...shown.next, price: next?.mid ?? null } });
     })().catch(() => {});
   }
-  async function scanRivens() {
+  // A scan that outlasts the five minutes (warframe.market slow to answer) isn't joined by a second
+  // one: it would ask again for the same rivens and tell of the same finds twice.
+  const scanRivens = oneAtATime(async () => {
     const found: string[] = [];
     const ids: string[] = [];
     const seen = new Set(settings.game.rivensNotified);
@@ -2017,7 +2022,7 @@
     if (!ids.length) return;
     settings.game.rivensNotified = [...ids, ...settings.game.rivensNotified].slice(0, 500);
     if (settings.notify.rivens) tell("rivens", found.length === 1 ? "A riven you want is listed" : `${found.length} rivens you want are listed`, found.slice(0, 6).join("\n"));
-  }
+  });
 
   // What your relics sell for at each refinement (TennoScope's prices are mostly intact only),
   // read once a day: whether one is worth more sold than cracked depends on it (Inventory's spare
@@ -2287,6 +2292,8 @@
   const syncJob = new Job(undefined, 15_000);
   let syncButton = $state<{ flash: () => void } | null>(null);
   const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
+  /** Full mode is off and no inventory was read: no sync can bring one, and Sync says so. */
+  const syncFullModeOff = $derived(!onConsole && fullModeOff(mkt.fullMode, noInventory));
   /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
   let syncStep = $state<string | null>(null);
   /** How the last sync ended, for its word between syncs (`syncIdleWord`). */
@@ -2359,7 +2366,7 @@
           world.done();
         }
         if (error) throw new JobError("Not read", loadProblem(error));
-        return "Up to date";
+        return syncFullModeOff ? SYNC_FULL_MODE_OFF : "Up to date";
       } finally {
         syncStep = null;
       }
@@ -2777,13 +2784,8 @@
       cardsPoll = setInterval(pollCards, 800);
       // warframe.market: sign-in state, your orders, and the auto-match timer.
       // Your warframe.market status: held again from where you left it (see Orders).
+      // Signed in: the store sets Settings → Platform from the account (marketStore › takePlatform).
       mkt.init().then(() => {
-        // Signed in: your account says which platform you play on.
-        const theirs = mkt.me?.platform;
-        if (theirs && theirs in PLATFORM_LABEL && theirs !== settings.market.platform) {
-          settings.market.platform = theirs as Platform;
-          settings.market.relicPrices = {};
-        }
         if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();
@@ -3051,7 +3053,7 @@
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
         {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
-        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
+        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (down to the second-cheapest seller online or in game; a raise goes no higher than the cheapest)"></span>{/if}
       </button>
     {/snippet}
 
@@ -3091,8 +3093,8 @@
         <HelpMark part="rail.foot" corner />
       </div>
       <div class="tools" class:grid={!compact}>
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle)} sizer={["Waiting…", "Up to date", "Not synced"]}
-        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle, syncFullModeOff)} sizer={["Waiting…", "Up to date", "Not synced", SYNC_FULL_MODE_OFF]}
+        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope in Full mode, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
       <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {#if compact}
@@ -3143,11 +3145,11 @@
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
-          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them.</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them. Meanwhile the sidebar waits: its pages open once you're set up, or after Finish later.</p>
           {@const order = ["start", "access", "game", "inventory", "done"]}
           {@const at = order.indexOf(setup.step === "inventory" ? "game" : setup.step)}
           <ol class="steps">
-            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: "Start Warframe and sign in" }] as st, i (st.id)}
+            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: gameStepTitle(setup) }] as st, i (st.id)}
               <li class:done={at > i} class:now={at === i} data-step={st.id}>
                 <strong>{st.title}</strong>
                 {#if at === i}
@@ -3161,6 +3163,7 @@
                       {#each setup.actions.filter((a) => !(st.id === "access" && a === "full" && !setup.waitingFor)) as a (a)}
                         <button data-field={`setup.${a}`} class:stamp={a === "retry"} onclick={() => setupAct(a)} disabled={a === "full" && !ts.running}>{a === "retry" ? "Try again" : a === "full" ? "Read my inventory (Full mode)" : a === "overlay" ? "Not now: overlay only" : "Settings"}</button>
                       {/each}
+                      {#if setup.actions.includes("retry")}<button data-field="setup.bug" onclick={() => bugReport.show()}>Report a bug</button>{/if}
                     </div>
                   {/if}
                 {:else if at > i}
@@ -3206,7 +3209,7 @@
     {:else}
       {#if noInventory && !onConsole}
         <div class="stale" role="status">
-          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
+          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : fullModeOff(mkt.fullMode, true) ? FULL_MODE_OFF : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
         </div>
       {/if}
@@ -3254,7 +3257,7 @@
       {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page model={modelFor("mods")} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}{#await loadRelics(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("relics", e)}><Page model={modelFor("relics")} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page model={modelFor("planner")} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
+      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} setUpTennoscope={!noTennoScope && !ts.running ? () => (showTennoscope = true) : null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page model={modelFor("sales")} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pSpares()}{#await loadSpares(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("spares", e)}><Page model={modelFor("spares")} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}{#await loadOrders(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("market", e)}><Page model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -3493,8 +3496,8 @@
   .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); }
   .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
-  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
-     picture without pointing at it; its name is the picture and the tooltip. */
+  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Full mode off", "Not synced")
+     reads beside its picture without pointing at it; its name is the picture and the tooltip. */
   .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 4px; padding: 0 0 0 6px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   /* Two cells are narrow for the register's capitals: the state in plain words there. */
@@ -3525,7 +3528,7 @@
   .foot :global(.tool.on) { color: var(--platinum); border-color: var(--rule-control); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .foot :global(.tool.on .ti) { opacity: 1; }
   .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
+  /* Sync's state word at the far end, small: Reading…, Up to date, Full mode off, Not synced. */
   .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }

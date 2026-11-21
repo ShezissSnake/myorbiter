@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SALE_DELETE_KEEPS } from "../core/saleLog";
   import { whileShown, whileShownEvery } from "../pane.svelte";
   import { localDayStart, salesByDay } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
@@ -20,7 +21,7 @@
   import { heldFor, knownName, overListed } from "../core/market";
   import { exportFile, market as wfm } from "../backend";
   import { salesCsv } from "../core/exportCsv";
-  import { importClosed } from "../core/closedOrders";
+  import { importedLog } from "../core/closedOrders";
   import { mkt } from "../marketStore.svelte";
   import { imprintNaming, setPartsOf } from "../core/trades";
   import { secondPress, tradeSaleNear } from "../core/soldMarks";
@@ -69,10 +70,9 @@
     importFailed = false;
     try {
       const closed = await wfm.closedOrders(me);
-      const r = importClosed(settings.market.sales, closed, setPartsOf(model));
-      if (r.added || r.matched) settings.market.sales = r.sales.slice(0, 2000);
-      const sells = closed.filter((c) => c.kind === "sell").length;
-      imported = !sells ? "warframe.market has no closed sales on your profile." : r.added ? `Added ${r.added} sale${r.added === 1 ? "" : "s"} from warframe.market; the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.` : `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;
+      const r = importedLog(settings.market.sales, closed, setPartsOf(model));
+      if (r.sales) settings.market.sales = r.sales;
+      imported = r.words;
     } catch (e) {
       imported = `Couldn't read your closed orders: ${String(e).replace(/^Error:\s*/, "")}`;
       importFailed = true;
@@ -235,7 +235,7 @@
     {#snippet ticker()}<Ticker id="sales" label="Your sales, live" items={tape} />{/snippet}
     {#snippet band()}
       <Stat label="Last 30 days" note={`${trades(month)} sold`}><P v={plat(month)} big tick /></Stat>
-      {#if vsMonth != null}<Stat label="Vs market, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}><Count value={Math.round(vsMonth * 100)} format={(n) => `${Math.round(n)}%`} /></Stat>{/if}
+      {#if vsMonth != null}<Stat label="Vs median, 30 days" tone={vsMonth < UNDER ? "gold" : "platinum"} note={underCount ? `${underCount} sale${underCount === 1 ? "" : "s"} under ${Math.round(UNDER * 100)}% of the median` : "Every sale near the daily median or better"}><Count value={Math.round(vsMonth * 100)} format={(n) => `${Math.round(n)}%`} /></Stat>{/if}
       <Stat label="All logged" note={sales.length ? `since ${new Date(Math.min(...sales.map((s) => s.at))).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}` : "Nothing yet"}><P v={plat(sales)} big tick /></Stat>
     {/snippet}
 
@@ -309,7 +309,7 @@
   {#if sales.length}
     <div class="reveal" transition:reveal><div>
     <table class="log">
-      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it)">Vs market</th><th class="right">Total</th><th></th></tr></thead>
+      <thead><tr><th>When</th><th>Item</th><th class="right">Qty</th><th class="right">Each</th><th class="right" title="The sale price next to the item's daily median on warframe.market when it sold (today's, for sales from before MyOrbiter recorded it): what it sold for that day, not Orders' Market price, which is the second-cheapest seller now">Vs median</th><th class="right">Total</th><th></th></tr></thead>
       <tbody>
         {#each log as { s, key } (key)}
           <tr class:added={added === keyOf(s)} out:leave>
@@ -320,8 +320,8 @@
             <td class="right">{#if ratio(s) != null}{@const r = ratio(s) ?? 0}<span class="vs" class:under={r < UNDER} class:over={r >= 1.1} title="Median {Math.round(market(s) ?? 0)}p">{Math.round(r * 100)}%</span>{:else}<span class="dim" title={unnamedImprint(s) ? `${s.item}: an imprint, logged by its pet's name. Its breed isn't in the last inventory read or the name, so there's no market price to compare with.` : undefined}>–</span>{/if}</td>
             <td class="right"><P v={s.quantity * s.platinum} /></td>
             <td class="right">
-              {#if removing === keyOf(s)}<span class="acts"><span class="ask register">Delete?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>
-              {:else}<span class="del"><IconButton icon="trash" tone="danger quiet" label="Delete" title="Delete: take this sale out of the log (warframe.market isn't touched)" onclick={() => (removing = keyOf(s))} /></span>{/if}
+              {#if removing === keyOf(s)}<span class="acts"><span class="ask register" title={SALE_DELETE_KEEPS}>Delete from the log only?</span><IconButton icon="trash" tone="danger" label="Delete it" onclick={() => drop(keyOf(s))} /><IconButton icon="close" tone="quiet" label="Keep" onclick={() => (removing = null)} /></span>
+              {:else}<span class="del"><IconButton icon="trash" tone="danger quiet" label="Delete" title={`Delete: take this sale out of the log. ${SALE_DELETE_KEEPS}`} onclick={() => (removing = keyOf(s))} /></span>{/if}
             </td>
           </tr>
         {/each}

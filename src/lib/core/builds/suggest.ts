@@ -1534,7 +1534,7 @@ function noteFor(item: CatalogItem, kind: GearKind, tier: Tier, info: FrameInfo 
   }
   parts.push(invest);
   const empty = s.mods.filter((m) => !m).length;
-  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} slots left empty: the capacity runs out first.` : `${empty} of ${layout.mods} slots left empty: you don't hold a mod MyOrbiter would put there; see the upgrades.`);
+  if (empty) parts.push(capacityBound ? `${empty} of ${layout.mods} mod slots left empty: the capacity runs out first.` : `${empty} of ${layout.mods} mod slots left empty: you don't hold a mod MyOrbiter would put there; see the upgrades.`);
   return parts.join(" ");
 }
 

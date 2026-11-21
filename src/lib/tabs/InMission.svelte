@@ -9,7 +9,7 @@
   import P from "../ui/P.svelte";
   import Thumb from "../ui/Thumb.svelte";
   import GameIcon, { relicIcon as refIcon, type GameIconName } from "../ui/GameIcon.svelte";
-  import { nearTraceCap, traceCap, voidTraces } from "../core/traces";
+  import { traceCap, traceCapWord, voidTraces } from "../core/traces";
   import HelpMark from "../ui/HelpMark.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Stat from "../ui/Stat.svelte";
@@ -129,6 +129,7 @@
   );
   const traces = $derived(voidTraces(model));
   const cap = $derived(traceCap(masteryRank));
+  const capWord = $derived(traceCapWord(traces, cap));
   const clock = (h: { started_at: number | null; uptime: number }) =>
     h.started_at != null
       ? new Date(h.started_at * 1000).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
@@ -232,7 +233,7 @@
           </div>
         {/each}
       </div>
-      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with the patched TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}
+      <p class="screen-foot dim small">{ms?.reward_screen_open ? "The reward screen is open." : live ? "Each relic cracks into one reward here when the reward screen opens: with TennoScope, the cards stand here and the one to take is lit." : "Your squad's relics from the last fissure. The next fissure's replace them as it loads."}
         <!-- Under the relics it's about: whether they're all one relic at one refinement. -->
         {#if share}<span class="share" class:off={!share.matched} title={share.matched ? "4×4 (a 4b4): all four players brought the same relic at the same refinement, so the four reward cards are four rolls on one table" : `4×4 (a 4b4) is all four players bringing the same relic at the same refinement. ${share.allDiffer ? "Each of the squad brought a different relic or refinement" : `Most of the squad brought ${share.main}; the odd ones out (${share.off.join(", ")}) roll on a different table`}`}>{share.text}</span>{/if}</p>
     {:else}
@@ -275,7 +276,7 @@
     {#if ranked.length}
       <div class="pool-head">
         <div class="hmark"><h2 class="register">{onScreen ? "Everything the squad's relics can drop" : "Possible rewards, best pick first"}</h2><HelpMark part="mission.pool" /></div>
-        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With the patched TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
+        {#if !onScreen}<span class="dim small" title="Plat is scored against the most valuable drop on this list; on the reward screen it's scored against the four cards, so close calls can change. With TennoScope, MyOrbiter reads your four cards and picks for you (see the Guide).">On the reward screen, your card highest here is the likely pick.</span>{/if}
       </div>
       {#if !onScreen}{@render weightControls()}{/if}
       <table class="pool">
@@ -318,7 +319,7 @@
       {#if sessionValue}<span title="What the rewards you took sell for, at daily median prices"><P v={sessionValue} /></span>{/if}
       {#if sessionDucats}<span title="What they'd fetch from Baro, in ducats"><GameIcon name="ducats" size={13} />{sessionDucats.toLocaleString("en")}</span>{/if}
       {#if sessionForGear.length}<span class="gold" title={`Parts of gear you haven't built or mastered: ${sessionForGear.map((x) => x.name).join(", ")}`}>{sessionForGear.length} toward gear you haven't built</span>{/if}
-      <span class="dim" class:near={nearTraceCap(traces, cap)} title="Void Traces you hold (as of the last inventory read) and the most you can: past the cap, a crack's traces are lost"><GameIcon name="void-traces" size={13} />{traces.toLocaleString("en")}{cap != null ? ` / ${cap.toLocaleString("en")}` : ""} traces{nearTraceCap(traces, cap) ? " · near the cap: refine some" : ""}</span>
+      <span class="dim" class:near={!!capWord} title="Void Traces you hold (as of the last inventory read) and the most you can: past the cap, a crack's traces are lost"><GameIcon name="void-traces" size={13} />{traces.toLocaleString("en")}{cap != null ? ` / ${cap.toLocaleString("en")}` : ""} traces{capWord ? ` · ${capWord}` : ""}</span>
     </p>
     <table class="pool history">
       <thead><tr><th>Time</th><th>Mission</th><th>Relics</th><th>Rewards</th><th class="right" title="What the rewards are worth on warframe.market">Plat</th></tr></thead>
