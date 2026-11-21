@@ -354,6 +354,82 @@ test("cargo's answer is read the same whatever colour or terminal settings the b
   });
 });
 
+// The variables a Release run's build sets around the script: the Release workflow's own (its env,
+// the Linux and Windows jobs' and their steps', and what a step adds to $GITHUB_ENV) and the builder
+// image's (ci/Dockerfile's ENV), by name, with what each does to what the script runs or reads.
+// The first real runs passed on a machine that set none of them, and Release run 112 stopped on
+// one (CARGO_TERM_COLOR): a variable added there fails here until its effect is looked at and
+// written down.
+const BUILD_VARIABLES: Record<string, string> = {
+  CARGO_TERM_COLOR: "cargo colours its answer: the script asks it for none (--color never), tested above",
+  BUILD_OFFSET: "the build number: nothing the script runs reads it",
+  FIRST_BUILD: "the build number: nothing the script runs reads it",
+  VERSION: "the version, given to tauri build as --config: nothing the script runs reads it",
+  APPIMAGE_EXTRACT_AND_RUN: "linuxdeploy's: nothing the script runs reads it",
+  NO_STRIP: "linuxdeploy's: nothing the script runs reads it",
+  PIPEWIRE_VERSION: "an earlier step's own",
+  PIPEWIRE_SHA256: "an earlier step's own",
+  REF: "a later step's own",
+  PKG_CONFIG_PATH: "where C libraries are found to compile: cargo tree and cargo metadata compile nothing",
+  LD_LIBRARY_PATH: "the PipeWire libraries: Node and cargo load none of them, and print nothing of it",
+  NSIS_PATH: "the Windows installer's: nothing the script runs reads it",
+  RUSTUP_HOME: "the toolchains': cargo's answer is the same from any",
+  CARGO_HOME: "where the script reads each crate's licence texts (registry/src), as cargo unpacked them there",
+  PATH: "the tools found: cargo, as the build's own",
+};
+const releaseVariables = () => {
+  const names = new Map<string, string | null>(); // name -> its value, when the file writes one
+  const envBlocks = (yaml: string) => {
+    const lines = yaml.split("\n");
+    lines.forEach((line, i) => {
+      const at = /^( *)env:\s*$/.exec(line)?.[1].length;
+      if (at === undefined) return;
+      for (const l of lines.slice(i + 1)) {
+        if (!l.trim() || /^\s*#/.test(l)) continue;
+        if (/^ */.exec(l)![0].length <= at) break;
+        const kv = /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/.exec(l);
+        if (kv) names.set(kv[1], /\$\{\{/.test(kv[2]) ? null : kv[2].replace(/^"(.*)"$/, "$1"));
+      }
+    });
+    for (const m of yaml.matchAll(/echo "([A-Za-z_][A-Za-z0-9_]*)=[^"]*" *>> *"\$GITHUB_ENV"/g)) names.set(m[1], null);
+  };
+  const release = readFileSync(".github/workflows/release.yml", "utf8");
+  const [top, jobs] = release.split(/^jobs:$/m);
+  envBlocks(top);
+  // The jobs that build, where the script runs.
+  for (const job of jobs.split(/^(?= {2}[a-z][a-z0-9-]*:$)/m)) if (/^ {2}(linux|windows):$/m.test(job)) envBlocks(job);
+  const image = new Map<string, string | null>();
+  for (const stmt of readFileSync("ci/Dockerfile", "utf8").replace(/\\\n/g, " ").split("\n")) {
+    if (stmt.startsWith("ENV ")) for (const m of stmt.matchAll(/([A-Za-z_][A-Za-z0-9_]*)=(\S*)/g)) image.set(m[1], m[2]);
+  }
+  return { workflow: names, image };
+};
+
+test("every variable a Release run's build sets around the script is one whose effect on it was looked at", () => {
+  const { workflow, image } = releaseVariables();
+  assert.deepEqual([...new Set([...workflow.keys(), ...image.keys()])].sort(), Object.keys(BUILD_VARIABLES).sort());
+  // The two that ask for colour, as the run sets them.
+  assert.equal(workflow.get("CARGO_TERM_COLOR"), "always");
+  assert.equal(image.get("CARGO_TERM_COLOR"), "always");
+});
+
+test("cargo's answer is read the same under the Release workflow's and the builder image's own values", { skip: process.platform === "win32" }, async () => {
+  const { workflow, image } = releaseVariables();
+  // Each value the files write, as they write it (none from a step's output), with the runner's CI
+  // and GITHUB_ACTIONS; not PATH, LD_LIBRARY_PATH or CARGO_HOME, which name this machine's folders.
+  const values = (from: Map<string, string | null>) => Object.fromEntries([...from].filter(([k, v]) => v !== null &&
+    !["PATH", "LD_LIBRARY_PATH", "CARGO_HOME", "RUSTUP_HOME", "PKG_CONFIG_PATH"].includes(k)) as [string, string][]);
+  const tree = "made-up-a v1.0.0|MIT OR Apache-2.0\nmade-up-a v1.0.0|MIT OR Apache-2.0 (*)\n";
+  await withCargo(tree, async (repo) => {
+    for (const env of [values(workflow), values(image)]) {
+      assert.ok(Object.keys(env).includes("CARGO_TERM_COLOR"), JSON.stringify(env));
+      const packages = withEnv({ ...env, CI: "true", GITHUB_ACTIONS: "true", CARGO_HOME: join(repo, "no-cargo-home") },
+        () => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo));
+      assert.deepEqual(packages.map((p) => `${p.name} ${p.version} ${p.licence}`), ["made-up-a 1.0.0 MIT OR Apache-2.0"], JSON.stringify(env));
+    }
+  });
+});
+
 test("a line of cargo's with a colour code or another control character in it stops it as one it can't read; a line ending in CR LF reads", () => {
   for (const line of ["made-up v1.0.0|MIT \x1b[33m\x1b[2m(*)\x1b[39m\x1b[22m", "made-up v1.0.0|\x1b[1mMIT\x1b[0m", "made-up v1.0.0|MIT\x07"]) {
     assert.throws(() => parseCargoTree(`base64 v0.23.1|MIT OR Apache-2.0\n${line}\n`), /a line this script can't read/, JSON.stringify(line));

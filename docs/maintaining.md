@@ -242,7 +242,9 @@ It stops as well when:
   Node's `fs`. This check sees only that: that Vite still reads the files it emits where the script
   listens, as it reads the files it inlines. A page that emits no such file gives it nothing to
   check;
-- cargo's answer has a line the script can't read, or no crate at all;
+- cargo's answer has a line the script can't read (a colour code or any other control character
+  among them: the script asks cargo for none, with `--color never`, whatever `CARGO_TERM_COLOR` or
+  `CLICOLOR_FORCE` the build sets), or no crate at all;
 - the script is given an argument it doesn't know.
 
 It never passes by leaving out a package it has found, and it stops on every reader above it
@@ -297,6 +299,16 @@ the page's own.
   otherwise the config or plugin stops loading or reading it. A thread, or a process the script
   doesn't know: the config or plugin that starts it changes, or (a process whose output can't
   carry a package's file) its command line goes into `commands` in the same change.
+
+A run by hand passing is not the Release run passing: the Release run sets variables around the
+build and runs it on Windows too. `tests/dependencyLicences.test.ts` lists every variable the
+Release workflow's build jobs write (their `env:` blocks and what a step adds to `$GITHUB_ENV`) and
+the builder image's `ENV` (`ci/Dockerfile`), each with what it does to the script, so one added
+there fails `npm test` until its effect is looked at and written down; and it reads a stand-in
+cargo's answer, coloured as cargo colours it, under the values those files write. What the
+runner or an action sets is in no file and not listed. On Windows, Vite runs `net use`; the same
+test file holds the part of the installed Vite that runs it, so a Vite that changes it fails
+`npm test` too.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:
