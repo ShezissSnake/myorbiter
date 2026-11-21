@@ -39,6 +39,7 @@ flowchart TB
   tabs --> core
   shared --> stores
   shared --> core
+  shared --> help
   help --> core
   core --> bundled
   app -->|"starts, files, flags"| ts
@@ -55,10 +56,10 @@ it: they read these parts and nothing in the app reads them.
 | Rust app | Everything that touches the machine or the network: commands, files, processes, sockets, notifications, updates. | `src-tauri/src/*.rs`, `tauri.conf.json`, `capabilities/default.json` | The data crate, the OS, the hosts in section 4. Settings as opaque JSON: the only fields it reads by name are `dataDir` (`settings_data_dir` in `lib.rs`) and `notifyOptions.discord.url`, blanked when moving folders (`datamove.rs`). | Any rule about what to sell, keep or show. `market.rs` paces and forwards. Held by the code only. |
 | Bridge | The one place the page calls Rust. A browser path for each call (`inTauri`, `inDemo`: a dev file, `localStorage`, a refusal or a pretended write), and the `Settings` shape. | `src/lib/backend.ts` | `@tauri-apps/api`; `core/` (shapes, defaults and sanitizers for settings), `pages.ts`, `whatsNew.ts`, `timing.ts`, `notices.ts` | Svelte components. Only this file imports `@tauri-apps/api` or calls `invoke`; held by the code only. `core/` and `backend.ts` import each other (see Plain logic). |
 | Plain logic | Models, rules, plans, parsing: values in, values out. Tested without a window. | `src/lib/core/*.ts`, `core/builds/` | Other `core/` files, `backend.ts` (types), `notices.ts`, bundled JSON | Svelte, stores, components, help. `core/` imports none of them (checked by reading its imports; no test). Exceptions: `gettingIn.ts` and `tsReport.ts` import values from `backend.ts` (`nothingYet`, `logLine`) and `savedGame.ts` imports `notices.ts`. |
-| State | Shared state with a life of its own: warframe.market, rivens, TennoScope, updates, links, notices. | `src/lib/marketStore.svelte.ts`, `rivenStore.svelte.ts`, `tennoscopeStore.svelte.ts`, `updates.svelte.ts`, `links.svelte.ts`, `pane.svelte.ts`, `progress.svelte.ts`, `persist.svelte.ts` and the other `*.svelte.ts` | `backend.ts`, `core/` | Pages and components (the one `ui/soon` import in `updates.svelte.ts` is a timing helper). Checked by reading imports. |
+| State | Shared state with a life of its own: warframe.market, rivens, TennoScope, updates, links, notices. | `src/lib/marketStore.svelte.ts`, `rivenStore.svelte.ts`, `tennoscopeStore.svelte.ts`, `updates.svelte.ts`, `links.svelte.ts`, `pane.svelte.ts`, `progress.svelte.ts`, `persist.svelte.ts` and the other `*.svelte.ts` | `backend.ts`, `core/`, other stores, `notices.ts`, `applog.ts`, `whatsNew.ts`, `motion.ts` | Pages and components (the one `ui/soon` import in `updates.svelte.ts` is a timing helper). Checked by reading imports. |
 | Shell | Owns the settings, the collection and the live state; builds the model; polls; hands each page its model. | `src/App.svelte`, `src/main.ts` | Everything in the interface | Rust beyond `backend.ts`. |
-| Pages | One screen each; a page is a component taking the model and the settings it needs as props. | `src/lib/tabs/*.svelte`, listed in `src/lib/pages.ts` | Stores, `core/`, shared pieces | Each other: no page imports another page (checked by reading imports). |
-| Shared pieces | Cards, tables, dialogs, icons used by several pages. | `src/lib/ui/`, top-level `*.svelte` in `src/lib/` | Stores, `core/` | Pages. |
+| Pages | One screen each; a page is a component taking the model and the settings it needs as props. | `src/lib/tabs/*.svelte`, listed in `src/lib/pages.ts` | Stores, `core/`, shared pieces, `backend.ts`, `whatsNew.ts`, small helpers (`motion.ts`, `nox.ts`, `build.ts`) | Each other: no page imports another page (checked by reading imports). |
+| Shared pieces | Cards, tables, dialogs, icons used by several pages. | `src/lib/ui/`, top-level `*.svelte` in `src/lib/` | Stores, `core/`, `help/` (`HelpMark`, `HelpDialog`), `backend.ts`, `pages.ts`, `notices.ts`, `whatsNew.ts`, `timing.ts`, small helpers (`motion.ts`, `nox.ts`, `build.ts`, `ui/trap.ts`, `ui/scrim.ts`) | Pages. |
 | Bundled data | Facts that ship with the app: research and drop rules, riven model, wiki tables, Overframe's list, game icons. | `src/lib/data/*.json`, `public/data/`, `public/game/` | Nothing: data only | `public/data/wiki/` has its own licence (`LICENSE.md` there). |
 | Help | Walkthroughs of each page, their pictures, and the `?` that opens them. | `src/lib/help/*.ts`, `ui/HelpMark.svelte`, `ui/HelpDialog.svelte`, `public/help/` | `pages.ts`, types and a few constants from `core/` | Svelte components at run time: the list and its types are plain TypeScript (types only from `ui/GameIcon.svelte`), so the tests and the picture script read them too. `help.svelte.ts` holds the open state. |
 | Scripts | Building the site, icons, pictures, demo data, signing, release notes, the sweep. | `scripts/` | The source files they read | The app does not run them. |
@@ -169,13 +170,12 @@ flowchart LR
   save --> file["settings.json, 0600, atomic"]
 ```
 
-Rests on: `src/App.svelte` (`built`, `shownModel`, `bgModel`, `drawn`, `modelFor`, the `lazyPages`
-map), `src/lib/core/model.ts`, `core/memo.ts`, `src/lib/pane.svelte.ts`,
-`src/lib/progress.svelte.ts`, `src/lib/persist.svelte.ts`, `src/lib/backend.ts`
-(`HEAVY_SETTINGS`, `saveSettings`), `src-tauri/src/lib.rs` (`SaveGate`, `save_settings`). A new
-model reaches the shown page in one task, the notifications and bookkeeping (`bgModel`) in the next.
-Hidden pages keep the model they were drawn with and catch up when idle (`catchUpHidden`). Each long
-log in `HEAVY_SETTINGS` is serialized by its own effect (`persistSettings`).
+Rests on: `src/App.svelte` (`built`, `shownModel`, `bgModel`, `drawn`, `modelFor`, `lazyPages`),
+`src/lib/core/model.ts`, `core/memo.ts`, `src/lib/pane.svelte.ts`, `src/lib/progress.svelte.ts`,
+`src/lib/persist.svelte.ts`, `src/lib/backend.ts` (`HEAVY_SETTINGS`, `saveSettings`),
+`src-tauri/src/lib.rs` (`SaveGate`, `save_settings`). A new model reaches the shown page in one
+task, the notifications and bookkeeping (`bgModel`) in the next. Each long log in `HEAVY_SETTINGS` is serialized by its
+own effect (`persistSettings`); hidden pages catch up when idle (`catchUpHidden`).
 
 ### 2.4 The reward screen
 
@@ -293,9 +293,9 @@ builds goes through `crate::request(method, url)` in `src-tauri/src/lib.rs`, whi
 and takes the proxy route, follows no redirect except the one pair in `REDIRECTS_FOLLOWED`, and reads
 a JSON body up to `MAX_BODY` (`read_body`). The Rust test `no_request_is_built_around_the_user_agent`
 fails a request built any other way. Sockets go through `market::socket_request` and
-`presence::connect`. The update check and download are `tauri-plugin-updater`'s own requests (its
-first read of a channel's file, `first_read` in `updates.rs`, uses `request` with the updater's
-User-Agent). A new host, request or upload needs the maintainer's say first (CLAUDE.md) and a line
+`presence::connect`. The update check and download are `tauri-plugin-updater`'s own requests; only a
+new install's check first reads the channel's file through `request` with the updater's User-Agent
+(`first_read` in `updates.rs`). A new host, request or upload needs the maintainer's say first (CLAUDE.md) and a line
 in `docs/privacy.md`.
 
 | Host | Asked by |
@@ -308,13 +308,13 @@ in `docs/privacy.md`.
 | `cdn.warframestat.us` | `images.rs` (a redirect to `raw.githubusercontent.com` is followed) |
 | `drops.warframestat.us` | `relicdata.rs` |
 | `noxsframe.com` | `noxsframe.rs` |
-| `github.com`, `gitlab.com` | `updates.rs`, through `tauri-plugin-updater` (the update check and download) |
+| `github.com`, `gitlab.com` | `updates.rs`, through `tauri-plugin-updater` (check and download; where a download is handed on: `docs/privacy.md`) |
 | The Discord webhook the player gives | `lib.rs` (`discord_post`) |
 | `www-static.warframe.com` | The window itself: `rivenStore.svelte.ts` fetches it, allowed by `connect-src` in `tauri.conf.json`, held by `tests/links.test.ts` |
 
 TennoScope's own hosts are in `docs/privacy.md`. The browser dev mode (not Tauri) also fetches
-`api.warframestat.us` and `api.warframe.market` from the page (`backend.ts`); the desktop app never
-does. Links the player opens are a separate list: `LINK_SITES` in `src/lib/core/links.ts` and the
+`api.warframestat.us`, `api.warframe.market` and item pictures from `warframe.market` and
+`raw.githubusercontent.com` from the page (`backend.ts`, `imageUrl`); the desktop app never does. Links the player opens are a separate list: `LINK_SITES` in `src/lib/core/links.ts` and the
 matching list in `src-tauri/src/link.rs`, held equal by `tests/links.test.ts`. The window's
 permissions are event listening, webview zoom, window state and restart, with no opener or dialog
 (`src-tauri/capabilities/default.json`).
@@ -380,7 +380,7 @@ what it holds is in `demo/README.md`. Browser writes to warframe.market are pret
 | Updates | `src/lib/updates.svelte.ts`, `core/updates.ts`, `src-tauri/src/updates.rs` |
 | Opening a link | `src/lib/links.svelte.ts`, `core/links.ts`, `src-tauri/src/link.rs` |
 | Help text and pictures | `src/lib/help/`, `public/help/` |
-| The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md` and app source: `Guide.svelte`, `whatsNew.ts`, `pages.ts`, `help/index.ts`, icons; not `docs/`) |
+| The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md`, `public/game/` and app source: `Guide.svelte`, `whatsNew.ts`, `FullMode.svelte`, `pages.ts`, `help/index.ts`, `core/links.ts`, `ui/evened.ts`, icons; not `docs/`) |
 | Release builds | `.github/workflows/release.yml`, `ci/build.sh`, `docs/releases/README.md` |
 | Demo data | `demo/`, `scripts/demo-data.mjs`, `vite.config.ts` |
 | A test for X | `tests/<x>.test.ts`; Rust tests are at the end of each `.rs` file |
