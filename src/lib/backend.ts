@@ -1073,7 +1073,8 @@ function adviceOf(raw: unknown, base: AdviceSettings): AdviceSettings {
   return {
     ...base,
     ...r,
-    // 0 comes only from the file (the page's choices start at 0.05), and would turn the ducat check off.
+    // 0 is not one of the page's choices (they start at 0.05), though the Baro button can set a rate
+    // that rounds to 0; it would turn the ducat check off, so it loads as the usual rate.
     platPerDucat: numIn(r.platPerDucat, 0, 100, 0) > 0 ? (r.platPerDucat as number) : base.platPerDucat,
     minPlat: numIn(r.minPlat, 0, 100_000, base.minPlat),
     slowBelow: numIn(r.slowBelow, 0, 10_000, base.slowBelow),

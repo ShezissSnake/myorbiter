@@ -480,7 +480,7 @@ test("Baro's and Varzia's stock: an odd entry is left out and a value that isn't
     baroStock(m);
     return m;
   };
-  // The collection itself, handed one (audit A11's test): it builds, with nothing of it in resurgence.
+  // The collection itself, handed one: it builds, with nothing of it in resurgence.
   for (const resurgence of [[null], [null, { uniqueName: 5 }, item]]) {
     assert.doesNotThrow(() => buildModel(bundle, { fissures: null, resurgence, resurgenceExpiry: null } as never), JSON.stringify(resurgence));
   }
