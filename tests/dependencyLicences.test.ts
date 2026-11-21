@@ -268,11 +268,23 @@ test("a line of cargo tree's it can't read stops it: no crate is left out unread
 });
 
 // A stand-in cargo on PATH: `metadata` answers with the program's own crate, `tree` with $FAKE_TREE.
+// It colours as cargo does (CARGO_COLOURS, below): `--color` if given, else CARGO_TERM_COLOR, else
+// auto; and auto, its answer going to a pipe, colours only under CLICOLOR_FORCE=1. So its repeat
+// mark is wrapped in colour codes under CARGO_TERM_COLOR=always (as the Release workflow and the
+// builder image set it) or CLICOLOR_FORCE=1, unless `--color never` (or `--color=never`) is given.
 const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => {
   const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "cargo"),
-    '#!/bin/sh\nif [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; else cat "$FAKE_TREE"; fi\n');
+  writeFileSync(join(dir, "bin", "cargo"), [
+    "#!/bin/sh",
+    'if [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; exit 0; fi',
+    'colour=${CARGO_TERM_COLOR:-auto}',
+    'prev=; for a in "$@"; do [ "$prev" = --color ] && colour=$a; case $a in --color=*) colour=${a#--color=};; esac; prev=$a; done',
+    '[ "$colour" = auto ] && [ "$CLICOLOR_FORCE" = 1 ] && colour=always',
+    "e=$(printf '\\033')",
+    'if [ "$colour" = always ]; then sed "s/ (\\*)\\$/ ${e}[33m${e}[2m(*)${e}[39m${e}[22m/" "$FAKE_TREE"; else cat "$FAKE_TREE"; fi',
+    "",
+  ].join("\n"));
   chmodSync(join(dir, "bin", "cargo"), 0o755);
   writeFileSync(join(dir, "tree.txt"), tree);
   const saved = { PATH: process.env.PATH, FAKE_TREE: process.env.FAKE_TREE };
@@ -288,6 +300,30 @@ const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => 
   }
 };
 
+// When real cargo (1.99) colours `cargo tree`'s repeat mark, its answer going to a pipe: each row
+// was run by hand with real cargo, and the stand-in answers the same.
+const CARGO_COLOURS: [Record<string, string>, string[], boolean][] = [
+  [{}, [], false],
+  [{ CARGO_TERM_COLOR: "always" }, [], true],
+  [{ CLICOLOR_FORCE: "1" }, [], true],
+  [{ CARGO_TERM_COLOR: "auto", CLICOLOR_FORCE: "1" }, [], true],
+  [{ CARGO_TERM_COLOR: "never", CLICOLOR_FORCE: "1" }, [], false],
+  [{ CLICOLOR_FORCE: "1" }, ["--color", "auto"], true],
+  [{ CARGO_TERM_COLOR: "never" }, ["--color=always"], true],
+  [{ CARGO_TERM_COLOR: "always", CLICOLOR_FORCE: "1" }, ["--color", "never"], false],
+];
+
+test("the stand-in cargo colours its answer exactly when real cargo does", { skip: process.platform === "win32" }, async () => {
+  await withCargo("made-up v1.0.0|MIT (*)\n", async () => {
+    for (const [values, args, coloured] of CARGO_COLOURS) {
+      const env = { ...process.env, ...values };
+      for (const k of ["CARGO_TERM_COLOR", "CLICOLOR_FORCE"]) if (!(k in values)) delete env[k];
+      const answer = execFileSync("cargo", ["tree", ...args, "--prefix", "none"], { env, encoding: "utf8" });
+      assert.equal(answer.includes("\x1b["), coloured, `${JSON.stringify(values)} ${args.join(" ")}`);
+    }
+  });
+});
+
 test("the Rust half stops when cargo answers with a line it can't read, or with no crate", { skip: process.platform === "win32" }, async () => {
   await withCargo("gplcrate 1.0.0|GPL-3.0\n", async (repo) => {
     assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /a line this script can't read.*gplcrate 1\.0\.0\|GPL-3\.0/);
@@ -299,6 +335,163 @@ test("the Rust half stops when cargo answers with a line it can't read, or with 
   await withCargo("myorbiter v0.1.0 (/home/user/orbiter/src-tauri)|GPL-3.0-only\n", async (repo) => {
     assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /no crate/);
   });
+});
+
+// Each value set for the call, and the environment as it was afterwards.
+const withEnv = <T>(values: Record<string, string>, run: () => T): T => {
+  const saved = Object.fromEntries(Object.keys(values).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, values);
+  try {
+    return run();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+};
+
+test("cargo's answer is read the same whatever colour or terminal settings the build runs under", { skip: process.platform === "win32" }, async () => {
+  const tree = [
+    "myorbiter v0.1.0 (/home/user/orbiter/src-tauri)|GPL-3.0-only",
+    "made-up-a v1.0.0|MIT OR Apache-2.0",
+    "made-up-b v2.0.0|MIT",
+    "made-up-a v1.0.0|MIT OR Apache-2.0 (*)",
+    "made-up-b v2.0.0|MIT (*)",
+    "",
+  ].join("\n");
+  await withCargo(tree, async (repo) => {
+    // A cargo folder of its own, with the two made-up crates unpacked and their texts.
+    const home = join(repo, "cargo-home");
+    for (const c of ["made-up-a-1.0.0", "made-up-b-2.0.0"]) {
+      const d = join(home, "registry", "src", "index.example-0000000000000000", c);
+      mkdirSync(d, { recursive: true });
+      writeFileSync(join(d, "Cargo.toml"), `[package]\nname = "${c.replace(/-[\d.]+$/, "")}"\n`);
+      writeFileSync(join(d, "LICENSE-MIT"), "a made-up licence text\n");
+    }
+    // As a terminal sets them, as the Release workflow and the builder image set them, and both.
+    for (const env of <Record<string, string>[]>[{}, { CARGO_TERM_COLOR: "always" }, { CLICOLOR_FORCE: "1" },
+      { CARGO_TERM_COLOR: "always", CI: "true", TERM: "xterm-256color", LANG: "C.UTF-8" }]) {
+      const packages = withEnv({ ...env, CARGO_HOME: home }, () => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo));
+      const what = JSON.stringify(env);
+      assert.deepEqual(packages.map((p) => `${p.name} ${p.version} ${p.licence}`), ["made-up-a 1.0.0 MIT OR Apache-2.0", "made-up-b 2.0.0 MIT"], what);
+      assert.deepEqual(gate(packages, allowed, noText).failures, [], what);
+    }
+  });
+});
+
+// The variables a Release run's build sets around the script: the Release workflow's own (its env,
+// the Linux and Windows jobs' and their steps', and what a step adds to $GITHUB_ENV; a write to it
+// in a form not read here, or any to $GITHUB_PATH, fails the test) and the builder image's
+// (ci/Dockerfile's ENV), by name, with what each does to what the script runs or reads.
+// The first real runs passed on a machine that set none of them, and Release run 112 stopped on
+// one (CARGO_TERM_COLOR): a variable added there fails here until its effect is looked at and
+// written down.
+const BUILD_VARIABLES: Record<string, string> = {
+  CARGO_TERM_COLOR: "cargo colours its answer: the script asks it for none (--color never), tested above",
+  BUILD_OFFSET: "the build number: nothing the script runs reads it",
+  FIRST_BUILD: "the build number: nothing the script runs reads it",
+  VERSION: "the version, given to tauri build as --config: nothing the script runs reads it",
+  APPIMAGE_EXTRACT_AND_RUN: "linuxdeploy's: nothing the script runs reads it",
+  NO_STRIP: "linuxdeploy's: nothing the script runs reads it",
+  PIPEWIRE_VERSION: "an earlier step's own",
+  PIPEWIRE_SHA256: "an earlier step's own",
+  REF: "a later step's own",
+  PKG_CONFIG_PATH: "where C libraries are found to compile: cargo tree and cargo metadata compile nothing",
+  LD_LIBRARY_PATH: "the PipeWire libraries: Node and cargo load none of them, and print nothing of it",
+  NSIS_PATH: "the Windows installer's: nothing the script runs reads it",
+  RUSTUP_HOME: "the toolchains': cargo's answer is the same from any",
+  CARGO_HOME: "where the script reads each crate's licence texts (registry/src), as cargo unpacked them there",
+  PATH: "the tools found: cargo, as the build's own",
+};
+const releaseVariables = (release = readFileSync(".github/workflows/release.yml", "utf8"), dockerfile = readFileSync("ci/Dockerfile", "utf8")) => {
+  const names = new Map<string, string | null>(); // name -> its value, when the file writes one
+  const unread: string[] = [];
+  const envBlocks = (yaml: string) => {
+    const lines = yaml.split("\n");
+    lines.forEach((line, i) => {
+      const at = /^( *)env:\s*$/.exec(line)?.[1].length;
+      if (at === undefined) return;
+      for (const l of lines.slice(i + 1)) {
+        if (!l.trim() || /^\s*#/.test(l)) continue;
+        if (/^ */.exec(l)![0].length <= at) break;
+        const kv = /^\s*([A-Za-z_][A-Za-z0-9_]*):\s*(.*?)\s*$/.exec(l);
+        if (kv) names.set(kv[1], /\$\{\{/.test(kv[2]) ? null : kv[2].replace(/^"(.*)"$/, "$1"));
+      }
+    });
+    // A step's writes to $GITHUB_ENV, one whole line each: `echo "NAME=…" >>"$GITHUB_ENV"`. Any
+    // other line naming it, and any naming $GITHUB_PATH (a folder put before PATH, which the list
+    // can't hold by name), is one this can't read, and stops the test.
+    for (const line of yaml.split("\n")) {
+      if (!/GITHUB_(ENV|PATH)/.test(line)) continue;
+      const env = /^\s*echo "([A-Za-z_][A-Za-z0-9_]*)=[^"]*" *>> *"\$GITHUB_ENV"\s*$/.exec(line);
+      if (env) names.set(env[1], null);
+      else unread.push(line.trim());
+    }
+  };
+  const [top, jobs] = release.split(/^jobs:$/m);
+  envBlocks(top);
+  // The jobs that build, where the script runs.
+  for (const job of jobs.split(/^(?= {2}[a-z][a-z0-9-]*:$)/m)) if (/^ {2}(linux|windows):$/m.test(job)) envBlocks(job);
+  const image = new Map<string, string | null>();
+  for (const stmt of dockerfile.replace(/\\\n/g, " ").split("\n")) {
+    if (stmt.startsWith("ENV ")) for (const m of stmt.matchAll(/([A-Za-z_][A-Za-z0-9_]*)=(\S*)/g)) image.set(m[1], m[2]);
+  }
+  return { workflow: names, image, unread };
+};
+
+test("every variable a Release run's build sets around the script is one whose effect on it was looked at", () => {
+  const { workflow, image, unread } = releaseVariables();
+  // A write to $GITHUB_ENV or $GITHUB_PATH in a form not read here could add one unseen.
+  assert.deepEqual(unread, []);
+  assert.deepEqual([...new Set([...workflow.keys(), ...image.keys()])].sort(), Object.keys(BUILD_VARIABLES).sort());
+  // The two that ask for colour, as the run sets them.
+  assert.equal(workflow.get("CARGO_TERM_COLOR"), "always");
+  assert.equal(image.get("CARGO_TERM_COLOR"), "always");
+});
+
+test("a write to $GITHUB_ENV or $GITHUB_PATH in a build job, in a form the list isn't read from, fails it", () => {
+  const workflow = (run: string) => `env:\n  CARGO_TERM_COLOR: always\njobs:\n  linux:\n    steps:\n      - run: |\n          ${run}\n`;
+  // The form read: the name joins the list, so a new one fails the test above.
+  for (const run of ['echo "MADE_UP=1" >>"$GITHUB_ENV"', 'echo "MADE_UP=$made_up/lib" >> "$GITHUB_ENV"']) {
+    const read = releaseVariables(workflow(run), "");
+    assert.ok(read.workflow.has("MADE_UP"), run);
+    assert.deepEqual(read.unread, [], run);
+  }
+  // Every other form, and every write to $GITHUB_PATH, is named, and the test above fails on it.
+  for (const run of ["echo MADE_UP=1 >> $GITHUB_ENV", 'echo "MADE_UP=1" >> $GITHUB_ENV', 'printf "MADE_UP=1\\n" >>"$GITHUB_ENV"',
+    '"MADE_UP=1" | Out-File -Append -FilePath $env:GITHUB_ENV', '{ echo "MADE_UP=1"; } >>"$GITHUB_ENV"', 'echo "MADE_UP=a\\"b" >>"$GITHUB_ENV"',
+    'echo "A=1" >>"$GITHUB_ENV"; echo "MADE_UP=1" >>"$GITHUB_ENV"', 'cat made-up.env >>"$GITHUB_ENV"',
+    'echo "/opt/made-up/bin" >>"$GITHUB_PATH"', "echo /opt/made-up/bin >> $GITHUB_PATH"]) {
+    assert.deepEqual(releaseVariables(workflow(run), "").unread, [run], run);
+  }
+});
+
+test("cargo's answer is read the same under the Release workflow's and the builder image's own values", { skip: process.platform === "win32" }, async () => {
+  const { workflow, image } = releaseVariables();
+  // Each value the files write, as they write it (none from a step's output), with the runner's CI
+  // and GITHUB_ACTIONS; not PATH, LD_LIBRARY_PATH or CARGO_HOME, which name this machine's folders.
+  const values = (from: Map<string, string | null>) => Object.fromEntries([...from].filter(([k, v]) => v !== null &&
+    !["PATH", "LD_LIBRARY_PATH", "CARGO_HOME", "RUSTUP_HOME", "PKG_CONFIG_PATH"].includes(k)) as [string, string][]);
+  const tree = "made-up-a v1.0.0|MIT OR Apache-2.0\nmade-up-a v1.0.0|MIT OR Apache-2.0 (*)\n";
+  await withCargo(tree, async (repo) => {
+    for (const env of [values(workflow), values(image)]) {
+      assert.ok(Object.keys(env).includes("CARGO_TERM_COLOR"), JSON.stringify(env));
+      const packages = withEnv({ ...env, CI: "true", GITHUB_ACTIONS: "true", CARGO_HOME: join(repo, "no-cargo-home") },
+        () => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo));
+      assert.deepEqual(packages.map((p) => `${p.name} ${p.version} ${p.licence}`), ["made-up-a 1.0.0 MIT OR Apache-2.0"], JSON.stringify(env));
+    }
+  });
+});
+
+test("a line of cargo's with a colour code or another control character in it stops it as one it can't read; a line ending in CR LF reads", () => {
+  for (const line of ["made-up v1.0.0|MIT \x1b[33m\x1b[2m(*)\x1b[39m\x1b[22m", "made-up v1.0.0|\x1b[1mMIT\x1b[0m", "made-up v1.0.0|MIT\x07"]) {
+    assert.throws(() => parseCargoTree(`base64 v0.23.1|MIT OR Apache-2.0\n${line}\n`), /a line this script can't read/, JSON.stringify(line));
+  }
+  assert.deepEqual(parseCargoTree("made-up v1.0.0|MIT OR Apache-2.0 (*)\r\nother v2.0.0|MIT\r\n"), [
+    { name: "made-up", version: "1.0.0", source: null, licence: "MIT OR Apache-2.0" },
+    { name: "other", version: "2.0.0", source: null, licence: "MIT" },
+  ]);
 });
 
 test("a page module's package folder, with npm's layout, pnpm's and Windows paths", () => {
@@ -722,6 +915,91 @@ test("a process the build starts stops it, unless it is one the page's build is 
   ]);
   // MyOrbiter's own config starts one, its build stamp.
   assert.match(readFileSync("vite.config.ts", "utf8"), new RegExp(`execSync\\("${PROGRAMS.myorbiter.page.commands[0]}"`));
+});
+
+// The script's processes as a build on the given system knows them: loaded in a Node of its own whose
+// process.platform is made that system's before the script is (Vite tells Windows by it too).
+const commandsOn = (system: string): Record<string, { commands: string[]; stops: Record<string, string[]> }> => {
+  const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
+  try {
+    const preload = join(dir, "made-up-system.mjs");
+    writeFileSync(preload, `Object.defineProperty(process, "platform", { value: ${JSON.stringify(system)} });\n`);
+    const run = join(dir, "made-up-run.mjs");
+    writeFileSync(run, `import { PROGRAMS, pageRecorder } from ${JSON.stringify(pathToFileURL(join(process.cwd(), "scripts", "dependency-licences.mjs")).href)};\n` +
+      "const out = {};\nfor (const [p, prog] of Object.entries(PROGRAMS)) {\n" +
+      "  const stops = {};\n" +
+      '  for (const line of ["net use", "net use x:", "net  use", "net use > out.txt", "cmd /c net use"]) {\n' +
+      '    const r = pageRecorder("/r", undefined, { tools: new Set(), commands: prog.page.commands });\n' +
+      "    r.command(line);\n    stops[line] = r.stops();\n  }\n" +
+      "  out[p] = { commands: prog.page.commands, stops };\n}\nprocess.stdout.write(JSON.stringify(out));\n");
+    return JSON.parse(execFileSync(process.execPath, ["--import", pathToFileURL(preload).href, run], { encoding: "utf8" }));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+};
+
+test("on Windows, Vite's `net use` is a process both pages' builds are known to start, by that exact line; on Linux it stops the build", () => {
+  const windows = commandsOn("win32");
+  const linux = commandsOn("linux");
+  assert.deepEqual(windows.myorbiter.commands, ["git log -1 --format=%h%x20%cs", "net use"]);
+  assert.deepEqual(windows.tennoscope.commands, ["net use"]);
+  assert.deepEqual(linux.myorbiter.commands, ["git log -1 --format=%h%x20%cs"]);
+  assert.deepEqual(linux.tennoscope.commands, []);
+  for (const p of ["myorbiter", "tennoscope"]) {
+    assert.deepEqual(windows[p].stops["net use"], [], p);
+    // Any other line stops it, on Windows too: the exact line only.
+    for (const line of ["net use x:", "net  use", "net use > out.txt", "cmd /c net use"]) {
+      assert.deepEqual(windows[p].stops[line], [`the build started a process this script doesn't know, whose reads it doesn't hear: ${line}`], `${p} ${line}`);
+    }
+    assert.deepEqual(linux[p].stops["net use"], ["the build started a process this script doesn't know, whose reads it doesn't hear: net use"], p);
+  }
+});
+
+test("`net use` is what the installed Vite starts on Windows, reading only its list of network drives, in both pages' builds", () => {
+  // The evidence the known line rests on, as installed (node_modules/vite/dist/node/chunks/node.js):
+  // an upgrade that changes it fails here, before a Release run, and the line is looked at again.
+  const vite = readFileSync("node_modules/vite/dist/node/chunks/node.js", "utf8");
+  assert.equal(vite.split('"net use"').length - 1, 1, "one net use");
+  assert.ok(vite.includes('const isWindows$1 = typeof process !== "undefined" && process.platform === "win32";\n'));
+  assert.ok(vite.includes("let safeRealpathSync = isWindows$1 ? windowsSafeRealPathSync : fs.realpathSync.native;\n"));
+  assert.ok(vite.includes([
+    "function windowsSafeRealPathSync(path) {",
+    "\tif (!firstSafeRealPathSyncRun) {",
+    "\t\toptimizeSafeRealPathSync();",
+    "\t\tfirstSafeRealPathSyncRun = true;",
+    "\t}",
+    "\treturn fs.realpathSync(path);",
+    "}",
+    "function optimizeSafeRealPathSync() {",
+    "\ttry {",
+    '\t\tfs.realpathSync.native(path.resolve("./"));',
+    "\t} catch (error) {",
+    '\t\tif (error.message.includes("EISDIR: illegal operation on a directory")) {',
+    "\t\t\tsafeRealpathSync = fs.realpathSync;",
+    "\t\t\treturn;",
+    "\t\t}",
+    "\t}",
+    '\texec("net use", { windowsHide: true }, (error, stdout) => {',
+    "\t\tif (error) return;",
+    '\t\tconst lines = stdout.split("\\n");',
+    "\t\tfor (const line of lines) {",
+    "\t\t\tconst m = parseNetUseRE.exec(line);",
+    "\t\t\tif (m) windowsNetworkMap.set(m[2], m[1]);",
+    "\t\t}",
+    "\t\tif (windowsNetworkMap.size === 0) safeRealpathSync = fs.realpathSync.native;",
+    "\t\telse safeRealpathSync = windowsMappedRealpathSync;",
+    "\t});",
+    "}",
+  ].join("\n")), "optimizeSafeRealPathSync as read");
+  // Every build reaches it: resolveConfig takes the page's root through it (neither config sets
+  // resolve.preserveSymlinks).
+  assert.ok(vite.includes("\t\tnonNormalizedResolvedRoot = safeRealpathSync(nonNormalizedResolvedRoot);\n"));
+  for (const config of ["vite.config.ts", "tennoscope/app/vite.config.ts"]) assert.doesNotMatch(readFileSync(config, "utf8"), /preserveSymlinks/, config);
+  // TennoScope's page builds with the same Vite, byte for byte: the same version and integrity in
+  // both lockfiles.
+  const npm = JSON.parse(readFileSync("package-lock.json", "utf8")).packages["node_modules/vite"];
+  const pnpm = pnpmResolutions(readFileSync("tennoscope/app/pnpm-lock.yaml", "utf8")).get(`vite@${npm.version}`);
+  assert.equal(pnpm, `{integrity: ${npm.integrity}}`);
 });
 
 test("a public folder that is a package's, or holds a link into one, is in the page", unix, async () => {
