@@ -203,7 +203,8 @@ const knownOffLine = (l) => KNOWN_OFF_LINE.some((k) => k.size === l.size && k.vi
  * "?" (side by side at its top right) whose middles are more than `slack` px apart in height; in a
  * page's band of figures, a label that takes more lines than another in the same row, and a note
  * that takes more than one line where no other note in the row does (it stretches the band for
- * every figure). Lines are counted from the text's own boxes.
+ * every figure); in Home's market figures, a label that takes more lines than another in the same
+ * row. Lines are counted from the text's own boxes.
  */
 function findOffLine(slack) {
   const bad = [];
@@ -243,6 +244,23 @@ function findOffLine(slack) {
       const m = notes.map(linesOf);
       const longest = notes.filter((_, i) => m[i] > 1);
       if (longest.length === 1) bad.push(`the band's note "${longest[0].textContent.trim().slice(0, 60)}" takes ${Math.max(...m)} lines where every other note beside it takes one`);
+    }
+  }
+  // Home's market figures (Your orders): a row of figures, each with its label under it.
+  for (const figs of document.querySelectorAll('[data-card="market"] .figs')) {
+    if (!shown(figs)) continue;
+    const rows = new Map();
+    for (const fig of figs.children) {
+      if (!shown(fig)) continue;
+      const top = Math.round(fig.getBoundingClientRect().top);
+      rows.set(top, [...(rows.get(top) ?? []), fig]);
+    }
+    for (const row of rows.values()) {
+      if (row.length < 2) continue;
+      const labels = row.map((f) => f.querySelector(":scope > .register")).filter(shown);
+      const n = labels.map(linesOf);
+      const least = Math.min(...n);
+      labels.forEach((l, i) => n[i] > least && bad.push(`the figure's label "${l.textContent.trim()}" takes ${n[i]} lines where another beside it takes ${least}`));
     }
   }
   return bad;
