@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings } from "../src/lib/backend";
+import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings, whenQuitting } from "../src/lib/backend";
 import type { CatalogPart, CollectionPart } from "../src/lib/core/types";
 
 test("quitting saves a change made in the last 300 ms", async () => {
@@ -19,6 +19,33 @@ test("quitting saves a change made in the last 300 ms", async () => {
   assert.equal(built, 1, "put together once for the burst");
   await flushSettings();
   assert.equal(built, 1, "nothing left to save");
+});
+
+test("one waiting removal that fails at quit stops neither the others, the save nor the quit", async () => {
+  const stored: Record<string, string> = {};
+  (globalThis as { localStorage?: unknown }).localStorage = { setItem: (k: string, v: string) => (stored[k] = v) };
+  const s = defaultSettings();
+  s.tab = "stats";
+  saveSettings(() => s);
+  let made = 0;
+  const said: unknown[][] = [];
+  const realError = console.error;
+  console.error = (...args: unknown[]) => void said.push(args);
+  const stops = [
+    whenQuitting(() => {
+      throw new Error("example failure");
+    }),
+    whenQuitting(() => void made++),
+  ];
+  try {
+    await quit();
+  } finally {
+    console.error = realError;
+    for (const stop of stops) stop();
+  }
+  assert.equal(made, 1, "the other waiting removal is made");
+  assert.equal(JSON.parse(stored["orbiter-settings"]).tab, "stats", "and the settings saved");
+  assert.equal(said.length, 1, "the failure is said once in the log");
 });
 
 test("an unreachable worldstate is an error, so the last one read stays on screen", async () => {

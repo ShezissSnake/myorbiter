@@ -1691,9 +1691,16 @@ export function whenQuitting(f: () => void): () => void {
 /** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
 export async function quit() {
   // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
-  // made, and the page's save effects are given a turn to take it (persist.svelte.ts).
+  // made, and the page's save effects are given a turn to take it (persist.svelte.ts). One that
+  // fails is logged and stops neither the others, the save nor the quit.
   if (beforeQuit.size) {
-    for (const f of [...beforeQuit]) f();
+    for (const f of [...beforeQuit]) {
+      try {
+        f();
+      } catch (e) {
+        console.error("a waiting removal failed at quit", e);
+      }
+    }
     await new Promise((r) => setTimeout(r, 0));
   }
   // A change from the last 300 ms would otherwise be lost.
