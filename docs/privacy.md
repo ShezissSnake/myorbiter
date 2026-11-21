@@ -118,7 +118,7 @@ the start of the game session; each one after takes only what the game added. On
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
 included) under each library's Proton prefix for Warframe, takes only a log your user owns (one
 another user on the PC owns is passed over, and MyOrbiter's log says so in a line), and looks again
-every minute; on Windows
+every minute, whether it found one or not; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
 else).
 

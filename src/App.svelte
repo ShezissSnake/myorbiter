@@ -11,6 +11,7 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { dealsScanDue, watchlist } from "./lib/core/deals";
+  import { cardsPollDue } from "./lib/core/cardsPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -730,7 +731,7 @@
   const pollCards = () => timing.tick("overlay files", pollCardsNow);
   async function pollCardsNow() {
     clock = Date.now();
-    if (cardsPolling || (gameIdle() && clock - lastCardsPoll < 5_000)) return;
+    if (!cardsPollDue({ now: clock, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report })) return;
     lastCardsPoll = clock;
     cardsPolling = true;
     try {

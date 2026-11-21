@@ -73,6 +73,30 @@ pub fn read_cards_in(dir: &Path) -> Option<ScreenCards> {
     serde_json::from_str(&text).ok()
 }
 
+/// The card file as last read: its size and time, and what it held.
+#[derive(Default)]
+pub struct CardsKept {
+    stamp: Option<(u64, std::time::SystemTime)>,
+    cards: Option<ScreenCards>,
+}
+
+/// The cards in `dir`: read with `read` (`read_cards_in`) only when the file's size or time changed
+/// since the last read, else the cards that read gave. A file that can't be parsed (TennoScope
+/// part way through a write) isn't kept, so the next poll reads it again.
+pub fn read_cards_kept(dir: &Path, kept: &mut CardsKept, read: impl FnOnce(&Path) -> Option<ScreenCards>) -> Option<ScreenCards> {
+    let stamp = fs::metadata(dir.join(CARDS_FILE)).ok().and_then(|m| Some((m.len(), m.modified().ok()?)));
+    let Some(stamp) = stamp else {
+        *kept = CardsKept::default();
+        return None;
+    };
+    if kept.stamp == Some(stamp) {
+        return kept.cards.clone();
+    }
+    let cards = read(dir);
+    *kept = CardsKept { stamp: cards.is_some().then_some(stamp), cards: cards.clone() };
+    cards
+}
+
 /// Written whole and renamed into place, so TennoScope never reads half a file. Each write has a
 /// temp file of its own: two picks written at once mustn't share (and fail on) one.
 pub fn write_pick_in(dir: &Path, pick: &Value) -> Result<(), String> {
@@ -182,6 +206,41 @@ mod tests {
         assert_eq!(read_cards_in(&dir), None);
         write_pick_in(&dir, &serde_json::json!({"best": 1})).unwrap();
         assert_eq!(fs::read_to_string(dir.join(PICK_FILE)).unwrap(), r#"{"best":1}"#);
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The card file is asked for every 0.8 s; it is read (and parsed) only when its size or time
+    /// changed since the last read. Counted with the reader.
+    #[test]
+    fn the_card_file_is_read_again_only_when_it_changed() {
+        let dir = std::env::temp_dir().join(format!("myorbiter-cards-kept-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let mut kept = CardsKept::default();
+        let mut reads = 0;
+        let mut poll = |kept: &mut CardsKept| read_cards_kept(&dir, kept, |d| { reads += 1; read_cards_in(d) });
+        assert_eq!(poll(&mut kept), None, "no file: nothing");
+        fs::write(dir.join(CARDS_FILE), r#"{"at": 5, "cards": ["Rhino Prime Systems"]}"#).unwrap();
+        let first = poll(&mut kept);
+        assert_eq!(first.as_ref().map(|c| c.at), Some(5));
+        assert_eq!(poll(&mut kept), first, "the same file: the cards kept");
+        assert_eq!(poll(&mut kept), first);
+        drop(poll);
+        assert_eq!(reads, 1, "three polls of the same file read it once (the poll before it existed found no file)");
+
+        // A new screen: another size, so it is read.
+        let mut reads = 0;
+        fs::write(dir.join(CARDS_FILE), r#"{"at": 6, "cards": ["Rhino Prime Systems", "Forma Blueprint"]}"#).unwrap();
+        let next = read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) });
+        assert_eq!((reads, next.map(|c| c.at)), (1, Some(6)));
+        // A file that can't be parsed (half written) isn't kept: the next poll reads it again.
+        let mut reads = 0;
+        fs::write(dir.join(CARDS_FILE), "{not json").unwrap();
+        assert_eq!(read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) }), None);
+        assert_eq!(read_cards_kept(&dir, &mut kept, |d| { reads += 1; read_cards_in(d) }), None);
+        assert_eq!(reads, 2);
+        // Gone: nothing, and nothing kept.
+        fs::remove_file(dir.join(CARDS_FILE)).unwrap();
+        assert_eq!(read_cards_kept(&dir, &mut kept, read_cards_in), None);
         fs::remove_dir_all(&dir).unwrap();
     }
 
