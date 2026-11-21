@@ -220,8 +220,8 @@ export interface FloorRule {
   capByAsks?: boolean;
   /**
    * Repricing a listing (core/drift.ts): the target ignores bait (the second-lowest seller online
-   * or in game), and a change smaller than the dead band isn't one. Off for new listings, which
-   * start at the cheapest in game.
+   * or in game; a raise goes no higher than the cheapest), and a change smaller than the dead
+   * band isn't one. Off for new listings, which start at the cheapest in game.
    */
   drift?: boolean;
 }

@@ -297,17 +297,17 @@ const SETTINGS_TRADES: Walkthrough = {
       },
     },
     {
-      title: "Automatic repricing",
+      title: "Apply automatically",
       lines: [
-        "Change my prices by itself (off to start): also sends them; Apply automatically on Orders.",
-        "It follows the second-cheapest seller online or in game, past a 2p and 5% gap.",
+        "Change my prices by itself (Apply automatically, off to start): sends them; on Orders too.",
+        "Lowers to the second-cheapest seller, raises no higher than the cheapest, beyond a 2p/5% gap.",
         "Hourly at most, six a day per listing; a floor lift waits for neither.",
         `Never lowered under ${Math.round(AUTO_FLOOR_SHARE * 100)}% of the price you set or approved, nor your floors.`,
       ],
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${TRADES} ${sw("settings.auto-reprice")}`,
+        part: `${TRADES} ${sw("settings.auto-reprice")} .label, ${TRADES} ${sw("settings.auto-reprice")} .track`,
         marks: [{ at: `${TRADES} ${sw("settings.auto-reprice")} .track`, is: "arrow", from: "left" }],
       },
     },
@@ -389,7 +389,7 @@ const NOTICES: Walkthrough = {
       title: "Choose which kinds you get",
       lines: [
         "Kinds come in groups: Trading, World, Fissures, Your account.",
-        "A switch for each kind: off, it's dropped, not even kept in Recent.",
+        "A switch for each kind: off, it's dropped, even from Recent; only setup's switch-off notice isn't.",
         "Recent only: kept in Recent without popping up.",
         "All off or All on: a whole group at once.",
       ],

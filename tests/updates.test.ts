@@ -238,12 +238,12 @@ test("an unsettled new install says so: the version line names no channel, and S
   assert.equal(sanitizeUpdates({ picked: false }).picked, false, "only an unsettled new install saves false");
 });
 
-test("a new install, as the settings load it: whenever no settings object was read, but for a file that couldn't be read", () => {
-  // The new-install rule settles the channel after a damaged file too (the maintainer, 2026-11-12):
-  // only a file that couldn't be read at all, which is never saved over, keeps Stable as shown.
-  // Run against a stand-in app in tests/damagedSettings.test.ts.
+test("a new install, as the settings load it: whenever no settings object was read", () => {
+  // The new-install rule settles the channel after a damaged file too (the maintainer, 2026-11-12),
+  // and after a file that couldn't be read at all (2026-11-20), which is still never saved over.
+  // Run against a stand-in app in tests/damagedSettings.test.ts and tests/unreadableSettings.test.ts.
   const src = readFileSync(new URL("../src/lib/backend.ts", import.meta.url), "utf8");
-  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : loadFailed == null \? newInstallUpdates\(\) : defaultUpdates\(\)/, "saved settings are sanitized as before");
+  assert.match(src, /updates: raw \? sanitizeUpdates\(raw\.updates\) : newInstallUpdates\(\),/, "saved settings are sanitized as before");
   // No file at all, said by the desktop app, or nothing in the browser's storage.
   assert.match(src, /fresh = loaded\.fresh === true;/);
   assert.match(src, /fresh = saved == null;/);

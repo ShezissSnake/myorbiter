@@ -9,7 +9,7 @@
   import type { DucatOptions } from "../core/advice";
   import { relicCrackFor } from "../core/spares";
   import { catOfItem, minimumForItem, neverHeld, neverNames, neverWhy, sellAgainTakes } from "../core/bulk";
-  import { KEEP_UNCHECKED_WARNING, keepUnchecked } from "../core/listGuard";
+  import { KEEP_UNCHECKED_WARNING, formRoom, keepUnchecked, spareLine, tooManyLine } from "../core/listGuard";
   import { mkt } from "../marketStore.svelte";
   import { proxy } from "../proxy.svelte";
   import { MAX_PLAT, MAX_QTY, amountProblem, shown, wholeIn } from "../core/amounts";
@@ -68,7 +68,10 @@
   });
   /** Copies already on your listing count against what you can spare. */
   const merging = $derived(!!existing && !!d?.addToExisting);
-  const room = $derived(d?.available == null ? null : Math.max(0, d.available - (merging && existing ? existing.quantity : 0)));
+  /** The last check's own count (spareNow): what's free to go up, what's listed of it, what other listings took. */
+  const now = $derived(d && item ? mkt.spareNow(model, item, d.rank, d.subtype) : null);
+  /** Never more than the last check lets go, added to your listing or listed on its own. */
+  const room = $derived(d?.available == null ? null : formRoom(d.available, merging, existing?.quantity ?? null, now));
   const tooMany = $derived(room != null && !!d && d.quantity > room);
   /** More than you hold at this rank / variant (counting what's listed already): that can't be delivered. */
   const heldHere = $derived.by(() => {
@@ -144,7 +147,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={() => mkt.closeDraft()}>
+  <div class="scrim" use:scrim={() => mkt.closeDraft()} in:shade|global out:shade|global>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Sell on warframe.market" use:trap={{ onescape: () => mkt.closeDraft() }} onclick={(e) => e.stopPropagation()}>
       <div class="register head"><span>Sell on warframe.market</span><HelpMark part="sell" /></div>
@@ -213,13 +216,13 @@
               <span class="dim">Nobody is selling this in game right now: set the price yourself.</span>
             {/if}
             {#if median != null}<span class="dim">Daily median <P v={median} dim /></span>{/if}
-            {#if d.available != null}<span class="dim spare">You can spare {d.available}{d.spareWhy ?? ""}</span>{/if}
+            {#if d.available != null}<span class="dim spare">{spareLine(d.available, d.spareWhy ?? null, merging, now)}</span>{/if}
           </div>
 
           {#if badNumber}<p class="err small">{badNumber}</p>
           {:else if noneHere}<p class="err small">You hold none at this {d.maxRank != null ? "rank" : "variant"}: pick one you have.</p>
           {:else if oversell}<p class="err small">You hold {heldHere} at this {d.maxRank != null ? "rank" : "variant"}{merging && existing ? `, ${existing.quantity} listed already` : ""}: you can't list more than that.</p>
-          {:else if tooMany}<p class="warn small">{merging && existing ? `You can spare ${d.available} and ${existing.quantity} are listed already, so ${room} more at most.` : `That's more than the ${d.available} you can spare; the rest are copies MyOrbiter keeps back for you.`}</p>{/if}
+          {:else if tooMany && d.available != null && room != null}<p class="warn small">{tooManyLine({ available: d.available, room, quantity: d.quantity, merging, existingQty: existing?.quantity ?? null, now })}</p>{/if}
           {#if repriceOnly && existing}<p class="small dim">{room === 0 ? `All you can spare is listed already (${existing.quantity} at ${existing.platinum}p).` : room != null ? `No copies added (you could add ${room} more).` : "No copies added."} This only changes the price{hiddenListing ? ": the listing stays hidden" : ""}.</p>
           {:else if hiddenListing}<p class="small dim">Your listing is hidden, and stays hidden with these added: show it on Orders when buyers should see it.</p>{/if}
           {#if underMinimum}<p class="err small">Under your {minimum}p {minimumWords} (Sell spares): MyOrbiter never lists under it. <button type="button" class="link" title="Ask {minimum}p, the minimum" onclick={() => { if (d && minimum != null) d.platinum = minimum; }}>Ask {minimum}p</button></p>
@@ -242,7 +245,7 @@
           {/if}
           {#if mkt.draftError && !bookFailed}<p class="err small">{mkt.draftError}</p>{/if}
 
-          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) keeps it at the market price: the second-cheapest seller online or in game.</p>{/if}
+          {#if !merging}<p class="dim small foot">It joins your Orders, where Reprice (or Apply automatically) follows the market price: down to the second-cheapest seller online or in game, and a raise goes no higher than the cheapest.</p>{/if}
           <div class="row end">
             <button onclick={() => mkt.closeDraft()}>Cancel</button>
             <ProgressButton tone="gold" busy={mkt.op === "Listing"} label={repriceOnly ? (d.platinum ? `Set price to ${d.platinum}p` : "Set the price") : `${merging ? "Add" : "Sell"} ${shown(d.quantity)}${d.platinum ? ` at ${d.platinum}p` : ""}`} working={repriceOnly ? "Setting…" : merging ? "Adding…" : "Listing…"}

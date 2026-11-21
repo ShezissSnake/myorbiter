@@ -3,7 +3,8 @@
 // of the price you last set), so a listing that sits on a floor never changes by itself:
 //
 // - The target ignores bait: the second-lowest price among sellers who are online or in game
-//   (one order each), never the single lowest. With three or more sellers that is the median of
+//   (one order each), never the single lowest. A raise goes no higher than the cheapest seller
+//   (core/market.ts). With three or more sellers that is the median of
 //   the three lowest; with one seller there is no target and the price stays.
 // - A dead band: no change unless the gap from the listing's price to the target is more than
 //   the larger of 2 platinum and 5% of the listing's price.
@@ -43,7 +44,7 @@ export const BAND_WORDS = `${DRIFT.bandPlat}p or ${Math.round(DRIFT.bandShare * 
 
 /** The plain sentence Settings, Orders and the Guide show. */
 export const DRIFT_RULES =
-  `A price changes only when it has drifted more than ${BAND_WORDS} from the second-cheapest seller online or in game, or sits under a listing's own floor or your minimum, ` +
+  `A price changes only when it has drifted more than ${BAND_WORDS} from where Reprice would set it (down to the second-cheapest seller online or in game, up no higher than the cheapest), or sits under a listing's own floor or your minimum, ` +
   `at most once ${every(DRIFT.cooldownMs)} and ${DRIFT.perDay} times a day per listing (a raise up to such a floor waits for neither)`;
 /** The same rule as a clause, to follow "it changes a price only when it has drifted". */
 export const DRIFT_CLAUSE = DRIFT_RULES.replace(/^A price changes only when it has drifted /, "");

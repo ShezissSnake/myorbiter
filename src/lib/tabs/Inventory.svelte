@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import HelpMark from "../ui/HelpMark.svelte";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
@@ -40,6 +42,8 @@
   import Kind from "../ui/Kind.svelte";
 
   let { model, sell, platPerDucat = 0, squad = 1, gear = null, keepGear = $bindable([]) }: { model: Model; sell: SellChoices; platPerDucat?: number; squad?: number; gear?: GearCopy[] | null; keepGear?: string[] } = $props();
+  /** Full mode is off and nothing was read: the empty texts say so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
   // Gear you no longer need and can't trade (core/notNeeded.ts), shown above the list when asked.
   let letGo = $state(false);
   const unneeded = $derived.by(whileShown("inventory", () => notNeeded(model, gear, new Set(keepGear))));
@@ -288,7 +292,7 @@
         items={exhibits}
         caption={shelf.mode === "empty" ? (kind === "all" ? "Your inventory" : `Your ${KIND_LABEL}`) : shelf.mode === "held" ? (kind === "all" ? "Nothing spare: your dearest" : `No spare ${KIND_LABEL}: your dearest`) : kind === "all" ? "Your most valuable spares" : `Your most valuable spare ${KIND_LABEL}`}
         note={shelf.mode === "empty" ? "" : shelf.mode === "held" ? (kind === "gear" ? "By what its set sells for · click one for its details" : "Each, at the daily median · click one for its details") : "By what they'd sell for (Spare value) · click one for its details"}
-        empty={all.length ? `Nothing here with a market price: ${KIND_LABEL} that trade on warframe.market go on display.` : "Nothing read yet: press Sync while Warframe is running, and your gear goes on display here."}
+        empty={all.length ? `Nothing here with a market price: ${KIND_LABEL} that trade on warframe.market go on display.` : emptyText("Nothing read yet: press Sync while Warframe is running, and your gear goes on display here.", offFull)}
       />
     {/snippet}
     {#snippet band()}
@@ -326,7 +330,7 @@
 
   {#if letGo}<div class="reveal" transition:reveal><div><NotNeeded {model} out={unneeded} incarnons={!!gear} bind:keep={keepGear} /></div></div>{/if}
 
-  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={kindLine} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty="Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here." />
+  <Browse {filters} id="inventory" bind:opened {rows} {columns} key={(r) => r.key} bind:sort {detail} {card} title={(r) => shown(r)} kicker={kindLine} onopen={(r) => (r.kind === "gear" && r.levels && model.catalogByUnique.has(r.unique) ? details.open(r.unique) : null)} min="16rem" clear={filtered ? clear : null} empty={emptyText("Nothing in your inventory yet: press Sync while Warframe is running, and everything you own goes on display here.", offFull)} />
 </div></div>
 
 <style>

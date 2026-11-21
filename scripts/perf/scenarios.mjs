@@ -98,9 +98,9 @@ export const SCENARIOS = {
     async run(s) {
       await s.measure(nav("Orders"));
       await s.measure("void 0", { quiet: 1500, max: 4000 });
-      const listings = await s.eval(`document.querySelectorAll('.pane.shown input[aria-label="Your price"]').length`);
+      const listings = await s.eval(`document.querySelectorAll('.pane.shown input[aria-label^="Your price"]').length`);
       const typing = [];
-      const field = `document.querySelectorAll('.pane.shown input[aria-label="Your price"]')[1]`;
+      const field = `document.querySelectorAll('.pane.shown input[aria-label^="Your price"]')[1]`;
       await s.eval(`(${field}).focus(), (${field}).value = ''`);
       for (const ch of "123") {
         typing.push(await s.measure(`{const f=${field}; f.value += ${J(ch)}; f.dispatchEvent(new InputEvent('input', {bubbles: true, data: ${J(ch)}, inputType: 'insertText'}));}`, { quiet: 300 }));

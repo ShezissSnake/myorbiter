@@ -142,6 +142,7 @@
   import MoreMenu, { type MoreItem } from "./lib/ui/MoreMenu.svelte";
   import { checkDue } from "./lib/core/schedule";
   import { syncIdleWord, type SyncEnd } from "./lib/core/syncWord";
+  import { fullModeOff, FULL_MODE_OFF, SYNC_FULL_MODE_OFF, SYNC_READS_NOW } from "./lib/core/fullModeOff";
   import IconButton from "./lib/ui/IconButton.svelte";
   import ProgressButton from "./lib/ui/ProgressButton.svelte";
   import { Job, JobError } from "./lib/job.svelte";
@@ -166,8 +167,9 @@
   import { timing } from "./lib/timing";
   import BugReport from "./lib/ui/BugReport.svelte";
   import FirstRun from "./lib/FirstRun.svelte";
+  import { gameStepTitle } from "./lib/core/firstStart";
   import { firstStart, gameLine, inventoryLine, logLine as firstStartLine, tryAgain, type Action, type Signs } from "./lib/core/firstStart";
-  import { carryOnEmpty, dataMissing, leaveSetup, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
+  import { carryOnEmpty, dataMissing, leaveSetup, leftSetupNotice, missingWords, movedAsideWords, notReadYet, saveTroubleWords, stillWithout, systemOf, type SaveTrouble } from "./lib/core/gettingIn";
   import { takeAccountFacts } from "./lib/core/tsReport";
   import { bugReport, setReportChannel } from "./lib/bugReport.svelte";
   import { homeNames, type RedactOptions } from "./lib/core/redact";
@@ -574,6 +576,20 @@
     Object.assign(settings.market, next);
     logLine("info", "setup", `first start: ${how === "overlay" ? "overlay only" : "finished later"} at "${setup.stage}"${off.length ? `; switched off: ${off.join(", ")}` : ""}`);
     withoutInventory();
+    tellSwitchedOff(how, off);
+  }
+  /**
+   * Says once which automatic actions leaving the setup page switched off (nothing when none was
+   * on): kept under the bell's Recent and popped up as notifications are (`popUp`), under Listing
+   * problems, the kind whose page has the switches. Not through `tell`: it says this whatever
+   * that kind's switch, and it never goes to Discord. Leaving builds a collection, whose world
+   * notices then come in a burst: its pop-up stays out of their "N more" fold.
+   */
+  function tellSwitchedOff(how: "later" | "overlay", off: string[]) {
+    const words = leftSetupNotice(how, off);
+    if (!words) return;
+    settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
+    void popUp(settings.game.notices[0], "market", { keepOut: true });
   }
   /** This start began with the first start's question: a new install's first run. */
   let firstStartRun = false;
@@ -858,15 +874,16 @@
    * for the Settings test, which has no entry). `toast`, `desktop`: false when this call isn't to
    * show it in that place (a repricing pass keeps its pop-up up to date as it grows but only sends
    * the total once it ends); a send that isn't made notes nothing. `note`: false to leave what became
-   * of it unwritten for now. Resolves to what it noted, or null.
+   * of it unwritten for now. `keepOut`: its pop-up inside MyOrbiter isn't folded into "N more" by
+   * the notices that follow it (toasts.svelte.ts). Resolves to what it noted, or null.
    */
-  async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean } = {}): Promise<NoticeOutcome | null> {
+  async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean; keepOut?: boolean } = {}): Promise<NoticeOutcome | null> {
     const route = routeOf(popupFacts(gate));
     let outcome: NoticeOutcome | null = route;
     if (route.how === "app") {
       // Not shown by this call (a repricing pass that settled after its pop-up went): nothing to note.
       if (o.toast === false) outcome = null;
-      else toasts.push(n);
+      else toasts.push(n, o.keepOut);
     } else if (route.how === "desktop") {
       if (o.desktop === false) outcome = null;
       else {
@@ -1840,7 +1857,7 @@
       const names = untold.map((h) => mkt.item(mkt.orders.find((o) => o.id === h.id)?.itemId ?? "")?.name ?? "a listing");
       const one = names.length === 1;
       const list = `${names.slice(0, 4).join(", ")}${names.length > 4 ? ` and ${names.length - 4} more` : ""}`;
-      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. With Full access while Warframe runs, Sync asks TennoScope for a read now. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
+      mkt.note(`Still hidden: ${list}. ${one ? "It comes back only if an inventory read newer than the whisper still has the copy" : "Each comes back only if an inventory read newer than the whisper still has its copy"}. ${SYNC_READS_NOW}. To show ${one ? "it" : "one"} sooner, use ${one ? "its" : "the listing's"} Shown switch on Orders (never-sell and the minimum still count, and the copies you can spare when your inventory has been read)`, "info");
     }
     if (!show.length) {
       if (keep.length !== lc.hidden.length) settings.market.lastCopy.hidden = keep;
@@ -2262,6 +2279,8 @@
   const syncJob = new Job(undefined, 15_000);
   let syncButton = $state<{ flash: () => void } | null>(null);
   const syncMode = $derived(!onConsole && ts.report?.setup.access_mode === "full" && !!ts.report.game_running);
+  /** Full mode is off and no inventory was read: no sync can bring one, and Sync says so. */
+  const syncFullModeOff = $derived(!onConsole && fullModeOff(mkt.fullMode, noInventory));
   /** The sync's step in words, for the button's tooltip (the button itself has a word for it). */
   let syncStep = $state<string | null>(null);
   /** How the last sync ended, for its word between syncs (`syncIdleWord`). */
@@ -2334,7 +2353,7 @@
           world.done();
         }
         if (error) throw new JobError("Not read", loadProblem(error));
-        return "Up to date";
+        return syncFullModeOff ? SYNC_FULL_MODE_OFF : "Up to date";
       } finally {
         syncStep = null;
       }
@@ -3021,7 +3040,7 @@
         <!-- State is a diamond: filled, a fissure under way; hollow, automatic repricing on. A count is a neutral tag. -->
         {#if p.id === "mission" && inFissure(mission, tick, live.fissures)}<span class="live" title="Fissure in progress"></span>{/if}
         {#if p.id === "market" && shortListings.length}<span class="badge count-tag" title="Listings for more than you hold: sold, or used in game">{shortListings.length}</span>{/if}
-        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (the second-cheapest seller online or in game)"></span>{/if}
+        {#if p.id === "market" && settings.market.auto && mkt.linked && !shortListings.length}<span class="live dim" title="Apply automatically is on: your listings follow the market price (down to the second-cheapest seller online or in game; a raise goes no higher than the cheapest)"></span>{/if}
       </button>
     {/snippet}
 
@@ -3061,8 +3080,8 @@
         <HelpMark part="rail.foot" corner />
       </div>
       <div class="tools" class:grid={!compact}>
-      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle)} sizer={["Waiting…", "Up to date", "Not synced"]}
-        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope on Full access, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
+      <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle, syncFullModeOff)} sizer={["Waiting…", "Up to date", "Not synced", SYNC_FULL_MODE_OFF]}
+        title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope in Full mode, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
       <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {#if compact}
@@ -3113,11 +3132,11 @@
           <p class="prose">MyOrbiter learns what you own from TennoScope, which reads it from the game. {onConsole ? `TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}` : "TennoScope doesn't run on macOS"}, so MyOrbiter can't see your inventory here. Your warframe.market listings and sales, fissures, Baro and Varzia, the world's clocks and the riven finder all work without it.</p>
           <div class="row"><button class="stamp gold" onclick={withoutInventory}>Continue without inventory</button></div>
         {:else}
-          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them.</p>
+          <p class="prose">MyOrbiter learns what you own from TennoScope, which {ts.status?.bundled ? "comes inside MyOrbiter and " : ""}reads it from the game. Three steps, once; you can finish later at any of them. Meanwhile the sidebar waits: its pages open once you're set up, or after Finish later.</p>
           {@const order = ["start", "access", "game", "inventory", "done"]}
           {@const at = order.indexOf(setup.step === "inventory" ? "game" : setup.step)}
           <ol class="steps">
-            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: "Start Warframe and sign in" }] as st, i (st.id)}
+            {#each [{ id: "start", title: "TennoScope runs" }, { id: "access", title: "Choose whether it reads your inventory" }, { id: "game", title: gameStepTitle(setup) }] as st, i (st.id)}
               <li class:done={at > i} class:now={at === i} data-step={st.id}>
                 <strong>{st.title}</strong>
                 {#if at === i}
@@ -3131,6 +3150,7 @@
                       {#each setup.actions.filter((a) => !(st.id === "access" && a === "full" && !setup.waitingFor)) as a (a)}
                         <button data-field={`setup.${a}`} class:stamp={a === "retry"} onclick={() => setupAct(a)} disabled={a === "full" && !ts.running}>{a === "retry" ? "Try again" : a === "full" ? "Read my inventory (Full mode)" : a === "overlay" ? "Not now: overlay only" : "Settings"}</button>
                       {/each}
+                      {#if setup.actions.includes("retry")}<button data-field="setup.bug" onclick={() => bugReport.show()}>Report a bug</button>{/if}
                     </div>
                   {/if}
                 {:else if at > i}
@@ -3140,7 +3160,7 @@
             {/each}
           </ol>
           <div class="row">
-            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions stay off. (Esc)" onclick={() => finishLater()}>Finish later</button>
+            <button data-field="setup.later" title="Use MyOrbiter without your inventory for now: it fills in as soon as TennoScope reads it. Automatic actions go off; a notification names those that were on. (Esc)" onclick={() => finishLater()}>Finish later</button>
             <button onclick={() => (showSettings = true)}>Settings</button>
           </div>
         {/if}
@@ -3176,7 +3196,7 @@
     {:else}
       {#if noInventory && !onConsole}
         <div class="stale" role="status">
-          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
+          <span>{onConsole ? `No inventory: TennoScope only reads Warframe on a PC, and you play on ${PLATFORM_LABEL[settings.market.platform]}. Listings, prices and sales use the ${PLATFORM_LABEL[settings.market.platform]} market.` : tsUnsupported ? "No inventory: TennoScope, which reads it from the game, doesn't run on macOS." : fullModeOff(mkt.fullMode, true) ? FULL_MODE_OFF : "No inventory yet: your collection fills in as soon as TennoScope reads it from the game."}</span>
           {#if !noTennoScope}<button class="link" onclick={() => (showTennoscope = true)}>Set up</button>{/if}
         </div>
       {/if}
@@ -3224,7 +3244,7 @@
       {#snippet pMods()}{#await loadMods(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("mods", e)}><Page model={modelFor("mods")} masteryRank={settings.game.masteryRank} minPlat={settings.advice.minPlat} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pRelics()}{#await loadRelics(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("relics", e)}><Page model={modelFor("relics")} bind:advice={settings.advice} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pPlanner()}{#await loadPlanner(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("planner", e)}><Page model={modelFor("planner")} bind:settings={settings.advice} bind:mode={settings.plannerMode} fissures={live.fissures} wishlist={settings.favourites} masteryRank={settings.game.masteryRank} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
-      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} />{/snippet}
+      {#snippet pHome()}<Home model={modelFor("home")} {live} {mission} console={onConsole} reveal={homeReveal} bind:settings={settings} go={(t: string) => goTo(t)} {shortListings} {liveAt} {liveError} {liveRead} bountyTables={relicTables?.bounties ?? null} sortieRewards={relicTables?.sortie ?? null} setUpTennoscope={!noTennoScope && !ts.running ? () => (showTennoscope = true) : null} />{/snippet}
       {#snippet pSales()}{#await loadSales(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("sales", e)}><Page model={modelFor("sales")} bind:settings={settings} go={(t: string) => (settings.tab = t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pSpares()}{#await loadSpares(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("spares", e)}><Page model={modelFor("spares")} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} credits={settings.game.credits} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
       {#snippet pMarket()}{#await loadOrders(lazyTry)}<p class="lazyload register" role="status">Loading…</p>{:then { default: Page }}<svelte:boundary failed={pageFailed} onerror={(e) => pageError("market", e)}><Page model={modelFor("market")} console={onConsole} whispers={mission?.whispers ?? []} bind:settings={settings.market} advice={settings.advice} masteryRank={settings.game.masteryRank} go={(t: string) => goTo(t)} /></svelte:boundary>{:catch}<p class="lazyfail dim">This page didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/await}{/snippet}
@@ -3463,8 +3483,8 @@
   .tools.grid { grid-template-columns: repeat(4, minmax(40px, 1fr)); }
   .tools.grid :global(.tool) { justify-content: center; padding: 0; height: var(--row); }
   .tools.grid :global(.tool .lbls), .tools.grid :global(.tool .lbl) { display: none; }
-  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Not synced") reads beside its
-     picture without pointing at it; its name is the picture and the tooltip. */
+  /* Sync takes two cells, so its state ("Waiting…", "Up to date", "Full mode off", "Not synced")
+     reads beside its picture without pointing at it; its name is the picture and the tooltip. */
   .tools.grid > :global(.sync) { grid-column: span 2; justify-content: flex-start; gap: 4px; padding: 0 0 0 6px; }
   .tools.grid :global(.sync .lbls.aside) { display: inline-grid; margin-left: 0; }
   /* Two cells are narrow for the register's capitals: the state in plain words there. */
@@ -3495,7 +3515,7 @@
   .foot :global(.tool.on) { color: var(--platinum); border-color: var(--rule-control); background: rgb(255 255 255 / 7%); box-shadow: inset 2px 0 0 var(--platinum); }
   .foot :global(.tool.on .ti) { opacity: 1; }
   .foot :global(.tool .lbl) { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Sync's state word at the far end, small: Reading…, Up to date, Not synced. */
+  /* Sync's state word at the far end, small: Reading…, Up to date, Full mode off, Not synced. */
   .foot :global(.sync .lbls.aside) { margin-left: auto; font-family: var(--face-register); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--platinum-deep); }
   .foot :global(.sync.done .lbls.aside) { color: var(--verdigris); }
   .foot :global(.sync.failed .lbls.aside) { color: var(--oxblood); }

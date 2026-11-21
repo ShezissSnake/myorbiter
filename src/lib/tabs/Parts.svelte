@@ -19,6 +19,8 @@
   import { decide, ducatBuys } from "../core/advice";
   import type { AdviceSettings } from "../backend";
   import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
   import { until } from "../core/traders";
@@ -40,6 +42,8 @@
   // The ducat rate and smallest sale worth a trade are yours to set here; the bulk sale uses them too.
   // Sell spares: whether loose parts wait for a set worth more whole.
   let { model, advice = $bindable(), sell }: { model: Model; advice: AdviceSettings; sell: SellChoices } = $props();
+  /** Full mode is off and nothing was read: the empty text says so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
 
   let query = $state("");
 
@@ -237,7 +241,7 @@
 <div class="page"><div class="page-inner">
   <PageHead help={{ band: "parts.band", hero: "parts.showcase" }} title="Prime parts" brief="Each prime part's best use." blurb="Every prime part you hold and its best use: keep, save for its set, sell, sell as a set, or trade to Baro.">
     {#snippet hero()}
-      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No prime parts yet: they turn up here from your relics once MyOrbiter has read your inventory (press Sync)." />
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing to sell: your dearest parts" : "Your most valuable parts to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty={emptyText("No prime parts yet: they turn up here from your relics once MyOrbiter has read your inventory (press Sync).", offFull)} />
     {/snippet}
     {#snippet band()}
       <Stat label="Worth selling" note={`${plural(selling.reduce((n, x) => n + x.copies, 0), "part")} · daily median, no more of each than sells in a month`} title="Worth selling: your spare parts best sold for platinum (Best as Sell), at the daily median, no more of each than the market sells in a month. Parts that go out inside a whole set are left out (sell the set, on Sets), as are the ones better traded to Baro for ducats or not worth a trade. Counted the same way on Mods, Arcanes and Home"><PTick v={asPlat} /></Stat>

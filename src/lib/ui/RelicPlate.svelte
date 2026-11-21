@@ -5,7 +5,7 @@
   // page to it (Relics); without it the eras are a summary only.
   import type { Model } from "../core/model";
   import { relicsByEra } from "../core/relicHold";
-  import { nearTraceCap, traceCap, voidTraces, TO_RADIANT } from "../core/traces";
+  import { nearTraceCap, traceCap, traceCapWord, voidTraces, TO_RADIANT } from "../core/traces";
   import GameIcon, { relicIcon } from "./GameIcon.svelte";
   import { eraTint } from "./table";
   import Vessel from "./Vessel.svelte";
@@ -16,6 +16,7 @@
   const traces = $derived(voidTraces(model));
   const cap = $derived(traceCap(masteryRank));
   const near = $derived(nearTraceCap(traces, cap));
+  const capWord = $derived(traceCapWord(traces, cap));
   /** The meter's scale: the cap, or (rank unknown) the next thousand above what you hold. */
   const scale = $derived(cap ?? Math.max(1000, Math.ceil((traces + 1) / 1000) * 1000));
   const refines = $derived(Math.floor(traces / TO_RADIANT));
@@ -45,7 +46,7 @@
     </div>
     <!-- Traces against the cap, a mark etched every 100 (one relic to Radiant). -->
     <div class="gauge"><Vessel key="traces" value={Math.min(traces, scale)} max={scale} units={scale / TO_RADIANT <= 40 ? scale / TO_RADIANT : 0} tone={near ? "var(--alert)" : undefined} label="Void Traces against the cap" /></div>
-    <span class="m-note">{refines ? `Enough for ${n(refines)} Radiant` : "Not enough to refine one"}{#if cap != null}{" · "}{near ? (traces >= cap ? "at the cap: refine some" : "near the cap: refine some") : `${n(cap - traces)} until the cap`}{:else}{" · cap once your rank is read"}{/if}</span>
+    <span class="m-note">{refines ? `Enough for ${n(refines)} Radiant` : "Not enough to refine one"}{#if cap != null}{" · "}{capWord ?? `${n(cap - traces)} until the cap`}{:else}{" · cap once your rank is read"}{/if}</span>
   </div>
 </section>
 

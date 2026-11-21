@@ -90,7 +90,7 @@ const CARDS: Walkthrough = {
     {
       title: "Ready to list",
       lines: [
-        "If you list your spares: the kinds ticked on Sell spares, at your minimum or over.",
+        "Spares not listed yet: the kinds ticked on Sell spares, at your minimum or over.",
         "Each kind: its copies, and their platinum, counting no more than a month's sales.",
         "Under it: what your minimum leaves out, though worth a trade.",
         "Spares better as ducats or Vosfor, or not worth a trade, aren't counted.",

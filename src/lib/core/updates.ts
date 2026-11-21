@@ -139,8 +139,9 @@ export interface UpdateSettings {
   from: { version: string; channel: Channel } | null;
   /**
    * Whether `channel` stands: chosen in Settings, kept from settings saved before, or settled by a
-   * new install's first check. False only on a new install (no settings saved yet, or a damaged
-   * settings file moved aside, whose channel can't be read) until then:
+   * new install's first check. False only on a new install (no settings saved yet, a damaged
+   * settings file moved aside, or one that couldn't be read at all, whose channel isn't known)
+   * until then:
    * `channel` is only what Settings shows meanwhile, and the first check that hears back from the
    * channels settles it (`newInstallStep`), once.
    */
@@ -151,7 +152,8 @@ export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later:
 
 /**
  * A new install's (no settings saved yet), and a start's whose settings file was damaged and moved
- * aside (`loadSettings`): its channel is settled by its first check (`newInstallStep`).
+ * aside or couldn't be read at all (`loadSettings`): its channel is settled by its first check
+ * (`newInstallStep`).
  */
 export const newInstallUpdates = (): UpdateSettings => ({ ...defaultUpdates(), picked: false });
 
@@ -238,10 +240,13 @@ export function newInstallWhy(running: string, channel: Channel, stable: Channel
  * What Settings, Updates says while a new install hasn't settled its channel: which channel is
  * shown, and that MyOrbiter is still finding out. `failed`: its last try settled nothing, whether
  * no channel answered or every channel answered without this build or a newer one; the words are
- * true of both.
+ * true of both. `unreadable`: the saved settings couldn't be read at this start (backend.ts,
+ * loadSettings), so their channel isn't known and nothing chosen now is saved over them.
  */
-export function unsettledWords(shown: Channel, failed: boolean): string {
-  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${failed ? "No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check." : "It asks them at its first check."} Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once, and that channel stays.`;
+export function unsettledWords(shown: Channel, failed: boolean, unreadable = false): string {
+  const asks = failed ? "No channel has answered with this build or a newer one yet, so MyOrbiter asks again at its next check." : "It asks them at its first check.";
+  if (unreadable) return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen: MyOrbiter couldn't read your saved settings, so the channel saved in them isn't known. MyOrbiter finds out which to use for now, as on a new install: the most stable channel with this build or a newer one. ${asks} Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once. Nothing is saved while your settings can't be read, so the channel chosen now is kept until MyOrbiter restarts, and your saved settings are read again then.`;
+  return `${CHANNEL_LABEL[shown]} is shown, but no channel is chosen yet: MyOrbiter is still finding out which to start on, the most stable channel with this build or a newer one. ${asks} Until one is chosen no update is offered: pick a channel and MyOrbiter looks for its updates at once, and that channel stays.`;
 }
 
 const VERSION = /^\d+\.\d+\.\d+$/;
@@ -256,7 +261,8 @@ export function sanitizeUpdates(raw: unknown): UpdateSettings {
     lastCheck: typeof r.lastCheck === "number" && Number.isFinite(r.lastCheck) && r.lastCheck > 0 ? r.lastCheck : null,
     from: from && typeof from.version === "string" && VERSION.test(from.version) && isChannel(from.channel) ? { version: from.version, channel: from.channel } : null,
     // Saved settings keep their channel: only a new install that hasn't settled yet saves false
-    // (a start after a damaged settings file is one too).
+    // (a start after a damaged settings file is one too; one whose file couldn't be read saves
+    // nothing).
     picked: r.picked !== false,
   };
 }

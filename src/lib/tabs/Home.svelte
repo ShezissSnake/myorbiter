@@ -12,6 +12,9 @@
   import { proxy } from "../proxy.svelte";
   import { heldFor, overListed, type MyOrder } from "../core/market";
   import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { notListedYet } from "../core/readyToList";
+  import { fullModeOff, FULL_MODE_OFF, NO_READ_YET } from "../core/fullModeOff";
   import { masteryRows, relicRows, type RelicRow } from "../core/views";
   import { catOfItem, catOfTarget, minimumForItem, resolve, sellTargets, KIND_LABEL, BULK_KINDS, type BulkKind } from "../core/bulk";
   import { minimumFor, minimumsText, SPARE_CATEGORIES, type SpareCategory } from "../core/sparesRules";
@@ -27,7 +30,7 @@
   import GameIcon, { eraIcon, factionIcon, shardIcon, type GameIconName } from "../ui/GameIcon.svelte";
   import Foe from "../ui/Foe.svelte";
   import Mission from "../ui/Mission.svelte";
-  import { tradeAllowance } from "../core/tradeLimit";
+  import { tradeAllowance, tradesADay } from "../core/tradeLimit";
   import Icon from "../ui/Icon.svelte";
   import { isDone, setDone } from "../core/chores";
   import { nextMondayUtc } from "../core/today";
@@ -69,7 +72,11 @@
 
   // console: you play on a console or phone, so there's no inventory: Home is the market, the
   // world's clocks, fissures, what's worth doing and Baro, without anything measured against a collection.
-  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, liveRead = true, console = false, reveal = null, bountyTables = null, sortieRewards = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; liveRead?: boolean; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null } = $props();
+  let { model, live, mission, settings = $bindable(), go, shortListings, liveAt = null, liveError = null, liveRead = true, console = false, reveal = null, bountyTables = null, sortieRewards = null, setUpTennoscope = null }: { model: Model; live: Live; mission: MissionState | null; settings: Settings; go: (t: string) => void; shortListings: MyOrder[]; liveAt?: number | null; liveError?: string | null; liveRead?: boolean; console?: boolean; reveal?: string | null; bountyTables?: BountyTable[] | null; sortieRewards?: RelicReward[] | null; setUpTennoscope?: (() => void) | null } = $props();
+  /** No inventory read (on PC): Ready to list can't tell what's spare, so it never says "Nothing spare". */
+  const nothingRead = $derived(!console && noInventoryRead(model));
+  /** …because Full mode is off: it says that, as the banner and the empty pages do. */
+  const offFull = $derived(fullModeOff(mkt.fullMode, nothingRead));
   let sortieOpen = $state(false);
   // The worldstate: still being asked for the first time, or unreachable (api.warframestat.us).
   const liveWaiting = $derived(liveAt == null && !liveError);
@@ -143,10 +150,12 @@
     const cat = it ? catOfItem(model, it) : catOfTarget(t);
     return { min: it ? minimumForItem(settings.market, model, it) : minimumFor(settings.market, cat), own: !!cat && settings.market.minByCategory?.[cat] != null };
   }
+  /** What isn't listed yet: copies on your listings, shown or hidden, are left out here. The listings' total above counts the shown ones only, so a hidden listing's copies are counted nowhere on Home. */
+  const ready = $derived(notListedYet(worthy, orders.map((o) => ({ name: mkt.item(o.itemId)?.name, rank: o.rank, quantity: o.quantity }))));
   const byKind = $derived(
     BULK_KINDS
       .map((k) => {
-        const xs = worthy.filter((t) => t.kind === k);
+        const xs = ready.filter((t) => t.kind === k);
         return { kind: k, count: xs.reduce((n, t) => n + t.quantity, 0), plat: Math.round(xs.reduce((n, t) => n + t.plat, 0)) };
       })
       .filter((k) => k.count > 0),
@@ -155,7 +164,8 @@
   const ticked = $derived(SPARE_CATEGORIES.filter((c) => spares[c].on).length);
   // Listed already: what's left to put up.
   const listedNames = $derived(new Set(orders.map((o) => mkt.item(o.itemId)?.name)));
-  const unlisted = $derived(worthy.filter((t) => !listedNames.has(t.name)).length);
+  /** Items (by name) with no listing at all. */
+  const unlisted = $derived(new Set(worthy.filter((t) => !listedNames.has(t.name)).map((t) => t.name)).size);
 
   // ------------------------------------------------------------ fissures
   const ERAS = ["Lith", "Meso", "Neo", "Axi", "Requiem", "Omnia"] as const;
@@ -613,7 +623,7 @@
           {#if !console}<div title="Listed more than you hold: visible listings for more copies than you hold now (sold, or used in game). Fix them on Orders, or a buyer finds you can't deliver{hiddenShort ? `. ${hiddenShort} hidden listing${hiddenShort === 1 ? '' : 's'} too, which nobody can buy` : ''}"><b class="mark" class:amber={shortListings.length}>{shortListings.length}</b><span class="register">Listed more than you hold</span></div>{/if}
           <div title="Platinum from what you sold today, from Sales: since your local midnight (Trades left counts from 00:00 UTC)"><P v={sold(dayStart)} /><span class="register">Sold today</span></div>
           <div title="Platinum from what you sold in the last 7 days"><P v={sold(now - 7 * DAY)} /><span class="register">Last 7 days</span></div>
-          {#if !console && trades.limit != null}<div title="Trades a day are your Mastery Rank ({trades.limit}; extra trades from Founder status are not added), each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while MyOrbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
+          {#if !console && trades.limit != null}<div title="{tradesADay(trades.limit)}, each one counting whatever it carried (up to 6 items). {trades.used} since 00:00 UTC, from the game's log while MyOrbiter was reading it. Refreshes in {until(new Date(trades.resets).toISOString(), now)}"><b class="mark" class:amber={trades.left != null && trades.left <= 3}>{trades.left}<small class="dim">/{trades.limit}</small></b><span class="register">Trades left</span></div>{/if}
         </div>
         {#if shortListings.length || hiddenShort}
           <ul class="mini">
@@ -640,15 +650,19 @@
       {@render head("platinum", null, "Ready to list", "spares", "Sell spares", "home.ready")}
       {#if !ticked}
         <p class="dim">Nothing ticked on <b>Sell spares</b>.</p>
+      {:else if nothingRead}
+        <p class="dim">{offFull ? FULL_MODE_OFF : NO_READ_YET}</p>
+      {:else if worthy.length && !byKind.length}
+        <p class="dim">Every spare worth your minimum or more is listed already: see <button class="link" onclick={() => go("market")}>Orders</button>.</p>
       {:else if !byKind.length}
         <p class="dim" title="Your minimum prices (Sell spares): {minimumsText(settings.market)}">Nothing spare worth your minimum or more in what you ticked.</p>
       {:else}
-        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Everything you could spare, of every kind, is Spare value on Inventory">if you list your spares{unlisted ? ` · ${unlisted} not listed yet` : ""}</span></div>
+        <div class="big"><P v={byKind.reduce((n, k) => n + k.plat, 0)} big /><span class="dim small" title="Ready to list: the kinds ticked on Sell spares (arcanes: extra maxed copies, and unranked ones with Every spare copy, as it lists them), at or over your minimum price ({minimumsText(settings.market)}), at the daily median and no more of each than the market sells in a month. Prime parts, mods and arcanes are their pages' Worth selling (not worth a trade under {settings.advice.minPlat}p, ducat and Vosfor picks left out) less what's under your minimum. Copies already on your listings, shown or hidden, are left out: the listings' total above counts the shown ones. Each kind counts copies; not listed yet counts items with no listing at all. Everything you could spare, of every kind, is Spare value on Inventory">if you list the rest of your spares{unlisted ? ` · ${unlisted} item${unlisted === 1 ? "" : "s"} not listed yet` : ""}</span></div>
         <ul class="kinds">
           {#each byKind as k (k.kind)}
             <li>
               {#if KIND_ICON[k.kind].game}<GameIcon name={KIND_ICON[k.kind].game!} size={20} />{:else}<Icon name={KIND_ICON[k.kind].line!} size={18} />{/if}
-              <span>{KIND_LABEL[k.kind]}s</span><span class="dim">{k.count}</span><P v={k.plat} />
+              <span>{KIND_LABEL[k.kind]}s</span><span class="dim">{k.count} {k.count === 1 ? "copy" : "copies"}</span><P v={k.plat} />
             </li>
           {/each}
         </ul>
@@ -854,7 +868,7 @@
           {/each}
         </ul>
       {:else}
-        <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once the patched TennoScope reads your inventory."}</p>
+        <p class="dim small">{settings.game.masteryRank != null ? "Nothing building." : "Shows once TennoScope reads your inventory."}{#if setUpTennoscope} <button class="link" onclick={setUpTennoscope}>Set up TennoScope</button>{/if}</p>
       {/if}
       {#if buildable.length}
         <div class="register sub" title="Everything you can make now, or nearly: built in the Foundry, or revived with Son for a captured infested companion">Every part in hand</div>
