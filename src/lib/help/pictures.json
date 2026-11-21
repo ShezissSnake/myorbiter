@@ -267,7 +267,7 @@
     "hash": "f4ab84348de5ac60",
     "w": 943,
     "h": 363,
-    "bytes": 25076
+    "bytes": 25054
   },
   "item-sheet-2.webp": {
     "hash": "d4a2bdfeaa55341a",
@@ -368,8 +368,8 @@
   "notices-1.webp": {
     "hash": "75ef0c45f3a55b49",
     "w": 591,
-    "h": 559,
-    "bytes": 57382
+    "h": 540,
+    "bytes": 50058
   },
   "notices-2.webp": {
     "hash": "4d1d9cefe0f41573",
@@ -591,7 +591,7 @@
     "hash": "d8360405c8dfb011",
     "w": 591,
     "h": 407,
-    "bytes": 43882
+    "bytes": 43854
   },
   "settings-2.webp": {
     "hash": "321442af1b6526d3",
@@ -723,7 +723,7 @@
     "hash": "b877f551ca180e6d",
     "w": 591,
     "h": 543,
-    "bytes": 46594
+    "bytes": 46634
   },
   "tennoscope-2.webp": {
     "hash": "32250eea99ffface",
