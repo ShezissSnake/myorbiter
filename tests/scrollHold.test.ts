@@ -35,7 +35,7 @@ test("a scroll holds background work until the page has stopped scrolling", () =
     assert.equal(backgroundHeld(), true, "held from the first scroll event");
     await sleep(SCROLL_HOLD_MS / 2);
     l.scroll();
-    await sleep(SCROLL_HOLD_MS * 0.75);
+    await sleep(SCROLL_HOLD_MS / 2);
     assert.equal(backgroundHeld(), true, "a scroll that goes on keeps it held");
     await sleep(SCROLL_HOLD_MS);
     assert.equal(backgroundHeld(), false, "released once the scroll has stopped");

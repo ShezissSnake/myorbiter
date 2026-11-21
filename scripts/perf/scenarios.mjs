@@ -462,7 +462,15 @@ SCENARIOS.listsAndFolds = {
         step("done");
       } catch (e) {
         if (e instanceof Stalled) out.stalled = e.message;
-        else out.error = String(e.stack ?? e);
+        else {
+          out.error = String(e.stack ?? e);
+          // Frames that stopped between the wait above and the measurement's own first frame: the
+          // inspector gives up on the page after a minute. A stall too.
+          if (/no answer in 60 s/.test(out.error)) {
+            out.stalls.push({ step: out.step, waited: 60_000, ended: true, inMeasure: true });
+            out.stalled = out.step;
+          }
+        }
       }
       return out;
     }
