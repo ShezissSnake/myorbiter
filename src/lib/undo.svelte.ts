@@ -2,6 +2,8 @@
 // the thing collapsed to a "Dismissed · Undo" line meanwhile. Only once the time is up is it
 // really gone (the change is committed); Undo in that time leaves everything as it was.
 
+import { whenQuitting } from "./backend";
+
 /** How long the Undo stays before the change is made. */
 export const UNDO_MS = 5000;
 
@@ -9,6 +11,8 @@ export class UndoSlots {
   /** The keys waiting, so a page can draw their collapsed line instead of the thing. */
   held = $state<Record<string, true>>({});
   private waiting = new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => void }>();
+  /** While something waits: quitting makes it first (backend.ts › quit). */
+  private quitting: (() => void) | null = null;
 
   constructor(private ms = UNDO_MS) {}
 
@@ -21,6 +25,7 @@ export class UndoSlots {
     this.drop(key);
     this.held = { ...this.held, [key]: true };
     this.waiting.set(key, { timer: setTimeout(() => this.commit(key), this.ms), commit });
+    this.quitting ??= whenQuitting(() => this.flush());
   }
 
   /** Changed your mind: nothing happens. */
@@ -46,6 +51,10 @@ export class UndoSlots {
     const w = this.waiting.get(key);
     if (w) clearTimeout(w.timer);
     this.waiting.delete(key);
+    if (!this.waiting.size && this.quitting) {
+      this.quitting();
+      this.quitting = null;
+    }
   }
   private forget(key: string) {
     if (!(key in this.held)) return;

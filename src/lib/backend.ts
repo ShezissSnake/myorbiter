@@ -1680,8 +1680,22 @@ export async function notify(summary: string, body: string, id?: string, actions
   }
 }
 
+/** What is made before quitting: removals still inside their five-second Undo (undo.svelte.ts). */
+const beforeQuit = new Set<() => void>();
+/** Runs `f` when MyOrbiter quits, before the settings are saved; the returned function stops that. */
+export function whenQuitting(f: () => void): () => void {
+  beforeQuit.add(f);
+  return () => void beforeQuit.delete(f);
+}
+
 /** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
 export async function quit() {
+  // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
+  // made, and the page's save effects are given a turn to take it (persist.svelte.ts).
+  if (beforeQuit.size) {
+    for (const f of [...beforeQuit]) f();
+    await new Promise((r) => setTimeout(r, 0));
+  }
   // A change from the last 300 ms would otherwise be lost.
   await flushSettings();
   if (inTauri) await invoke("quit");
