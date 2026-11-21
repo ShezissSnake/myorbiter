@@ -127,6 +127,20 @@ test("App reads the screen for the hold as it is: the page chosen, drawn once th
   assert.match(facts, /up: toasts\.list\.some\(\(t\) => t\.id === n\.id\)/);
 });
 
+test("App brings Current fissure forward before it tells the reward, so the hold sees the page it is about to show", () => {
+  // Svelte runs the effects one change wakes in the order they are written. The fresh cards wake
+  // both: when they come with or before the open screen, the effect written first decides whether
+  // the reward's pop-up sees Current fissure or the page that was up before it.
+  const app = readFileSync(join(import.meta.dirname, "../src/App.svelte"), "utf8");
+  const jump = app.indexOf('settings.tab = "mission"');
+  const reward = app.indexOf('tell("reward"');
+  assert.ok(jump > 0 && reward > 0, "both effects found");
+  assert.ok(jump < reward, "the effect that brings Current fissure forward is written before the one that tells the reward");
+  assert.equal(app.split('settings.tab = "mission"').length, 2, "one place brings Current fissure forward");
+  // Both are woken by the fresh cards, and the tell reads the page as it is then.
+  assert.match(app, /const open = !!mission\?\.reward_screen_open \|\| !!freshCards;/);
+});
+
 test("the page a notification opens: its own target, else its kind's, without the card", () => {
   const n = (kind: NoticeKind, to?: string) => ({ id: "x", at: 0, kind, title: "t", body: "", read: false, ...(to ? { to } : {}) });
   assert.equal(pageOf(n("reward")), "mission");

@@ -755,6 +755,16 @@
   // every page, the setup page and the "Can't read" pages included, until it works again.
   let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
+  // Bring Current fissure forward when the reward screen opens (once per screen). Written before
+  // the effect that tells the reward: the fresh cards wake both, Svelte runs them in this order, and
+  // the reward's pop-up is then routed with Current fissure already chosen (held under the bell
+  // while it is drawn with nothing over it) rather than over the cards.
+  let screenWasOpen = false;
+  $effect(() => {
+    const open = !!mission?.reward_screen_open || !!freshCards;
+    if (open && !screenWasOpen && settings.jumpToPick) settings.tab = "mission";
+    screenWasOpen = open;
+  });
   $effect(() => {
     void pickRetry;
     if (!bgModel || !freshCards) return;
@@ -2505,8 +2515,6 @@
     e.preventDefault();
   }
 
-  // Bring Current fissure forward when the reward screen opens (once per screen).
-  let screenWasOpen = false;
   // The listing form prices new listings by the same rules as Auto-match.
   $effect(() => {
     mkt.rules = settings.market;
@@ -2517,12 +2525,6 @@
   $effect(() => {
     mkt.model = model;
     mkt.fullMode = ts.report ? ts.report.setup.access_mode === "full" : null;
-  });
-
-  $effect(() => {
-    const open = !!mission?.reward_screen_open || !!freshCards;
-    if (open && !screenWasOpen && settings.jumpToPick) settings.tab = "mission";
-    screenWasOpen = open;
   });
 
   // A read that fails keeps what was loaded on screen (the pages stay as they are, with a note
