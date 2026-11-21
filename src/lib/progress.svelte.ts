@@ -2,7 +2,7 @@
 // a frame after (core/progress.ts says which rows each step draws). A click that re-sorts fifty rows
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
-import { drawnHead, rowsFor, rowsInView, settled, stepRows } from "./core/progress";
+import { drawnHead, itemsToFoot, rowsFor, rowsInView, settled, stepRows } from "./core/progress";
 import { whenIdle } from "./pane.svelte";
 import { stillMoving } from "./motion";
 
@@ -10,9 +10,14 @@ import { stillMoving } from "./motion";
  * How many of a list's items fill the window, kept up to date as the page scrolls and as the list
  * is first drawn (measured when the layout is fresh, never in the middle of a redraw: reading the
  * layout costs a lot when it isn't). `box()`: the element whose children are the items (a tbody, a
- * grid). Until it's drawn and in sight: a guess, `guess` px an item.
+ * grid). Until it's drawn and in sight: a guess, `guess` px an item. `exact`: counted to the
+ * first item below the window rather than worked out from the first row's height (a grid of cards,
+ * whose rows differ). `measured`: called after each measure.
  */
-export function inView(box: () => HTMLElement | null, { min = 8, guess = 44, measured: after }: { min?: number; guess?: number; measured?: () => void } = {}) {
+export function inView(
+  box: () => HTMLElement | null,
+  { min = 8, guess = 44, exact = false, measured: after }: { min?: number; guess?: number; exact?: boolean; measured?: () => void } = {},
+) {
   let measured = false;
   let count = typeof window === "undefined" ? min : Math.max(min, Math.ceil(window.innerHeight / guess) + 2);
   /** Items a row, and a row's height (px): a guess until measured. */
@@ -46,7 +51,19 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44, mea
     measured = true;
     perRow = cols;
     rowHeight = h;
-    count = rowsInView(a.top, h, window.innerHeight, Math.ceil(min / cols)) * cols;
+    const vh = window.innerHeight;
+    if (exact && a.top < vh) {
+      // Far down a grid the first row's height says little (cards differ, and those not laid out
+      // yet are guessed): the first item below the window's foot, found by halving the list.
+      let lo = 0;
+      let hi = kids.length;
+      while (lo < hi) {
+        const m = (lo + hi) >> 1;
+        if (kids[m].getBoundingClientRect().top >= vh) hi = m;
+        else lo = m + 1;
+      }
+      count = itemsToFoot(lo, cols, Math.ceil(min / cols));
+    } else count = rowsInView(a.top, h, vh, Math.ceil(min / cols)) * cols;
     after?.();
   }
   let scrollFrame = 0;

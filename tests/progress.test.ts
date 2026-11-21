@@ -3,7 +3,7 @@
 // step is exactly the new list, whatever the order of the old one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { drawnHead, rowsInView, settled, stepRows } from "../src/lib/core/progress";
+import { drawnHead, itemsToFoot, rowsInView, settled, stepRows } from "../src/lib/core/progress";
 
 type R = { id: string; v: number };
 const row = (id: string, v = 0): R => ({ id, v });
@@ -118,6 +118,20 @@ test("rows in view: from the list's top to the window's foot, at least the minim
   assert.equal(rowsInView(1200, 40, 1000, 8), 8); // below the window
   assert.equal(rowsInView(0, 0, 1000, 8), 8); // not laid out
   assert.equal(rowsInView(0, 40, 1000, 8, false), 8);
+});
+
+test("items down to the screen's foot, from the first item below it: whole rows and two more", () => {
+  // Card 541 the first below the foot, 4 a row: rows to 544, and two more.
+  assert.equal(itemsToFoot(541, 4, 2), 552);
+  assert.equal(itemsToFoot(540, 4, 2), 548);
+  // The list's end in sight (all 590 above the foot): all of it, and two rows past (whole rows).
+  assert.equal(itemsToFoot(590, 4, 2), 600);
+  // Near the top: at least the minimum rows.
+  assert.equal(itemsToFoot(3, 4, 6), 24);
+  assert.equal(itemsToFoot(0, 4, 2), 8);
+  // A list one item a row, or not measured.
+  assert.equal(itemsToFoot(10, 1, 8), 12);
+  assert.equal(itemsToFoot(10, 0, 8), 12);
 });
 
 test("a list out of sight sizes its next slice by how long the last took", async () => {

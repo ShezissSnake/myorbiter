@@ -73,6 +73,17 @@ export function rowsInView(top: number, rowHeight: number, viewport: number, min
 }
 
 /**
+ * The items that fill the screen down to its foot, from the index of the first item below it
+ * (`firstBelow`; the list's length when its end is in sight): those, in whole rows of `perRow`, and
+ * two rows more; at least `minRows` rows. Exact where `rowsInView`'s estimate from the first row's
+ * height drifts: far down a grid whose rows aren't all the same height.
+ */
+export function itemsToFoot(firstBelow: number, perRow: number, minRows = 8): number {
+  const per = Math.max(1, Math.floor(perRow) || 1);
+  return Math.max(minRows, Math.ceil(Math.max(0, firstBelow) / per) + 2) * per;
+}
+
+/**
  * Rows the next slice of a list drawn out of sight should draw: as many as fit `budget` ms at the
  * pace the last slice went (`rows` rows in `ms`), from 2 up to `most`. No rows, or no time
  * measured, says nothing: `last` again.

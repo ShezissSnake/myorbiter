@@ -13,9 +13,10 @@
   import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
   import Count from "./Count.svelte";
-  import { keepWhile, shownPage } from "../pane.svelte";
+  import { keepWhile, shownPage, whenIdle } from "../pane.svelte";
   import { PANE } from "../statusStrip.svelte";
-  import { cardsAhead } from "../core/cards";
+  import { cardsAhead, cardsToKeep, foldStep } from "../core/cards";
+  import { rowsFor } from "../core/progress";
   import { arrive, fresh } from "../motion";
   import HelpMark from "./HelpMark.svelte";
   import { inView, progressive } from "../progress.svelte";
@@ -195,7 +196,7 @@
   /** The page the list is on (PaneId), if it's on one. */
   const pane = getContext<string | undefined>(PANE);
   const pageShown = () => pane == null || shownPage(pane);
-  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, measured: () => ahead() });
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, measured: () => ahead() });
   /**
    * While the cards are in sight, each time the page scrolls: the cards down to the screen's
    * bottom and a screen and a half more (core/cards.ts, `cardsAhead`), so a scroll finds them
@@ -210,6 +211,58 @@
   }
   // Shown again (its page, or the cards after the table): measured, and drawn ahead from there.
   $effect(() => cardView.onShow(() => requestAnimationFrame(() => cardView.measure(true))));
+
+  /** The card with the focus, or Tab's place in the grid (roving.ts): its index, -1 for none. */
+  function focusAt(): number {
+    const g = grid?.firstElementChild;
+    if (!g) return -1;
+    const kids = [...g.children];
+    const a = document.activeElement;
+    const has = a && g.contains(a) ? kids.findIndex((k) => k.contains(a)) : -1;
+    const tab = g.querySelector(":scope > [tabindex='0']");
+    return Math.max(has, tab ? kids.indexOf(tab) : -1);
+  }
+  /** How long a slice of a fold may take (ms), as for a list drawn out of sight (progress.svelte.ts). */
+  const FOLD_BUDGET_MS = 12;
+  /** The most cards a slice of a fold takes off. */
+  const FOLD_MOST = 480;
+  // Its page left: the cards below where the player was fold back (core/cards.ts, `cardsToKeep`), so
+  // a page left with hundreds drawn below the screen doesn't carry them through every switch. A
+  // slice at a time in idle moments (pane.svelte.ts, whenIdle), each sized by how long the last took.
+  // Coming back shows the same cards in the same place: all of those above and on the screen stay,
+  // and the card with the focus; the rest are drawn ahead again from there. Shown again mid-fold,
+  // the fold stops.
+  $effect(() => {
+    if (pageShown()) return;
+    let cancel = () => {};
+    let gone = false;
+    untrack(() => {
+      if (layout !== "cards") return;
+      const keep = cardsToKeep({ shown, reach: cardView.count(), perRow: cardView.perRow() }, focusAt(), cardLimit);
+      let slice = Math.max(cardView.screenful(), 48);
+      const next = () => {
+        cancel = whenIdle(() => {
+          const from = shown;
+          if (gone || from <= keep) return;
+          const t0 = performance.now();
+          shown = foldStep(from, keep, slice);
+          // The cards go in this task's microtasks (Svelte's flush), queued before these.
+          queueMicrotask(() =>
+            queueMicrotask(() => {
+              if (gone) return;
+              slice = rowsFor(performance.now() - t0, from - shown, FOLD_BUDGET_MS, FOLD_MOST, slice);
+              if (shown > keep) next();
+            }),
+          );
+        });
+      };
+      next();
+    });
+    return () => {
+      gone = true;
+      cancel();
+    };
+  });
   const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
 </script>
 
