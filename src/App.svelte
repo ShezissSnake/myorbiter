@@ -150,7 +150,7 @@
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import Wordmark from "./lib/ui/Wordmark.svelte";
   import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
-  import { growNotice, logNotice, noticeKind, outcomeText, pageOf, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, onItsPage, outcomeText, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import Toasts from "./lib/ui/Toasts.svelte";
@@ -776,7 +776,8 @@
       notifiedScreen = freshCards.at;
       const why = [best.price != null ? `${best.price}p` : null, best.needed ? `you need it${best.neededFor ? ` for ${best.neededFor}` : ""}` : null, best.ducats ? `${best.ducats} ducats` : null, best.set === 1 ? "completes a set" : null].filter(Boolean).join(", ");
       const of = cards.length > 1 ? `(best of the ${["", "", "two", "three", "four"][cards.length] ?? cards.length})` : "(the only card read)";
-      tell("reward", `Take ${best.name}`, why ? `${why} ${of}` : of);
+      // Untracked: what decides its pop-up (the page, the pop-ups up, the collection) doesn't rerun the scoring.
+      untrack(() => tell("reward", `Take ${best.name}`, why ? `${why} ${of}` : of));
     }
   });
   let notifiedScreen = 0;
@@ -864,10 +865,15 @@
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
-      // The page it opens is the one on screen (the reward to take over Current fissure's cards):
-      // under the bell only. The Settings test has no page of its own, and a pop-up already up (a
-      // repricing pass's, as it grows) is kept up to date.
-      onItsPage: gate !== "test" && pageOf(n) === settings.tab && !toasts.list.some((t) => t.id === n.id),
+      // The reward to take while Current fissure is on screen with nothing over it: under the bell
+      // only (`onItsPage`). The pages are drawn once there is a model; a sheet, the help or a
+      // dialog over them is `aria-modal`, as the keys below read it.
+      onItsPage: onItsPage(gate, n, {
+        tab: settings.tab,
+        drawn: !!model,
+        covered: typeof document !== "undefined" && !!document.querySelector('[aria-modal="true"]'),
+        up: toasts.list.some((t) => t.id === n.id),
+      }),
     };
   }
   /**

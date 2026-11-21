@@ -73,6 +73,28 @@ export function pageOf(n: Pick<Notice, "kind" | "to">): string {
   return splitTarget(n.to ?? noticeKind[n.kind]?.to ?? "home").page;
 }
 
+/** What is on screen when a notification arrives: what `onItsPage` decides by. */
+export interface OnScreen {
+  /** The page chosen in the sidebar. */
+  tab: string;
+  /** That page is drawn: not the setup page, a "Can't read" page or the first read in its place. */
+  drawn: boolean;
+  /** A sheet (Settings, Notifications, an item's details…), the help or another dialog is over it. */
+  covered: boolean;
+  /** The notification's own pop-up is already up (a repricing pass's, kept up to date as it grows). */
+  up: boolean;
+}
+
+/**
+ * Whether notification `n` (of the kind `gate`; "test" for the Settings test) is held because the
+ * page it opens is the one on screen. Only the reward to take: over Current fissure its pop-up
+ * would cover the very cards it names, which the page marks itself. Only while that page is drawn
+ * with nothing over it; every other kind pops up as usual, so none goes unseen.
+ */
+export function onItsPage(gate: NoticeKind | "test", n: Pick<Notice, "kind" | "to">, s: OnScreen): boolean {
+  return gate === "reward" && pageOf(n) === s.tab && s.drawn && !s.covered && !s.up;
+}
+
 /** One notification, as kept in the history. */
 export interface Notice {
   id: string;
@@ -123,15 +145,15 @@ export interface PopupFacts {
   toasts: boolean;
   /** "Desktop notifications" is on. */
   desktop: boolean;
-  /** The page the notification opens is the one on screen: a pop-up inside MyOrbiter would repeat it, over it. */
+  /** Held by `onItsPage`: the reward to take, while Current fissure is drawn with nothing over it. */
   onItsPage: boolean;
 }
 
 /**
  * Where a notification goes, before anything is sent: held back (paused, then the quiet list, then a
- * fissure), a pop-up inside MyOrbiter while its window has focus (unless the page it opens is the
- * one on screen: held then, under the bell only), else the desktop's; or nowhere because the switch
- * for that place is off. "desktop" here is the intent: the send may still fail.
+ * fissure), a pop-up inside MyOrbiter while its window has focus (unless it is the reward to take
+ * and Current fissure is on screen: held then, under the bell only), else the desktop's; or nowhere
+ * because the switch for that place is off. "desktop" here is the intent: the send may still fail.
  */
 export function routeOf(f: PopupFacts): Exclude<NoticeOutcome, { how: "failed" }> {
   if (f.paused) return { how: "held", why: "paused" };

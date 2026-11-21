@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { defaultNotify } from "../src/lib/backend";
-import { NOTICE_KINDS, growNotice, kindsFor, logNotice, NOTICE_LOG, outcomeOf, outcomeText, pageOf, routeOf, splitTarget, type NoticeKind, type NoticeOutcome, type PopupFacts } from "../src/lib/notices";
+import { NOTICE_KINDS, growNotice, kindsFor, logNotice, NOTICE_LOG, onItsPage, outcomeOf, outcomeText, pageOf, routeOf, splitTarget, type NoticeKind, type NoticeOutcome, type OnScreen, type PopupFacts } from "../src/lib/notices";
 import { noticesOf } from "../src/lib/core/savedGame";
 import { PAGES } from "../src/lib/pages";
 
@@ -70,7 +70,7 @@ test("a place whose switch is off shows nothing, and says so", () => {
   assert.deepEqual(routeOf(facts({ toasts: false })), { how: "desktop" });
 });
 
-test("inside MyOrbiter, a notification whose page is on screen doesn't pop up over it; the desktop's is unchanged", () => {
+test("inside MyOrbiter, a notification held over its page (the reward over Current fissure) doesn't pop up; the desktop's is unchanged", () => {
   // The reward to take, while Current fissure shows its cards: under the bell only, and it says why.
   assert.deepEqual(routeOf(facts({ focused: true, onItsPage: true })), { how: "held", why: "page" });
   // Away from MyOrbiter it goes to the desktop as before, whatever page was left open.
@@ -79,6 +79,37 @@ test("inside MyOrbiter, a notification whose page is on screen doesn't pop up ov
   assert.deepEqual(routeOf(facts({ focused: true, toasts: false, onItsPage: true })), { how: "off", where: "app" });
   // Another page on screen: it pops up.
   assert.deepEqual(routeOf(facts({ focused: true, onItsPage: false })), { how: "app" });
+});
+
+const shown = (kind: NoticeKind, to?: string) => ({ kind, ...(to ? { to } : {}) });
+const screen = (tab: string, o: Partial<OnScreen> = {}): OnScreen => ({ tab, drawn: true, covered: false, up: false, ...o });
+
+test("the reward to take is held while Current fissure is drawn with nothing over it", () => {
+  // The audit's case: its pop-up would cover the cards it names.
+  assert.equal(onItsPage("reward", shown("reward"), screen("mission")), true);
+  // Another page on screen: it pops up.
+  assert.equal(onItsPage("reward", shown("reward"), screen("home")), false);
+  // Its pop-up already up is kept up to date, as before.
+  assert.equal(onItsPage("reward", shown("reward"), screen("mission", { up: true })), false);
+  // The Settings test has no page of its own.
+  assert.equal(onItsPage("test", shown("reward"), screen("mission")), false);
+});
+
+test("the reward to take pops up when Current fissure is covered or not drawn", () => {
+  // A sheet or the help over it.
+  assert.equal(onItsPage("reward", shown("reward"), screen("mission", { covered: true })), false);
+  // The setup page or a "Can't read" page in its place.
+  assert.equal(onItsPage("reward", shown("reward"), screen("mission", { drawn: false })), false);
+});
+
+test("every other kind pops up as before, its page on screen or not", () => {
+  // A Home notice while Home is open, site chat or a listing problem on Orders, a sale on Sales.
+  assert.equal(onItsPage("baro", shown("baro"), screen("home")), false);
+  assert.equal(onItsPage("tennoscope", shown("tennoscope"), screen("home")), false);
+  assert.equal(onItsPage("siteChat", shown("siteChat"), screen("market")), false);
+  assert.equal(onItsPage("market", shown("market", "spares#cat-mods"), screen("spares")), false);
+  assert.equal(onItsPage("sold", shown("sold"), screen("sales")), false);
+  for (const k of NOTICE_KINDS) if (k.kind !== "reward") assert.equal(onItsPage(k.kind, shown(k.kind), screen(splitTarget(k.to).page)), false, k.kind);
 });
 
 test("the page a notification opens: its own target, else its kind's, without the card", () => {
