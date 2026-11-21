@@ -50,6 +50,21 @@ function shiftTimes(v: unknown, shift: number, key = ""): unknown {
   return v;
 }
 
+/** The request header a help shot (scripts/help-shots.mjs) sends: the one moment, in Unix ms, its window's files are written as of. */
+const DEMO_NOW = "x-myorbiter-demo-now";
+
+/**
+ * How far a demo file's times move, in ms. Whole minutes: a file reads the same for a minute, so
+ * the reward screen is new once a minute rather than on every poll. A request that names its
+ * moment (DEMO_NOW) gets exactly that moment, on every request that names it, wherever the clock
+ * has got to: a help shot that runs across a minute sees one reward screen, not the same reward
+ * told again, and the screen is as old in its picture whatever second the shot started at.
+ */
+function demoShift(named: string | string[] | undefined, written: number): number {
+  if (typeof named === "string" && /^\d{13}$/.test(named)) return Number(named) - written;
+  return Math.floor((Date.now() - written) / 60_000) * 60_000;
+}
+
 /**
  * `MYORBITER_DEMO=1` (npm run dev:demo): the dev server answers /dev-*.json from demo/, an invented
  * account (scripts/demo-data.mjs), instead of public/, with its times moved up to now. A file
@@ -77,9 +92,7 @@ function demoData(): Plugin {
           res.end();
           return;
         }
-        // Whole minutes: a file reads the same for a minute, so the reward screen is new once a
-        // minute rather than on every poll.
-        const shift = Math.floor((Date.now() - meta.now) / 60_000) * 60_000;
+        const shift = demoShift(req.headers[DEMO_NOW], meta.now);
         const st = statSync(file);
         res.setHeader("Content-Type", "application/json");
         res.setHeader("Cache-Control", "no-store");
