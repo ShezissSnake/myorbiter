@@ -88,11 +88,14 @@
      alone. --cap: how many places the room has (five, then four, then three). */
   .stage {
     --cap: 5;
+    /* Every plaque's height, and so the floor's place: room for the lead's name, its sub line and
+       its value (a plaque short of that squeezes the name's line, which hides it, cut in height). */
+    --plaque: 4.75rem;
     list-style: none; margin: 0 auto; padding: .4rem 0 0;
     width: calc((min(var(--n), var(--cap)) + .45) / (var(--cap) + .45) * 100%);
     display: grid; grid-template-columns: minmax(0, 1.45fr); grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); align-items: end; gap: 0 clamp(.4rem, 1.5vw, 1.4rem);
     /* The floor: one faint line the lights sit on. */
-    background: linear-gradient(var(--sec-dim), var(--sec-dim)) 0 calc(100% - 4.35rem) / 100% 1px no-repeat;
+    background: linear-gradient(var(--sec-dim), var(--sec-dim)) 0 calc(100% - var(--plaque)) / 100% 1px no-repeat;
   }
   .piece { min-width: 0; }
   .hit {
@@ -118,7 +121,7 @@
   }
   .lead .light { width: 82%; }
   .hit:hover .light, .hit:focus-visible .light { background: var(--sec); box-shadow: 0 0 14px 2px color-mix(in srgb, var(--sec) 55%, transparent); }
-  .plaque { display: grid; justify-items: center; gap: .12rem; width: 100%; height: 4.35rem; align-content: start; padding-top: .45rem; text-align: center; }
+  .plaque { display: grid; justify-items: center; gap: .12rem; width: 100%; height: var(--plaque); align-content: start; padding-top: .45rem; text-align: center; }
   .nm {
     max-width: 100%; font-size: .95rem; line-height: 1.1; color: var(--platinum-dim);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase;

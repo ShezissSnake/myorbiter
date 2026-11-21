@@ -73,7 +73,7 @@ const CARDS: Walkthrough = {
       lines: [
         "Seen as: what buyers see; pick Offline, Invisible, Online or Online in game.",
         "The platinum your visible listings ask, price × quantity, and how many.",
-        "Listed more than you hold: listings for more copies than your inventory has.",
+        "Overlisted: listings for more copies than your inventory has.",
         "Sold today counts from your local midnight; Trades left from 00:00 UTC.",
       ],
       shot: {

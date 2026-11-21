@@ -457,11 +457,11 @@ export interface NotifyOptions {
   pausedUntil: number | null;
   /** Which of the two that was, so the panel lights its button. */
   pausedHow?: "hour" | "tomorrow" | null;
-  /** While you're looking at MyOrbiter: a pop-up in its window. */
+  /** While you're looking at MyOrbiter: a pop-up in its window (not the reward to take over Current fissure). */
   toasts: boolean;
   /** While you're not: your desktop's notifications. */
   desktop: boolean;
-  /** Nothing pops up while you're in a fissure, but the reward to take. */
+  /** Nothing pops up while you're in a fissure, but the reward to take (not over Current fissure: `onItsPage`). */
   quietInFissure: boolean;
   /** Kinds that only go in the history, never pop up. */
   quiet: string[];

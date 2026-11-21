@@ -78,11 +78,11 @@
   /* Kept: shut, it's invisible and takes no clicks (visibility turns off once the slide-out ends). */
   .sheet.keep { transform: translateX(40px); opacity: 0; visibility: hidden; box-shadow: inset 2px 0 0 var(--rule-control); transition: transform 100ms var(--out), opacity 100ms var(--out), visibility 0s linear 100ms; }
   .sheet.keep.on { transform: none; opacity: 1; visibility: visible; box-shadow: -1.5rem 0 4rem rgb(0 0 0 / 45%), inset 2px 0 0 var(--rule-control); transition: transform var(--settle) var(--out), opacity var(--settle) var(--out), visibility 0s, box-shadow 0s linear var(--settle); }
-  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
+  /* The "?" and Close on one line, the middle of the title's block. */
+  header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: 1.4rem 1.6rem 1.1rem; border-bottom: 1px solid var(--rule); }
   header .register { color: var(--platinum-dim); margin-bottom: .45rem; }
   /* The title takes the room, so the "?" sits beside Close at the right end. */
   header > div:first-child { flex: 1; min-width: 0; }
-  header > :global(.helpmark) { align-self: center; }
   h2 { font-size: 2.1rem; }
   .close { padding: .5rem; line-height: 0; }
   /* One column no wider than the sheet: a long unbreakable line (a path) can't widen every section

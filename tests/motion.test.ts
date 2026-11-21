@@ -161,3 +161,74 @@ test("no page puts animate: (a slide) on a table's body or row", async () => {
   const found = files.flatMap((f) => tablePartsAnimated(readFileSync(f, "utf8")).map((t) => `${f}: ${t.slice(0, 80)}`));
   assert.deepEqual(found, []);
 });
+
+/** Splits `s` at each character matching `sep` that sits outside parentheses (a selector list's commas, a selector's combinators). */
+function splitTop(s: string, sep: RegExp): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let cur = "";
+  for (const c of s) {
+    if (c === "(") depth++;
+    else if (c === ")") depth = Math.max(0, depth - 1);
+    if (depth === 0 && sep.test(c)) {
+      if (cur.trim()) parts.push(cur.trim());
+      cur = "";
+    } else cur += c;
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+/**
+ * Each rule in a stylesheet whose subject (the last part of a selector) is a table part and that
+ * moves it: a transform other than `none`, or a transition of transform (or of all). Comments are
+ * left out; a rule inside `@media` or another block is read as it stands.
+ */
+function tablePartsMoved(css: string): string[] {
+  const found: string[] = [];
+  const text = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const m of text.matchAll(/([^{};]+)\{([^{}]*)\}/g)) {
+    const body = m[2];
+    const moves =
+      /(^|[;\s])transform\s*:(?!\s*none\s*(;|$|!))/.test(body) ||
+      /(^|[;\s])transition(-property)?\s*:[^;]*\b(transform|all)\b/.test(body);
+    if (!moves) continue;
+    for (const sel of splitTop(m[1], /,/)) {
+      const subject = splitTop(sel, /[\s>+~]/).at(-1) ?? "";
+      if (/^(:global\()?(table|thead|tbody|tfoot|tr|td|th)(?![\w-])/.test(subject)) found.push(`${sel.trim()} { ${body.trim()} }`);
+    }
+  }
+  return found;
+}
+
+test("a rule that moves a table part is found, whatever else its selector says", () => {
+  assert.equal(tablePartsMoved(`th.sortable:active, tr.clickable:active:not(:has(button:active, a:active)) { transform: translateY(1px); }`).length, 2);
+  assert.equal(tablePartsMoved(`@media (x) { .pool :global(tr.on) { transition: transform 90ms; } }`).length, 1);
+  assert.equal(tablePartsMoved(`tbody > tr { transition: all .2s }`).length, 1);
+  // Not found: a button's press, a header's words, a row told not to move, a part inside a row, a comment, a tag that only starts like one.
+  assert.deepEqual(tablePartsMoved(`button:active:not(:disabled) { background: var(--well); transform: translateY(1px); }`), []);
+  assert.deepEqual(tablePartsMoved(`th { text-transform: uppercase; } tr.x { transform: none; }`), []);
+  assert.deepEqual(tablePartsMoved(`tr.clickable .chev { transform: rotate(90deg); } /* tr { transform: scale(2) } */`), []);
+  assert.deepEqual(tablePartsMoved(`track { transform: scale(2) }`), []);
+});
+
+test("no stylesheet moves a table's part: a pressed sort header or row shows by colour", async () => {
+  const { readFileSync, readdirSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { fileURLToPath } = await import("node:url");
+  const files: string[] = [];
+  const walk = (d: string) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (e.isDirectory()) walk(join(d, e.name));
+      else if (/\.(svelte|css)$/.test(e.name)) files.push(join(d, e.name));
+    }
+  };
+  walk(fileURLToPath(new URL("../src", import.meta.url)));
+  assert.ok(files.some((f) => f.endsWith("app.css")));
+  const style = (src: string, f: string) => (f.endsWith(".css") ? src : [...src.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/g)].map((m) => m[1]).join("\n"));
+  const found = files.flatMap((f) => tablePartsMoved(style(readFileSync(f, "utf8"), f)).map((r) => `${f.split("/src/").at(-1)}: ${r.slice(0, 120)}`));
+  assert.deepEqual(found, []);
+  // Buttons keep their press.
+  const app = readFileSync(fileURLToPath(new URL("../src/app.css", import.meta.url)), "utf8");
+  assert.match(app, /button:active:not\(:disabled\)\s*\{[^}]*transform:\s*translateY\(1px\)/);
+});

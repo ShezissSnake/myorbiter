@@ -438,11 +438,11 @@ a.link { text-decoration: none; text-transform: uppercase; display: inline-flex;
    opacity only (grid rows for folds); --snap, --quick, --settle and --out. */
 
 /* Pressed, on everything you click that isn't a <button> (which sinks a pixel, above): a card
-   gives a touch, a sort header or a row sinks a pixel. In over --snap, back at once. Pressing a
-   button inside a card presses the button, not the card. */
+   gives a touch, in over --snap and back at once. A sort header or a row takes the well's colour,
+   as a pressed button does, and doesn't move: no transform on a table's parts (motion.ts). Pressing
+   a button inside a card or a row presses the button, not the card or the row. */
 article.card[role="button"]:active:not(:has(button:active, a:active, input:active, select:active, label:active)) { transform: scale(.99); transition: transform var(--snap) var(--out); }
-th.sortable:active, tr.clickable:active:not(:has(button:active, a:active, input:active, select:active)) { transform: translateY(1px); transition: transform var(--snap) var(--out); }
-th.sortable:active { background: var(--well); }
+th.sortable:active, tr.clickable:active:not(:has(button:active, a:active, input:active, select:active)) { background: var(--well); }
 
 /* A fold's chevron (▾): turns over when its button opens what it folds (aria-expanded), over --quick.
    .side for one that points across (▸) and turns down. */

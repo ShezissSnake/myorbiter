@@ -257,7 +257,7 @@
         {ms ? (live ? "Live" : "Ready") : "Idle"}
       </Stat>
       <Stat label="Most valuable" hover={best?.name ?? null} note={best?.name ?? "No fissure yet"}><P v={best?.price} big /></Stat>
-      <Stat keep label="You need" tone={needed.length ? "gold" : "dim"} note={needed.map((n) => n.name).join(", ") || "Nothing on the table"}>{needed.length}</Stat>
+      <Stat keep line label="You need" tone={needed.length ? "gold" : "dim"} note={needed.map((n) => n.name).join(", ") || "Nothing on the table"}>{needed.length}</Stat>
       <Stat label="Earned this session" note={`Relic rewards you got · ${history.length} mission${history.length === 1 ? "" : "s"}${fissureCount ? ` · ${fissureCount} fissure${fissureCount === 1 ? "" : "s"}` : ""}`}><P v={sessionValue || null} big /></Stat>
   {/snippet}
   <PageHead
