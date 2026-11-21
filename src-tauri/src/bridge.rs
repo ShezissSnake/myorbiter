@@ -149,14 +149,32 @@ pub fn relics_for_tennoscope(data: &Value) -> Value {
     Value::Array(out)
 }
 
-/// Written when MyOrbiter starts (from its cached tables) and whenever the tables are read again.
-pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
+/// The relic list for TennoScope, as written.
+fn relics_bytes(data: &Value) -> Result<Vec<u8>, String> {
     let list = relics_for_tennoscope(data);
     if !list.as_array().is_some_and(|a| !a.is_empty()) {
         return Err("no relics with a known path".into());
     }
-    let bytes = serde_json::to_vec(&list).map_err(|e| e.to_string())?;
+    serde_json::to_vec(&list).map_err(|e| e.to_string())
+}
+
+/// Written when MyOrbiter starts (from its cached tables), whatever is there.
+pub fn write_relics_in(dir: &Path, data: &Value) -> Result<(), String> {
+    let bytes = relics_bytes(data)?;
     crate::write_atomic(&dir.join(RELICS_FILE), &bytes, false).map_err(|e| e.to_string())
+}
+
+/// Written when the tables are read again, only if the list differs from the file there (or there
+/// is none): the same tables come back at nearly every read, and the file's time is a change the
+/// page reloads the collection for. Whether it was written.
+pub fn write_relics_changed(dir: &Path, data: &Value) -> Result<bool, String> {
+    let bytes = relics_bytes(data)?;
+    let path = dir.join(RELICS_FILE);
+    if fs::read(&path).is_ok_and(|held| held == bytes) {
+        return Ok(false);
+    }
+    crate::write_atomic(&path, &bytes, false).map_err(|e| e.to_string())?;
+    Ok(true)
 }
 
 /// Written whenever the overlay settings change; TennoScope reads it when it's about to draw.
@@ -193,6 +211,53 @@ mod tests {
         assert_eq!(by("T1VoidProjectionABronze")["vaulted"], true, "drops nowhere: vaulted");
         assert_eq!(by("RequiemIBronze")["vaulted"], false, "Requiem relics never are");
         assert_eq!(list.as_array().unwrap().len(), 3, "a relic with no known path is left out");
+    }
+
+    /// The relic tables are read again at start and every 3 hours, and nearly always come back
+    /// the same: the file TennoScope reads (whose time also makes the page read the collection
+    /// again) is written only when what it holds changes, or when it is missing. Writes are counted
+    /// by the file's inode: each write puts a new file in its place.
+    #[cfg(unix)]
+    #[test]
+    fn the_relic_tables_are_written_again_only_when_they_changed() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = std::env::temp_dir().join(format!("myorbiter-relics-kept-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let data = |paths: serde_json::Value| serde_json::json!({
+            "hash": "h1",
+            "checkedAt": 1,
+            "relics": [{ "name": "Lith A1 Intact", "rewards": [{ "name": "Forma Blueprint", "chance": 25.33, "rarity": "Common" }] }],
+            "drops": { "Lith A1": [] },
+            "paths": paths
+        });
+        let one = data(serde_json::json!({ "/Lotus/Types/Game/Projections/T1VoidProjectionABronze": "Lith A1 Intact" }));
+        let inode = || fs::metadata(dir.join(RELICS_FILE)).unwrap().ino();
+        let mut writes = std::collections::BTreeSet::new();
+        for _ in 0..2 {
+            write_relics_changed(&dir, &one).unwrap();
+            writes.insert(inode());
+        }
+        assert_eq!(writes.len(), 1, "two calls with the same tables: one write");
+        // Checked again later (another `checkedAt`), the same: still not written.
+        let mut again = one.clone();
+        again["checkedAt"] = 2.into();
+        assert_eq!(write_relics_changed(&dir, &again), Ok(false));
+        // The same tables with a relic path more (WFCD's list read again): written.
+        let more = data(serde_json::json!({
+            "/Lotus/Types/Game/Projections/T1VoidProjectionABronze": "Lith A1 Intact",
+            "/Lotus/Types/Game/Projections/T1VoidProjectionBBronze": "Lith A1 Intact"
+        }));
+        assert_eq!(write_relics_changed(&dir, &more), Ok(true));
+        assert_ne!(inode(), *writes.iter().next().unwrap());
+        // Gone (TennoScope's folder cleared): written again.
+        fs::remove_file(dir.join(RELICS_FILE)).unwrap();
+        assert_eq!(write_relics_changed(&dir, &more), Ok(true));
+        assert!(dir.join(RELICS_FILE).is_file());
+        // At start it is written whatever is there.
+        let before = inode();
+        write_relics_in(&dir, &more).unwrap();
+        assert_ne!(inode(), before);
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

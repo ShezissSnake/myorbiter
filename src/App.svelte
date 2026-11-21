@@ -17,7 +17,7 @@
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, type Model } from "./lib/core/model";
   import { readKey, sameRead } from "./lib/core/sameRead";
-  import { mergeRelics, type RelicData } from "./lib/core/relicData";
+  import { keepSame, mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
   import type { RecipeData } from "./lib/core/buildPlan";
   import { today } from "./lib/core/today";
@@ -2780,13 +2780,14 @@
       }, 20_000);
       livePoll = setInterval(refreshLive, 5 * 60_000);
       // The drop tables' relics: now, then every few hours (the cache says when to read them again).
-      const tables = () => relicData().then((d) => { if (d) relicTables = d; });
+      // The same answer (nearly every time) keeps the object held, so the model isn't built again.
+      const tables = () => relicData().then((d) => { if (d) relicTables = keepSame(relicTables, d); });
       void tables();
       tablesPoll = setInterval(() => {
         void tables();
-        void recipeData().then((r) => { if (r) recipes = r; });
+        void recipeData().then((r) => { if (r) recipes = keepSame(recipes, r); });
       }, 3 * 3_600_000);
-      void recipeData().then((r) => { if (r) recipes = r; });
+      void recipeData().then((r) => { if (r) recipes = keepSame(recipes, r); });
       // TennoScope's log, for screens MyOrbiter missed (a reading it didn't pass on, or a restart).
       screensPoll = setInterval(importScreens, 10 * 60_000);
       // EE.log is followed incrementally, so a short interval only reads what the game appended.

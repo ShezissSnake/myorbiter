@@ -566,10 +566,12 @@ async fn relic_data(app: tauri::AppHandle, force: Option<bool>) -> Result<Value,
             log::warn!(target: "myorbiter::relics", "drop tables couldn't be read: {e}");
             e
         })?;
-        // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE).
+        // TennoScope's reward reader goes by these too (see bridge.rs, RELICS_FILE): written when
+        // they changed, since its time makes the page read the collection again.
         if let Some(rt) = bridge::runtime_dir() {
-            match bridge::write_relics_in(&rt, &data) {
-                Ok(()) => log::info!(target: "myorbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+            match bridge::write_relics_changed(&rt, &data) {
+                Ok(true) => log::info!(target: "myorbiter::relics", "drop tables {} ({} relics) written for TennoScope", data["hash"].as_str().unwrap_or("?"), data["relics"].as_array().map_or(0, Vec::len)),
+                Ok(false) => {}
                 Err(e) => log::warn!(target: "myorbiter::relics", "writing the drop tables for TennoScope failed: {e}"),
             }
         }
