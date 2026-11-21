@@ -3130,6 +3130,7 @@
         <span>{saveTroubleWords(saveError)}</span>
       </div>
     {/if}
+    {#if bugReport.failed}<div class="stale" role="alert" data-banner="frame-failed"><span>Something in MyOrbiter's window went wrong. Reloading the window starts it again.</span><button class="link" onclick={() => bugReport.reload()}>Reload the window</button><button class="link" onclick={() => bugReport.show()}>Report a bug</button><IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (bugReport.failed = false)} /></div>{/if}
     <!-- A damaged settings file was moved aside (read_settings in lib.rs): said once, over every
          page and the setup page too, since the start then goes as a first start does. Kept in the
          settings until dismissed, so a restart doesn't lose it. -->

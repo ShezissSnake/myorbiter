@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
-import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings } from "../src/lib/backend";
+import { assembleBundle, bundleLoader, defaultSettings, flushSettings, loadLive, loadSettings, quit, saveSettings, whenQuitting } from "../src/lib/backend";
 import type { CatalogPart, CollectionPart } from "../src/lib/core/types";
 
 test("quitting saves a change made in the last 300 ms", async () => {
@@ -19,6 +19,33 @@ test("quitting saves a change made in the last 300 ms", async () => {
   assert.equal(built, 1, "put together once for the burst");
   await flushSettings();
   assert.equal(built, 1, "nothing left to save");
+});
+
+test("one waiting removal that fails at quit stops neither the others, the save nor the quit", async () => {
+  const stored: Record<string, string> = {};
+  (globalThis as { localStorage?: unknown }).localStorage = { setItem: (k: string, v: string) => (stored[k] = v) };
+  const s = defaultSettings();
+  s.tab = "stats";
+  saveSettings(() => s);
+  let made = 0;
+  const said: unknown[][] = [];
+  const realError = console.error;
+  console.error = (...args: unknown[]) => void said.push(args);
+  const stops = [
+    whenQuitting(() => {
+      throw new Error("example failure");
+    }),
+    whenQuitting(() => void made++),
+  ];
+  try {
+    await quit();
+  } finally {
+    console.error = realError;
+    for (const stop of stops) stop();
+  }
+  assert.equal(made, 1, "the other waiting removal is made");
+  assert.equal(JSON.parse(stored["orbiter-settings"]).tab, "stats", "and the settings saved");
+  assert.equal(said.length, 1, "the failure is said once in the log");
 });
 
 test("an unreachable worldstate is an error, so the last one read stays on screen", async () => {
@@ -438,4 +465,52 @@ test("minimum prices: saved with the relic minimum an older build reads", async 
   assert.equal(JSON.parse(JSON.stringify(lightSettings(s))).market.minRelicPrice, 12, "no Relics minimum: the global one");
   s.market.minByCategory = { relics: 5 };
   assert.equal(JSON.parse(JSON.stringify(lightSettings(s))).market.minRelicPrice, 5);
+});
+
+test("Baro's and Varzia's stock: an odd entry is left out and a value that isn't a list reads as none, read or kept, so the collection still builds", async () => {
+  const { restoreLive } = await import("../src/lib/backend");
+  const { buildModel } = await import("../src/lib/core/model");
+  const { baroStock } = await import("../src/lib/core/traders");
+  const bundle = { observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: {}, trade_rate: {} } } as never;
+  const now = Date.parse("2026-11-01T12:00:00Z");
+  const at = (min: number) => new Date(now + min * 60_000).toISOString();
+  const item = { uniqueName: "/Lotus/StoreItems/Example/Item", item: "Example Item", ducats: 100, credits: 1000 };
+  const builds = (live: unknown) => {
+    const m = buildModel(bundle, live as never);
+    baroStock(m);
+    return m;
+  };
+  // The collection itself, handed one: it builds, with nothing of it in resurgence.
+  for (const resurgence of [[null], [null, { uniqueName: 5 }, item]]) {
+    assert.doesNotThrow(() => buildModel(bundle, { fissures: null, resurgence, resurgenceExpiry: null } as never), JSON.stringify(resurgence));
+  }
+  // A read: the service's answer, as fetch gives it (stood in for here; nothing is asked of any host).
+  const answer = (vaultTrader: unknown, voidTrader: unknown) => async (url: string | URL) => {
+    const name = /\/pc\/([^?]+)/.exec(String(url))?.[1];
+    const body = name === "vaultTrader" ? vaultTrader : name === "voidTrader" ? voidTrader : null;
+    return new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" } });
+  };
+  const realFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = answer({ inventory: [null, { uniqueName: 5 }, item, "x"], expiry: at(600) }, { activation: at(-60), expiry: at(600), location: "Relay", inventory: [item, null, { item: "no path" }] }) as typeof fetch;
+    const live = await loadLive();
+    assert.deepEqual(live.resurgence, [item]);
+    assert.deepEqual(live.baro?.inventory, [item]);
+    assert.doesNotThrow(() => builds(live));
+    globalThis.fetch = answer({ inventory: { a: item }, expiry: at(600) }, { activation: at(-60), expiry: at(600), location: "Relay", inventory: "x" }) as typeof fetch;
+    const other = await loadLive();
+    assert.equal(other.resurgence, null);
+    assert.equal(other.baro?.inventory, undefined);
+    assert.doesNotThrow(() => builds(other));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  // A kept copy that holds one (saved by an earlier build): the next start builds from it.
+  for (const [resurgence, inventory] of [[[null, item], [item, null]], [{ a: 1 }, 7]] as const) {
+    const kept = restoreLive({ at: now, live: { fissures: [], resurgence, resurgenceExpiry: at(600), baro: { activation: at(-60), expiry: at(600), location: "Relay", inventory } } }, now + 60_000)!;
+    assert.ok(kept, "the copy is still used");
+    assert.ok(kept.live.resurgence === null || kept.live.resurgence.every((x) => typeof x?.uniqueName === "string"), JSON.stringify(kept.live.resurgence));
+    assert.ok(kept.live.baro?.inventory === undefined || kept.live.baro.inventory.every((x) => typeof x?.uniqueName === "string"), JSON.stringify(kept.live.baro?.inventory));
+    assert.doesNotThrow(() => builds(kept.live), JSON.stringify(resurgence));
+  }
 });

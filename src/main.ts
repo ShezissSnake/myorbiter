@@ -1,13 +1,14 @@
 import { mount } from "svelte";
 import "./app.css";
 import App from "./App.svelte";
-import { installLogging } from "./lib/applog";
+import { installLogging, watchFailures } from "./lib/applog";
 import { installFocusTips } from "./lib/focusTip";
 import { installIntlCache } from "./lib/intlCache";
 import { timing } from "./lib/timing";
 
 // Before anything else, so an error while the page starts is logged too.
 installLogging();
+watchFailures();
 installFocusTips();
 installIntlCache();
 // Record timings' start-up: the first frame drawn (one callback, whether recording or not).

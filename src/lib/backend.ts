@@ -17,7 +17,7 @@ import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import type { ImprintRaw } from "./core/imprints";
 import { salesOf, tradesOf } from "./core/saleLog";
-import { gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf } from "./core/savedGame";
+import { gameStateOf, gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf } from "./core/savedGame";
 import type { GearCopy } from "./core/notNeeded";
 import { NEWEST } from "./whatsNew";
 import { DEFAULT_HIDE_MINUTES, hideMinutesOf, type HiddenForWhisper } from "./core/lastCopy";
@@ -30,7 +30,7 @@ import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/shapes";
-import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
+import type { Archimedea, Baro, BaroItem, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
@@ -826,8 +826,24 @@ export interface SavedLive {
 export function restoreLive(raw: unknown, now = Date.now()): SavedLive | null {
   const s = raw as SavedLive | null;
   if (!s || typeof s.at !== "number" || !s.live || typeof s.live !== "object" || now - s.at > 86_400_000 || s.at > now + 60_000) return null;
-  const live = pruneLive({ ...s.live, invasions: s.live.invasions ?? null, invasionsAt: s.at }, now);
+  // Baro's and Varzia's stock as loadLive keeps it: a copy saved with an odd entry doesn't stop the collection.
+  const live = pruneLive({ ...s.live, resurgence: stockOf<VaultTraderItem>(s.live.resurgence), baro: baroOf(s.live.baro), invasions: s.live.invasions ?? null, invasionsAt: s.at }, now);
   return { at: s.at, live };
+}
+
+/**
+ * Baro's or Varzia's stock, read or kept: the entries with a text path (the collection reads each
+ * one's), the others left out; anything but a list is none.
+ */
+function stockOf<T extends { uniqueName: string }>(x: unknown): T[] | null {
+  return Array.isArray(x) ? x.filter((v): v is T => !!v && typeof v === "object" && typeof (v as T).uniqueName === "string") : null;
+}
+/** Baro's visit, while there is one: his stock as stockOf keeps it, none when it isn't a list. */
+function baroOf(x: unknown): Baro | null {
+  if (!x || typeof x !== "object" || !(x as Baro).activation) return null;
+  const { inventory, ...visit } = x as Baro;
+  const stock = stockOf<BaroItem>(inventory);
+  return stock ? { ...visit, inventory: stock } : visit;
 }
 
 export async function loadLive(): Promise<Live> {
@@ -852,7 +868,7 @@ export async function loadLive(): Promise<Live> {
   const vt = (raw?.vaultTrader ?? null) as { inventory?: VaultTraderItem[]; expiry?: string } | null;
   return {
     fissures: Array.isArray(raw?.fissures) ? (raw!.fissures as Fissure[]) : null,
-    resurgence: vt?.inventory ?? null,
+    resurgence: stockOf<VaultTraderItem>(vt?.inventory),
     resurgenceExpiry: vt?.expiry ?? null,
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
     alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
@@ -872,9 +888,7 @@ export async function loadLive(): Promise<Live> {
       .map((k) => ({ key: k, c: obj<{ state: string; expiry: string }>(raw?.[`${k}Cycle`], "state") }))
       .filter((x): x is { key: (typeof x)["key"]; c: { state: string; expiry: string } } => !!x.c?.expiry)
       .map((x) => ({ key: x.key, state: x.c.state, expiry: x.c.expiry })),
-    baro: (raw?.voidTrader as { activation?: string; expiry?: string; location?: string } | null)?.activation
-      ? (raw!.voidTrader as { activation: string; expiry: string; location: string })
-      : null,
+    baro: baroOf(raw?.voidTrader),
   };
 }
 
@@ -1059,7 +1073,9 @@ function adviceOf(raw: unknown, base: AdviceSettings): AdviceSettings {
   return {
     ...base,
     ...r,
-    platPerDucat: numIn(r.platPerDucat, 0, 100, base.platPerDucat),
+    // 0 is not one of the page's choices (they start at 0.05), though the Baro button can set a rate
+    // that rounds to 0; it would turn the ducat check off, so it loads as the usual rate.
+    platPerDucat: numIn(r.platPerDucat, 0, 100, 0) > 0 ? (r.platPerDucat as number) : base.platPerDucat,
     minPlat: numIn(r.minPlat, 0, 100_000, base.minPlat),
     slowBelow: numIn(r.slowBelow, 0, 10_000, base.slowBelow),
     squad: Math.round(numIn(r.squad, 1, 4, base.squad)),
@@ -1205,7 +1221,8 @@ export async function loadSettings(): Promise<Settings> {
     startPage: typeof raw?.startPage === "string" && raw.startPage ? raw.startPage : "last",
     schema: base.schema,
     notifiedInvasions: Array.isArray(raw?.notifiedInvasions) ? raw.notifiedInvasions : [],
-    game: { ...defaultGame(), ...(raw?.game ?? {}), relicRuns: relicRunsOf(raw?.game?.relicRuns), drops: raw?.game?.drops && typeof raw.game.drops.at === "number" && raw.game.drops.counts && Array.isArray(raw.game.drops.windows) ? raw.game.drops : emptyDropLog(), savingFor: raw?.game?.savingFor && typeof raw.game.savingFor === "object" && !Array.isArray(raw.game.savingFor) ? raw.game.savingFor : {}, notices: noticesOf(raw?.game?.notices), worldNotified: Array.isArray(raw?.game?.worldNotified) ? raw.game.worldNotified : [], keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: gearOf(raw?.game?.gear), rivens: rivensOf(raw?.game?.rivens), valueHistory: valueHistoryOf(raw?.game?.valueHistory), imprints: Array.isArray(raw?.game?.imprints) ? raw.game.imprints.filter((x: unknown) => !!x && typeof x === "object" && !Array.isArray(x)) : null, consumedSuits: Array.isArray(raw?.game?.consumedSuits) ? raw.game.consumedSuits.filter((x: unknown) => typeof x === "string") : null },
+    // Every part of it checked (core/savedGame.ts): an odd entry is left out, the rest kept.
+    game: { ...defaultGame(), ...(raw?.game ?? {}), ...gameStateOf(raw?.game), relicRuns: relicRunsOf(raw?.game?.relicRuns), notices: noticesOf(raw?.game?.notices), keepGear: Array.isArray(raw?.game?.keepGear) ? raw.game.keepGear.filter((x: unknown) => typeof x === "string") : [], gear: gearOf(raw?.game?.gear), rivens: rivensOf(raw?.game?.rivens), valueHistory: valueHistoryOf(raw?.game?.valueHistory), imprints: Array.isArray(raw?.game?.imprints) ? raw.game.imprints.filter((x: unknown) => !!x && typeof x === "object" && !Array.isArray(x)) : null, consumedSuits: Array.isArray(raw?.game?.consumedSuits) ? raw.game.consumedSuits.filter((x: unknown) => typeof x === "string") : null },
     favourites: Array.isArray(raw?.favourites) ? raw.favourites : [],
     fissureRules: Array.isArray(raw?.fissureRules) ? raw.fissureRules.map(normalizeRule).filter((r: FissureRule | null): r is FissureRule => !!r) : [],
     rivenWatch: rivenWatchOf(raw?.rivenWatch),
@@ -1664,8 +1681,29 @@ export async function notify(summary: string, body: string, id?: string, actions
   }
 }
 
+/** What is made before quitting: removals still inside their five-second Undo (undo.svelte.ts). */
+const beforeQuit = new Set<() => void>();
+/** Runs `f` when MyOrbiter quits, before the settings are saved; the returned function stops that. */
+export function whenQuitting(f: () => void): () => void {
+  beforeQuit.add(f);
+  return () => void beforeQuit.delete(f);
+}
+
 /** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
 export async function quit() {
+  // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
+  // made, and the page's save effects are given a turn to take it (persist.svelte.ts). One that
+  // fails is logged and stops neither the others, the save nor the quit.
+  if (beforeQuit.size) {
+    for (const f of [...beforeQuit]) {
+      try {
+        f();
+      } catch (e) {
+        console.error("a waiting removal failed at quit", e);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 0));
+  }
   // A change from the last 300 ms would otherwise be lost.
   await flushSettings();
   if (inTauri) await invoke("quit");

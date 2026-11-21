@@ -90,7 +90,8 @@ export function pagesFor(console: boolean): Page[] {
 /** Pages from before the redesign, as they were saved in settings. */
 export function migrateTab(tab: string): PageId {
   if (tab === "ducats") return "parts";
-  return (tab in pageById ? tab : "home") as PageId;
+  // One of the pages' own names only: "constructor" and the like are every object's, not a page.
+  return (Object.hasOwn(pageById, tab) ? tab : "home") as PageId;
 }
 
 /**

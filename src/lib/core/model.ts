@@ -620,8 +620,9 @@ export function buildModel(bundle: Bundle, live: Live = { fissures: null, resurg
     return n === 0 && unique === PLEXUS && inventoryByBase.has(PLEXUS) ? 1 : n;
   };
 
+  // Only entries with a path (loadLive keeps no other): one odd entry doesn't stop the collection.
   const resurgence = new Set<string>(
-    (live.resurgence ?? []).map((v) => normaliseStoreUnique(v.uniqueName)),
+    (Array.isArray(live.resurgence) ? live.resurgence : []).filter((v) => typeof v?.uniqueName === "string").map((v) => normaliseStoreUnique(v.uniqueName)),
   );
   const inResurgence = (unique: string) => resurgence.has(normaliseStoreUnique(unique));
 

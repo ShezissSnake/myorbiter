@@ -168,7 +168,7 @@ test("a saved outcome reads back; one of another shape is left off and its entry
   for (const bad of [null, 5, "desktop", {}, { how: "held" }, { how: "held", why: "nap" }, { how: "off", where: "moon" }, { how: "failed" }, { how: "failed", why: 3 }]) assert.equal(outcomeOf(bad), undefined);
   assert.equal((outcomeOf({ how: "failed", why: "x".repeat(900) }) as { why: string }).why.length, 300);
   const n = { id: "1-abc", at: 3, kind: "whispers", title: "A whispered you", body: "", read: false };
-  assert.deepEqual(noticesOf([{ ...n, outcome: { how: "held", why: "quiet" } }, { ...n, id: "2", outcome: { how: "nap" } }, n]), [{ ...n, outcome: { how: "held", why: "quiet" } }, { ...n, id: "2" }, n]);
+  assert.deepEqual(noticesOf([{ ...n, outcome: { how: "held", why: "quiet" } }, { ...n, id: "2", outcome: { how: "nap" } }, { ...n, id: "3" }]), [{ ...n, outcome: { how: "held", why: "quiet" } }, { ...n, id: "2" }, { ...n, id: "3" }]);
 });
 
 test("a notice that grows starts over: what became of its earlier pop-up isn't its own", () => {
