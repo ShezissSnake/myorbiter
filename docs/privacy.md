@@ -553,7 +553,7 @@ Your Warframe inventory and account figures come from TennoScope
 | `catalog/catalog-generation.json` | WFCD's item data: names, categories, stats, components and ducats, vault flags, drop locations |
 | `catalog/relic-generation.json` | relic contents, vault flags and where each relic drops |
 | `collection-prices.json` | the daily prices TennoScope downloads (relics.run) |
-| `logs/tennoscope*.log` | TennoScope's own log, read in full for the reward screens (at start, then every 10 minutes when a file's size or time changed) and start failures (on Windows also in `%LOCALAPPDATA%\io.github.deftera186.tennoscope\logs`) |
+| `logs/tennoscope*.log` | TennoScope's own log, read in full for the reward screens (at start, then every 10 minutes when a file's size or time changed) and its last 64 KB for start failures (when TennoScope keeps stopping as it starts; on Windows also in `%LOCALAPPDATA%\io.github.deftera186.tennoscope\logs`) |
 
 MyOrbiter reloads whenever TennoScope's database, prices or item data change.
 
