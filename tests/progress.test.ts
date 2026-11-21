@@ -3,7 +3,7 @@
 // step is exactly the new list, whatever the order of the old one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rowsInView, settled, stepRows } from "../src/lib/core/progress";
+import { drawnHead, rowsInView, settled, stepRows } from "../src/lib/core/progress";
 
 type R = { id: string; v: number };
 const row = (id: string, v = 0): R => ({ id, v });
@@ -93,6 +93,23 @@ test("a list first drawn (nothing before): the first slice, then the rest", () =
   const target = Array.from({ length: 30 }, (_, i) => row(`r${i}`));
   const steps = walk(target, [], 10, 8);
   assert.deepEqual(steps.map((s) => s.length), [10, 18, 26, 30]);
+});
+
+test("a list that only grew carries on from the rows it has drawn", () => {
+  const all = Array.from({ length: 240 }, (_, i) => row(`r${i}`));
+  const drawn = all.slice(0, 168);
+  const target = all.slice(0, 216);
+  assert.equal(drawnHead(target, drawn), 168);
+  // Stepping from there: the next rows at once, not 140 steps through rows already drawn.
+  const steps = walk(target, drawn, drawnHead(target, drawn) + 6, 6);
+  assert.deepEqual(steps.map((s) => s.length), [174, 180, 186, 192, 198, 204, 210, 216]);
+  // A list that shrank (a fold): all of what's left is drawn.
+  assert.equal(drawnHead(all.slice(0, 24), drawn), 24);
+  // A re-sort or new rows: only the rows still the same in place count.
+  assert.equal(drawnHead([all[0], all[2], all[1]], drawn), 1);
+  assert.equal(drawnHead(all.map((r) => row(r.id, 1)), drawn), 0);
+  assert.equal(drawnHead([], drawn), 0);
+  assert.equal(drawnHead(target, []), 0);
 });
 
 test("rows in view: from the list's top to the window's foot, at least the minimum", () => {

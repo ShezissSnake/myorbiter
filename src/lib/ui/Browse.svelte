@@ -3,7 +3,7 @@
   // is remembered per page on this computer. A click on a card or a row does whatever `onopen` does
   // (the item details sheet, for gear); where it declines (returns null or false), or there's no
   // `onopen`, the row's own details open instead: in a panel for a card, in place for a row.
-  import { untrack, type Snippet } from "svelte";
+  import { getContext, untrack, type Snippet } from "svelte";
   import { sortRows, type Column } from "./table";
   import Table from "./Table.svelte";
   import CardGrid from "./CardGrid.svelte";
@@ -13,7 +13,9 @@
   import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
   import Count from "./Count.svelte";
-  import { keepWhile } from "../pane.svelte";
+  import { keepWhile, shownPage } from "../pane.svelte";
+  import { PANE } from "../statusStrip.svelte";
+  import { cardsAhead } from "../core/cards";
   import { arrive, fresh } from "../motion";
   import HelpMark from "./HelpMark.svelte";
   import { inView, progressive } from "../progress.svelte";
@@ -190,7 +192,24 @@
   const cardRows = $derived.by(keepWhile(() => layout === "cards", () => sorted));
   // The cards in sight drawn at once, the rest a few a frame after (lib/progress.svelte.ts).
   let grid = $state<HTMLElement | null>(null);
-  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180 });
+  /** The page the list is on (PaneId), if it's on one. */
+  const pane = getContext<string | undefined>(PANE);
+  const pageShown = () => pane == null || shownPage(pane);
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, measured: () => ahead() });
+  /**
+   * While the cards are in sight, each time the page scrolls: the cards down to the screen's
+   * bottom and a screen and a half more (core/cards.ts, `cardsAhead`), so a scroll finds them
+   * there. The ones on the screen are drawn at once, those below it a few at a time in idle
+   * moments (progressive). `more`: the marker under the cards came near (a grid not measured yet).
+   * Out of sight (a page or the table shown instead), nothing.
+   */
+  function ahead(more = false) {
+    if (!pageShown() || layout !== "cards" || cardView.hidden()) return;
+    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more });
+    if (n !== shown) shown = n;
+  }
+  // Shown again (its page, or the cards after the table): measured, and drawn ahead from there.
+  $effect(() => cardView.onShow(() => requestAnimationFrame(() => cardView.measure(true))));
   const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
 </script>
 
@@ -232,7 +251,7 @@
       <CardGrid {min}>
         {#each cardsDrawn as r (key(r))}{@render card(r, () => open(r))}{/each}
       </CardGrid>
-      {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{cardRows.length - shown} more below</div>{/if}
+      {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => ahead(true)}>{cardRows.length - shown} more below</div>{/if}
     {:else}
       <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
     {/if}

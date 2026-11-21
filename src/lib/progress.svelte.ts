@@ -2,7 +2,7 @@
 // a frame after (core/progress.ts says which rows each step draws). A click that re-sorts fifty rows
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
-import { rowsFor, rowsInView, settled, stepRows } from "./core/progress";
+import { drawnHead, rowsFor, rowsInView, settled, stepRows } from "./core/progress";
 import { whenIdle } from "./pane.svelte";
 import { stillMoving } from "./motion";
 
@@ -12,9 +12,12 @@ import { stillMoving } from "./motion";
  * layout costs a lot when it isn't). `box()`: the element whose children are the items (a tbody, a
  * grid). Until it's drawn and in sight: a guess, `guess` px an item.
  */
-export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: { min?: number; guess?: number } = {}) {
+export function inView(box: () => HTMLElement | null, { min = 8, guess = 44, measured: after }: { min?: number; guess?: number; measured?: () => void } = {}) {
   let measured = false;
   let count = typeof window === "undefined" ? min : Math.max(min, Math.ceil(window.innerHeight / guess) + 2);
+  /** Items a row, and a row's height (px): a guess until measured. */
+  let perRow = 1;
+  let rowHeight = guess;
   /** Once after the list is first drawn (`always`: on every scroll); after that, as you scroll. */
   function measure(always = false) {
     if (measured && !always) return;
@@ -41,7 +44,10 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
     if (!(a.height > 0)) return;
     const h = next ? next.top - a.top : a.height;
     measured = true;
+    perRow = cols;
+    rowHeight = h;
     count = rowsInView(a.top, h, window.innerHeight, Math.ceil(min / cols)) * cols;
+    after?.();
   }
   let scrollFrame = 0;
   const onScroll = () => {
@@ -70,7 +76,9 @@ export function inView(box: () => HTMLElement | null, { min = 8, guess = 44 }: {
   const hidden = () => !!box()?.closest(".pane:not(.shown), .off");
   /** Calls `f` each time the list comes into sight; returns a stop. */
   const onShow = (f: () => void) => (wakers.add(f), () => void wakers.delete(f));
-  return { count: () => count, measure, watch, hidden, onShow };
+  /** Items a screen holds (whole rows), as last measured. */
+  const screenful = () => (typeof window === "undefined" ? min : Math.max(1, Math.ceil(window.innerHeight / Math.max(1, rowHeight))) * perRow);
+  return { count: () => count, perRow: () => perRow, screenful, measure, watch, hidden, onShow };
 }
 
 let quietly = false;
@@ -190,7 +198,9 @@ export function progressive<T>(
     const t = target();
     untrack(() => {
       stop();
-      let upto = now();
+      // A list that only grew (more of the same rows below): on from the rows already drawn, the
+      // next ones in the next slice, rather than slices stepping again through rows it has.
+      let upto = Math.max(now(), drawnHead(t, drawn));
       drawn = stepRows(t, drawn, key, upto);
       const next = () => {
         measure?.();

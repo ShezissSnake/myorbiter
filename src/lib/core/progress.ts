@@ -40,6 +40,18 @@ function keysOf<T>(target: readonly T[], key: (r: T) => string): Set<string> {
   return keys;
 }
 
+/**
+ * How many of `target`'s first rows are already drawn, in place: the rows `drawn` and `target`
+ * start with, the same row for row. A list that only grew (more of the same rows below what's
+ * drawn) carries on from there rather than stepping again through the rows it already has.
+ */
+export function drawnHead<T>(target: readonly T[], drawn: readonly T[]): number {
+  const n = Math.min(target.length, drawn.length);
+  let i = 0;
+  while (i < n && target[i] === drawn[i]) i++;
+  return i;
+}
+
 /** Whether a step drew everything: what's drawn is the target, row for row. */
 export const settled = <T,>(target: readonly T[], drawn: readonly T[]) => same(target, drawn);
 
