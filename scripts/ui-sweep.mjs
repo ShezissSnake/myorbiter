@@ -1,7 +1,7 @@
 // The clipping sweep: opens every view of the demo (`npm run dev:demo`, demo/: the invented
 // account, never public/dev-*.json) at the window sizes MyOrbiter is used at, and flags every
 // element cut off by a box that doesn't scroll, or pushed past the window, and every text that
-// runs out of its own box without an ellipsis. Then, at 1280×800, it walks every one of those
+// runs out of its own box without an ellipsis, or is cut in height by it. Then, at 1280×800, it walks every one of those
 // views with the keyboard: Tab until focus comes back round (at most 400 presses), and flags each
 // element focus lands on that is hidden (its own visibility, or inside something hidden) or that
 // has no accessible name (an icon-only button or link with no label, title or text). In every
@@ -13,7 +13,9 @@
 // checks each picture's shape: one drawn more than 2 % wider or narrower than its own shape fails
 // (findStretched); a last view, Current fissure's reward cards with the demo's Forma Blueprint and
 // every item picture swapped for a wide one, makes sure a picture well is tried with a picture
-// that isn't square. It also checks every tag drawn (`.tag`) for words, and for 4.5:1 between them
+// that isn't square. It also checks that a sheet's Close and "?" sit on one line, and that in a
+// page's band of figures no label wraps where those beside it don't and no single note stretches
+// the band (findOffLine). It also checks every tag drawn (`.tag`) for words, and for 4.5:1 between them
 // and their fill (findTags). At 1280×800 it sorts Orders by each column, both ways, and checks
 // that no part of the table is left with a transform or an animation (sortCheck), and that the
 // rows read the same at rest with reduced motion on. Also at 1280×800 it counts the Tab presses to
@@ -165,8 +167,85 @@ function findClipping(deliberate) {
       if (cs.overflowX === "visible") report("text runs out", el, null, `${el.scrollWidth} px of text in ${el.clientWidth}`);
       else if (cs.textOverflow !== "ellipsis" && cs.overflowX !== "auto" && cs.overflowX !== "scroll") report("text cut", el, null, `${el.scrollWidth} px of text in ${el.clientWidth}, no ellipsis`);
     }
+    // Its own text cut in height: a box that hides what overflows it, cut through a line of its text
+    // (an ellipsis only marks text cut in width). A box as tall as a whole number of its lines isn't:
+    // a face's glyph area can be taller than its line without its letters reaching past it. A clamp
+    // to some lines (line-clamp) is meant.
+    if (ownText && el.scrollHeight > el.clientHeight + 1 && el.clientHeight > 0 && cs.display !== "inline" && cs.overflowY !== "visible" && cs.overflowY !== "auto" && cs.overflowY !== "scroll" && (cs.webkitLineClamp ?? "none") === "none") {
+      // A line height of "normal" is the face's own, not known here: the box is short when it is
+      // shorter than the text's size.
+      const set = Number.parseFloat(cs.lineHeight);
+      const line = set || Number.parseFloat(cs.fontSize);
+      const inside = el.clientHeight - Number.parseFloat(cs.paddingTop) - Number.parseFloat(cs.paddingBottom);
+      const lines = Math.max(1, Math.round(inside / line));
+      if (set ? Math.abs(inside - lines * line) > 1.5 : inside < line - 1) report("text cut in height", el, null, `${Math.round(inside)} px tall for ${lines === 1 ? "a line" : `${lines} lines`} of ${Math.round(line * 10) / 10} px`);
+    }
   }
   return found;
+}
+
+/** How far apart in height (px) the middles of two controls side by side may be before they count as off one line. */
+const LINE_SLACK = 2;
+/**
+ * Band labels known to take two lines at the app's minimum window, each where its neighbours take
+ * one, and not yet settled (a shorter label or more room): listed on every run as "known off line",
+ * and not failing it. Matched by window size, view and the finding's own words.
+ */
+const KNOWN_OFF_LINE = [
+  { size: "900×500", view: "Foundry", f: `the band's label "Owned, not mastered" takes 2 lines where another beside it takes 1` },
+  { size: "900×500", view: "Rivens", f: `the band's label "Your rivens' going rate" takes 2 lines where another beside it takes 1` },
+  { size: "900×500", view: "Current fissure, cards not read", f: `the band's label "Earned this session" takes 2 lines where another beside it takes 1` },
+];
+const knownOffLine = (l) => KNOWN_OFF_LINE.some((k) => k.size === l.size && k.view === l.view && k.f === l.f);
+
+/**
+ * Runs in the page: parts drawn off the line their neighbours keep. A sheet's close cross and its
+ * "?" (side by side at its top right) whose middles are more than `slack` px apart in height; in a
+ * page's band of figures, a label that takes more lines than another in the same row, and a note
+ * that takes more than one line where no other note in the row does (it stretches the band for
+ * every figure). Lines are counted from the text's own boxes.
+ */
+function findOffLine(slack) {
+  const bad = [];
+  const shown = (e) => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility === "visible";
+  const mid = (e) => {
+    const r = e.getBoundingClientRect();
+    return (r.top + r.bottom) / 2;
+  };
+  const linesOf = (e) => {
+    const range = document.createRange();
+    range.selectNodeContents(e);
+    return new Set([...range.getClientRects()].filter((x) => x.width > 0 && x.height > 0).map((x) => Math.round(x.bottom))).size;
+  };
+  for (const head of document.querySelectorAll(".sheet header")) {
+    const close = head.querySelector(":scope > .close");
+    const help = head.querySelector(":scope > .helpmark");
+    if (!shown(close) || !shown(help)) continue;
+    const off = Math.abs(mid(close) - mid(help));
+    if (off > slack) bad.push(`a sheet's Close and its "?" (${help.getAttribute("data-help")}) are ${Math.round(off)} px apart in height`);
+  }
+  for (const band of document.querySelectorAll("section.band")) {
+    if (!shown(band)) continue;
+    // The band's cells by row (a narrow window puts them two to a row).
+    const rows = new Map();
+    for (const cell of band.children) {
+      if (!shown(cell) || !cell.classList.contains("cell")) continue;
+      const top = Math.round(cell.getBoundingClientRect().top);
+      rows.set(top, [...(rows.get(top) ?? []), cell]);
+    }
+    for (const cells of rows.values()) {
+      if (cells.length < 2) continue;
+      const labels = cells.map((c) => c.querySelector(":scope > .l")).filter(shown);
+      const n = labels.map(linesOf);
+      const least = Math.min(...n);
+      labels.forEach((l, i) => n[i] > least && bad.push(`the band's label "${l.textContent.trim()}" takes ${n[i]} lines where another beside it takes ${least}`));
+      const notes = cells.map((c) => c.querySelector(":scope > .note > span")).filter(shown);
+      const m = notes.map(linesOf);
+      const longest = notes.filter((_, i) => m[i] > 1);
+      if (longest.length === 1) bad.push(`the band's note "${longest[0].textContent.trim().slice(0, 60)}" takes ${Math.max(...m)} lines where every other note beside it takes one`);
+    }
+  }
+  return bad;
 }
 
 /** How far a picture's drawn shape may be from its own (width over height) before it counts as stretched. */
@@ -471,13 +550,16 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 const pause = (p, ms) => p.waitForTimeout(ms);
 
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
-async function open(size, { firstRun = false, noInventory = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
+async function open(size, { firstRun = false, noInventory = false, cardsUnread = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
   const p = await browser.newPage({ viewport: { width: size.w, height: size.h }, reducedMotion });
   // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
   await guard(p);
   await stopWorldState(p);
   // No inventory read yet: TennoScope's setup steps.
   if (noInventory) await p.route(/\/dev-bundle\.json/, (r) => r.fulfill({ status: 404, body: "" }));
+  // The reward screen open with its cards not read (TennoScope started mid-mission): Current
+  // fissure shows its band of figures, with the parts the player needs, above the pool.
+  if (cardsUnread) await p.route(/\/dev-reward-screen\.json/, (r) => r.fulfill({ status: 404, body: "" }));
   // The reward screen with the Forma Blueprint, at the time the demo server gives it, and every
   // item picture wide. Only the demo server's file: `r.fetch()` asks again from here, past the
   // guard and the browser's launch rule, and follows no redirect. A 3xx whose body is JSON is
@@ -565,6 +647,8 @@ let picturesChecked = 0;
 /** Tags drawn with no words, or words unreadable on their fill, and how many tags were looked at. */
 const tagFindings = [];
 let tagsChecked = 0;
+/** Parts off the line their neighbours keep (findOffLine). */
+const lineFindings = [];
 /** The window sizes where the wide-picture view didn't get the Forma Blueprint's card drawn with its picture. */
 const wideMissed = [];
 const helpMissing = [];
@@ -612,6 +696,7 @@ async function check(p, size, view) {
   const tags = await p.evaluate(findTags, TAG_CONTRAST);
   for (const f of tags.bad) tagFindings.push({ size: `${size.w}×${size.h}`, view, f });
   tagsChecked += tags.checked;
+  for (const f of await p.evaluate(findOffLine, LINE_SLACK)) lineFindings.push({ size: `${size.w}×${size.h}`, view, f });
   if (work) {
     const png = join(work, `${size.w}x${size.h}-${String(shots.length).padStart(3, "0")}.png`);
     await p.screenshot({ path: png });
@@ -1145,6 +1230,15 @@ async function walk(size, look, { settingsOnce = false, widePictures = true } = 
   const setup = await open(size, { noInventory: true });
   await look(setup, size, "TennoScope setup");
   await setup.close();
+  // Current fissure with the reward screen's cards not read: its band of figures (not on the
+  // keyboard walk, whose Tab order there is Current fissure's own).
+  if (widePictures) {
+    const unread = await open(size, { cardsUnread: true });
+    await unread.locator("button.nav", { hasText: "Current fissure" }).first().click();
+    await pause(unread, 2500);
+    await look(unread, size, "Current fissure, cards not read");
+    await unread.close();
+  }
   // Current fissure's reward cards with wide pictures (the Forma Blueprint's among them): a
   // picture well that squeezes or stretches its picture shows here first.
   if (widePictures) {
@@ -1219,6 +1313,7 @@ try {
     }
   }
   const bugs = findings.filter((f) => !f.deliberate);
+  const offLine = lineFindings.filter((l) => !knownOffLine(l));
   const meant = findings.filter((f) => f.deliberate);
   for (const f of bugs) console.log(`CLIPPED ${f.size} ${f.view}: ${f.kind}: ${f.element}${f.by ? ` by ${f.by}` : ""} (${f.detail})`);
   for (const f of meant) console.log(`deliberate ${f.size} ${f.view}: ${f.element} (${f.deliberate})`);
@@ -1230,6 +1325,9 @@ try {
     console.log(`${stretched.length} pictures out of shape, ${picturesChecked} pictures checked`);
     for (const t of tagFindings) console.log(`TAG ${t.size} ${t.view}: ${t.f}`);
     console.log(`${tagFindings.length} tags without words or unreadable, ${tagsChecked} tags checked`);
+    for (const l of offLine) console.log(`OFF LINE ${l.size} ${l.view}: ${l.f}`);
+    for (const l of lineFindings.filter(knownOffLine)) console.log(`known off line ${l.size} ${l.view}: ${l.f}`);
+    console.log(`${offLine.length} parts off their neighbours' line, ${lineFindings.length - offLine.length} known`);
   }
   if (keys) {
     for (const f of keyFindings) console.log(`KEYBOARD ${f.size} ${f.view}: ${f.element}: ${f.reason}`);
@@ -1269,7 +1367,7 @@ try {
   console.log(requestsLine());
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
-  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || nameFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || offLine.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || nameFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
