@@ -11,7 +11,7 @@ import { sanitizeBuild, sanitizeBuilds, sanitizeMaxAgeDays } from "../src/lib/co
 import { normalizeRule } from "../src/lib/core/timers";
 import { approvedOf } from "../src/lib/core/approved";
 import { DRIFT } from "../src/lib/core/drift";
-import { migrateTab } from "../src/lib/pages";
+import { migrateTab, PAGES } from "../src/lib/pages";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "../src/lib/core/shapes";
 import { parseMyAuctions } from "../src/lib/core/rivens";
 import { noxItems } from "../src/lib/core/builds/noxsframe";
@@ -291,6 +291,12 @@ test("every other sanitizer and parser takes anything without throwing", () => {
       }
     }
   });
+});
+
+test("a saved page is one of the pages' own names: anything else, an object's own keys included, opens Home", () => {
+  for (const p of PAGES) assert.equal(migrateTab(p.id), p.id);
+  assert.equal(migrateTab("ducats"), "parts");
+  for (const k of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf", "", "nowhere"]) assert.equal(migrateTab(k), "home", k);
 });
 
 test("Sell spares rules: junk in a version 2 file never keeps fewer copies than the usual rules", () => {
