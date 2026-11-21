@@ -246,6 +246,9 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .primary:active:not(:disabled), .stamp.gold:active:not(:disabled) { background: var(--sec); border-color: var(--sec); color: var(--slab); box-shadow: none; }
 /* Disabled: the fill goes, so it doesn't look like it can be pressed. */
 .primary:disabled, .stamp.gold:disabled { --edge: var(--rule); border-color: var(--rule); background: transparent; color: var(--platinum-deep); box-shadow: none; }
+/* Can't be pressed yet but keeps the focus, so the keyboard gets its reason (title, as a focus tip):
+   aria-disabled, drawn as a disabled one, hovered or pressed alike. ProgressButton draws its own. */
+.stamp[aria-disabled="true"]:not(.pb), .stamp.gold[aria-disabled="true"]:not(.pb):hover, .stamp.gold[aria-disabled="true"]:not(.pb):active { --edge: var(--rule); border-color: var(--rule); background: transparent; color: var(--platinum-deep); box-shadow: none; cursor: default; transform: none; }
 .danger:hover:not(:disabled) { --edge: var(--oxblood); background: var(--oxblood); border-color: var(--oxblood); color: var(--slab); }
 
 input, select {

@@ -41,6 +41,7 @@
     count,
     opened = $bindable(null),
     help,
+    heading = "The list",
   }: {
     /** Remembers the layout under this name. */
     id: string;
@@ -77,6 +78,8 @@
     opened?: T | null;
     /** The parts' ids for the "?": the list (its sort row) and a row's details panel; `<id>.list` and `<id>.sheet` unless given. */
     help?: { list?: string; sheet?: string };
+    /** The list's heading, for a screen reader only: the cards' names are h3s, under the page's h1. */
+    heading?: string;
   } = $props();
   const helpList = $derived(help?.list ?? `${id}.list`);
   const helpSheet = $derived(help?.sheet ?? `${id}.sheet`);
@@ -191,6 +194,9 @@
   const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
 </script>
 
+<!-- An h2 between the page's h1 and the cards' h3, so headings don't jump a level (a screen reader's
+     list of them), and a section after the list doesn't read as part of its last card. -->
+<h2 class="sr">{heading}</h2>
 <div class="tools" class:bar={!!filters}>
   {#if filters}{@render filters()}{/if}
   {#if layout === "cards" && sortable.length}
@@ -246,6 +252,7 @@
   @supports (content-visibility: hidden) {
     .off { display: block; content-visibility: hidden; }
   }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
   /* The sort row: a plate, as the filter row above it is. */
   .tools.bar { margin-top: var(--step); }
   /* The "?" follows what's before it (the page's own beside its filters); the count and the switch are what go to the right. */

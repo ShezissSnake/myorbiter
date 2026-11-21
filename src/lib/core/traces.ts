@@ -13,3 +13,12 @@ export const traceCap = (masteryRank: number | null | undefined) => (masteryRank
 
 /** Within one radiant refine of the cap: worth spending some before the next run. */
 export const nearTraceCap = (traces: number, cap: number | null) => cap != null && traces >= cap - TO_RADIANT;
+
+/**
+ * The note for traces near, at or over the cap, the same wherever they show; null further under
+ * (or with no cap). It shows in amber, so it starts with the "!" amber always carries.
+ */
+export function traceCapWord(traces: number, cap: number | null): string | null {
+  if (cap == null || !nearTraceCap(traces, cap)) return null;
+  return `! ${traces > cap ? "over" : traces === cap ? "at" : "near"} the cap: refine some`;
+}

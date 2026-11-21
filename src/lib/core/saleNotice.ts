@@ -49,8 +49,10 @@ const OUTCOME_WORD: Record<SaleOutcome, string> = {
  * of each listing, when it marked the sale on warframe.market; else the trade's own items.
  * One item: the title says it all. Several: the title has the count and the total, and the body
  * one line each. What became of the listings is the last line, or beside each item when they differ.
+ * `partnerUnread`: the buyer couldn't be looked up on warframe.market, which is what keeps +rep
+ * off the notification: the last line says so.
  */
-export function saleNotice(t: Trade, lines: SoldLine[] | null = null): { title: string; body: string } {
+export function saleNotice(t: Trade, lines: SoldLine[] | null = null, partnerUnread = false): { title: string; body: string } {
   const items: SoldLine[] = lines?.length ? lines : t.offered;
   const plat = `${t.platinum_received} platinum`;
   const copies = items.reduce((n, x) => n + x.count, 0);
@@ -60,6 +62,7 @@ export function saleNotice(t: Trade, lines: SoldLine[] | null = null): { title: 
   const body: string[] = [];
   if (items.length > 1) for (const x of items) body.push(`${soldName(x)}${!one && x.outcome ? ` (${OUTCOME_WORD[x.outcome]})` : ""}`);
   if (one) body.push(outcomeLine(one, items.length > 1));
+  if (partnerUnread) body.push(`Couldn't check whether ${t.partner} is on warframe.market, so no +rep here (see Stats).`);
   return { title, body: body.join("\n") };
 }
 

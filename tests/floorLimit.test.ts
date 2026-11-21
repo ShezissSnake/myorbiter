@@ -24,19 +24,35 @@ async function loadMarket(market: Record<string, unknown>) {
 
 test("the limit is 100,000p", () => assert.equal(MAX_SAVED_PRICE, 100_000));
 
-test("the Floor field takes a floor up to the limit, clears on empty or 0, and refuses over it", () => {
+test("the Floor field takes a floor up to the limit, clears on empty, and refuses over it", () => {
   assert.equal(floorTyped("45", MAX_SAVED_PRICE), 45);
   assert.equal(floorTyped("100000", MAX_SAVED_PRICE), 100_000);
-  assert.equal(floorTyped("12.4", MAX_SAVED_PRICE), 12);
+  assert.equal(floorTyped("12.4", MAX_SAVED_PRICE), 13);
   assert.equal(floorTyped("", MAX_SAVED_PRICE), null);
-  assert.equal(floorTyped("0", MAX_SAVED_PRICE), null);
+  assert.equal(floorTyped("0", MAX_SAVED_PRICE), "keep");
   assert.equal(floorTyped("100001", MAX_SAVED_PRICE), "over");
   assert.equal(floorTyped("150000", MAX_SAVED_PRICE), "over");
 });
 
+test("a floor with a fraction rounds up; a box the browser can't read, or 0 or less, leaves the floor as it was; only an emptied box is automatic", () => {
+  assert.equal(floorTyped("12.01", MAX_SAVED_PRICE), 13, "never under what was typed");
+  assert.equal(floorTyped("0.4", MAX_SAVED_PRICE), 1);
+  assert.equal(floorTyped("99999.5", MAX_SAVED_PRICE), 100_000);
+  assert.equal(floorTyped("100000.2", MAX_SAVED_PRICE), "over");
+  // "12-" or "e" in a number box: the browser gives "" and flags it as bad input.
+  assert.equal(floorTyped("", MAX_SAVED_PRICE, true), "keep", "not an emptied box: the floor stays");
+  assert.equal(floorTyped("", MAX_SAVED_PRICE, false), null, "emptied: the automatic floor");
+  assert.equal(floorTyped("-3", MAX_SAVED_PRICE), "keep");
+  assert.equal(floorTyped("0", MAX_SAVED_PRICE), "keep");
+  const src = readFileSync(new URL("../src/lib/tabs/Orders.svelte", import.meta.url), "utf8");
+  const body = src.slice(src.indexOf("function setFloor("), src.indexOf("function togglePause("));
+  assert.match(body, /floorTyped\(input\.value, MAX_SAVED_PRICE, input\.validity\.badInput\)/);
+  assert.match(body, /if \(floor === "keep"\) \{\s*input\.value = String\(floorOf\(o\) \?\? ""\);\s*return;/, "the box shows the floor kept");
+});
+
 test("Orders' Floor field uses that rule with the loader's limit, and says the limit when it refuses", () => {
   const src = readFileSync(new URL("../src/lib/tabs/Orders.svelte", import.meta.url), "utf8");
-  assert.match(src, /floorTyped\(input\.value, MAX_SAVED_PRICE\)/);
+  assert.match(src, /floorTyped\(input\.value, MAX_SAVED_PRICE, input\.validity\.badInput\)/);
   assert.match(src, /Not saved: a floor goes up to \{MAX_SAVED_PRICE\.toLocaleString\("en"\)\}p/);
   assert.match(src, /max=\{MAX_SAVED_PRICE\}/);
 });

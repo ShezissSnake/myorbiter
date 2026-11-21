@@ -2,6 +2,7 @@
   // A line chart over time, one axis. Several series get a legend and labels at their ends; one
   // series needs neither (the title names it). Hover shows the nearest reading.
   import type { Snippet } from "svelte";
+  import { chartKey } from "./chartKeys";
 
   let {
     title,
@@ -84,7 +85,23 @@
   });
 
   let hover = $state<number | null>(null);
+  /** The reading was moved by keyboard: it is announced (the pointer's is only drawn). */
+  let keyed = $state(false);
+  // The chart takes the focus: Left and Right move the reading a day at a time, Home and End to the
+  // ends (chartKeys.ts), and the reading drawn is announced.
+  function key(e: KeyboardEvent) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+    e.preventDefault();
+    const to = chartKey(e.key, at, idx, hover);
+    if (to == null) return;
+    hover = to;
+    keyed = true;
+  }
+  const when = (t: number) => new Date(t).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const spoken = $derived(keyed && hover != null ? `${when(at[hover])}: ${series.filter((s) => s.values[hover!] != null).map((s) => `${many ? `${s.label} ` : ""}${(s.values[hover!] as number).toLocaleString("en")}`).join(", ")}` : "");
   function move(e: PointerEvent) {
+    keyed = false;
     const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
     const px = e.clientX - r.left;
     let best = idx[0];
@@ -104,7 +121,8 @@
   </figcaption>
   <div class="wrap" bind:clientWidth={W}>
     {#if idx.length >= 2}
-      <svg width={W} height={H} viewBox="0 0 {W} {H}" role="img" aria-label={title} onpointermove={move} onpointerleave={() => (hover = null)}>
+      <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+      <svg width={W} height={H} viewBox="0 0 {W} {H}" role="img" aria-label={title} aria-keyshortcuts="ArrowLeft ArrowRight Home End" tabindex="0" onkeydown={key} onblur={() => { if (keyed) hover = null; keyed = false; }} onpointermove={move} onpointerleave={() => { if (!keyed) hover = null; }}>
         {#each ticks as t, i (i)}
           <line class="grid" x1={PAD.l} x2={PAD.l + iw} y1={y(t)} y2={y(t)} />
           <text class="ax" x={PAD.l - 8} y={y(t) + 4} text-anchor="end">{fmt(t)}</text>
@@ -120,10 +138,11 @@
       </svg>
       {#if hover != null}
         <div class="tip" style:left="{x(at[hover])}px" class:flip={x(at[hover]) > W * 0.6}>
-          <div class="register">{new Date(at[hover]).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</div>
+          <div class="register">{when(at[hover])}</div>
           {#each series as s (s.label)}{#if s.values[hover] != null}<div class="tr">{#if many}<i style:background={s.color}></i>{s.label}{/if}<b>{(s.values[hover] as number).toLocaleString("en")}</b></div>{/if}{/each}
         </div>
       {/if}
+      <p class="said" aria-live="polite">{spoken}</p>
     {:else}
       <!-- One reading already (its number is in the header): the line needs a second. -->
       <!-- With nothing to say (the page says it once), the card stays short: its header has the number. -->
@@ -146,6 +165,9 @@
   .down { color: var(--oxblood); }
   .wrap { position: relative; }
   svg { display: block; touch-action: none; }
+  svg:focus-visible { outline: 1px solid var(--select); outline-offset: 2px; }
+  /* The reading moved by keyboard, for a screen reader only. */
+  .said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; margin: 0; }
   .grid { stroke: var(--rule); stroke-width: 1; }
   .ax { fill: var(--platinum-deep); font-family: var(--face-register); font-size: 11px; }
   .end { fill: var(--platinum); font-size: 11px; font-variant-numeric: tabular-nums; }

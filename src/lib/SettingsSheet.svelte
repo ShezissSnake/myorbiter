@@ -296,12 +296,12 @@
     <!-- Every switch that makes MyOrbiter act on warframe.market by itself, the same list as Orders'
          automatic panel. Checking first: the same switch as Check automatically on Orders. -->
     <Switch name="settings.auto-check" bind:on={() => settings.market.autoCheck, (on) => { settings.market.autoCheck = on; if (!on) settings.market.auto = false; }} label="Check my prices on a timer (Check automatically)">
-      Off unless you turn it on. While MyOrbiter is open, it reads the order books for your listings {everyWords(settings.market.every)} (how often is set on Orders) and shows what each would change to; it sends nothing by itself. Turning it off turns automatic repricing off too.
+      Off unless you turn it on. While MyOrbiter is open, it reads the order books for your listings {everyWords(settings.market.every)} (how often is set on Orders) and shows what each would change to; it sends nothing by itself. Turning it off turns Apply automatically off too.
     </Switch>
-    <!-- Automatic repricing, named as what it is; the same switch as Apply automatically on Orders. -->
-    <Switch name="settings.auto-reprice" bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (automatic repricing)">
+    <!-- Automatic repricing, named as what it is and by its one name, Apply automatically: the same switch as on Orders. -->
+    <Switch name="settings.auto-reprice" bind:on={() => settings.market.auto, (on) => { settings.market.auto = on; if (on) settings.market.autoCheck = true; }} label="Change my prices on warframe.market by itself (Apply automatically)">
       Off unless you turn it on. While MyOrbiter is open, it checks your listings {everyWords(settings.market.every)} (Orders) and sends a new price without asking when a listing's price has drifted:
-      more than {BAND_WORDS} from the second-cheapest seller online or in game, so one bait listing is never followed;
+      more than {BAND_WORDS} from where Reprice would set it: down to the second-cheapest seller online or in game, so one bait listing is never followed, and up no higher than the cheapest;
       at most once {every(DRIFT.cooldownMs)} per listing; and at most {DRIFT.perDay} times a day per listing.
       The one exception is a listing under its own floor, a relic's crack value, a Prime part's or set's ducats, or your minimum: it is lifted to at least that at once.
       {onConsole ? AUTO_LIMITS_CONSOLE : AUTO_LIMITS}. {GREY_AREA}.

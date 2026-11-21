@@ -613,3 +613,29 @@ export function copyLine(a: { stale: boolean; error?: string; fetchedAt: number 
 export function savedFrom<T extends Pick<Build, "source">>(builds: readonly T[], url: string): T | undefined {
   return builds.find((b) => isSite(b.source) && b.source.url === url);
 }
+
+/** Slots the Arsenal grid shows empty: its mod slots counted, the aura, stance, exilus and arcane slots named apart. */
+export interface EmptySlots {
+  mods: number;
+  others: string[];
+}
+
+/** The slots `b` leaves empty: the mod slots (as the suggestion's own sentence counts them), then the rest by name. */
+export function emptySlots(b: Build): EmptySlots {
+  const l = slotLayout(b.kind);
+  let mods = 0;
+  for (let i = 0; i < l.mods; i++) if (!b.mods[i]) mods++;
+  const others: string[] = [];
+  if (l.aura && !b.aura) others.push("the aura");
+  if (l.stance && !b.stance) others.push("the stance");
+  if (l.exilus && !b.exilus) others.push("the exilus");
+  const arcanes = Math.max(0, l.arcanes - b.arcanes.length);
+  if (arcanes) others.push(`${arcanes} arcane slot${arcanes === 1 ? "" : "s"}`);
+  return { mods, others };
+}
+
+/** Nothing left to get: said with the slots that stay empty, each named, so it never reads as a full build. */
+export function haveAllWord(empty: EmptySlots): string {
+  const named = [...(empty.mods ? [`${empty.mods} mod slot${empty.mods === 1 ? "" : "s"}`] : []), ...empty.others];
+  return `You have everything it takes${named.length ? ` · empty: ${named.join(", ")}` : ""}`;
+}

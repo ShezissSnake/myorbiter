@@ -34,7 +34,7 @@ const SAME_SALE_MS = 6 * 3_600_000;
  * by hand), whose part listings closed on warframe.market. Its id goes in the set sale's
  * `wfmParts`. Returns the new log (newest first) and how many were added and matched.
  */
-export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (set: string) => { name: string; required: number }[] | null = () => null): { sales: Sale[]; added: number; matched: number } {
+export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (set: string) => { name: string; required: number }[] | null = () => null): { sales: Sale[]; added: number; matched: number; fresh: Sale[] } {
   const out = sales.map((s) => ({ ...s, ...(s.wfmParts ? { wfmParts: [...s.wfmParts] } : {}) }));
   const known = new Set(out.flatMap((s) => [...(s.wfm ? [s.wfm] : []), ...(s.wfmParts ?? [])]));
   // Copies of each part a set sale can still take, by sale and part name (saleName).
@@ -74,6 +74,7 @@ export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (se
   }
   let added = 0;
   let matched = 0;
+  const addedSales: Sale[] = [];
   // Two passes: orders that match a logged sale of the same quantity take theirs first, so a sale
   // of 1 logged after a trade isn't taken by 2 marked sold on the website the same day. Then the
   // rest, by the nearest logged sale left.
@@ -97,11 +98,43 @@ export function importClosed(sales: Sale[], closed: ClosedOrder[], setParts: (se
         set.wfmParts = [...(set.wfmParts ?? []), c.id];
         matched++;
       } else {
-        out.push({ at, item: c.name, rank: c.rank, quantity: Math.max(1, c.quantity), platinum: Math.round(c.platinum), wfm: c.id });
+        const sale: Sale = { at, item: c.name, rank: c.rank, quantity: Math.max(1, c.quantity), platinum: Math.round(c.platinum), wfm: c.id };
+        out.push(sale);
+        addedSales.push(sale);
         added++;
       }
     }
   }
   out.sort((a, b) => b.at - a.at);
-  return { sales: out, added, matched };
+  return { sales: out, added, matched, fresh: addedSales };
+}
+
+/** The sale log keeps this many sales, the newest. */
+export const MAX_SALES = 2000;
+
+/**
+ * An import of closed orders into the sale log, cut to the newest `MAX_SALES`, with the words
+ * that say what it did. A log the import fills past the cap loses its oldest sales, logged or
+ * just found: the words count the found ones that were kept, and say the log is full. `sales` is
+ * null when nothing was added or matched (the log isn't written).
+ */
+export function importedLog(sales: Sale[], closed: ClosedOrder[], setParts?: (set: string) => { name: string; required: number }[] | null, max = MAX_SALES): { sales: Sale[] | null; words: string } {
+  const r = importClosed(sales, closed, setParts);
+  const kept = r.sales.slice(0, max);
+  const cut = r.sales.length - kept.length;
+  const sells = closed.filter((c) => c.kind === "sell").length;
+  const s = (n: number) => (n === 1 ? "" : "s");
+  const other = `the other ${sells - r.added} ${sells - r.added === 1 ? "was" : "were"} already logged.`;
+  const cap = `it keeps your newest ${max.toLocaleString("en-US")} sales`;
+  let words: string;
+  if (!sells) words = "warframe.market has no closed sales on your profile.";
+  else if (!r.added) words = `All ${sells} closed sale${sells === 1 ? " on warframe.market was" : "s on warframe.market were"} already logged.`;
+  else if (cut) {
+    const left = new Set(kept);
+    const stayed = r.fresh.filter((x) => left.has(x)).length;
+    words = `Found ${r.added} new sale${s(r.added)} on warframe.market and kept ${stayed || "none"}; ${other}`;
+  } else words = `Added ${r.added} sale${s(r.added)} from warframe.market; ${other}`;
+  if (cut) words += ` The sale log is full: ${cap}, so the ${cut === 1 ? "oldest was" : `${cut} oldest were`} dropped.`;
+  else if (r.added && kept.length >= max) words += ` The sale log is now full: ${cap}.`;
+  return { sales: r.added || r.matched ? kept : null, words };
 }

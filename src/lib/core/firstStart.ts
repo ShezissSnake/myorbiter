@@ -165,6 +165,13 @@ export function firstStart(s: Signs): StepState {
   return { ...base, stage: stuck ? "Signed in, but no inventory yet" : "Signed in: reading your inventory", waitingFor: "TennoScope to read your inventory", stuck, reason: stuck ? why : null, todo: stuck ? "Try again, and MyOrbiter asks TennoScope to read now." : "TennoScope reads it in a moment; this page turns into your collection by itself.", actions: ["retry"] };
 }
 
+/** The setup page's third step, named for what its stage still needs: once signed in, the inventory read. */
+export function gameStepTitle(x: Pick<StepState, "step" | "waitingFor">): string {
+  if (x.step === "inventory") return "TennoScope reads your inventory";
+  if (x.waitingFor === "you to sign in") return "Sign in to Warframe";
+  return "Start Warframe and sign in";
+}
+
 /** When each wait began (ms): the setup's start or the last Try again, and the first time each sign was seen since. */
 export interface Waits {
   since: number;

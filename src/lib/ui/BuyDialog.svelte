@@ -91,7 +91,7 @@
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-  <div class="scrim" use:scrim in:shade|global out:shade|global onclick={close}>
+  <div class="scrim" use:scrim={close} in:shade|global out:shade|global>
     <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
     <div class="dialog" role="dialog" in:opens|global={{ fade: false }} out:opens|global={{ fade: false }} tabindex="-1" aria-modal="true" aria-label="Post a buy order on warframe.market" bind:this={dialog} use:trap={{ onescape: close }} onclick={(e) => e.stopPropagation()}>
       <div class="register head"><span>Post a buy order</span><HelpMark part="buy" /></div>
@@ -119,11 +119,18 @@
             {#if d.loading}<span>Reading the order book…</span>
             {:else if bookFailed || bookEmpty}
               <span class="warn">{bookFailed ? "Couldn't read the order book" : "Nobody is buying or selling it right now"}: set the price yourself.</span>
+              {#if d.historyUnread}<span class="warn">Couldn't read the price history</span>{/if}
               {#if soldFor != null}<span title={d.median == null ? "The price the page you came from showed for it" : "What it sold for over the last 30 days (median)"}>Sold for <P v={Math.round(soldFor)} /></span>{/if}
             {:else}
               <span title="The highest buy order from someone you can trade with">Best buyer <P v={d.topBuy} /></span>
               <span title="The cheapest seller you can trade with, online now">Cheapest seller <P v={d.cheapestSell} /></span>
-              <span title={d.median == null && d.known != null ? "No sales on record for the last 30 days: the price the page you came from showed" : "What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere"}>Sold for <P v={soldFor == null ? null : Math.round(soldFor)} /></span>
+              <!-- A history that couldn't be read isn't one with no sales: it says so, and the card's price stays only that. -->
+              {#if d.historyUnread}
+                <span class="warn">Couldn't read the price history</span>
+                {#if soldFor != null}<span title="The price the page you came from showed for it">Sold for <P v={Math.round(soldFor)} /></span>{/if}
+              {:else}
+                <span title={d.median == null && d.known != null ? "No sales on record for the last 30 days: the price the page you came from showed" : "What it sold for over the last 30 days (median), so it can differ from the daily price elsewhere"}>Sold for <P v={soldFor == null ? null : Math.round(soldFor)} /></span>
+              {/if}
             {/if}
           </div>
           {#if badNumber}<p class="err small">{badNumber}</p>

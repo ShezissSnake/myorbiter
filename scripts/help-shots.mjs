@@ -180,7 +180,11 @@ async function reach(p, shot, where) {
     return;
   }
   for (let i = 0; i < 3 && (await p.locator("[aria-modal='true']").count()); i++) {
-    await p.keyboard.press("Escape");
+    // A build dialog with something typed asks before throwing it away (builds/leaving.ts): Esc
+    // brings the question up, Discard answers it.
+    const discard = p.locator("[aria-modal='true'] button.danger", { hasText: /^Discard$/ });
+    if (await discard.count()) await discard.first().click();
+    else await p.keyboard.press("Escape");
     await p.waitForTimeout(400);
   }
   if (shot.open === "settings") {

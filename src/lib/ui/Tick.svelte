@@ -28,7 +28,9 @@
     width: var(--tk); height: var(--tk); border: 1px solid var(--rule-control); background: transparent; color: var(--verdigris);
     line-height: 0; transition: border-color var(--quick) var(--out), background-color var(--quick) var(--out);
   }
-  button.tick { cursor: pointer; }
+  button.tick { cursor: pointer; position: relative; }
+  /* The click lands over at least 24 px round it, whatever size it is drawn. */
+  button.tick::before { content: ""; position: absolute; inset: -3px; }
   button.tick:hover:not(:disabled) { border-color: var(--gold-dim); color: var(--verdigris); }
   button.tick:active:not(:disabled) { transform: scale(.92); background: transparent; }
   button.tick:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }

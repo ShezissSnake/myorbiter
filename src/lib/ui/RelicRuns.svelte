@@ -125,7 +125,7 @@
     {/if}
   {:else}
     <p class="dim small">
-      {runs.length ? "No relic reward screens in this span." : "Every relic reward screen TennoScope reads shows up here, with the card you took and what your fissure runs come to per hour. It needs the patched TennoScope with screen capture allowed."}
+      {runs.length ? "No relic reward screens in this span." : "Every relic reward screen TennoScope reads shows up here, with the card you took and what your fissure runs come to per hour. It needs TennoScope with screen capture allowed."}
     </p>
   {/if}
 </section>

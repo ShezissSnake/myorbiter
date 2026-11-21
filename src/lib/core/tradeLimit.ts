@@ -34,6 +34,11 @@ export function tradeAllowance(trades: { at: number }[], masteryRank: number | n
   return { limit, used, left: limit == null ? null : Math.max(0, limit - used), resets: start + 86_400_000 };
 }
 
+/** The trade tiles' sentence for `limit` (tradeAllowance's): none at Mastery Rank 0 and 1, then your rank. */
+export function tradesADay(limit: number): string {
+  return limit > 0 ? `Trades a day are your Mastery Rank (${limit}; extra trades from Founder status are not added)` : "No trades before Mastery Rank 2; from then, trades a day are your Mastery Rank (extra trades from Founder status are not added)";
+}
+
 /**
  * Days of trading a pile of spare copies takes at your rank, `trades` a day with up to 6 copies
  * in each (the best case: buyers often take one): 4,840 mods at 24 trades a day is 34 days.

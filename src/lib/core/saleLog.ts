@@ -3,6 +3,12 @@
 // sale. A good entry comes back as it was saved.
 import type { Sale, TradeLogEntry } from "../backend";
 
+/**
+ * Said with Delete on Sales: a sale leaves the log only. What Sold changed on warframe.market (the
+ * listing closed, or its quantity lowered, and the sale on the player's profile) stays there.
+ */
+export const SALE_DELETE_KEEPS = "warframe.market keeps what Sold changed there: the listing stays closed or lowered, and the sale stays on your profile";
+
 const fine = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 const rankOf = (r: unknown) => (r == null ? null : Number.isInteger(r) && (r as number) >= 0 ? (r as number) : undefined);

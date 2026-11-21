@@ -15,6 +15,8 @@
   import ItemCard from "../ui/ItemCard.svelte";
   import ModCard from "../ui/ModCard.svelte";
   import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
   import Chip from "../ui/Chip.svelte";
@@ -29,6 +31,8 @@
   import { typed } from "../typed.svelte";
 
   let { model, masteryRank = null, minPlat = 5 }: { model: Model; masteryRank?: number | null; minPlat?: number } = $props();
+  /** Full mode is off and nothing was read: the empty text says so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
 
   let query = $state("");
 
@@ -174,7 +178,7 @@
 <div class="page"><div class="page-inner">
   <PageHead help={{ band: "mods.band", hero: "mods.showcase" }} title="Mods" brief="Spare mod copies to sell." blurb="Mods you have spare copies of. Your best copy and one to give away are always kept.">
     {#snippet hero()}
-      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing worth selling: your dearest mods" : "Your most valuable spare mods"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No mods read yet: press Sync while Warframe is running, and your spares go on display here." />
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing worth selling: your dearest mods" : "Your most valuable spare mods"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty={emptyText("No mods read yet: press Sync while Warframe is running, and your spares go on display here.", offFull)} />
     {/snippet}
     {#snippet band()}
       <Stat label="Spare copies" note={tradeDays != null && tradeDays > 1 ? `Beyond your best copy and one to give away · ${tradeDays} days of trades to sell them all` : "Beyond your best copy and one to give away"} title={tradeDays != null ? `Beyond your best copy and one to give away. Trades a day are your Mastery Rank (${masteryRank}), up to 6 items each: selling every spare copy would take ${tradeDays} days of trading, at best` : null}><Count value={extras} /></Stat>
