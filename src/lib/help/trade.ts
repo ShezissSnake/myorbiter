@@ -62,7 +62,7 @@ const ORDERS: Walkthrough = {
     {
       title: "Check prices, then Reprice",
       lines: [
-        "Check prices reads the order books and shows what each shown, auto-priced listing would change to.",
+        "Check prices reads the order books: what each shown listing, Reprice on, would change to.",
         "Reprice sends the changes shown, and never lower than shown.",
         "This line opens the automatic settings: checking and changing prices, the floor, after a trade.",
       ],
@@ -80,8 +80,8 @@ const ORDERS: Walkthrough = {
     {
       title: "Each listing, row by row",
       lines: [
-        "Will set: what Reprice would change the price to, tagged when not the market price.",
-        "Auto-price off leaves that listing's price as you set it.",
+        "Will set: what Reprice would set; else why not (matched, held at cheapest, within 2p/5%).",
+        "Reprice off leaves that listing's price as you set it, Apply automatically too.",
         "Shown off hides the listing from buyers.",
         "Sold marks one copy sold and logs the sale, with a few seconds to undo.",
       ],
@@ -182,7 +182,7 @@ const SPARES: Walkthrough = {
         "Never under: the minimum for everything, the same one as on Orders.",
         "A kind's own box replaces it for that kind; relics start at 3p.",
         "MyOrbiter lists nothing under its minimum: a spare that sells for less is left out.",
-        "Reprice raises a shown listing under its minimum up to it, unless Auto-price is off.",
+        "Reprice lifts a shown listing under its minimum to it, unless its Reprice switch is off.",
       ],
       shot: {
         open: "spares",
@@ -226,7 +226,7 @@ const SALES: Walkthrough = {
   does: [
     { text: "Shows what you sold today, in 7 days and in 30", icon: "platinum" },
     { text: "Charts platinum per day over 7 or 30 days" },
-    { text: "Lists each sale against the market price that day" },
+    { text: "Lists each sale against the daily median when it sold" },
     { text: "Logs sales made in game, once you turn that on" },
   ],
   pages: [

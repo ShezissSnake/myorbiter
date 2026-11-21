@@ -151,6 +151,33 @@ export function spareNow(c: SpareContext, item: MarketItem, rank: number | null,
   return { free: Math.max(0, free), same, spare: Math.max(0, free + same), across, kept: proven.spare <= 0 ? proven.short : null };
 }
 
+/** What the listing form says of spareNow: the copies free to go up, those listed already, what other listings took. */
+export type FormSpare = Pick<SpareNow, "free" | "same" | "across">;
+
+/**
+ * How many the listing form lets go: what you can spare, less your listing when adding to it, and
+ * never more than the last check (guardListing) allows, which is spareNow's free copies whichever
+ * way the copies go up. With nothing counted (`now` null), what the page counted.
+ */
+export function formRoom(available: number, merging: boolean, existingQty: number | null, now: FormSpare | null): number {
+  return Math.max(0, Math.min(available - (merging && existingQty != null ? existingQty : 0), now ? now.free : Infinity));
+}
+
+/** "You can spare N": with, for a listing of its own, how many of them your listings already hold. */
+export function spareLine(available: number, why: string | null, merging: boolean, now: FormSpare | null): string {
+  return `You can spare ${available}${why ?? ""}${!merging && now?.same ? `, ${now.same} on your listings already` : ""}`;
+}
+
+/** The form's warning when it asks for more than `room`: what holds the other copies, said truly. */
+export function tooManyLine(x: { available: number; room: number; quantity: number; merging: boolean; existingQty: number | null; now: FormSpare | null }): string {
+  if (x.merging && x.existingQty != null) return `You can spare ${x.available} and ${x.existingQty} are listed already, so ${x.room} more at most.`;
+  const rest = x.now?.across ? `the rest are kept back for you or offered already (${x.now.across})` : "the rest are copies MyOrbiter keeps back for you";
+  const listed = x.now?.same ?? 0;
+  if (!listed) return `That's more than the ${x.room} you can spare; ${rest}.`;
+  const head = `That's more than the ${x.room} that can go up: ${listed} of the ${x.available} you can spare ${listed === 1 ? "is" : "are"} on your listings already`;
+  return x.quantity > x.available ? `${head}; ${rest}.` : `${head}.`;
+}
+
 /** "Khra R0", "Axi A1 Relic (radiant)": the listing in a few words. */
 export function listingTag(it: MarketItem, rank: number | null, subtype: string | null): string {
   return `${it.name}${it.maxRank != null ? ` R${rank ?? 0}` : ""}${subtype && it.subtypes && it.subtypes.length > 1 ? ` (${subtype})` : ""}`;

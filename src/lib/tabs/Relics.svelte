@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import { links, openUrl } from "../links.svelte";
   import Opening from "../ui/Opening.svelte";
   import { info } from "../hover.svelte";
@@ -37,6 +40,8 @@
   // Solo or radshare is one setting, shared with the Planner.
   // wishlist: what you starred; relics that drop a part for it are marked.
   let { model, advice = $bindable(), wishlist = [], masteryRank = null }: { model: Model; advice: AdviceSettings; wishlist?: string[]; masteryRank?: number | null } = $props();
+  /** Full mode is off and nothing was read: the empty texts say so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
   const forWish = $derived.by(whileShown("relics", () => wishlistRelics(model, wishlist)));
   const wishTitle = (base: string) => `For your wishlist: ${(forWish.get(base) ?? []).map((x) => x.part).join(", ")}`;
 
@@ -289,7 +294,7 @@
   <HelpMark part="relics.filters" />
   {/snippet}
 
-  <Browse {filters} fixed id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty="No relics read yet: press Sync while Warframe is running, and yours go on display here." />
+  <Browse {filters} fixed id="relics" {rows} {columns} key={(r) => r.base} tint={(r) => eraTint(r.base)} bind:sort {detail} {card} title={(r) => `${r.base} Relic`} min="21rem" clear={filtering ? clearFilters : null} empty={emptyText("No relics read yet: press Sync while Warframe is running, and yours go on display here.", offFull)} />
   {#if unknown.length}
     <div class="unknown">
       <HelpMark part="relics.unknown" corner />

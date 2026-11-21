@@ -228,8 +228,8 @@ test("the listing form: You can spare N takes off copies your other listings off
   await mkt.startListing(broncoModel(), "Bronco Prime Barrel", { unique: B_BARREL, quantity: 1 });
   assert.equal(mkt.draft!.available, 1);
   assert.equal(mkt.draft!.spareWhy ?? null, null);
-  // The form prints the words after the number.
-  assert.match(read("src/lib/ui/ListDialog.svelte"), /<span class="dim spare">You can spare \{d\.available\}\{d\.spareWhy \?\? ""\}<\/span>/);
+  // The form prints the words after the number (spareLine, core/listGuard.ts).
+  assert.match(read("src/lib/ui/ListDialog.svelte"), /<span class="dim spare">\{spareLine\(d\.available, d\.spareWhy \?\? null, merging, now\)\}<\/span>/);
 });
 
 test("the listing form: a relic Sell spares keeps opens at 0, saying it's kept", async () => {

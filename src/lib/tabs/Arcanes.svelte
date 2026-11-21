@@ -12,6 +12,8 @@
   import ItemCard from "../ui/ItemCard.svelte";
   import ModCard from "../ui/ModCard.svelte";
   import { mkt } from "../marketStore.svelte";
+  import { noInventoryRead } from "../core/listGuard";
+  import { emptyText, fullModeOff } from "../core/fullModeOff";
   import P from "../ui/P.svelte";
   import Named from "../ui/Named.svelte";
   import Seg from "../ui/Seg.svelte";
@@ -33,6 +35,8 @@
   import Segments from "../ui/Segments.svelte";
 
   let { model, advice = $bindable() }: { model: Model; advice: AdviceSettings } = $props();
+  /** Full mode is off and nothing was read: the empty text says so instead of "press Sync". */
+  const offFull = $derived(fullModeOff(mkt.fullMode, noInventoryRead(model)));
   /** Your copies of an arcane by rank, under every path its row merges (arcaneRows). */
   const ranksOf = (r: ArcaneRow) => r.ranks;
 
@@ -285,7 +289,7 @@
 <div class="page"><div class="page-inner">
   <PageHead help={{ band: "arcanes.band", hero: "arcanes.showcase" }} title="Arcanes" brief="Arcanes by worth, and how close to maxed." blurb="What each arcane is worth, and how close you are to maxing it.">
     {#snippet hero()}
-      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty="No arcanes read yet: press Sync while Warframe is running, and they go on display here." />
+      <Showcase items={exhibits} caption={shelf.mode === "held" ? "Nothing marked Sell: your dearest arcanes" : "Your most valuable arcanes to sell"} note={shelf.mode === "held" ? "Each, at the daily median · click one for its details" : "By Worth selling · click one for its details"} empty={emptyText("No arcanes read yet: press Sync while Warframe is running, and they go on display here.", offFull)} />
     {/snippet}
     {#snippet band()}
       <Stat label="Maxed" note="Arcanes at max rank, or with enough copies to max one"><Count value={completeCount} /><span class="of">/{all.length}</span></Stat>
