@@ -50,6 +50,17 @@ test("the end marker near before the grid was measured: a screen more than shown
   assert.equal(cardsAhead(at(590, 0), { more: true }), 600);
 });
 
+test("the end marker near while the cards shown are still being drawn: nothing more until they are", () => {
+  // 64 shown, 40 drawn: the marker under the 40th is near, and stays near until the rest come.
+  assert.equal(cardsAhead(at(64, 28), { more: true, drawn: 40 }), 64);
+  // Every time it's seen meanwhile: still 64, not a screen more each time.
+  let shown = 64;
+  for (let i = 0; i < 10; i++) shown = cardsAhead(at(shown, 28), { more: true, drawn: 40 });
+  assert.equal(shown, 64);
+  // Once they're all drawn: a screen more.
+  assert.equal(cardsAhead(at(64, 28), { more: true, drawn: 64 }), 84);
+});
+
 test("folding back: down to where the player was when the page was left, the first screenful at least", () => {
   // Left at the top of a list drawn to its 600th card: back to the first 24.
   assert.equal(cardsToKeep(at(600, 20)), 24);

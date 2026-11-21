@@ -31,11 +31,13 @@ export function wholeRows(n: number, perRow: number): number {
  * The cards a grid in sight shows: down to `reach` and `ahead` screens more, in whole rows, never
  * fewer than it shows already (a list in sight never folds) and never more than it has. `more`:
  * the end of what's drawn came near anyway (the marker under the cards, a fallback for a grid not
- * measured yet): a screen more than it shows, at least a row.
+ * measured yet): a screen more than it shows, at least a row; but only once the cards `drawn` so far
+ * are all it shows. The marker sits under the cards drawn, so it stays near while they're still
+ * coming, and adding more each time it's seen then ran ahead to the whole list.
  */
-export function cardsAhead({ total, shown, reach, perRow, screenful }: CardsAt, { ahead = 1.5, more = false }: { ahead?: number; more?: boolean } = {}): number {
+export function cardsAhead({ total, shown, reach, perRow, screenful }: CardsAt, { ahead = 1.5, more = false, drawn = shown }: { ahead?: number; more?: boolean; drawn?: number } = {}): number {
   let goal = wholeRows(reach + ahead * screenful, perRow);
-  if (more) goal = Math.max(goal, wholeRows(shown + Math.max(screenful, perRow, 1), perRow));
+  if (more && drawn >= shown) goal = Math.max(goal, wholeRows(shown + Math.max(screenful, perRow, 1), perRow));
   return Math.max(shown, Math.min(total, goal));
 }
 

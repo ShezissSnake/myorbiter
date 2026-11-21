@@ -196,7 +196,7 @@
   /** The page the list is on (PaneId), if it's on one. */
   const pane = getContext<string | undefined>(PANE);
   const pageShown = () => pane == null || shownPage(pane);
-  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, measured: () => ahead() });
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, spare: 4, measured: () => ahead() });
   /**
    * While the cards are in sight, each time the page scrolls: the cards down to the screen's
    * bottom and a screen and a half more (core/cards.ts, `cardsAhead`), so a scroll finds them
@@ -206,7 +206,7 @@
    */
   function ahead(more = false) {
     if (!pageShown() || layout !== "cards" || cardView.hidden()) return;
-    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more });
+    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more, drawn: cardsDrawn.length });
     if (n !== shown) shown = n;
   }
   // Shown again (its page, or the cards after the table): measured, and drawn ahead from there.
@@ -263,7 +263,7 @@
       cancel();
     };
   });
-  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
+  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow, onMeasure: cardView.onMeasure }));
 </script>
 
 <!-- An h2 between the page's h1 and the cards' h3, so headings don't jump a level (a screen reader's

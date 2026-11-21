@@ -12,11 +12,17 @@ import { stillMoving } from "./motion";
  * layout costs a lot when it isn't). `box()`: the element whose children are the items (a tbody, a
  * grid). Until it's drawn and in sight: a guess, `guess` px an item. `exact`: counted to the
  * first item below the window rather than worked out from the first row's height (a grid of cards,
- * whose rows differ). `measured`: called after each measure.
+ * whose rows differ), with `spare` rows past the window's foot. `measured`: called after each measure.
  */
 export function inView(
   box: () => HTMLElement | null,
-  { min = 8, guess = 44, exact = false, measured: after }: { min?: number; guess?: number; exact?: boolean; measured?: () => void } = {},
+  {
+    min = 8,
+    guess = 44,
+    exact = false,
+    spare = 2,
+    measured: after,
+  }: { min?: number; guess?: number; exact?: boolean; spare?: number; measured?: () => void } = {},
 ) {
   let measured = false;
   let count = typeof window === "undefined" ? min : Math.max(min, Math.ceil(window.innerHeight / guess) + 2);
@@ -62,10 +68,12 @@ export function inView(
         if (kids[m].getBoundingClientRect().top >= vh) hi = m;
         else lo = m + 1;
       }
-      count = itemsToFoot(lo, cols, Math.ceil(min / cols));
+      count = itemsToFoot(lo, cols, Math.ceil(min / cols), spare);
     } else count = rowsInView(a.top, h, vh, Math.ceil(min / cols)) * cols;
     after?.();
+    for (const f of measuredFns) f();
   }
+  const measuredFns = new Set<() => void>();
   let scrollFrame = 0;
   const onScroll = () => {
     if (!scrollFrame) scrollFrame = requestAnimationFrame(() => ((scrollFrame = 0), measure(true)));
@@ -93,9 +101,11 @@ export function inView(
   const hidden = () => !!box()?.closest(".pane:not(.shown), .off");
   /** Calls `f` each time the list comes into sight; returns a stop. */
   const onShow = (f: () => void) => (wakers.add(f), () => void wakers.delete(f));
+  /** Calls `f` after each measure (the count may have changed); returns a stop. */
+  const onMeasure = (f: () => void) => (measuredFns.add(f), () => void measuredFns.delete(f));
   /** Items a screen holds (whole rows), as last measured. */
   const screenful = () => (typeof window === "undefined" ? min : Math.max(1, Math.ceil(window.innerHeight / Math.max(1, rowHeight))) * perRow);
-  return { count: () => count, perRow: () => perRow, screenful, measure, watch, hidden, onShow };
+  return { count: () => count, perRow: () => perRow, screenful, measure, watch, hidden, onShow, onMeasure };
 }
 
 let quietly = false;
@@ -138,7 +148,16 @@ export function progressive<T>(
     measure,
     hidden,
     onShow,
-  }: { first: () => number; step?: number; measure?: () => void; hidden?: () => boolean; onShow?: (f: () => void) => () => void },
+    onMeasure,
+  }: {
+    first: () => number;
+    step?: number;
+    measure?: () => void;
+    hidden?: () => boolean;
+    onShow?: (f: () => void) => () => void;
+    /** Tells when `first()` was measured again (inView's `onMeasure`): a scroll past the rows drawn hurries the next slice. */
+    onMeasure?: (f: () => void) => () => void;
+  },
 ): () => readonly T[] {
   // Out of sight (drawn in the background, or on a hidden page or view): a few rows now, the rest
   // when the app is idle and nobody's clicking (pane.svelte.ts, whenIdle), never in the middle of
@@ -149,14 +168,30 @@ export function progressive<T>(
   let frame = 0;
   let idle = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  /** The next slice, while it waits (for idle time, a frame or a task). */
+  let pending: (() => void) | null = null;
   const stop = () => {
     if (frame) cancelAnimationFrame(frame);
     if (idle) window.cancelIdleCallback(idle);
     clearTimeout(timer);
     unidle?.();
-    unidle = waiting = null;
+    unidle = waiting = pending = null;
     frame = idle = 0;
   };
+  /** Rows in sight not drawn yet: a scroll reached the end of what's drawn. */
+  const short = () => !away() && drawn.length < first();
+  // Scrolled past the rows drawn (a fling, a drag of the scroll bar) while the next slice waits for
+  // idle time, which a scroll may not leave until it stops: that slice now, in the frame the scroll
+  // was measured in (before it's painted), not a frame later.
+  if (onMeasure)
+    $effect(() =>
+      onMeasure(() => {
+        const f = pending;
+        if (!f || !short()) return;
+        stop();
+        f();
+      }),
+    );
   // Shown again with slices still waiting for idle time: they come now, as for a list in sight.
   if (onShow)
     $effect(() =>
@@ -179,7 +214,9 @@ export function progressive<T>(
   let waiting: (() => void) | null = null;
   /** Rows a slice out of sight draws: sized by how long the last one took (`BACKGROUND_BUDGET_MS`). */
   let awayStep = step;
-  const later = (f: () => void) => {
+  const later = (g: () => void) => {
+    pending = g;
+    const f = () => ((pending = null), g());
     if (away()) {
       waiting = f;
       unidle = whenIdle(() => {
@@ -190,6 +227,11 @@ export function progressive<T>(
         // The slice's drawing happens in this task's microtasks (Svelte's flush), queued before these.
         queueMicrotask(() => queueMicrotask(() => (awayStep = rowsFor(performance.now() - t0, rows, BACKGROUND_BUDGET_MS, step, awayStep))));
       });
+      return;
+    }
+    // Rows in sight still to draw: in the next frame, before it's painted, not in idle time.
+    if (short()) {
+      frame = requestAnimationFrame(() => ((frame = 0), f()));
       return;
     }
     if (typeof window !== "undefined" && "requestIdleCallback" in window) {

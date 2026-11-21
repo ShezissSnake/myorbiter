@@ -132,6 +132,9 @@ test("items down to the screen's foot, from the first item below it: whole rows 
   // A list one item a row, or not measured.
   assert.equal(itemsToFoot(10, 1, 8), 12);
   assert.equal(itemsToFoot(10, 0, 8), 12);
+  // Four spare rows (a grid of cards, so a fast scroll doesn't reach the end of what's drawn).
+  assert.equal(itemsToFoot(541, 4, 2, 4), 560);
+  assert.equal(itemsToFoot(0, 4, 2, 4), 16);
 });
 
 test("a list out of sight sizes its next slice by how long the last took", async () => {
