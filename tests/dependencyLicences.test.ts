@@ -381,8 +381,9 @@ test("cargo's answer is read the same whatever colour or terminal settings the b
 });
 
 // The variables a Release run's build sets around the script: the Release workflow's own (its env,
-// the Linux and Windows jobs' and their steps', and what a step adds to $GITHUB_ENV) and the builder
-// image's (ci/Dockerfile's ENV), by name, with what each does to what the script runs or reads.
+// the Linux and Windows jobs' and their steps', and what a step adds to $GITHUB_ENV; a write to it
+// in a form not read here, or any to $GITHUB_PATH, fails the test) and the builder image's
+// (ci/Dockerfile's ENV), by name, with what each does to what the script runs or reads.
 // The first real runs passed on a machine that set none of them, and Release run 112 stopped on
 // one (CARGO_TERM_COLOR): a variable added there fails here until its effect is looked at and
 // written down.
@@ -403,8 +404,9 @@ const BUILD_VARIABLES: Record<string, string> = {
   CARGO_HOME: "where the script reads each crate's licence texts (registry/src), as cargo unpacked them there",
   PATH: "the tools found: cargo, as the build's own",
 };
-const releaseVariables = () => {
+const releaseVariables = (release = readFileSync(".github/workflows/release.yml", "utf8"), dockerfile = readFileSync("ci/Dockerfile", "utf8")) => {
   const names = new Map<string, string | null>(); // name -> its value, when the file writes one
+  const unread: string[] = [];
   const envBlocks = (yaml: string) => {
     const lines = yaml.split("\n");
     lines.forEach((line, i) => {
@@ -417,26 +419,52 @@ const releaseVariables = () => {
         if (kv) names.set(kv[1], /\$\{\{/.test(kv[2]) ? null : kv[2].replace(/^"(.*)"$/, "$1"));
       }
     });
-    for (const m of yaml.matchAll(/echo "([A-Za-z_][A-Za-z0-9_]*)=[^"]*" *>> *"\$GITHUB_ENV"/g)) names.set(m[1], null);
+    // A step's writes to $GITHUB_ENV, one whole line each: `echo "NAME=…" >>"$GITHUB_ENV"`. Any
+    // other line naming it, and any naming $GITHUB_PATH (a folder put before PATH, which the list
+    // can't hold by name), is one this can't read, and stops the test.
+    for (const line of yaml.split("\n")) {
+      if (!/GITHUB_(ENV|PATH)/.test(line)) continue;
+      const env = /^\s*echo "([A-Za-z_][A-Za-z0-9_]*)=[^"]*" *>> *"\$GITHUB_ENV"\s*$/.exec(line);
+      if (env) names.set(env[1], null);
+      else unread.push(line.trim());
+    }
   };
-  const release = readFileSync(".github/workflows/release.yml", "utf8");
   const [top, jobs] = release.split(/^jobs:$/m);
   envBlocks(top);
   // The jobs that build, where the script runs.
   for (const job of jobs.split(/^(?= {2}[a-z][a-z0-9-]*:$)/m)) if (/^ {2}(linux|windows):$/m.test(job)) envBlocks(job);
   const image = new Map<string, string | null>();
-  for (const stmt of readFileSync("ci/Dockerfile", "utf8").replace(/\\\n/g, " ").split("\n")) {
+  for (const stmt of dockerfile.replace(/\\\n/g, " ").split("\n")) {
     if (stmt.startsWith("ENV ")) for (const m of stmt.matchAll(/([A-Za-z_][A-Za-z0-9_]*)=(\S*)/g)) image.set(m[1], m[2]);
   }
-  return { workflow: names, image };
+  return { workflow: names, image, unread };
 };
 
 test("every variable a Release run's build sets around the script is one whose effect on it was looked at", () => {
-  const { workflow, image } = releaseVariables();
+  const { workflow, image, unread } = releaseVariables();
+  // A write to $GITHUB_ENV or $GITHUB_PATH in a form not read here could add one unseen.
+  assert.deepEqual(unread, []);
   assert.deepEqual([...new Set([...workflow.keys(), ...image.keys()])].sort(), Object.keys(BUILD_VARIABLES).sort());
   // The two that ask for colour, as the run sets them.
   assert.equal(workflow.get("CARGO_TERM_COLOR"), "always");
   assert.equal(image.get("CARGO_TERM_COLOR"), "always");
+});
+
+test("a write to $GITHUB_ENV or $GITHUB_PATH in a build job, in a form the list isn't read from, fails it", () => {
+  const workflow = (run: string) => `env:\n  CARGO_TERM_COLOR: always\njobs:\n  linux:\n    steps:\n      - run: |\n          ${run}\n`;
+  // The form read: the name joins the list, so a new one fails the test above.
+  for (const run of ['echo "MADE_UP=1" >>"$GITHUB_ENV"', 'echo "MADE_UP=$made_up/lib" >> "$GITHUB_ENV"']) {
+    const read = releaseVariables(workflow(run), "");
+    assert.ok(read.workflow.has("MADE_UP"), run);
+    assert.deepEqual(read.unread, [], run);
+  }
+  // Every other form, and every write to $GITHUB_PATH, is named, and the test above fails on it.
+  for (const run of ["echo MADE_UP=1 >> $GITHUB_ENV", 'echo "MADE_UP=1" >> $GITHUB_ENV', 'printf "MADE_UP=1\\n" >>"$GITHUB_ENV"',
+    '"MADE_UP=1" | Out-File -Append -FilePath $env:GITHUB_ENV', '{ echo "MADE_UP=1"; } >>"$GITHUB_ENV"', 'echo "MADE_UP=a\\"b" >>"$GITHUB_ENV"',
+    'echo "A=1" >>"$GITHUB_ENV"; echo "MADE_UP=1" >>"$GITHUB_ENV"', 'cat made-up.env >>"$GITHUB_ENV"',
+    'echo "/opt/made-up/bin" >>"$GITHUB_PATH"', "echo /opt/made-up/bin >> $GITHUB_PATH"]) {
+    assert.deepEqual(releaseVariables(workflow(run), "").unread, [run], run);
+  }
 });
 
 test("cargo's answer is read the same under the Release workflow's and the builder image's own values", { skip: process.platform === "win32" }, async () => {
