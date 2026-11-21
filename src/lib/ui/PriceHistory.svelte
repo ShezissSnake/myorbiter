@@ -29,17 +29,24 @@
 
   let days = $state<Day[] | null>(null);
   let failed = $state(false);
+  /** warframe.market's item list was read and doesn't have it: nothing failed, there's just nothing there to read. */
+  let unlisted = $state(false);
   $effect(() => {
     const want = `${name}|${unique}|${rank}|${subtype}`;
     days = null;
     failed = false;
+    unlisted = false;
     void (async () => {
       try {
         await mkt.ensureItems();
         const it = findItem(mkt.index, name, unique);
-        // Not in warframe.market's item list: its history wasn't read, which isn't "nobody sold one".
+        // Not in warframe.market's item list: no history to read, which isn't "nobody sold one". An
+        // empty list is one that wasn't really read, so that isn't "not listed" either.
         if (!it) {
-          if (current === want) failed = true;
+          if (current === want) {
+            if (mkt.items.length) unlisted = true;
+            else failed = true;
+          }
           return;
         }
         const points = await mkt.history(it.slug);
@@ -63,6 +70,8 @@
 
 {#if failed}
   <p class="dim small">Couldn't read its price history from warframe.market.</p>
+{:else if unlisted}
+  <p class="dim small">Not listed on warframe.market, so it has no price history there.</p>
 {:else if days == null}
   <p class="dim small">Reading its price history…</p>
 {:else if days.length}

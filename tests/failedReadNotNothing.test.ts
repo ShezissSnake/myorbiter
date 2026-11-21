@@ -1,7 +1,8 @@
 // A read that failed is not "nothing there": the Buy form's price history, the trade partner's
-// lookup for a sale's notification, the relic price read and the price history panel for an item
-// warframe.market's list doesn't have each end in a state the page tells apart, and the page says
-// it couldn't read. Nothing is read again for it, and what +rep, a price or a plan decides stays.
+// lookup for a sale's notification, the relic price read and the price history panel each end in a
+// state the page tells apart, and the page says it couldn't read. An item warframe.market's list
+// doesn't have is neither: the panel says it isn't listed there. Nothing is read again for it, and
+// what +rep, a price or a plan decides stays.
 // market.* are stand-ins; nothing reaches the network.
 import "./support/runes";
 import { test } from "node:test";
@@ -100,9 +101,24 @@ test("the relic price read keeps which relics it couldn't read; the item list fa
   assert.doesNotMatch(spares.slice(spares.indexOf("{relicsUnread} relic")).split("\n")[0], /retry/i, "nothing reads them again sooner");
 });
 
-test("the price history panel for an item warframe.market's list doesn't have says it couldn't read", () => {
+test("the price history panel tells an item warframe.market doesn't list from a read that failed, each in true words", () => {
   const panel = source("src/lib/ui/PriceHistory.svelte");
+  const line = (cond: string) => panel.match(new RegExp(`\\{(?:#if|:else if) ${cond}\\}\\s*<p[^>]*>([^<]*)</p>`))?.[1];
+  // A read that failed: the item list or the history didn't come.
+  const failedWords = line("failed");
+  assert.match(failedWords ?? "", /^Couldn't read its price history/, "a failed read says it couldn't read");
+  assert.match(panel, /\} catch \{\s*if \(current === want\) failed = true;/, "a list or history that didn't come is a failed read");
+  // Not in warframe.market's list, which was read: nothing failed, so it doesn't say "couldn't read".
+  const unlistedWords = line("unlisted");
+  assert.ok(unlistedWords, "the panel has its own line for an item warframe.market doesn't list");
+  assert.match(unlistedWords, /not listed on warframe\.market/i);
+  assert.doesNotMatch(unlistedWords, /couldn't|didn't answer|nobody has sold/i, "nothing failed, and it isn't 'nobody sold one'");
   const missing = panel.slice(panel.indexOf("if (!it) {"), panel.indexOf("const points = await mkt.history"));
-  assert.match(missing, /failed = true/, "not 'nobody sold one'");
-  assert.doesNotMatch(missing, /days = \[\]/);
+  assert.match(missing, /if \(mkt\.items\.length\) unlisted = true;\s*else failed = true;/, "not listed only when the list was read; an empty list wasn't");
+  assert.doesNotMatch(missing, /days = \[\]/, "neither is 'nobody sold one'");
+  // Each case starts clean when the panel is shown for another item.
+  assert.match(panel, /days = null;\s*failed = false;\s*unlisted = false;/);
+  // The failed line first, then the unlisted one, both before the reading line and the history.
+  const at = (s: string) => panel.indexOf(s);
+  assert.ok(at("{#if failed}") >= 0 && at("{#if failed}") < at("{:else if unlisted}") && at("{:else if unlisted}") < at("{:else if days == null}"));
 });
