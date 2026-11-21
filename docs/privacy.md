@@ -254,7 +254,9 @@ web requests; its status connection sends no User-Agent.
 - **World state**: `api.warframestat.us` at start, every 5 minutes, and when you press Sync or Try
   again (fissures, events, alerts, cycles, invasions, Baro, Varzia, Darvo, Nightwave, the Sortie,
   Archon Hunt, Archimedeas, Steel Path, the Duviri Circuit, the 1999 calendar, Descendia,
-  bounties). When it doesn't answer, or leaves out fissures, Baro, Varzia, a cycle, the Sortie,
+  bounties): one request for all of it. Only when that answer can't be used are its 21 parts asked
+  for one by one in that read: not after an answer of "too many requests", and no more once three
+  in a row are refused (the rest are left empty). When it doesn't answer, or leaves out fissures, Baro, Varzia, a cycle, the Sortie,
   Archon Hunt or bounties, MyOrbiter reads the game's own world state (`api.warframe.com`, then
   `content.warframe.com`) and WFCD's tables that name its places (four files on
   `raw.githubusercontent.com`, kept a week).
