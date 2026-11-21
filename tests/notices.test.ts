@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { defaultNotify } from "../src/lib/backend";
 import { NOTICE_KINDS, growNotice, kindsFor, logNotice, NOTICE_LOG, onItsPage, outcomeOf, outcomeText, pageOf, routeOf, splitTarget, type NoticeKind, type NoticeOutcome, type OnScreen, type PopupFacts } from "../src/lib/notices";
 import { noticesOf } from "../src/lib/core/savedGame";
@@ -110,6 +112,19 @@ test("every other kind pops up as before, its page on screen or not", () => {
   assert.equal(onItsPage("market", shown("market", "spares#cat-mods"), screen("spares")), false);
   assert.equal(onItsPage("sold", shown("sold"), screen("sales")), false);
   for (const k of NOTICE_KINDS) if (k.kind !== "reward") assert.equal(onItsPage(k.kind, shown(k.kind), screen(splitTarget(k.to).page)), false, k.kind);
+});
+
+test("App reads the screen for the hold as it is: the page chosen, drawn once there's a collection, and anything modal over it", () => {
+  const app = readFileSync(join(import.meta.dirname, "../src/App.svelte"), "utf8");
+  const facts = /onItsPage: onItsPage\(gate, n, \{([^}]*)\}\)/.exec(app)?.[1] ?? "";
+  assert.match(facts, /tab: settings\.tab,/);
+  // The pages are drawn in the {:else} after the setup and "Can't read" pages, which show while there's no model.
+  assert.match(facts, /drawn: !!model,/);
+  assert.match(app, /\{:else if !model\}[\s\S]{0,400}\{:else\}/);
+  // A sheet, the help and every dialog are aria-modal while open.
+  assert.match(facts, /covered: [^,]*document\.querySelector\('\[aria-modal="true"\]'\)/);
+  for (const f of ["ui/Sheet.svelte", "ui/HelpDialog.svelte"]) assert.match(readFileSync(join(import.meta.dirname, "../src/lib", f), "utf8"), /aria-modal/, f);
+  assert.match(facts, /up: toasts\.list\.some\(\(t\) => t\.id === n\.id\)/);
 });
 
 test("the page a notification opens: its own target, else its kind's, without the card", () => {

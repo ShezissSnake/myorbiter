@@ -229,7 +229,7 @@
         <span class="dim small">{pauseChoice === "hour" || pauseChoice === "tomorrow" ? `Paused until ${hhmm(settings.notifyOptions.pausedUntil!)}. ` : pauseChoice === "on" ? "Paused. " : ""}While paused, notifications still go in Recent, so you can catch up.</span>
       </div>
       <Switch name="notices.toasts" bind:on={settings.notifyOptions.toasts} label="Pop-ups inside MyOrbiter">
-        While you're looking at MyOrbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.{console ? "" : " Which reward to take doesn't while Current fissure is on screen: that page marks the card itself."}
+        While you're looking at MyOrbiter: a notification shows by the sidebar for a few seconds. Click it to open what it's about.{console ? "" : " Which reward to take doesn't while Current fissure is on screen with nothing over it: that page marks the card itself."}
       </Switch>
       <Switch name="notices.desktop" bind:on={settings.notifyOptions.desktop} label="Desktop notifications">
         While MyOrbiter is behind other windows (or you're in the game): your desktop's notifications{console ? "" : ", where a click brings MyOrbiter up on what it's about (Linux and Windows)"}. Off: only Recent. Your desktop can still hold them back: Do Not Disturb does, and recent KDE Plasma turns it on by itself while a fullscreen window such as the game is in front (System Settings → Notifications).
