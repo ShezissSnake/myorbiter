@@ -261,8 +261,11 @@ test("reading Nox's Frame is on unless turned off", async () => {
   assert.equal(defaultSettings().buildsFromNox, true);
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ buildsFromNox: false }) };
   assert.equal((await loadSettings()).buildsFromNox, false);
-  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ buildsFromNox: "yes" }) };
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ buildsFromNox: true }) };
   assert.equal((await loadSettings()).buildsFromNox, true);
+  // A damaged value is not a yes: nothing is asked of Nox's Frame (settingsAsLoaded.test.ts has the rest).
+  (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({ buildsFromNox: "yes" }) };
+  assert.equal((await loadSettings()).buildsFromNox, false);
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify({}) };
   assert.equal((await loadSettings()).buildsFromNox, true, "settings from before it: on");
 });

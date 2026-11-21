@@ -951,19 +951,34 @@ function flagsOf<T extends object>(v: unknown, base: T): T {
   return Object.fromEntries(Object.entries(base).map(([k, d]) => [k, Object.hasOwn(r, k) ? r[k] === true : d])) as T;
 }
 
+/**
+ * One yes-or-no switch as loaded, by flagsOf's rule: missing from the file (or its group not an
+ * object) it is its usual value; there, it is on only when it is a real true.
+ */
+function switchOf(group: unknown, key: string, usual: boolean): boolean {
+  if (!group || typeof group !== "object" || Array.isArray(group) || !Object.hasOwn(group, key)) return usual;
+  return (group as Record<string, unknown>)[key] === true;
+}
+
 /** A platform MyOrbiter lists, by its own name only: "constructor" or "toString" are not platforms. */
 const platformOf = (v: unknown): Platform => (typeof v === "string" && Object.hasOwn(PLATFORM_LABEL, v) ? (v as Platform) : "pc");
 
 /**
  * Saved relic prices as loaded. An entry needs a time that is a finite number and not in the
  * future; each price in it needs to be a finite number above 0 and within MAX_SAVED_PRICE. What
- * fails is left out (an entry that isn't an object, or has a bad time, wholly; a bad price alone),
- * and the rest is kept. A relic left out is read again by the next relic price read.
+ * fails is left out, and the rest is kept. An entry is left out wholly when it isn't an object,
+ * when its time is bad, when its prices aren't an object, or when the relic is named `__proto__`
+ * (set on the table, that name would replace its prototype rather than add an entry); a bad price
+ * alone leaves out that price; a `how` other than "median" is dropped. A relic left out, or whose
+ * `how` was dropped, is read again by the next relic price read. An entry that lost only a price
+ * keeps its time and its "median", so it waits for the daily read (marketStore › readRelicPrices
+ * reads again what is older than a day): until then that refinement has no saved price.
  */
 function relicPricesOf(v: unknown, now = Date.now()): RelicMarket {
   if (!v || typeof v !== "object" || Array.isArray(v)) return {};
   const out: RelicMarket = {};
   for (const [relic, e] of Object.entries(v)) {
+    if (relic === "__proto__") continue;
     if (!e || typeof e !== "object" || Array.isArray(e)) continue;
     const { at, prices, how } = e as { at?: unknown; prices?: unknown; how?: unknown };
     if (typeof at !== "number" || !Number.isFinite(at) || at > now) continue;
@@ -987,11 +1002,20 @@ function discordKindsOf(discord: unknown): string[] {
   return [];
 }
 
-/** The reward-card weights as loaded: each a finite number, or the usual one (Forma's worth also at least 0). */
+/**
+ * The reward-card weights as loaded, only as Settings' sliders offer them (ui/WeightSliders.svelte):
+ * each weight a whole number from 0 to 10, and Forma's worth a number from 0 to 100 to one decimal.
+ * Another value is the usual one for that field. All four weights at 0, which the sliders refuse
+ * (every card would score the same), are the usual four; Forma's worth stays as loaded.
+ */
 function pickOf(v: unknown, base: PickWeights): PickWeights {
   const r = (v && typeof v === "object" && !Array.isArray(v) ? v : {}) as Record<string, unknown>;
-  const num = (x: unknown, d: number) => (typeof x === "number" && Number.isFinite(x) ? x : d);
-  return { plat: num(r.plat, base.plat), needed: num(r.needed, base.needed), ducats: num(r.ducats, base.ducats), set: num(r.set, base.set), forma: typeof r.forma === "number" && Number.isFinite(r.forma) && r.forma >= 0 ? r.forma : base.forma };
+  const weight = (x: unknown, d: number) => (typeof x === "number" && Number.isInteger(x) && x >= 0 && x <= 10 ? x : d);
+  const f = r.forma;
+  const forma = typeof f === "number" && Number.isFinite(f) && f >= 0 && f <= 100 && Math.round(f * 10) / 10 === f ? f : base.forma;
+  const w = { plat: weight(r.plat, base.plat), needed: weight(r.needed, base.needed), ducats: weight(r.ducats, base.ducats), set: weight(r.set, base.set) };
+  const none = w.plat === 0 && w.needed === 0 && w.ducats === 0 && w.set === 0;
+  return { ...(none ? { plat: base.plat, needed: base.needed, ducats: base.ducats, set: base.set } : w), forma };
 }
 
 /**
@@ -1119,11 +1143,18 @@ export async function loadSettings(): Promise<Settings> {
     // Pairs of a short key and a number only, each key once, at most METER_CAP.
     meters: meterMemoryOf(raw?.meters),
     withoutInventory: raw?.withoutInventory === true,
-    // A first start (no settings yet) asks; settings from before the question don't.
+    // A first start (no settings yet) asks; settings from before the question don't. Unlike the
+    // switches below, anything there but a real false still counts as asked: neither side of a
+    // damaged value is the careful one. Read as not asked, the question comes again and its answer
+    // is passed to TennoScope over the mode the player had, and the setup page's "Not now: overlay
+    // only" takes the start for a first one (automatic actions switched off); read as asked,
+    // TennoScope starts in the mode it already has, as it does today.
     fullModeAsked: raw ? raw.fullModeAsked !== false : false,
     homeDismissed: Array.isArray(raw?.homeDismissed) ? raw.homeDismissed.filter((k: unknown): k is string => typeof k === "string") : [],
     side: {
-      on: raw?.side?.on !== false,
+      // The Watching column. Here and for the overlays, the pop-ups and Nox's Frame below: missing,
+      // the usual value; there, on only for a real true (switchOf).
+      on: switchOf(raw?.side, "on", base.side.on),
       cards: Array.isArray(raw?.side?.cards) ? raw.side.cards.filter((k: unknown): k is string => typeof k === "string") : base.side.cards,
       // The Fissures card's own choice; a file from before it (or a part of it that isn't valid)
       // starts from what the card showed then: Home's board's kind and its Only my alerts.
@@ -1138,11 +1169,13 @@ export async function loadSettings(): Promise<Settings> {
     homeHidden: Array.isArray(raw?.homeHidden) ? raw.homeHidden.filter((k: unknown): k is string => typeof k === "string") : [],
     plannerMode: raw?.plannerMode === "radiant" ? "radiant" : "sets",
     // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
+    // Save prime parts for sets keeps anything but a real false as on: on, it keeps parts out of
+    // what Sell spares offers, so a damaged value never offers more for sale.
     market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: platformOf(raw?.market?.platform), autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: relicPricesOf(raw?.market?.relicPrices), repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
     advice: adviceOf(raw?.advice, base.advice),
     // `forma` came later: settings saved before it get the default (3p).
     pick: pickOf(raw?.pick, base.pick),
-    overlay: { reward: raw?.overlay?.reward !== false, kiosk: raw?.overlay?.kiosk !== false, riven: raw?.overlay?.riven !== false, rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: flagsOf(raw?.overlay?.show, base.overlay.show) },
+    overlay: { reward: switchOf(raw?.overlay, "reward", base.overlay.reward), kiosk: switchOf(raw?.overlay, "kiosk", base.overlay.kiosk), riven: switchOf(raw?.overlay, "riven", base.overlay.riven), rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: flagsOf(raw?.overlay?.show, base.overlay.show) },
     tennoscope: flagsOf(raw?.tennoscope, base.tennoscope),
     // "Your listings" was one switch before it was split: off stays off for all three.
     notify: flagsOf(raw?.notify, { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}) }),
@@ -1150,8 +1183,8 @@ export async function loadSettings(): Promise<Settings> {
       paused: raw?.notifyOptions?.paused === true,
       pausedUntil: typeof raw?.notifyOptions?.pausedUntil === "number" ? raw.notifyOptions.pausedUntil : null,
       pausedHow: raw?.notifyOptions?.pausedHow === "tomorrow" ? "tomorrow" : raw?.notifyOptions?.pausedHow === "hour" ? "hour" : null,
-      toasts: raw?.notifyOptions?.toasts !== false,
-      desktop: raw?.notifyOptions?.desktop !== false,
+      toasts: switchOf(raw?.notifyOptions, "toasts", base.notifyOptions.toasts),
+      desktop: switchOf(raw?.notifyOptions, "desktop", base.notifyOptions.desktop),
       quietInFissure: raw?.notifyOptions?.quietInFissure === true,
       quiet: Array.isArray(raw?.notifyOptions?.quiet) ? raw.notifyOptions.quiet.filter((k: unknown): k is string => typeof k === "string") : [],
       discord: {
@@ -1179,8 +1212,9 @@ export async function loadSettings(): Promise<Settings> {
     // Settings from before builds get none, and the one-year age limit.
     builds: sanitizeBuilds(raw?.builds),
     buildsMaxAgeDays: sanitizeMaxAgeDays(raw?.buildsMaxAgeDays),
-    // On unless turned off.
-    buildsFromNox: raw?.buildsFromNox !== false,
+    // On unless turned off. It decides whether Nox's Frame is asked for builds, so a damaged value
+    // reads as off: no request goes out that the player may have switched off.
+    buildsFromNox: switchOf(raw, "buildsFromNox", base.buildsFromNox),
     // Off unless switched on.
     recordTimings: raw?.recordTimings === true,
     // Settings from before updates: Stable, never checked. No settings object to read (no file at
