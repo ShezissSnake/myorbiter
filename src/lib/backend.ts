@@ -461,7 +461,7 @@ export interface NotifyOptions {
   toasts: boolean;
   /** While you're not: your desktop's notifications. */
   desktop: boolean;
-  /** Nothing pops up while you're in a fissure, but the reward to take. */
+  /** Nothing pops up while you're in a fissure, but the reward to take (not over Current fissure: `onItsPage`). */
   quietInFissure: boolean;
   /** Kinds that only go in the history, never pop up. */
   quiet: string[];
