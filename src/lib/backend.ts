@@ -1804,11 +1804,20 @@ export async function writeRivenCycle(cycle: unknown): Promise<void> {
   if (inTauri) await invoke("write_riven_cycle", { cycle });
 }
 
-/** Every relic reward screen in TennoScope's own logs, oldest first (see crates/myorbiter-data/src/reward_log.rs). */
-export async function rewardScreens(dataDir: string): Promise<LoggedScreen[]> {
-  if (inTauri) return invoke<LoggedScreen[]>("reward_screens", { dir: dataDir || null });
+/**
+ * A pass over TennoScope's own logs: what they are now (`key`), and every relic reward screen in
+ * them, oldest first, or null when no log file changed since the pass whose key was given.
+ */
+export interface LoggedScreens {
+  key: string;
+  screens: LoggedScreen[] | null;
+}
+
+/** The relic reward screens in TennoScope's own logs, unless none changed `since` (see crates/myorbiter-data/src/reward_log.rs). */
+export async function rewardScreens(dataDir: string, since: string | null = null): Promise<LoggedScreens> {
+  if (inTauri) return invoke<LoggedScreens>("reward_screens", { dir: dataDir || null, since });
   const res = await fetch("/dev-reward-screens.json").catch(() => null);
-  return res?.ok && res.headers.get("content-type")?.includes("json") ? res.json() : [];
+  return { key: "", screens: res?.ok && res.headers.get("content-type")?.includes("json") ? await res.json() : [] };
 }
 
 /** Warframe's display mode from its EE.cfg ("MODE_BORDERLESS", "MODE_FULLSCREEN"…), when known. */

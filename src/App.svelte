@@ -10,13 +10,14 @@
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
-  import { watchlist } from "./lib/core/deals";
+  import { dealsScanDue, watchlist } from "./lib/core/deals";
+  import { cardsPollDue } from "./lib/core/cardsPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
   import { buildModel, type Model } from "./lib/core/model";
   import { readKey, sameRead } from "./lib/core/sameRead";
-  import { mergeRelics, type RelicData } from "./lib/core/relicData";
+  import { keepSame, mergeRelics, type RelicData } from "./lib/core/relicData";
   import { BUILD } from "./lib/build";
   import type { RecipeData } from "./lib/core/buildPlan";
   import { today } from "./lib/core/today";
@@ -730,7 +731,7 @@
   const pollCards = () => timing.tick("overlay files", pollCardsNow);
   async function pollCardsNow() {
     clock = Date.now();
-    if (cardsPolling || (gameIdle() && clock - lastCardsPoll < 5_000)) return;
+    if (!cardsPollDue({ now: clock, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report })) return;
     lastCardsPoll = clock;
     cardsPolling = true;
     try {
@@ -2089,12 +2090,21 @@
       mkt.deals = mkt.deals.filter((d) => !d.why.startsWith("your alert") || still.has(d.name));
     });
   });
-  // Cheap buys: the watchlist's order books every ten minutes, while MyOrbiter is open.
+  // Whether the window is hidden or minimised, as the page sees it: the cheap-buy scan below goes by it.
+  let pageHidden = $state(typeof document !== "undefined" && document.hidden);
+  $effect(() => {
+    const seen = () => (pageHidden = document.hidden);
+    document.addEventListener("visibilitychange", seen);
+    return () => document.removeEventListener("visibilitychange", seen);
+  });
+  // Cheap buys: the watchlist's order books every ten minutes, while their result can reach the
+  // player (core/deals.ts, dealsScanDue).
   let lastDeals = 0;
   $effect(() => {
-    const now = tick;
-    if (!bgModel || onConsole || now - lastDeals < 10 * 60_000) return;
-    lastDeals = now;
+    void tick;
+    const due = dealsScanDue({ now: Date.now(), last: lastDeals, model: !!bgModel, console: onConsole, notify: settings.notify.deals, cardOn: !settings.homeHidden.includes("deals"), hidden: pageHidden });
+    if (!due || !bgModel) return;
+    lastDeals = Date.now();
     const m = bgModel;
     untrack(() => void mkt.scanDeals(m, watchlist(m, 20, settings.market.buyAlerts)));
   });
@@ -2210,11 +2220,17 @@
   });
   /** Screens from TennoScope's own log that MyOrbiter didn't see live: history, and while it was closed. */
   const importScreens = () => timing.tick("overlay files", importScreensNow);
+  /** What TennoScope's logs were at the last pass merged here: a pass reads nothing, and merges nothing, while they're the same. */
+  let screensKey: string | null = null;
   async function importScreensNow() {
     try {
-      const logged = await rewardScreens(settings.dataDir);
-      const next = mergeLogged(settings.game.relicRuns, logged);
-      if (next) settings.game.relicRuns = next;
+      const { key, screens } = await rewardScreens(settings.dataDir, screensKey);
+      if (screens) {
+        const next = mergeLogged(settings.game.relicRuns, screens);
+        if (next) settings.game.relicRuns = next;
+      }
+      // Kept once merged: a pass that fails reads everything again next time.
+      screensKey = key || null;
     } catch (e) {
       console.error("reading TennoScope's reward log failed", e);
     }
@@ -2770,13 +2786,14 @@
       }, 20_000);
       livePoll = setInterval(refreshLive, 5 * 60_000);
       // The drop tables' relics: now, then every few hours (the cache says when to read them again).
-      const tables = () => relicData().then((d) => { if (d) relicTables = d; });
+      // The same answer (nearly every time) keeps the object held, so the model isn't built again.
+      const tables = () => relicData().then((d) => { if (d) relicTables = keepSame(relicTables, d); });
       void tables();
       tablesPoll = setInterval(() => {
         void tables();
-        void recipeData().then((r) => { if (r) recipes = r; });
+        void recipeData().then((r) => { if (r) recipes = keepSame(recipes, r); });
       }, 3 * 3_600_000);
-      void recipeData().then((r) => { if (r) recipes = r; });
+      void recipeData().then((r) => { if (r) recipes = keepSame(recipes, r); });
       // TennoScope's log, for screens MyOrbiter missed (a reading it didn't pass on, or a restart).
       screensPoll = setInterval(importScreens, 10 * 60_000);
       // EE.log is followed incrementally, so a short interval only reads what the game appended.

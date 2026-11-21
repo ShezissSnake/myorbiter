@@ -118,7 +118,7 @@ the start of the game session; each one after takes only what the game added. On
 log through Steam's library list (`steamapps/libraryfolders.vdf` in Steam's folders, Flatpak
 included) under each library's Proton prefix for Warframe, takes only a log your user owns (one
 another user on the PC owns is passed over, and MyOrbiter's log says so in a line), and looks again
-every minute; on Windows
+every minute, whether it found one or not; on Windows
 in `%LOCALAPPDATA%\Warframe`; or at a path you set in Settings (a local file named `EE.log`, nothing
 else).
 
@@ -176,9 +176,10 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
     them, if the copy kept is more than a day old;
   - order books: when you open an item, price or list something, post a buy order, plan Sell spares
     or reprice; every 10 minutes on PC, once your inventory is read, for cheap buys (up to 20 things
-    you're missing, plus one per price alert you set); and, if you turn on automatic checking or
-    repricing, each of your listings' books every 5 minutes or the interval you set (over an hour,
-    a pass that stopped part way is tried again an hour later);
+    you're missing, plus one per price alert you set), while the Cheap parts and arcanes
+    notification is on, or Home's Cheap buys card is on and the window isn't hidden; and, if you
+    turn on automatic checking or repricing, each of your listings' books every 5 minutes or the
+    interval you set (over an hour, a pass that stopped part way is tried again an hour later);
   - price history: when you open an item's chart or the buy form, and once a day for each relic you
     hold;
   - riven searches: when you search, every 5 minutes for each riven you watch, when a riven cycle
@@ -253,7 +254,9 @@ web requests; its status connection sends no User-Agent.
 - **World state**: `api.warframestat.us` at start, every 5 minutes, and when you press Sync or Try
   again (fissures, events, alerts, cycles, invasions, Baro, Varzia, Darvo, Nightwave, the Sortie,
   Archon Hunt, Archimedeas, Steel Path, the Duviri Circuit, the 1999 calendar, Descendia,
-  bounties). When it doesn't answer, or leaves out fissures, Baro, Varzia, a cycle, the Sortie,
+  bounties): one request for all of it. Only when that answer can't be used are its 21 parts asked
+  for one by one in that read: not after an answer of "too many requests", and no more once three
+  in a row are refused (the rest are left empty). When it doesn't answer, or leaves out fissures, Baro, Varzia, a cycle, the Sortie,
   Archon Hunt or bounties, MyOrbiter reads the game's own world state (`api.warframe.com`, then
   `content.warframe.com`) and WFCD's tables that name its places (four files on
   `raw.githubusercontent.com`, kept a week).
@@ -550,7 +553,7 @@ Your Warframe inventory and account figures come from TennoScope
 | `catalog/catalog-generation.json` | WFCD's item data: names, categories, stats, components and ducats, vault flags, drop locations |
 | `catalog/relic-generation.json` | relic contents, vault flags and where each relic drops |
 | `collection-prices.json` | the daily prices TennoScope downloads (relics.run) |
-| `logs/tennoscope*.log` | TennoScope's own log, read in full for the reward screens and start failures (on Windows also in `%LOCALAPPDATA%\io.github.deftera186.tennoscope\logs`) |
+| `logs/tennoscope*.log` | TennoScope's own log, read in full for the reward screens (at start, then every 10 minutes when a file's size or time changed) and start failures (on Windows also in `%LOCALAPPDATA%\io.github.deftera186.tennoscope\logs`) |
 
 MyOrbiter reloads whenever TennoScope's database, prices or item data change.
 
