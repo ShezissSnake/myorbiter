@@ -151,7 +151,7 @@
   import GameIcon from "./lib/ui/GameIcon.svelte";
   import Wordmark from "./lib/ui/Wordmark.svelte";
   import { drawnOrder, orderPages, pageById, pagesFor, migrateTab, sectionsOf, type Page, type PageId } from "./lib/pages";
-  import { growNotice, logNotice, noticeKind, outcomeText, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
+  import { growNotice, logNotice, noticeKind, onItsPage, outcomeText, routeOf, splitTarget, TEST_WAIT_MS, type Notice, type NoticeKind, type NoticeOutcome, type PopupFacts } from "./lib/notices";
   import { toasts } from "./lib/toasts.svelte";
   import { alertNeeds, describeHelp } from "./lib/core/worldNeeds";
   import Toasts from "./lib/ui/Toasts.svelte";
@@ -755,6 +755,16 @@
   // every page, the setup page and the "Can't read" pages included, until it works again.
   let saveError = $state<SaveTrouble | null>(null);
   onSaveTrouble((e) => (saveError = e));
+  // Bring Current fissure forward when the reward screen opens (once per screen). Written before
+  // the effect that tells the reward: the fresh cards wake both, Svelte runs them in this order, and
+  // the reward's pop-up is then routed with Current fissure already chosen (held under the bell
+  // while it is drawn with nothing over it) rather than over the cards.
+  let screenWasOpen = false;
+  $effect(() => {
+    const open = !!mission?.reward_screen_open || !!freshCards;
+    if (open && !screenWasOpen && settings.jumpToPick) settings.tab = "mission";
+    screenWasOpen = open;
+  });
   $effect(() => {
     void pickRetry;
     if (!bgModel || !freshCards) return;
@@ -778,7 +788,8 @@
       notifiedScreen = freshCards.at;
       const why = [best.price != null ? `${best.price}p` : null, best.needed ? `you need it${best.neededFor ? ` for ${best.neededFor}` : ""}` : null, best.ducats ? `${best.ducats} ducats` : null, best.set === 1 ? "completes a set" : null].filter(Boolean).join(", ");
       const of = cards.length > 1 ? `(best of the ${["", "", "two", "three", "four"][cards.length] ?? cards.length})` : "(the only card read)";
-      tell("reward", `Take ${best.name}`, why ? `${why} ${of}` : of);
+      // Untracked: what decides its pop-up (the page, the pop-ups up, the collection) doesn't rerun the scoring.
+      untrack(() => tell("reward", `Take ${best.name}`, why ? `${why} ${of}` : of));
     }
   });
   let notifiedScreen = 0;
@@ -855,8 +866,8 @@
     void popUp(n, kind, { rep });
     return n.id;
   }
-  /** What decides where a notification of this kind pops up right now. */
-  function popupFacts(gate: NoticeKind | "test"): PopupFacts {
+  /** What decides where notification `n`, of this kind, pops up right now. */
+  function popupFacts(gate: NoticeKind | "test", n: Notice): PopupFacts {
     const o = settings.notifyOptions;
     return {
       paused: o.paused || (o.pausedUntil != null && Date.now() < o.pausedUntil),
@@ -866,6 +877,15 @@
       focused: typeof document !== "undefined" && document.hasFocus(),
       toasts: o.toasts,
       desktop: o.desktop,
+      // The reward to take while Current fissure is on screen with nothing over it: under the bell
+      // only (`onItsPage`). The pages are drawn once there is a model; a sheet, the help or a
+      // dialog over them is `aria-modal`, as the keys below read it.
+      onItsPage: onItsPage(gate, n, {
+        tab: settings.tab,
+        drawn: !!model,
+        covered: typeof document !== "undefined" && !!document.querySelector('[aria-modal="true"]'),
+        up: toasts.list.some((t) => t.id === n.id),
+      }),
     };
   }
   /**
@@ -878,7 +898,7 @@
    * the notices that follow it (toasts.svelte.ts). Resolves to what it noted, or null.
    */
   async function popUp(n: Notice, gate: NoticeKind | "test", o: { rep?: Notice["rep"]; toast?: boolean; desktop?: boolean; note?: boolean; keepOut?: boolean } = {}): Promise<NoticeOutcome | null> {
-    const route = routeOf(popupFacts(gate));
+    const route = routeOf(popupFacts(gate, n));
     let outcome: NoticeOutcome | null = route;
     if (route.how === "app") {
       // Not shown by this call (a repricing pass that settled after its pop-up went): nothing to note.
@@ -893,6 +913,9 @@
         });
       }
     } else if (route.how === "off" && route.where === "desktop" && o.desktop === false) {
+      outcome = null;
+    } else if (route.how === "held" && route.why === "page" && o.toast === false) {
+      // Held only from a pop-up inside MyOrbiter, which this call wasn't to show: nothing to note.
       outcome = null;
     }
     if (outcome && o.note !== false) noteOutcome(n, gate, outcome);
@@ -2492,8 +2515,6 @@
     e.preventDefault();
   }
 
-  // Bring Current fissure forward when the reward screen opens (once per screen).
-  let screenWasOpen = false;
   // The listing form prices new listings by the same rules as Auto-match.
   $effect(() => {
     mkt.rules = settings.market;
@@ -2504,12 +2525,6 @@
   $effect(() => {
     mkt.model = model;
     mkt.fullMode = ts.report ? ts.report.setup.access_mode === "full" : null;
-  });
-
-  $effect(() => {
-    const open = !!mission?.reward_screen_open || !!freshCards;
-    if (open && !screenWasOpen && settings.jumpToPick) settings.tab = "mission";
-    screenWasOpen = open;
   });
 
   // A read that fails keeps what was loaded on screen (the pages stay as they are, with a note
