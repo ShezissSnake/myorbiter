@@ -124,7 +124,8 @@
   $effect(() => {
     if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => inBackground(() => (drawnPlat = drawnEffort = true)));
   });
-  const platRows = $derived.by(keepWhile(() => view === "plat", () => rows));
+  // Buy with plat lists what platinum buys: a vaulted prime that can only be traded for is just that.
+  const platRows = $derived.by(keepWhile(() => view === "plat", () => all.filter((r) => (r.acq.available || r.acq.tradeOnly || showUnavailable) && fits(r))));
   const effortRows = $derived.by(keepWhile(() => view !== "plat", () => rows));
   const open = $derived(all.filter((r) => r.acq.available));
   const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
@@ -269,7 +270,7 @@
   </select>
   <Seg label="Prime" bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
   <!-- In plain sight, each with how many it holds back (or adds) with the filters as they stand. -->
-  <label class="vaulted" title={`Vaulted primes you can only get by trading for a missing part: no relic in the drop tables, at Varzia or of yours drops it. ${vaultedCount} ${showVaulted ? "shown" : "held back"} with these filters. A vaulted prime you can build, or hold the relics for, is always listed.`}><input type="checkbox" bind:checked={showVaulted} />Vaulted <span class="n">{vaultedCount}</span></label>
+  {#if view !== "plat"}<label class="vaulted" title={`Vaulted primes you can only get by trading for a missing part: no relic in the drop tables, at Varzia or of yours drops it. ${vaultedCount} ${showVaulted ? "shown" : "held back"} with these filters. A vaulted prime you can build, or hold the relics for, is always listed.`}><input type="checkbox" bind:checked={showVaulted} />Vaulted <span class="n">{vaultedCount}</span></label>{/if}
   <Chip bind:on={showUnavailable} label={`Show unavailable · ${unavailableCount}`} title={`Founders items, past events and the like: things you can't get right now. ${unavailableCount} ${showUnavailable ? "shown" : "held back"} with these filters.`} />
   <Fold active={effort !== "all" ? 1 : 0} reset={() => (effort = "all")}>
     <Seg label="Effort" bind:value={effort} options={[{ v: "all", label: "All" }, { v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }]} />
