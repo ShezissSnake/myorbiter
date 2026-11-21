@@ -356,6 +356,11 @@ const toBottom = (px, capMs, jump = false) => `new Promise((done) => {
  * Runs `promise` (page code) in the page and waits for it in pieces: the inspector waits at most
  * 60 s for one answer, and a scaled list takes minutes to scroll to its bottom.
  */
+/** A page expression: whether the page draws a frame within `ms`. */
+const FRAME_WITHIN = (ms) => `new Promise((done) => { const t = setTimeout(done, ${ms}, false); requestAnimationFrame(() => (clearTimeout(t), done(true))); })`;
+/** A scenario part that ended because the page drew no frame for a minute (at the message's step). */
+class Stalled extends Error {}
+
 async function long(s, promise) {
   await s.eval(`(window.__long = { r: undefined }, (${promise}).then((v) => (window.__long.r = { v }), (e) => (window.__long.r = { e: String(e) })), 0)`);
   for (;;) {
@@ -409,6 +414,22 @@ SCENARIOS.listsAndFolds = {
       // answering at the bottom of a scaled list): the results show how far it got.
       const out = { part: page, laps: [] };
       const step = (what) => ((out.step = what), console.error(`listsAndFolds switch: ${what}`));
+      // Before each step, a frame: WebKit can stop drawing frames for a while with thousands of
+      // cards drawn, and a measurement waits for one with no limit. A wait over a second is kept
+      // (`out.stalls`); none for a minute ends the part with that as its result.
+      out.stalls = [];
+      const framed = async () => {
+        const t0 = Date.now();
+        for (let i = 0; i < 6; i++) {
+          const came = await s.evalAsync(FRAME_WITHIN(10_000));
+          const waited = Date.now() - t0;
+          if (came) return void (waited > 1000 && out.stalls.push({ step: out.step, waited }));
+        }
+        out.stalls.push({ step: out.step, waited: Date.now() - t0, ended: true });
+        throw new Stalled(out.step);
+      };
+      const measure = async (what, o) => (await framed(), s.measure(what, o));
+      const settle = () => measure("void 0", { quiet: 1500, max: 6000 });
       try {
         const state = () => s.eval(INVENTORY_STATE);
         step("open Inventory");
@@ -423,11 +444,11 @@ SCENARIOS.listsAndFolds = {
           for (const to of ["Mods", "Home", "Prime parts"]) {
             step(`${where}: to ${to}`);
             const before = await state();
-            const leave = await s.measure(nav(to));
+            const leave = await measure(nav(to));
             await settle();
             const away = await state();
             step(`${where}: back from ${to}`);
-            const back = await s.measure(nav("Inventory"));
+            const back = await measure(nav("Inventory"));
             await settle();
             out.laps.push({ where, to, before, leave, away, back, after: await state() });
           }
@@ -440,7 +461,8 @@ SCENARIOS.listsAndFolds = {
         await laps("top");
         step("done");
       } catch (e) {
-        out.error = String(e.stack ?? e);
+        if (e instanceof Stalled) out.stalled = e.message;
+        else out.error = String(e.stack ?? e);
       }
       return out;
     }
