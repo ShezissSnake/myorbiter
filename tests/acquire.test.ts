@@ -208,6 +208,7 @@ test("every prime in the demo catalog built from other weapons says what is miss
   const byUnique = new Map(demo.catalog.map((i) => [i.uniqueName, i]));
   const duals = demo.catalog.filter((i) => i.isPrime && (i.components ?? []).some((c) => byUnique.get(c.uniqueName)?.masterable));
   assert.deepEqual(duals.map((i) => i.name).sort(), ["Akbronco Prime", "Aklex Prime", "Akmagnus Prime", "Akvasto Prime"]);
+  const heldBack: string[] = [];
   for (const item of duals) {
     const parts = (item.components ?? []).filter((c) => !byUnique.get(c.uniqueName)?.masterable).map((c) => inv(c.uniqueName, `${item.name} ${c.name}`, "prime_part", c.itemCount ?? 1));
     const weapon = (item.components ?? []).find((c) => byUnique.get(c.uniqueName)?.masterable)!;
@@ -219,7 +220,10 @@ test("every prime in the demo catalog built from other weapons says what is miss
     const traded = rows.find((x) => x.unique === weapon.uniqueName)!.acq.tradeOnly === true;
     assert.equal(r.acq.tradeOnly === true, traded, item.name);
     assert.equal(r.acq.difficulty, traded ? 4 : 3, item.name);
+    if (traded) heldBack.push(item.name);
   }
+  // Both kinds are here: Magnus and Vasto Prime only trading gets on the demo account.
+  assert.deepEqual(heldBack.sort(), ["Akmagnus Prime", "Akvasto Prime"]);
 });
 
 test("a Necramech is a Necramech on Mastery as on Foundry, with its points and rank 40 as before", () => {
