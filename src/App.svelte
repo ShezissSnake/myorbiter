@@ -2220,11 +2220,17 @@
   });
   /** Screens from TennoScope's own log that MyOrbiter didn't see live: history, and while it was closed. */
   const importScreens = () => timing.tick("overlay files", importScreensNow);
+  /** What TennoScope's logs were at the last pass merged here: a pass reads nothing, and merges nothing, while they're the same. */
+  let screensKey: string | null = null;
   async function importScreensNow() {
     try {
-      const logged = await rewardScreens(settings.dataDir);
-      const next = mergeLogged(settings.game.relicRuns, logged);
-      if (next) settings.game.relicRuns = next;
+      const { key, screens } = await rewardScreens(settings.dataDir, screensKey);
+      if (screens) {
+        const next = mergeLogged(settings.game.relicRuns, screens);
+        if (next) settings.game.relicRuns = next;
+      }
+      // Kept once merged: a pass that fails reads everything again next time.
+      screensKey = key || null;
     } catch (e) {
       console.error("reading TennoScope's reward log failed", e);
     }

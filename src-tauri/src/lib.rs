@@ -953,12 +953,14 @@ async fn mission_state(app: tauri::AppHandle, path: Option<String>) -> Result<Op
 }
 
 /// Every relic reward screen TennoScope has read, from its own log files (the current one and
-/// the ones it rotated out), oldest first: the history behind Stats' relic runs.
+/// the ones it rotated out), oldest first: the history behind Stats' relic runs. With `since`, the
+/// key of the page's last pass: nothing is read, and no screens come back, when no log file's
+/// size or time changed since.
 #[tauri::command]
-async fn reward_screens(dir: Option<String>) -> Result<Vec<myorbiter_data::reward_log::LoggedScreen>, String> {
+async fn reward_screens(dir: Option<String>, since: Option<String>) -> Result<myorbiter_data::reward_log::LoggedScreens, String> {
     let dir = data_dir(dir)?;
     tauri::async_runtime::spawn_blocking(move || {
-        myorbiter_data::reward_log::read_reward_logs(&myorbiter_data::reward_log::reward_log_dirs(&dir))
+        myorbiter_data::reward_log::reward_logs_since(&myorbiter_data::reward_log::reward_log_dirs(&dir), since.as_deref())
     })
     .await
     .map_err(|e| e.to_string())
