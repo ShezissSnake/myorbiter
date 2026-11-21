@@ -5,7 +5,8 @@ import type { RivenWatch, ValuePoint } from "../backend";
 import { outcomeOf, type Notice } from "../notices";
 import type { RelicRun } from "./relicRuns";
 import type { GearCopy } from "./notNeeded";
-import type { RivenRaw } from "./rivens";
+import type { RivenRaw, RivenSnap } from "./rivens";
+import type { DropLog, DropWindow } from "./drops";
 
 const fine = (n: unknown): n is number => typeof n === "number" && Number.isFinite(n);
 const obj = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
@@ -18,14 +19,75 @@ export const valueHistoryOf = (raw: unknown) => keep<ValuePoint>(raw, (x) => fin
 /** Reward screens seen: a time, the cards and the squad's relics. */
 export const relicRunsOf = (raw: unknown) => keep<RelicRun>(raw, (x) => fine(x.at) && strings(x.cards) && strings(x.relics) && (x.before === undefined || obj(x.before)));
 
-/** The notification history. */
-export const noticesOf = (raw: unknown) =>
-  keep<Notice>(raw, (x) => typeof x.id === "string" && fine(x.at) && typeof x.kind === "string" && typeof x.title === "string" && typeof x.body === "string" && typeof x.read === "boolean").map((n) => {
-    // What became of its pop-up: kept when it reads as one, else left off (the entry itself stays).
-    const { outcome, ...rest } = n;
-    const o = outcomeOf(outcome);
-    return o ? { ...rest, outcome: o } : rest;
-  });
+/**
+ * The notification history: each id once (the first, the newest, kept: the bell's list is keyed by
+ * it). A page to open that isn't text, or a +rep that isn't a trade's key and its buyer, is left off;
+ * the notice itself stays and opens its kind's page.
+ */
+export const noticesOf = (raw: unknown) => {
+  const ids = new Set<string>();
+  return keep<Notice>(raw, (x) => typeof x.id === "string" && fine(x.at) && typeof x.kind === "string" && typeof x.title === "string" && typeof x.body === "string" && typeof x.read === "boolean")
+    .filter((n) => !ids.has(n.id) && !!ids.add(n.id))
+    .map((n) => {
+      // What became of its pop-up: kept when it reads as one, else left off (the entry itself stays).
+      const { outcome, to, rep, ...rest } = n;
+      const o = outcomeOf(outcome);
+      return { ...rest, ...(typeof to === "string" ? { to } : {}), ...(obj(rep) && typeof rep.key === "string" && typeof rep.partner === "string" ? { rep } : {}), ...(o ? { outcome: o } : {}) } as Notice;
+    });
+};
+
+const texts = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((x): x is string => typeof x === "string") : []);
+/** The entries of an object whose values pass `ok`; anything but an object is none. */
+const record = <T,>(raw: unknown, ok: (v: unknown) => boolean): Record<string, T> => (obj(raw) ? (Object.fromEntries(Object.entries(raw).filter(([, v]) => ok(v))) as Record<string, T>) : {});
+const numOrNull = (x: unknown) => (fine(x) ? x : null);
+
+/** The drops log (core/drops.ts): a time to count from, else a new log; inside it, odd entries left out. */
+export function dropLogOf(raw: unknown): DropLog {
+  if (!obj(raw) || !fine(raw.at)) return { at: 0, counts: {}, windows: [] };
+  const out: DropLog = {
+    at: raw.at,
+    counts: record<number>(raw.counts, fine),
+    windows: keep<DropWindow>(raw.windows, (w) => fine(w.from) && fine(w.at) && obj(w.gains)).map((w) => ({ ...w, gains: record<number>(w.gains, fine) })),
+  };
+  if (fine(raw.lowAt)) out.lowAt = raw.lowAt;
+  if (Array.isArray(raw.gone)) out.gone = texts(raw.gone);
+  if (obj(raw.building)) out.building = record<number>(raw.building, fine);
+  if (fine(raw.tracks)) out.tracks = raw.tracks;
+  return out;
+}
+
+/** Each riven's rolls as seen: by riven id, the snapshots whole. */
+const rivenHistoryOf = (raw: unknown): Record<string, RivenSnap[]> =>
+  Object.fromEntries(Object.entries(record<unknown[]>(raw, Array.isArray)).map(([id, snaps]) => [id, keep<RivenSnap>(snaps, (x) => fine(x.at) && fine(x.rerolls) && Array.isArray(x.buffs) && Array.isArray(x.curses))]));
+
+/**
+ * The rest of the saved game state that is read as it was saved: TennoScope's last figures, the
+ * Foundry's ready times, the lists of what was already told, the chats seen, the sets being saved
+ * for and the drops log. An entry of the wrong kind is left out and the rest kept; a figure that
+ * isn't a number reads as not known.
+ */
+export function gameStateOf(raw: unknown) {
+  const g = obj(raw) ? raw : {};
+  return {
+    foundryReady: Array.isArray(g.foundryReady) ? g.foundryReady.filter((x): x is [string, number] => Array.isArray(x) && typeof x[0] === "string" && fine(x[1])) : [],
+    masteryRank: numOrNull(g.masteryRank),
+    platinum: numOrNull(g.platinum),
+    credits: numOrNull(g.credits),
+    endo: numOrNull(g.endo),
+    rivenHistory: rivenHistoryOf(g.rivenHistory),
+    foundryNotified: texts(g.foundryNotified),
+    whispersSeen: texts(g.whispersSeen),
+    chatsSeen: record<string>(g.chatsSeen, (v) => typeof v === "string"),
+    dealsNotified: texts(g.dealsNotified),
+    fissuresNotified: texts(g.fissuresNotified),
+    rivensNotified: texts(g.rivensNotified),
+    cyclesNotified: texts(g.cyclesNotified),
+    shortNotified: texts(g.shortNotified),
+    worldNotified: texts(g.worldNotified),
+    savingFor: record<{ set: string; complete: number }>(g.savingFor, (v) => obj(v) && typeof v.set === "string" && fine(v.complete)),
+    drops: dropLogOf(g.drops),
+  };
+}
 
 /** Gear copies from the last read; null when there's no list (as before one was read). */
 export const gearOf = (raw: unknown): GearCopy[] | null => (Array.isArray(raw) ? keep<GearCopy>(raw, (x) => typeof x.type === "string" && fine(x.f) && fine(x.p)) : null);

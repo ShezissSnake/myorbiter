@@ -11,7 +11,7 @@ import { sanitizeBuild, sanitizeBuilds, sanitizeMaxAgeDays } from "../src/lib/co
 import { normalizeRule } from "../src/lib/core/timers";
 import { approvedOf } from "../src/lib/core/approved";
 import { DRIFT } from "../src/lib/core/drift";
-import { migrateTab } from "../src/lib/pages";
+import { migrateTab, PAGES } from "../src/lib/pages";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "../src/lib/core/shapes";
 import { parseMyAuctions } from "../src/lib/core/rivens";
 import { noxItems } from "../src/lib/core/builds/noxsframe";
@@ -19,6 +19,11 @@ import { parseOverframeFile } from "../src/lib/core/builds/overframeList";
 import { buildModel } from "../src/lib/core/model";
 import { salesCsv, tradesCsv } from "../src/lib/core/exportCsv";
 import { salesByDay } from "../src/lib/core/salesDays";
+import { foundryBuilds } from "../src/lib/core/foundry";
+import { dropTotals, laterClaims, recordRead } from "../src/lib/core/drops";
+import { dealNews } from "../src/lib/core/worldOnce";
+import { splitTarget } from "../src/lib/notices";
+import type { Settings } from "../src/lib/backend";
 import { forAll, type Rng } from "./support/prop";
 
 const RUNS = Number(process.env.PROPERTY_RUNS ?? 1500);
@@ -87,6 +92,40 @@ async function load(r: Rng, raw: unknown) {
   return { settings: await loadSettings(), parsed };
 }
 
+/**
+ * What the window reads from the loaded game state and notices, each as its reader reads it: Report
+ * a bug's names (App.svelte's reportNames), the Foundry strip and pages (foundryBuilds), the drops
+ * log's next read and its totals (recordRead, laterClaims, dropTotals), the deals effect (dealNews),
+ * the "already told" lists and the chats (as sets and by id), the sets being saved for, and a
+ * notice's page and +rep (splitTarget, App's repShown) with each notice once by id (the bell's list
+ * is keyed by it). Throws where one of them would.
+ */
+function readLoaded(s: Settings) {
+  const g = s.game;
+  const model = buildModel(EMPTY_BUNDLE);
+  g.whispersSeen.map((k) => k.slice(k.lastIndexOf("|") + 1));
+  foundryBuilds(model, g.foundryReady, Date.now()).map((b) => b.name.toLowerCase());
+  const at = (g.drops.at || 1) + 1;
+  recordRead(g.drops, { "Example Prime Blueprint": 3 }, at, at, { "Example Prime Blueprint": 1 });
+  laterClaims(g.drops, {}, at);
+  dropTotals(g.drops, [], 0);
+  dealNews([], [], g.dealsNotified, Date.now(), true);
+  for (const k of ["foundryNotified", "whispersSeen", "fissuresNotified", "rivensNotified", "cyclesNotified", "shortNotified", "worldNotified", "dealsNotified"] as const) {
+    assert.ok(Array.isArray(g[k]) && g[k].every((x) => typeof x === "string"), `${k}: ${JSON.stringify(g[k])?.slice(0, 200)}`);
+    [...new Set(g[k])].join();
+  }
+  assert.ok(g.chatsSeen && typeof g.chatsSeen === "object" && Object.values(g.chatsSeen).every((v) => typeof v === "string"), `chatsSeen: ${JSON.stringify(g.chatsSeen)?.slice(0, 200)}`);
+  for (const [, was] of Object.entries(g.savingFor)) assert.ok(was && typeof was.set === "string" && Number.isFinite(was.complete), `savingFor: ${JSON.stringify(g.savingFor)?.slice(0, 200)}`);
+  for (const k of ["masteryRank", "platinum", "credits", "endo"] as const) assert.ok(g[k] === null || Number.isFinite(g[k]), `${k}: ${String(g[k])}`);
+  for (const [id, snaps] of Object.entries(g.rivenHistory ?? {})) assert.ok(Array.isArray(snaps) && snaps.every((x) => x && Number.isFinite(x.at) && Number.isFinite(x.rerolls) && Array.isArray(x.buffs) && Array.isArray(x.curses)), `rivenHistory ${id}`);
+  assert.equal(new Set(g.notices.map((n) => n.id)).size, g.notices.length, "each notice once by id");
+  for (const n of g.notices) {
+    splitTarget(n.to ?? "home");
+    if (n.rep) n.rep.partner.toLowerCase();
+    if (n.rep) assert.equal(typeof n.rep.key, "string");
+  }
+}
+
 const usual = defaultSparesRules();
 /** A collection read with nothing in it: the settings file's own parts are what's tested. */
 const EMPTY_BUNDLE = { observed_at: 1, inventory: [], catalog: [], relics: [], prices: { prices: {}, trade_rate: {} } } as never;
@@ -131,7 +170,7 @@ test("settings files: loading anything never throws, never turns on automatic re
     assert.ok(m.changes && typeof m.changes === "object" && !Array.isArray(m.changes), `changes: ${ctx}`);
     for (const times of Object.values(m.changes)) assert.ok(Array.isArray(times) && times.length >= 1 && times.length <= DRIFT.perDay && times.every((t) => Number.isInteger(t) && t > Date.now() - DRIFT.dayMs - 60_000), `changes ${JSON.stringify(times)}: ${ctx}`);
     // The ducat rate the ducat check depends on: a finite number, never junk.
-    assert.ok(Number.isFinite(s.advice.platPerDucat) && s.advice.platPerDucat >= 0, `platPerDucat ${s.advice.platPerDucat}: ${ctx}`);
+    assert.ok(Number.isFinite(s.advice.platPerDucat) && s.advice.platPerDucat > 0, `platPerDucat ${s.advice.platPerDucat}: ${ctx}`);
     // Keep rules: whole numbers in range; junk where a number belongs gives the usual number.
     const rawSpares = rawMarket?.spares;
     for (const [p, least] of KEEPS) {
@@ -159,7 +198,67 @@ test("settings files: loading anything never throws, never turns on automatic re
     // What the app builds the collection from (App.svelte): a damaged file mustn't stop it.
     const rawGame = parsed && typeof parsed === "object" ? (parsed as { game?: unknown }).game : undefined;
     assert.doesNotThrow(() => buildModel(EMPTY_BUNDLE, undefined, null, m.relicPrices, s.game.imprints, null, s.game.gear, s.game.consumedSuits), `the collection: PROPERTY_SEED=${seed}: ${JSON.stringify(rawGame ?? null)?.slice(0, 300)}`);
+    // And what the window reads of it outside the pages.
+    assert.doesNotThrow(() => readLoaded(s), `the window's readers: PROPERTY_SEED=${seed}: ${JSON.stringify(rawGame ?? null)?.slice(0, 300)}`);
   }
+});
+
+test("an odd entry in the saved game state, the notices or the drops log is left out, the rest kept, and the window's readers take what loads", async () => {
+  const loadRaw = async (raw: unknown) => {
+    (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(raw), setItem: () => {} };
+    return loadSettings();
+  };
+  const good = { id: "n1", at: 1, kind: "sold", title: "Sold", body: "Example Prime Set", read: false, to: "sales", rep: { key: "k1", partner: "ExamplePlayer" } };
+  const cases: [string, unknown, (s: Settings) => void][] = [
+    ["whispersSeen", { game: { whispersSeen: [5, "s1|ExamplePlayer", null] } }, (s) => assert.deepEqual(s.game.whispersSeen, ["s1|ExamplePlayer"])],
+    ["foundryReady", { game: { foundryReady: [null, ["/Lotus/Example/Blueprint", 5], ["/Lotus/Example/Other", "x"], 3] } }, (s) => assert.deepEqual(s.game.foundryReady, [["/Lotus/Example/Blueprint", 5]])],
+    ["dealsNotified", { game: { dealsNotified: [5, "example_prime_set@20@1"] } }, (s) => assert.deepEqual(s.game.dealsNotified, ["example_prime_set@20@1"])],
+    ["fissuresNotified", { game: { fissuresNotified: 7 } }, (s) => assert.deepEqual(s.game.fissuresNotified, [])],
+    ["chatsSeen", { game: { chatsSeen: { c1: "2026-01-01", c2: 5 } } }, (s) => assert.deepEqual(s.game.chatsSeen, { c1: "2026-01-01" })],
+    ["savingFor", { game: { savingFor: { "/Lotus/A": { set: "A Prime Set", complete: 1 }, "/Lotus/B": null } } }, (s) => assert.deepEqual(s.game.savingFor, { "/Lotus/A": { set: "A Prime Set", complete: 1 } })],
+    ["platinum", { game: { platinum: "lots", masteryRank: 12 } }, (s) => (assert.equal(s.game.platinum, null), assert.equal(s.game.masteryRank, 12))],
+    ["rivenHistory", { game: { rivenHistory: { r1: [{ at: 1, rerolls: 2, buffs: [], curses: [] }, null], r2: 4 } } }, (s) => assert.deepEqual(s.game.rivenHistory, { r1: [{ at: 1, rerolls: 2, buffs: [], curses: [] }] })],
+    ["drops", { game: { drops: { at: 1, counts: { "A Prime Blueprint": 2, B: "x" }, windows: [null, { from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }, { at: 2 }] } } }, (s) => assert.deepEqual(s.game.drops, { at: 1, counts: { "A Prime Blueprint": 2 }, windows: [{ from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }] })],
+    ["notices", { game: { notices: [good, { ...good, id: "n2", to: 5, rep: { key: 1 } }, { ...good, title: "again" }] } }, (s) => {
+      assert.deepEqual(s.game.notices.map((n) => n.id), ["n1", "n2"], "each id once, the first kept");
+      assert.equal(s.game.notices[0].to, "sales");
+      assert.deepEqual(s.game.notices[0].rep, good.rep);
+      assert.equal(s.game.notices[1].to, undefined, "an odd target is left off, the notice kept");
+      assert.equal(s.game.notices[1].rep, undefined);
+    }],
+  ];
+  for (const [name, raw, check] of cases) {
+    const s = await loadRaw(raw);
+    check(s);
+    assert.doesNotThrow(() => readLoaded(s), name);
+  }
+  // A whole game state, every part of it good, comes back as it was saved.
+  const whole = {
+    foundryReady: [["/Lotus/Example/Blueprint", 5]],
+    masteryRank: 12,
+    platinum: 300,
+    credits: 1_000_000,
+    endo: 5000,
+    rivenHistory: { r1: [{ at: 1, rerolls: 2, buffs: [{ Tag: "x", Value: 1 }], curses: [] }] },
+    foundryNotified: ["f1"],
+    whispersSeen: ["s1|ExamplePlayer"],
+    chatsSeen: { c1: "2026-01-01" },
+    dealsNotified: ["example_prime_set@20@1"],
+    fissuresNotified: ["fi1"],
+    rivensNotified: ["rv1"],
+    cyclesNotified: ["cy1"],
+    shortNotified: ["o1|2"],
+    worldNotified: ["baro|x"],
+    savingFor: { "/Lotus/A": { set: "A Prime Set", complete: 1 } },
+    drops: { at: 5, counts: { "A Prime Blueprint": 2 }, windows: [{ from: 1, at: 5, gains: { "A Prime Blueprint": 1 } }], lowAt: 4, gone: ["B Prime Blueprint"], building: { "A Prime Blueprint": 1 }, tracks: 2 },
+    notices: [{ ...good, outcome: { how: "app" } }],
+  };
+  const back = (await loadRaw({ game: whole })).game as unknown as Record<string, unknown>;
+  for (const [k, v] of Object.entries(whole)) assert.deepEqual(back[k], v, k);
+  // A ducat rate of 0 comes only from the file (the page's choices start at 0.05): the usual one.
+  const s = await loadRaw({ advice: { platPerDucat: 0 } });
+  assert.equal(s.advice.platPerDucat, defaultSettings().advice.platPerDucat);
+  assert.equal((await loadRaw({ advice: { platPerDucat: 0.5 } })).advice.platPerDucat, 0.5);
 });
 
 test("every other sanitizer and parser takes anything without throwing", () => {
@@ -192,6 +291,12 @@ test("every other sanitizer and parser takes anything without throwing", () => {
       }
     }
   });
+});
+
+test("a saved page is one of the pages' own names: anything else, an object's own keys included, opens Home", () => {
+  for (const p of PAGES) assert.equal(migrateTab(p.id), p.id);
+  assert.equal(migrateTab("ducats"), "parts");
+  for (const k of ["constructor", "__proto__", "toString", "hasOwnProperty", "valueOf", "", "nowhere"]) assert.equal(migrateTab(k), "home", k);
 });
 
 test("Sell spares rules: junk in a version 2 file never keeps fewer copies than the usual rules", () => {
