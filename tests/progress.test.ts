@@ -141,14 +141,18 @@ test("a list in sight with no idle time to wait for: its next slice sized by the
   const { sightRows } = await import("../src/lib/core/progress");
   // 6 cards drawn and the next frame came 16.7 ms later: 6 again.
   assert.equal(sightRows(16.7, 6, 6, 6), 6);
-  // That frame took 100 ms (a slow webview): 2 next (about 33 ms of them), never fewer.
+  // That frame took 100 ms (a slow webview): 2 next (about 26 ms of them), never fewer.
   assert.equal(sightRows(100, 6, 6, 6), 2);
-  assert.equal(sightRows(66, 6, 6, 6), 3);
+  assert.equal(sightRows(66, 6, 6, 6), 2);
   assert.equal(sightRows(400, 6, 6, 6), 2);
-  // Fast again: back up to the step, a little at a time.
+  // A frame of two refreshes (33 ms) is already too long: fewer next, so that a slice and the
+  // frame's own work stay well under 50 ms.
+  assert.equal(sightRows(33, 6, 6, 6), 4);
+  assert.equal(sightRows(40, 4, 4, 6), 2);
+  // Fast again: back up to the step, a little at a time (even from 2 at 60 frames a second).
   assert.equal(sightRows(16.7, 2, 2, 6), 3);
-  assert.equal(sightRows(16.7, 3, 3, 6), 5);
-  assert.equal(sightRows(16.7, 5, 5, 6), 6);
+  assert.equal(sightRows(16.7, 3, 3, 6), 4);
+  assert.equal(sightRows(16.7, 4, 4, 6), 6);
   // No frame to go by (the first slice, or a pause between): as before.
   assert.equal(sightRows(0, 6, 4, 6), 4);
   assert.equal(sightRows(2000, 6, 4, 6), 4);

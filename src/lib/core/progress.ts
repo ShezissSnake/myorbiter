@@ -98,9 +98,10 @@ export function rowsFor(ms: number, rows: number, budget: number, most: number, 
  * a slice a frame): as many as keep a frame to about `budget` ms, going by the frame the last slice
  * (`rows` rows) made, `frameMs` from the frame it was drawn in to the next; from 2 up to `step`. A
  * frame much longer than any slice makes (a pause, the page out of sight between) says nothing:
- * `last` again.
+ * `last` again. The budget leaves a slice and the frame's own work (the scroll, style, paint) well
+ * under 50 ms, and is still past 25 ms, so slices grow back from 2 rows at 60 frames a second.
  */
-export function sightRows(frameMs: number, rows: number, last: number, step: number, budget = 33): number {
+export function sightRows(frameMs: number, rows: number, last: number, step: number, budget = 26): number {
   if (!(frameMs > 0) || frameMs > 1000) return last;
   return rowsFor(frameMs, rows, budget, step, last);
 }
