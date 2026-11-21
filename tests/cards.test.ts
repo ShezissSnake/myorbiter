@@ -39,6 +39,14 @@ test("in sight a list never folds: nothing fewer than it shows, and nothing more
   assert.equal(cardsAhead(at(24, 28, 13)), 24);
 });
 
+test("not from a scroll (a page shown, a first measure): the cards in sight, nothing drawn ahead", () => {
+  assert.equal(cardsAhead(at(24, 28), { scrolled: false }), 28);
+  assert.equal(cardsAhead(at(24, 20), { scrolled: false }), 24);
+  assert.equal(cardsAhead(at(60, 28), { scrolled: false }), 60);
+  // The same place scrolled to: drawn ahead.
+  assert.equal(cardsAhead(at(24, 28), { scrolled: true }), 60);
+});
+
 test("a short list: all of it, never more", () => {
   assert.equal(cardsAhead(at(10, 28, 13)), 13);
   assert.equal(cardsAhead(at(13, 28, 13)), 13);
@@ -61,11 +69,12 @@ test("the end marker near while the cards shown are still being drawn: nothing m
   assert.equal(cardsAhead(at(64, 28), { more: true, drawn: 64 }), 84);
 });
 
-test("folding back: down to where the player was when the page was left, the first screenful at least", () => {
-  // Left at the top of a list drawn to its 600th card: back to the first 24.
-  assert.equal(cardsToKeep(at(600, 20)), 24);
-  // Left a third of the way down: down to the screen's bottom, in whole rows.
-  assert.equal(cardsToKeep(at(600, 201)), 204);
+test("folding back: down to where the player was when the page was left, and what's drawn ahead of it", () => {
+  // Left at the top of a list drawn to its 600th card: back to the screen's bottom (20) and a
+  // screen and a half (30), in whole rows: 52.
+  assert.equal(cardsToKeep(at(600, 20)), 52);
+  // Left a third of the way down: 201 and 30, to a row.
+  assert.equal(cardsToKeep(at(600, 201)), 232);
   // Left at the bottom: every card is above it.
   assert.equal(cardsToKeep(at(600, 600)), 600);
   // Never more than shown.
@@ -75,9 +84,24 @@ test("folding back: down to where the player was when the page was left, the fir
 
 test("folding back keeps the card with the focus (or Tab's place in the grid), to its row's end", () => {
   assert.equal(cardsToKeep(at(600, 20), 301), 304);
-  assert.equal(cardsToKeep(at(600, 20), -1), 24);
-  assert.equal(cardsToKeep(at(600, 20), 3), 24);
+  assert.equal(cardsToKeep(at(600, 20), -1), 52);
+  assert.equal(cardsToKeep(at(600, 20), 3), 52);
   assert.equal(cardsToKeep(at(600, 20), 599), 600);
+});
+
+test("coming back to a folded list draws nothing more: it kept what a scroll there would ask for", () => {
+  for (const reach of [0, 20, 28, 201, 400, 590]) {
+    const kept = cardsToKeep(at(600, reach));
+    assert.equal(cardsAhead(at(kept, reach)), kept, `left at ${reach}`);
+  }
+});
+
+test("a list only a few screens past what it keeps doesn't fold: that saves little and costs a redraw", () => {
+  // 52 kept at the top; up to 4 screens (80 cards) past that stay drawn.
+  assert.equal(cardsToKeep(at(120, 20)), 120);
+  assert.equal(cardsToKeep(at(131, 20)), 131);
+  assert.equal(cardsToKeep(at(132, 20)), 52);
+  assert.equal(cardsToKeep(at(300, 20)), 52);
 });
 
 test("a fold goes a slice at a time and stops at what it keeps", () => {

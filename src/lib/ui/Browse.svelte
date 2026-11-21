@@ -196,20 +196,21 @@
   /** The page the list is on (PaneId), if it's on one. */
   const pane = getContext<string | undefined>(PANE);
   const pageShown = () => pane == null || shownPage(pane);
-  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, spare: 4, measured: () => ahead() });
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, spare: 4, measured: (scrolled) => ahead(false, scrolled) });
   /**
    * While the cards are in sight, each time the page scrolls: the cards down to the screen's
    * bottom and a screen and a half more (core/cards.ts, `cardsAhead`), so a scroll finds them
    * there. The ones on the screen are drawn at once, those below it a few at a time in idle
-   * moments (progressive). `more`: the marker under the cards came near (a grid not measured yet).
-   * Out of sight (a page or the table shown instead), nothing.
+   * moments (progressive). Measured without a scroll (the page shown, the cards first drawn): only
+   * those on the screen, so a page switch draws no more than it shows. `more`: the marker under the
+   * cards came near (a grid not measured yet). Out of sight (a page or the table shown instead), nothing.
    */
-  function ahead(more = false) {
+  function ahead(more = false, scrolled = false) {
     if (!pageShown() || layout !== "cards" || cardView.hidden()) return;
-    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more, drawn: cardsDrawn.length });
+    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more, drawn: cardsDrawn.length, scrolled });
     if (n !== shown) shown = n;
   }
-  // Shown again (its page, or the cards after the table): measured, and drawn ahead from there.
+  // Shown again (its page, or the cards after the table): measured, the cards in sight drawn.
   $effect(() => cardView.onShow(() => requestAnimationFrame(() => cardView.measure(true))));
 
   /** The card with the focus, or Tab's place in the grid (roving.ts): its index, -1 for none. */
@@ -226,19 +227,22 @@
   const FOLD_BUDGET_MS = 12;
   /** The most cards a slice of a fold takes off. */
   const FOLD_MOST = 480;
+  /** How long a page is out of sight before its cards fold (ms): not in the switch away, and not at all for a quick look elsewhere. */
+  const FOLD_AFTER_MS = 1000;
   // Its page left: the cards below where the player was fold back (core/cards.ts, `cardsToKeep`), so
   // a page left with hundreds drawn below the screen doesn't carry them through every switch. A
-  // slice at a time in idle moments (pane.svelte.ts, whenIdle), each sized by how long the last took.
-  // Coming back shows the same cards in the same place: all of those above and on the screen stay,
-  // and the card with the focus; the rest are drawn ahead again from there. Shown again mid-fold,
-  // the fold stops.
+  // second after, a slice at a time in idle moments (pane.svelte.ts, whenIdle), each sized by how
+  // long the last took. Coming back shows the same cards in the same place: all of those above and
+  // on the screen stay, those a scroll there would draw ahead, and the card with the focus. Shown
+  // again mid-fold, the fold stops.
   $effect(() => {
     if (pageShown()) return;
     let cancel = () => {};
     let gone = false;
     untrack(() => {
       if (layout !== "cards") return;
-      const keep = cardsToKeep({ shown, reach: cardView.count(), perRow: cardView.perRow() }, focusAt(), cardLimit);
+      const keep = cardsToKeep({ shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, focusAt(), cardLimit);
+      if (keep >= shown) return;
       let slice = Math.max(cardView.screenful(), 48);
       const next = () => {
         cancel = whenIdle(() => {
@@ -256,7 +260,8 @@
           );
         });
       };
-      next();
+      const wait = setTimeout(next, FOLD_AFTER_MS);
+      cancel = () => clearTimeout(wait);
     });
     return () => {
       gone = true;

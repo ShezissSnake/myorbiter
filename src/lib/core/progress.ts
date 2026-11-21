@@ -92,3 +92,15 @@ export function rowsFor(ms: number, rows: number, budget: number, most: number, 
   if (!(rows > 0) || !(ms > 0)) return last;
   return Math.max(2, Math.min(most, Math.floor((budget * rows) / ms)));
 }
+
+/**
+ * Rows the next slice of a list in sight draws where there's no idle time to wait for (WebKitGTK:
+ * a slice a frame): as many as keep a frame to about `budget` ms, going by the frame the last slice
+ * (`rows` rows) made, `frameMs` from the frame it was drawn in to the next; from 2 up to `step`. A
+ * frame much longer than any slice makes (a pause, the page out of sight between) says nothing:
+ * `last` again.
+ */
+export function sightRows(frameMs: number, rows: number, last: number, step: number, budget = 33): number {
+  if (!(frameMs > 0) || frameMs > 1000) return last;
+  return rowsFor(frameMs, rows, budget, step, last);
+}

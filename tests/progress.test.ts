@@ -137,6 +137,24 @@ test("items down to the screen's foot, from the first item below it: whole rows 
   assert.equal(itemsToFoot(0, 4, 2, 4), 16);
 });
 
+test("a list in sight with no idle time to wait for: its next slice sized by the frame the last one made", async () => {
+  const { sightRows } = await import("../src/lib/core/progress");
+  // 6 cards drawn and the next frame came 16.7 ms later: 6 again.
+  assert.equal(sightRows(16.7, 6, 6, 6), 6);
+  // That frame took 100 ms (a slow webview): 2 next (about 33 ms of them), never fewer.
+  assert.equal(sightRows(100, 6, 6, 6), 2);
+  assert.equal(sightRows(66, 6, 6, 6), 3);
+  assert.equal(sightRows(400, 6, 6, 6), 2);
+  // Fast again: back up to the step, a little at a time.
+  assert.equal(sightRows(16.7, 2, 2, 6), 3);
+  assert.equal(sightRows(16.7, 3, 3, 6), 5);
+  assert.equal(sightRows(16.7, 5, 5, 6), 6);
+  // No frame to go by (the first slice, or a pause between): as before.
+  assert.equal(sightRows(0, 6, 4, 6), 4);
+  assert.equal(sightRows(2000, 6, 4, 6), 4);
+  assert.equal(sightRows(30, 0, 4, 6), 4);
+});
+
 test("a list out of sight sizes its next slice by how long the last took", async () => {
   const { rowsFor } = await import("../src/lib/core/progress");
   assert.equal(rowsFor(6, 12, 12, 12), 12, "a dozen rows in 6 ms: a dozen again");

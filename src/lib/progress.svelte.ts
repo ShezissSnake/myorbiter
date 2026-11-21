@@ -2,7 +2,7 @@
 // a frame after (core/progress.ts says which rows each step draws). A click that re-sorts fifty rows
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
-import { drawnHead, itemsToFoot, rowsFor, rowsInView, settled, stepRows } from "./core/progress";
+import { drawnHead, itemsToFoot, rowsFor, rowsInView, settled, sightRows, stepRows } from "./core/progress";
 import { whenIdle } from "./pane.svelte";
 import { stillMoving } from "./motion";
 
@@ -12,7 +12,8 @@ import { stillMoving } from "./motion";
  * layout costs a lot when it isn't). `box()`: the element whose children are the items (a tbody, a
  * grid). Until it's drawn and in sight: a guess, `guess` px an item. `exact`: counted to the
  * first item below the window rather than worked out from the first row's height (a grid of cards,
- * whose rows differ), with `spare` rows past the window's foot. `measured`: called after each measure.
+ * whose rows differ), with `spare` rows past the window's foot. `measured`: called after each
+ * measure, told whether a scroll of the page asked for it.
  */
 export function inView(
   box: () => HTMLElement | null,
@@ -22,15 +23,15 @@ export function inView(
     exact = false,
     spare = 2,
     measured: after,
-  }: { min?: number; guess?: number; exact?: boolean; spare?: number; measured?: () => void } = {},
+  }: { min?: number; guess?: number; exact?: boolean; spare?: number; measured?: (scrolled: boolean) => void } = {},
 ) {
   let measured = false;
   let count = typeof window === "undefined" ? min : Math.max(min, Math.ceil(window.innerHeight / guess) + 2);
   /** Items a row, and a row's height (px): a guess until measured. */
   let perRow = 1;
   let rowHeight = guess;
-  /** Once after the list is first drawn (`always`: on every scroll); after that, as you scroll. */
-  function measure(always = false) {
+  /** Once after the list is first drawn (`always`: on every scroll); after that, as you scroll (`scrolled`). */
+  function measure(always = false, scrolled = false) {
     if (measured && !always) return;
     const el = box();
     if (!el || typeof window === "undefined") return;
@@ -70,13 +71,13 @@ export function inView(
       }
       count = itemsToFoot(lo, cols, Math.ceil(min / cols), spare);
     } else count = rowsInView(a.top, h, vh, Math.ceil(min / cols)) * cols;
-    after?.();
+    after?.(scrolled);
     for (const f of measuredFns) f();
   }
   const measuredFns = new Set<() => void>();
   let scrollFrame = 0;
   const onScroll = () => {
-    if (!scrollFrame) scrollFrame = requestAnimationFrame(() => ((scrollFrame = 0), measure(true)));
+    if (!scrollFrame) scrollFrame = requestAnimationFrame(() => ((scrollFrame = 0), measure(true, true)));
   };
   const wakers = new Set<() => void>();
   /**
@@ -134,7 +135,8 @@ export function inBackground(f: () => void) {
 
 /**
  * `target()` drawn a slice at a time: when it changes, its first `first()` items at once, then
- * `step` more a slice (each once the last was drawn, see `later`), until all are. `measure` runs just
+ * `step` more a slice (each once the last was drawn, see `later`; fewer where there's no idle time
+ * and the frames run long, see `sightStep`), until all are. `measure` runs just
  * before each later step, while the layout is fresh. Use as
  *   const drawn = $derived.by(progressive(() => sorted.slice(0, shown), key, { first: view.count, measure: view.measure }));
  * Call while a component initializes.
@@ -214,6 +216,14 @@ export function progressive<T>(
   let waiting: (() => void) | null = null;
   /** Rows a slice out of sight draws: sized by how long the last one took (`BACKGROUND_BUDGET_MS`). */
   let awayStep = step;
+  /**
+   * Rows a slice in sight draws where there's no idle time to wait for (a slice a frame): sized by
+   * how long the frame after the last one took (core/progress.ts, `sightRows`), so a slow webview
+   * draws fewer a frame rather than stalling the scroll. The frame the last slice went in, and its rows.
+   */
+  let sightStep = step;
+  let sliceAt = 0;
+  let sliceRows = 0;
   const later = (g: () => void) => {
     pending = g;
     const f = () => ((pending = null), g());
@@ -248,29 +258,47 @@ export function progressive<T>(
       ask();
       return;
     }
-    frame = requestAnimationFrame(() => {
+    frame = requestAnimationFrame((at) => {
       frame = 0;
+      if (sliceAt) sightStep = sightRows(at - sliceAt, sliceRows, sightStep, step);
+      sliceAt = at;
       timer = setTimeout(f, 0);
     });
+  };
+  /** Whether slices in sight wait for idle time (requestIdleCallback), which leaves the frame room. */
+  const idleTime = () => typeof window !== "undefined" && "requestIdleCallback" in window;
+  /** The list being drawn toward, and how far its slices have come. */
+  let cur: readonly T[] = drawn;
+  let upto = 0;
+  const next = () => {
+    measure?.();
+    // Out of sight: a slice that fits the budget, never a whole screenful at once. In sight: the
+    // rows on the screen at least (a scroll past what's drawn).
+    const from = upto;
+    upto = away() ? upto + awayStep : Math.max(upto + (idleTime() ? step : sightStep), first());
+    sliceRows = upto - from;
+    drawn = stepRows(cur, drawn, key, upto);
+    if (!settled(cur, drawn)) later(next);
   };
   $effect.pre(() => {
     const t = target();
     untrack(() => {
+      // A list that only grew (more of the same rows below): on from the rows already drawn. With a
+      // slice waiting, that slice goes on toward the longer list; started again, it would wait
+      // anew each time the list grows (each frame of a scroll that draws ahead) and never come.
+      const head = drawnHead(t, drawn);
+      if (pending && head === drawn.length) {
+        cur = t;
+        return;
+      }
       stop();
-      // A list that only grew (more of the same rows below): on from the rows already drawn, the
-      // next ones in the next slice, rather than slices stepping again through rows it has.
-      let upto = Math.max(now(), drawnHead(t, drawn));
+      cur = t;
+      upto = Math.max(now(), head);
       drawn = stepRows(t, drawn, key, upto);
-      const next = () => {
-        measure?.();
-        // Out of sight: a slice that fits the budget, never a whole screenful at once.
-        upto = away() ? upto + awayStep : Math.max(upto + step, first());
-        drawn = stepRows(t, drawn, key, upto);
-        if (!settled(t, drawn)) later(next);
-      };
       if (!settled(t, drawn)) later(next);
     });
-    return stop;
   });
+  // Gone: nothing more to draw.
+  $effect(() => stop);
   return () => drawn;
 }
