@@ -249,7 +249,7 @@
       {/if}
       <!-- The Codex as a whole: what you've mastered of everything that gives mastery, as the All ring counts it. -->
       <Stat label="Mastered" note={`of ${codex.total.toLocaleString("en")} things that give mastery`}><span class="codex"><Vessel key="mastery.codex" value={codex.mastered} max={codex.total} label="Mastered of everything that gives mastery">{#snippet figure(n)}<span class="cfig">{Math.round(n).toLocaleString("en")}</span>{/snippet}</Vessel></span></Stat>
-      <Stat label="Rank up what you own" note={`${things(levelRows.length)} in your arsenal, not yet at max rank`}><GameIcon name="mastery" size={30} /><Count value={pts(levelRows)} /></Stat>
+      <Stat label="Ranking up" note={`${things(levelRows.length)} in your arsenal, not yet at max rank`}><GameIcon name="mastery" size={30} /><Count value={pts(levelRows)} /></Stat>
       <Stat label="Easy to get" note={`${things(easyRows.length)}: buy and build, or an easy boss`}><GameIcon name="mastery" size={30} /><Count value={pts(easyRows)} /></Stat>
       <Stat label="Left to master" tone="dim" note={`${things(open.length)} you can still get`}><GameIcon name="mastery" size={30} /><Count value={pts(open)} /></Stat>
     {/snippet}
