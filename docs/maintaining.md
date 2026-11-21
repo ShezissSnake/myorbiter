@@ -305,11 +305,11 @@ A run by hand passing is not the Release run passing: the Release run sets varia
 build and runs it on Windows too. `tests/dependencyLicences.test.ts` lists every variable the
 Release workflow's build jobs write and the builder image's (`ci/Dockerfile`), each with what it
 does to the script. One added there fails `npm test` until its effect is looked at and written
-down, when it is written a name to a line under an `env:` alone on its line, as `NAME=value` in an
-`ENV` line, or as `echo "NAME=…" >>"$GITHUB_ENV"` alone on its line; any other write to
-`$GITHUB_ENV`, and any to `$GITHUB_PATH`, fails it too. Written any other way (an `env:` in braces,
-an `ENV NAME value` line), it isn't seen. The test also reads a stand-in cargo's answer, coloured
-as cargo colours it, under the plain values those files write (not a `${{ }}` one, nor a folder or
+down, when it is written as a name on its own line under an `env:`, as `NAME=value` in an `ENV`
+line, or as `echo "NAME=…" >>"$GITHUB_ENV"` alone on its line; any other write to `$GITHUB_ENV`,
+and any to `$GITHUB_PATH`, fails it too. Written any other way (an `env:` in braces, an
+`ENV NAME value` line), it isn't seen. The test also reads a stand-in cargo's answer, coloured as
+cargo colours it, under the plain values those files write (not a `${{ }}` one, nor a folder or
 search path). What the runner or an action sets is in no file and not listed. On Windows, Vite
 runs `net use`; the same test file holds the part of the installed Vite that runs it, so a Vite
 that changes it fails `npm test` too.
