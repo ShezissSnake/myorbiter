@@ -29,6 +29,7 @@ flowchart TB
   ts["tennoscope/ (own program)"]
   app --> data
   bridge -->|"invoke, events"| app
+  bridge --> core
   stores --> bridge
   stores --> core
   shell --> stores
@@ -51,9 +52,9 @@ it: they read these parts and nothing in the app reads them.
 | Part | For | Files | May know | May not know |
 | --- | --- | --- | --- | --- |
 | Data crate | Reading TennoScope's folder (inventory, catalogs, prices, its log) and the game's `EE.log`, read-only. Its own types, shipped to the page as JSON. | `crates/myorbiter-data/src/lib.rs`, `ee_log.rs`, `reward_log.rs`, `bin/dump.rs` | std, rusqlite, serde, serde_json, thiserror | Tauri, the network, settings, the page. Held by its `Cargo.toml` dependency list. |
-| Rust app | Everything that touches the machine or the network: commands, files, processes, sockets, notifications, updates. | `src-tauri/src/*.rs`, `tauri.conf.json`, `capabilities/default.json` | The data crate, the OS, the hosts in section 4. Settings as opaque JSON: it reads only `dataDir` (`settings_data_dir` in `lib.rs`) and blanks `notifyOptions.discord.url` when moving folders (`datamove.rs`). | Any rule about what to sell, keep or show. `market.rs` paces and forwards. Held by the code only. |
-| Bridge | The one place the page calls Rust. A browser fallback for each call (`inTauri`, `inDemo`), and the `Settings` shape. | `src/lib/backend.ts` | `@tauri-apps/api`, types from `core/` | Svelte components. Only this file imports `@tauri-apps/api` or calls `invoke`; held by the code only. |
-| Plain logic | Models, rules, plans, parsing: values in, values out. Tested without a window. | `src/lib/core/*.ts`, `core/builds/` | Other `core/` files, `backend.ts` types, `notices.ts`, bundled JSON | Svelte, stores, components, help. `core/` imports none of them (checked by reading its imports; no test). Exceptions: `gettingIn.ts` and `tsReport.ts` import values from `backend.ts` (`nothingYet`, `logLine`) and `savedGame.ts` imports `notices.ts`. |
+| Rust app | Everything that touches the machine or the network: commands, files, processes, sockets, notifications, updates. | `src-tauri/src/*.rs`, `tauri.conf.json`, `capabilities/default.json` | The data crate, the OS, the hosts in section 4. Settings as opaque JSON: the only fields it reads by name are `dataDir` (`settings_data_dir` in `lib.rs`) and `notifyOptions.discord.url`, blanked when moving folders (`datamove.rs`). | Any rule about what to sell, keep or show. `market.rs` paces and forwards. Held by the code only. |
+| Bridge | The one place the page calls Rust. A browser path for each call (`inTauri`, `inDemo`: a dev file, `localStorage`, a refusal or a pretended write), and the `Settings` shape. | `src/lib/backend.ts` | `@tauri-apps/api`; `core/` (shapes, defaults and sanitizers for settings), `pages.ts`, `whatsNew.ts`, `timing.ts`, `notices.ts` | Svelte components. Only this file imports `@tauri-apps/api` or calls `invoke`; held by the code only. `core/` and `backend.ts` import each other (see Plain logic). |
+| Plain logic | Models, rules, plans, parsing: values in, values out. Tested without a window. | `src/lib/core/*.ts`, `core/builds/` | Other `core/` files, `backend.ts` (types), `notices.ts`, bundled JSON | Svelte, stores, components, help. `core/` imports none of them (checked by reading its imports; no test). Exceptions: `gettingIn.ts` and `tsReport.ts` import values from `backend.ts` (`nothingYet`, `logLine`) and `savedGame.ts` imports `notices.ts`. |
 | State | Shared state with a life of its own: warframe.market, rivens, TennoScope, updates, links, notices. | `src/lib/marketStore.svelte.ts`, `rivenStore.svelte.ts`, `tennoscopeStore.svelte.ts`, `updates.svelte.ts`, `links.svelte.ts`, `pane.svelte.ts`, `progress.svelte.ts`, `persist.svelte.ts` and the other `*.svelte.ts` | `backend.ts`, `core/` | Pages and components (the one `ui/soon` import in `updates.svelte.ts` is a timing helper). Checked by reading imports. |
 | Shell | Owns the settings, the collection and the live state; builds the model; polls; hands each page its model. | `src/App.svelte`, `src/main.ts` | Everything in the interface | Rust beyond `backend.ts`. |
 | Pages | One screen each; a page is a component taking the model and the settings it needs as props. | `src/lib/tabs/*.svelte`, listed in `src/lib/pages.ts` | Stores, `core/`, shared pieces | Each other: no page imports another page (checked by reading imports). |
@@ -65,15 +66,17 @@ it: they read these parts and nothing in the app reads them.
 | Demo | An invented account that stands in for the player's data in a browser. | `demo/`, `demoData()` in `vite.config.ts`, `core/standIn.ts` | Same file shapes as the real data | Real data: `public/dev-*.json` is the player's own and is git-ignored. |
 | TennoScope | A separate program that reads the game. Its own workspace and pnpm project. | `tennoscope/`, `tennoscope/ORBITER.md` | Files in a shared runtime folder, command-line flags | Any MyOrbiter code: nothing in `src` or `src-tauri` links to it as code. |
 
-What the app takes from `tennoscope/`, and the only four ways it does so:
+What the app takes from `tennoscope/`, and the ways it does so:
 
 - Its data folder, read-only: `tennoscope.sqlite3`, `collection-prices.json`, `catalog/*.json`
   (`crates/myorbiter-data/src/lib.rs`), and its log folder (`reward_log.rs`).
-- Shared files in the user's runtime folder (`bridge.rs`, `companion.rs`): it reads
+- Shared files in the user's runtime folder (`bridge.rs`, `companion.rs`, `presence.rs`): it reads
   `tennoscope-status.json` and `tennoscope-reward-screen.json`; it writes `orbiter-reward-pick.json`,
-  `orbiter-overlay.json`, `orbiter-riven-cycle.json` and `orbiter-relics.json`.
-- Its process (`companion.rs`): started with `--background`; asked only for `--sync`,
-  `--authorize-capture`, `--access=full` or `--access=overlay` (`allowed_ask`).
+  `orbiter-overlay.json`, `orbiter-riven-cycle.json`, `orbiter-relics.json` and `orbiter-presence.json`.
+- Its process (`companion.rs`): started with `--background`, or with no flag to show its window
+  (`tennoscope_show`); asked only for `--sync`, `--authorize-capture`, `--access=full` or
+  `--access=overlay` (`allowed_ask`). Which program: the bundled one, one the player chose
+  (`tennoscope_choose_program`), or in a development window `tennoscope/target/release/tennoscope`.
 - Its built program, as a release resource: `../vendor/tennoscope/` into `tennoscope/`
   (`src-tauri/tauri.bundle.json`), put there by `ci/build.sh` or `scripts/build-local.sh`.
 
@@ -118,8 +121,7 @@ Rests on: `crates/myorbiter-data/src/lib.rs`, `ee_log.rs`, `reward_log.rs`; `src
 `src/lib/backend.ts`; `src/App.svelte` (`reloadNow`, `pollMissionNow`, `refreshLive`);
 `src/lib/tennoscopeStore.svelte.ts`. The collection comes in two parts: the inventory and prices on
 every reload, the catalogs only when `catalog_rev` changes (`Collection` and `Catalogs` in the data
-crate; `loadBundle` in `backend.ts`). A reload and a new world state that arrive within
-`WORLD_WITH_READ_MS` build one model, not two (`worldWithRead` in `App.svelte`).
+crate; `loadBundle` in `backend.ts`).
 
 ### 2.2 From the page to warframe.market, and back
 
@@ -135,7 +137,7 @@ flowchart LR
   client --> api
   api --> mkt
   sock["presence.rs, feed.rs"] -->|"wss"| wfmws["ws.warframe.market"]
-  sock -->|"market-order events"| mkt
+  sock -->|"market-order events"| api
   trade["a trade in EE.log"] --> mark["core/trades: markTrades, called by App.svelte"]
   mark --> mkt
   mkt -->|"sold: market_close"| api
@@ -143,7 +145,8 @@ flowchart LR
 
 Rests on: `src/lib/marketStore.svelte.ts` (`allowed`, `guardContext`, `sold`), `core/listGuard.ts`,
 `core/drift.ts`, `core/approved.ts`, `core/market.ts`, `core/trades.ts`; `src/lib/backend.ts`
-(`market`, `presence`); `src-tauri/src/market.rs`, `presence.rs`, `feed.rs`. Reads and writes share
+(`market`, `presence`, `onMarketOrder`, which reaches `mkt.feedOrder` through `App.svelte`);
+`src-tauri/src/market.rs`, `presence.rs`, `feed.rs`. Reads and writes share
 one gate in `market.rs`; the sockets use `market::socket_request` and `presence::connect`. A trade
 that the game log shows marks its listing sold and logs the sale (`autoTrades`, off unless the
 player turns it on).
@@ -171,9 +174,8 @@ map), `src/lib/core/model.ts`, `core/memo.ts`, `src/lib/pane.svelte.ts`,
 `src/lib/progress.svelte.ts`, `src/lib/persist.svelte.ts`, `src/lib/backend.ts`
 (`HEAVY_SETTINGS`, `saveSettings`), `src-tauri/src/lib.rs` (`SaveGate`, `save_settings`). A new
 model reaches the shown page in one task, the notifications and bookkeeping (`bgModel`) in the next.
-Hidden pages keep the model they were drawn with and catch up when idle (`catchUpHidden`).
-`persistSettings` serializes each long log in `HEAVY_SETTINGS` in its own effect, so a small change
-does not re-read thousands of entries.
+Hidden pages keep the model they were drawn with and catch up when idle (`catchUpHidden`). Each long
+log in `HEAVY_SETTINGS` is serialized by its own effect (`persistSettings`).
 
 ### 2.4 The reward screen
 
@@ -225,16 +227,13 @@ erDiagram
 | `Model`, `PrimePart`, `RelicGroup` | `src/lib/core/model.ts` (`buildModel`) | The collection: the bundle, the world state, recipes and gear joined and indexed; pages read it |
 | `Live`, `Fissure` and the other world-state shapes | `src/lib/core/types.ts` (`Live`) | Fissures, Baro, Varzia, cycles, sorties, invasions |
 | `GearCopy` | `src/lib/core/notNeeded.ts` | One copy of a warframe, weapon or companion with its Forma and shards, from a patched TennoScope |
-| `Settings`, `MarketSettings`, `GameState` | `src/lib/backend.ts` | What the player chose, plus what MyOrbiter keeps of the account: the sales log, trade log, value history, relic runs, notified keys |
+| `Settings`, `MarketSettings`, `GameState` (and `RelicRun`, `core/relicRuns.ts`) | `src/lib/backend.ts` | What the player chose, plus what MyOrbiter keeps of the account: the sales log, trade log, value history, relic runs, notified keys |
 | `Sale`, `TradeLogEntry`, `ValuePoint` | `src/lib/backend.ts` | A sale of the player's; a trade the game log showed (`key` is `tradeKey`, `core/trades.ts`); one point of inventory value |
 | `MarketItem`, `MyOrder` | `src/lib/core/market.ts` | warframe.market's item and one of the player's listings. A listing is told from the next by `listingKey`, the key of `floors`, `paused`, `approved` and `changes` |
 | `MissionState`, `Trade`, `MissionEntry` | `src/lib/core/types.ts`; Rust twin in `crates/myorbiter-data/src/ee_log.rs` | The squad's relics and the trades the game log showed |
 | `Build` | `src/lib/core/builds/types.ts` | A mod and arcane loadout: pasted, the player's own, or suggested |
 | `Riven`, `RivenAuction`, `MyAuction` | `src/lib/core/rivens.ts`, `core/rivenModel.ts` | A riven, its roll, and the market's auctions for it |
 | `Walkthrough`, `HelpPage`, `Shot` | `src/lib/help/types.ts` | A help walkthrough, its pages and how its picture is taken |
-
-Persistent state is `Settings` in `settings.json` plus the small caches of section 2; everything
-else is rebuilt from TennoScope's files and warframe.market.
 
 ## 4. Patterns a change follows
 
@@ -266,14 +265,13 @@ more than one page shares and that is not a setting is a store, a class or objec
    three places: `market` is `Orders.svelte`, `browse` is `Market.svelte`, `mission` is
    `InMission.svelte`.
 3. In `src/App.svelte`: a `once(() => import(...))` loader, a snippet, a `{@render pane("id", snippet)}`
-   line, and an entry in `lazyPages` (the idle warm-up; Rivens and Builds have none). Only Home is
-   in the first bundle.
-4. A walkthrough in `src/lib/help/` with `app` set to the page (its main one carries the `does`
-   lines), and the Guide's entry (`src/lib/tabs/Guide.svelte`).
+   line, and an entry in `lazyPages` (the idle warm-up; Rivens and Builds have none).
+4. A walkthrough in `src/lib/help/` with `app` set to the page and `guide: guideOf(id)`
+   (`help/guide.ts`); its main one carries the `does` lines. The Guide's own text is written by hand
+   in `src/lib/tabs/Guide.svelte`.
 5. `tests/pages.test.ts`, `tests/help.test.ts` and `tests/landing.test.ts` read these lists and
    hold them to their limits (a picture for each page, the help's and landing's shapes).
-
-Example: `src/lib/tabs/Sales.svelte`, walkthrough in `src/lib/help/trade.ts`.
+   Example: `src/lib/tabs/Sales.svelte`, walkthrough in `src/lib/help/trade.ts`.
 
 ### How background work is paced
 
@@ -290,12 +288,15 @@ Example: `src/lib/tabs/Sales.svelte`, walkthrough in `src/lib/help/trade.ts`.
 
 ### How a host is asked
 
-Rust asks; the one host the window asks itself is the last row below. Every HTTP request is built
-with `crate::request(method, url)` in `src-tauri/src/lib.rs`, which sets `user_agent()` and takes the
-proxy route, follows no redirect except the one pair in `REDIRECTS_FOLLOWED`, and reads a JSON body up
-to `MAX_BODY` (`read_body`). The Rust test `no_request_is_built_around_the_user_agent` fails a request
-built any other way. Sockets go through `market::socket_request` and `presence::connect`. A new host,
-request or upload needs the maintainer's say first (CLAUDE.md) and a line in `docs/privacy.md`.
+Rust asks; the one host the window asks itself is the last row below. Every HTTP request MyOrbiter
+builds goes through `crate::request(method, url)` in `src-tauri/src/lib.rs`, which sets `user_agent()`
+and takes the proxy route, follows no redirect except the one pair in `REDIRECTS_FOLLOWED`, and reads
+a JSON body up to `MAX_BODY` (`read_body`). The Rust test `no_request_is_built_around_the_user_agent`
+fails a request built any other way. Sockets go through `market::socket_request` and
+`presence::connect`. The update check and download are `tauri-plugin-updater`'s own requests (its
+first read of a channel's file, `first_read` in `updates.rs`, uses `request` with the updater's
+User-Agent). A new host, request or upload needs the maintainer's say first (CLAUDE.md) and a line
+in `docs/privacy.md`.
 
 | Host | Asked by |
 | --- | --- |
@@ -307,7 +308,7 @@ request or upload needs the maintainer's say first (CLAUDE.md) and a line in `do
 | `cdn.warframestat.us` | `images.rs` (a redirect to `raw.githubusercontent.com` is followed) |
 | `drops.warframestat.us` | `relicdata.rs` |
 | `noxsframe.com` | `noxsframe.rs` |
-| `github.com`, `gitlab.com` | `updates.rs` (the update check and download) |
+| `github.com`, `gitlab.com` | `updates.rs`, through `tauri-plugin-updater` (the update check and download) |
 | The Discord webhook the player gives | `lib.rs` (`discord_post`) |
 | `www-static.warframe.com` | The window itself: `rivenStore.svelte.ts` fetches it, allowed by `connect-src` in `tauri.conf.json`, held by `tests/links.test.ts` |
 
@@ -320,15 +321,18 @@ permissions are event listening, webview zoom, window state and restart, with no
 
 ### How money and trust code is told apart
 
-Nothing in the repository lists these files; this is read from their headers. Code that decides
-whether copies go up on warframe.market, at what price, and whether a sale is recorded:
+Two kinds. Trust boundaries: `.github/CODEOWNERS` lists the paths that need the maintainer's review
+(CI, `scripts/`, `tauri.conf.json`, capabilities, `links.ts`, `link.rs`, `updates.rs`, lockfiles), and
+CLAUDE.md lists what to ask first. Money: no file lists it; read from headers, it is the code that
+decides whether copies go up on warframe.market, at what price, and whether a sale is recorded:
 
 - `core/listGuard.ts`, the last check before a listing, from the inventory as it is now; `core/bulk.ts`
   and `core/sparesRules.ts` (what is spare); `core/approved.ts`, `core/drift.ts` (repricing limits);
   `core/lastCopy.ts` (hiding listings); `core/trades.ts`, `core/sameSale.ts`, `core/soldMarks.ts`
   (marking and logging sales).
 - The store that sends: `marketStore.svelte.ts` (`allowed` before each listing). Only it calls
-  `market.create`, `update`, `close` and `delete`.
+  `market.create`, `update`, `remove` and `close`. Riven auctions are sent by `rivenStore.svelte.ts`
+  (`createAuction`, `updateAuction`, `closeAuction`), which does not call `guardListing`.
 - `src-tauri/src/market.rs`: the gate and the sign-in; `bridge.rs` and `companion.rs` for the
   files and flags shared with TennoScope.
 
@@ -349,7 +353,7 @@ missing or out of date.
 
 ### How demo data stands in for an account
 
-In a browser, `backend.ts` answers each call from `/dev-*.json` (`inTauri` is false). With
+In a browser, `backend.ts` answers its reads from `/dev-*.json` (`inTauri` is false). With
 `MYORBITER_DEMO=1` (`npm run dev:demo`) the `demoData()` plugin in `vite.config.ts` serves those
 from `demo/`, with every time moved to now. The demo's files are built by `scripts/demo-data.mjs`;
 what it holds is in `demo/README.md`. Browser writes to warframe.market are pretended (`devNoop` in
@@ -361,32 +365,29 @@ what it holds is in `demo/README.md`. Browser writes to warframe.market are pret
 
 | To change or find | Look in |
 | --- | --- |
-| What a page shows | `src/lib/tabs/<page>.svelte` (ids differ for three, section 4), rows in `src/lib/core/views.ts` |
-| The list of pages, their order and hints | `src/lib/pages.ts` |
+| What a page shows; the list of pages, their order and hints | `src/lib/tabs/<page>.svelte` (ids differ for three, section 4), rows in `src/lib/core/views.ts`; `src/lib/pages.ts` |
 | A rule for what to sell or keep | `src/lib/core/sparesRules.ts`, `bulk.ts`, `listGuard.ts`; `docs/design/spares-plan.md` |
 | A call to Rust, or its browser fallback | `src/lib/backend.ts`, then `generate_handler!` in `src-tauri/src/lib.rs` |
-| What is read from TennoScope's folder | `crates/myorbiter-data/src/lib.rs` |
-| What the game log gives | `crates/myorbiter-data/src/ee_log.rs` |
+| What is read from TennoScope's folder, and from the game log | `crates/myorbiter-data/src/lib.rs`, `ee_log.rs` |
 | Files and flags shared with TennoScope | `src-tauri/src/bridge.rs`, `companion.rs`, `tennoscope/ORBITER.md` |
 | warframe.market pacing or sign-in | `src-tauri/src/market.rs` |
 | Status on warframe.market, the live feed | `presence.rs`, `feed.rs`, `src/lib/marketStore.svelte.ts` |
 | Fissures, Baro, Varzia | `fissures.rs`, `lib.rs` (`worldstate`), `core/types.ts` (`Live`) |
-| Relic and recipe data | `relicdata.rs`, `recipes.rs`, `core/relicData.ts`, `core/recipes.ts` |
-| Item pictures (the `img://` scheme) | `images.rs` |
+| Relic and recipe data; item pictures (the `img://` scheme) | `relicdata.rs`, `recipes.rs`, `core/relicData.ts`, `core/recipes.ts`; `images.rs` |
 | Where a setting lives, or a new one | `Settings` in `src/lib/backend.ts`, `persist.svelte.ts` |
 | Settings and files on disk | `src-tauri/src/lib.rs`, `datamove.rs`; `docs/privacy.md` |
 | Notifications, the app's own log | `src/lib/notices.ts`, `src-tauri/src/desktop.rs`, `src-tauri/src/applog.rs` |
 | Updates | `src/lib/updates.svelte.ts`, `core/updates.ts`, `src-tauri/src/updates.rs` |
 | Opening a link | `src/lib/links.svelte.ts`, `core/links.ts`, `src-tauri/src/link.rs` |
 | Help text and pictures | `src/lib/help/`, `public/help/` |
-| The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md`, `Guide.svelte`, `whatsNew.ts`, icons and screenshots; not `docs/`) |
+| The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md` and app source: `Guide.svelte`, `whatsNew.ts`, `pages.ts`, `help/index.ts`, icons; not `docs/`) |
 | Release builds | `.github/workflows/release.yml`, `ci/build.sh`, `docs/releases/README.md` |
 | Demo data | `demo/`, `scripts/demo-data.mjs`, `vite.config.ts` |
 | A test for X | `tests/<x>.test.ts`; Rust tests are at the end of each `.rs` file |
 
 ## 6. Open: not established from the code
 
-- Which files count as money and trust code. No file lists them; section 4 reads them from headers.
+- Which files count as money code. No file lists them; section 4 reads them from headers.
 - Whether every `invoke` name in `backend.ts` matches a command in `generate_handler!`. No test ties
   them; a spot check found them consistent, except three commands called through nested generics
   that the check did not match.
@@ -394,7 +395,6 @@ what it holds is in `demo/README.md`. Browser writes to warframe.market are pret
   lists, the settings token and the data crate's dependencies (`Cargo.toml`). "Only `backend.ts` calls
   Tauri", "`core/` imports no Svelte" and "pages import no other page" hold in the code as read, not
   by a test.
-- TennoScope's inside. Its hosts and files are taken from `docs/privacy.md`, `tennoscope/ORBITER.md`
-  and MyOrbiter's side of each file; `tennoscope/` was not read.
-- Windows and macOS code (`#[cfg(windows)]`, the job object in `companion.rs`, `sysinfo`) was read
-  for its borders, not traced as a flow.
+- TennoScope's inside: its hosts come from `docs/privacy.md`, and its file names were matched only by
+  a search of `tennoscope/app/src-tauri/src`. Windows and macOS code (`#[cfg(windows)]`, the job
+  object in `companion.rs`, `sysinfo`) was read for its borders, not traced as a flow.
