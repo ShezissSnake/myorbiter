@@ -30,7 +30,7 @@ import type { RecipeData } from "./core/buildPlan";
 import type { WorldAlert } from "./core/worldNeeds";
 import type { RelicData } from "./core/relicData";
 import { marketItemsOf, recipeDataOf, relicDataOf, rivenMetaOf } from "./core/shapes";
-import type { Archimedea, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
+import type { Archimedea, Baro, BaroItem, Bundle, Calendar1999, CatalogPart, CollectionPart, DarvoDeal, Descendia, DuviriCycle, Fissure, Live, MissionState, Nightwave, SortieLike, SteelPath, VaultTraderItem, WorldEvent } from "./core/types";
 import { defaultPickWeights, type PickWeights } from "./core/pick";
 import type { Notice } from "./notices";
 import { DEFAULT_BUILDS_MAX_AGE_DAYS, sanitizeBuilds, sanitizeMaxAgeDays, type Build } from "./core/builds/types";
@@ -826,8 +826,24 @@ export interface SavedLive {
 export function restoreLive(raw: unknown, now = Date.now()): SavedLive | null {
   const s = raw as SavedLive | null;
   if (!s || typeof s.at !== "number" || !s.live || typeof s.live !== "object" || now - s.at > 86_400_000 || s.at > now + 60_000) return null;
-  const live = pruneLive({ ...s.live, invasions: s.live.invasions ?? null, invasionsAt: s.at }, now);
+  // Baro's and Varzia's stock as loadLive keeps it: a copy saved with an odd entry doesn't stop the collection.
+  const live = pruneLive({ ...s.live, resurgence: stockOf<VaultTraderItem>(s.live.resurgence), baro: baroOf(s.live.baro), invasions: s.live.invasions ?? null, invasionsAt: s.at }, now);
   return { at: s.at, live };
+}
+
+/**
+ * Baro's or Varzia's stock, read or kept: the entries with a text path (the collection reads each
+ * one's), the others left out; anything but a list is none.
+ */
+function stockOf<T extends { uniqueName: string }>(x: unknown): T[] | null {
+  return Array.isArray(x) ? x.filter((v): v is T => !!v && typeof v === "object" && typeof (v as T).uniqueName === "string") : null;
+}
+/** Baro's visit, while there is one: his stock as stockOf keeps it, none when it isn't a list. */
+function baroOf(x: unknown): Baro | null {
+  if (!x || typeof x !== "object" || !(x as Baro).activation) return null;
+  const { inventory, ...visit } = x as Baro;
+  const stock = stockOf<BaroItem>(inventory);
+  return stock ? { ...visit, inventory: stock } : visit;
 }
 
 export async function loadLive(): Promise<Live> {
@@ -852,7 +868,7 @@ export async function loadLive(): Promise<Live> {
   const vt = (raw?.vaultTrader ?? null) as { inventory?: VaultTraderItem[]; expiry?: string } | null;
   return {
     fissures: Array.isArray(raw?.fissures) ? (raw!.fissures as Fissure[]) : null,
-    resurgence: vt?.inventory ?? null,
+    resurgence: stockOf<VaultTraderItem>(vt?.inventory),
     resurgenceExpiry: vt?.expiry ?? null,
     invasions: Array.isArray(raw?.invasions) ? (raw!.invasions as Invasion[]) : null,
     alerts: Array.isArray(raw?.alerts) ? (raw!.alerts as WorldAlert[]) : null,
@@ -872,9 +888,7 @@ export async function loadLive(): Promise<Live> {
       .map((k) => ({ key: k, c: obj<{ state: string; expiry: string }>(raw?.[`${k}Cycle`], "state") }))
       .filter((x): x is { key: (typeof x)["key"]; c: { state: string; expiry: string } } => !!x.c?.expiry)
       .map((x) => ({ key: x.key, state: x.c.state, expiry: x.c.expiry })),
-    baro: (raw?.voidTrader as { activation?: string; expiry?: string; location?: string } | null)?.activation
-      ? (raw!.voidTrader as { activation: string; expiry: string; location: string })
-      : null,
+    baro: baroOf(raw?.voidTrader),
   };
 }
 
