@@ -8,6 +8,10 @@ import { readFileSync } from "node:fs";
 import { buildModel } from "../src/lib/core/model";
 import { masteryRows, partRows, setRows } from "../src/lib/core/views";
 import type { Bundle, CatalogItem, InventoryRow, Live, RelicEntry } from "../src/lib/core/types";
+import type { Model } from "../src/lib/core/model";
+import type { MasteryRow } from "../src/lib/core/views";
+import { platMastery } from "../src/lib/core/platMastery";
+import { switchCounts, viewRows, type MasteryView } from "../src/lib/tabs/masteryList";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, extra: Partial<InventoryRow> = {}): InventoryRow => ({
   item_id, name, category, quantity, mastered: false, image_name: null, rank: null, max_rank: null, ...extra,
@@ -134,4 +138,36 @@ test("the demo account: every row held back is trade only or can't be got, and n
     } else assert.ok(r.unobtainable || r.acq.researched, `${r.name}: ${r.acq.how}`);
   }
   assert.ok(rows.some((r) => r.acq.tradeOnly), "the demo has vaulted primes it can only trade for");
+});
+
+// Each switch's count is what ticking it adds to the view as the view draws it: Buy with plat draws
+// only what platMastery prices, so a Founders item it can't price isn't counted there.
+function drawn(m: Model, all: MasteryRow[], fits: (r: MasteryRow) => boolean, view: MasteryView, on: { vaulted: boolean; unavailable: boolean }) {
+  const rows = viewRows(all, fits, view, on);
+  return view === "plat" ? platMastery(m, rows).length : rows.length;
+}
+function assertCountsExact(m: Model, fits: (r: MasteryRow) => boolean) {
+  const all = masteryRows(m);
+  for (const view of ["effort", "plat"] as const) {
+    const n = switchCounts(m, all, fits, view);
+    const off = { vaulted: false, unavailable: false };
+    assert.equal(drawn(m, all, fits, view, { ...off, unavailable: true }) - drawn(m, all, fits, view, off), n.unavailable, `${view}: Show unavailable`);
+    if (view === "effort") assert.equal(drawn(m, all, fits, view, { ...off, vaulted: true }) - drawn(m, all, fits, view, off), n.vaulted, `${view}: Vaulted`);
+  }
+}
+
+test("Show unavailable's count is what ticking it brings in, in both views: Founders items aren't priced for plat", () => {
+  const founders = { uniqueName: "/W/ExcaliburPrime", name: "Excalibur Prime", category: "Warframes", masterable: true, isPrime: true } as CatalogItem;
+  const m = buildModel({ observed_at: 1, inventory: [], catalog: [founders], relics: [], prices: {} } as unknown as Bundle);
+  assert.equal(switchCounts(m, masteryRows(m), () => true, "effort").unavailable, 1);
+  assert.equal(switchCounts(m, masteryRows(m), () => true, "plat").unavailable, 0);
+  assertCountsExact(m, () => true);
+});
+
+test("the demo account: both switches' counts are exact in both views, with and without a filter", () => {
+  const demo = JSON.parse(readFileSync(new URL("../demo/dev-bundle.json", import.meta.url), "utf8")) as Bundle;
+  const m = buildModel(demo);
+  assertCountsExact(m, () => true);
+  assertCountsExact(m, (r) => r.isPrime);
+  assertCountsExact(m, (r) => !r.isPrime);
 });

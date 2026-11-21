@@ -7,6 +7,7 @@
   import { info } from "../hover.svelte";
   import type { Model } from "../core/model";
   import { masteryRows, type MasteryRow } from "../core/views";
+  import { switchCounts, viewRows } from "./masteryList";
   import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
   import { readyTag } from "../core/buildPlan";
   import Effort from "../ui/Effort.svelte";
@@ -108,10 +109,11 @@
     (kind === "all" || (kind === "prime") === r.isPrime) &&
     (effort === "all" || r.acq.difficulty <= Number(effort)) &&
     matches(query, r.name, r.type, METHOD_LABEL[r.acq.method]);
-  const rows = $derived(all.filter((r) => (r.acq.available || (r.acq.tradeOnly ? showVaulted : showUnavailable)) && fits(r)));
-  /** What each switch holds back (or adds, when on) with the filters as they stand. */
-  const vaultedCount = $derived(all.filter((r) => r.acq.tradeOnly && fits(r)).length);
-  const unavailableCount = $derived(all.filter((r) => !r.acq.available && !r.acq.tradeOnly && fits(r)).length);
+  const rows = $derived(viewRows(all, fits, "effort", { vaulted: showVaulted, unavailable: showUnavailable }));
+  /** What each switch holds back (or adds, when on) in this view, with the filters as they stand. */
+  const counts = $derived(switchCounts(model, all, fits, view === "plat" ? "plat" : "effort"));
+  const vaultedCount = $derived(counts.vaulted);
+  const unavailableCount = $derived(counts.unavailable);
   // The two views (tabs): both stay drawn once drawn (the other too, once the page is on screen and
   // idle), the one not chosen hidden and keeping its rows until it's shown again; switching is then
   // only showing it.
@@ -125,7 +127,7 @@
     if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => inBackground(() => (drawnPlat = drawnEffort = true)));
   });
   // Buy with plat lists what platinum buys: a vaulted prime that can only be traded for is just that.
-  const platRows = $derived.by(keepWhile(() => view === "plat", () => all.filter((r) => (r.acq.available || r.acq.tradeOnly || showUnavailable) && fits(r))));
+  const platRows = $derived.by(keepWhile(() => view === "plat", () => viewRows(all, fits, "plat", { vaulted: showVaulted, unavailable: showUnavailable })));
   const effortRows = $derived.by(keepWhile(() => view !== "plat", () => rows));
   const open = $derived(all.filter((r) => r.acq.available));
   const pts = (rs: MasteryRow[]) => rs.reduce((n, r) => n + r.points, 0);
@@ -220,7 +222,7 @@
 
 {#snippet detail(r: MasteryRow)}
   <p class="fullhow"><Effort acq={r.acq} /> <span>{r.acq.how}{#if r.acq.players}<span class="players">{r.acq.players}</span>{/if}</span></p>
-  {#if !r.acq.available}<p class="small cant">{r.acq.tradeOnly ? "Vaulted, and no relic you can farm or hold drops what's missing: only from other players right now." : "Can't be obtained right now."}</p>{/if}
+  {#if !r.acq.available}<p class="small cant">{r.acq.tradeOnly ? "Vaulted, and some of what's missing drops from no relic you can farm or hold: only from other players right now." : "Can't be obtained right now."}</p>{/if}
   {#if r.missingParts.length}
     <p class="small dim legend">Relics that drop each missing part; yours first, vaulted ones dashed.</p>
     <div class="missing">
@@ -270,7 +272,7 @@
   </select>
   <Seg label="Prime" bind:value={kind} options={[{ v: "all", label: "All", title: "Everything you haven't mastered" }, { v: "prime", label: "Prime", title: "Primes only: parts from relics or other players" }, { v: "normal", label: "Non-prime", title: "Everything else: the Market, drops, syndicates, the dojo…" }]} />
   <!-- In plain sight, each with how many it holds back (or adds) with the filters as they stand. -->
-  {#if view !== "plat"}<label class="vaulted" title={`Vaulted primes you can only get by trading for a missing part: no relic in the drop tables, at Varzia or of yours drops it. ${vaultedCount} ${showVaulted ? "shown" : "held back"} with these filters. A vaulted prime you can build, or hold the relics for, is always listed.`}><input type="checkbox" bind:checked={showVaulted} />Vaulted <span class="n">{vaultedCount}</span></label>{/if}
+  {#if view !== "plat"}<label class="vaulted" title={`Vaulted primes you can only get by trading for a missing part: no relic in the drop tables, at Varzia or of yours drops it. ${vaultedCount} ${showVaulted ? "shown" : "held back"} with these filters. A vaulted prime is always listed when you can build it or hold the relics for every missing part.`}><input type="checkbox" bind:checked={showVaulted} />Vaulted <span class="n">{vaultedCount}</span></label>{/if}
   <Chip bind:on={showUnavailable} label={`Show unavailable · ${unavailableCount}`} title={`Founders items, past events and the like: things you can't get right now. ${unavailableCount} ${showUnavailable ? "shown" : "held back"} with these filters.`} />
   <Fold active={effort !== "all" ? 1 : 0} reset={() => (effort = "all")}>
     <Seg label="Effort" bind:value={effort} options={[{ v: "all", label: "All" }, { v: "2", label: "Easy", title: "Level it, buy and build, easy bosses" }, { v: "3", label: "Moderate", title: "Up to relics, quests, bounties and low syndicate ranks" }, { v: "4", label: "Hard", title: "Everything but Liches, Sisters, Coda and the nearly unobtainable" }]} />

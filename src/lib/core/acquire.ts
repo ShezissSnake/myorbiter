@@ -122,7 +122,8 @@ export function researchedStep(name: string): string | null {
  * Dethcube Prime; …"): the companion's name. Null for anything else.
  */
 export function comesWith(name: string): string | null {
-  return /^Comes automatically with ([^;:.]+?);/.exec(RESEARCH[name]?.how ?? "")?.[1] ?? null;
+  // Only a prime companion's name: the researched text names others in prose ("the Helios sentinel (…").
+  return /^Comes automatically with ([A-Z][\w' -]*? Prime);/.exec(RESEARCH[name]?.how ?? "")?.[1] ?? null;
 }
 
 /** Researched ways in that are a vendor: bought with standing, or from an event's vendor. */
