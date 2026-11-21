@@ -3,8 +3,27 @@
 // then waits only for the dozen on screen.
 import { untrack } from "svelte";
 import { drawnHead, itemsToFoot, rowsFor, rowsInView, settled, sightRows, stepRows } from "./core/progress";
-import { whenIdle } from "./pane.svelte";
+import { holdBackground, whenIdle } from "./pane.svelte";
 import { stillMoving } from "./motion";
+
+/** A page's scroll holds background work until this long after its last scroll event (ms). */
+export const SCROLL_HOLD_MS = 150;
+let scrollRelease: (() => void) | null = null;
+let scrollTimer: ReturnType<typeof setTimeout> | undefined;
+/**
+ * A list's page is scrolling: background work (lists filling in or folding back out of sight,
+ * pages catching up; pane.svelte.ts, `holdBackground`) waits until it has stopped, so none of it
+ * lands in a frame of the scroll. Drawing ahead in sight goes on: it doesn't wait for idle time.
+ */
+function holdWhileScrolling() {
+  scrollRelease ??= holdBackground();
+  clearTimeout(scrollTimer);
+  scrollTimer = setTimeout(() => {
+    const release = scrollRelease;
+    scrollRelease = null;
+    release?.();
+  }, SCROLL_HOLD_MS);
+}
 
 /**
  * How many of a list's items fill the window, kept up to date as the page scrolls and as the list
@@ -77,6 +96,7 @@ export function inView(
   const measuredFns = new Set<() => void>();
   let scrollFrame = 0;
   const onScroll = () => {
+    holdWhileScrolling();
     if (!scrollFrame) scrollFrame = requestAnimationFrame(() => ((scrollFrame = 0), measure(true, true)));
   };
   const wakers = new Set<() => void>();
