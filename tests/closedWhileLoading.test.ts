@@ -86,6 +86,23 @@ test("the Buy form closed while its order book loads stays closed, even when the
   assert.equal(mkt.buyError, null, "the error doesn't open the closed form");
 });
 
+test("the Buy form closed while its order book loads stays closed when the read succeeds", async () => {
+  mkt.items = items;
+  mkt.books = {};
+  market.history = (async () => []) as never;
+  const book = later<never>();
+  market.book = (() => book.p) as never;
+  const going = mkt.startBuy("Example Part");
+  await new Promise((ok) => setTimeout(ok, 0));
+  assert.equal(mkt.buyDraft?.loading, true, "the form is open, reading the order book");
+  closeBuy();
+  // No other form was opened: the turn is still this one's, and only the closed form tells it.
+  book.done([seller(40, null)] as never);
+  await going;
+  assert.equal(mkt.buyDraft, null, "closed: the book's answer doesn't open it again");
+  assert.equal(mkt.buyError, null);
+});
+
 test("the Buy form at another rank isn't taken over by the older rank's read ending last", async () => {
   mkt.items = items;
   mkt.books = {};
