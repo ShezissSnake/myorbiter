@@ -349,7 +349,7 @@ const NOTICES: Walkthrough = {
       title: "When they pop up",
       lines: [
         "Pause: nothing pops up for an hour, until 8 tomorrow, or until you turn it off.",
-        "Pop-ups inside MyOrbiter: shown by the sidebar while you're looking at MyOrbiter.",
+        "Pop-ups inside MyOrbiter: by the sidebar, but not the reward over Current fissure.",
         "Desktop notifications: while MyOrbiter is behind other windows, or you're in the game.",
         "Quiet while I'm in a fissure: only which reward to take pops up then.",
       ],

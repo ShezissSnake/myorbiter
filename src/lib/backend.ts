@@ -457,7 +457,7 @@ export interface NotifyOptions {
   pausedUntil: number | null;
   /** Which of the two that was, so the panel lights its button. */
   pausedHow?: "hour" | "tomorrow" | null;
-  /** While you're looking at MyOrbiter: a pop-up in its window. */
+  /** While you're looking at MyOrbiter: a pop-up in its window (not the reward to take over Current fissure). */
   toasts: boolean;
   /** While you're not: your desktop's notifications. */
   desktop: boolean;
