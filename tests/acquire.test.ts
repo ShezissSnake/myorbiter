@@ -211,10 +211,14 @@ test("every prime in the demo catalog built from other weapons says what is miss
   for (const item of duals) {
     const parts = (item.components ?? []).filter((c) => !byUnique.get(c.uniqueName)?.masterable).map((c) => inv(c.uniqueName, `${item.name} ${c.name}`, "prime_part", c.itemCount ?? 1));
     const weapon = (item.components ?? []).find((c) => byUnique.get(c.uniqueName)?.masterable)!;
-    const r = masteryRows(buildModel({ ...demo, inventory: parts })).find((x) => x.name === item.name)!;
+    const rows = masteryRows(buildModel({ ...demo, inventory: parts }));
+    const r = rows.find((x) => x.name === item.name)!;
     assert.doesNotMatch(r.acq.how, /^0 missing/, `${item.name}: ${r.acq.how}`);
     assert.ok(r.acq.how.includes(weapon.name), `${item.name} names ${weapon.name}: ${r.acq.how}`);
-    assert.equal(r.acq.difficulty, 3, item.name);
+    // A weapon it's built from that only trading gets (Magnus Prime here) holds it back with it.
+    const traded = rows.find((x) => x.unique === weapon.uniqueName)!.acq.tradeOnly === true;
+    assert.equal(r.acq.tradeOnly === true, traded, item.name);
+    assert.equal(r.acq.difficulty, traded ? 4 : 3, item.name);
   }
 });
 

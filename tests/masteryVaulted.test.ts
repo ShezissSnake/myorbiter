@@ -119,6 +119,38 @@ test("a companion's weapon follows its companion: trade only with it, listed wit
   assert.ok(listed(parts.gun), parts.gun.acq.how);
 });
 
+test("a companion's weapon whose companion is owned follows what building the companion again takes", () => {
+  const dog = inv(SENTINEL, "Dethcube Prime", "Sentinels", 1);
+  // Vaulted, no relic, no part held: building it again means trading, so the weapon is held back.
+  const vaulted = companion([dog], true);
+  assert.equal(vaulted.dog.status, "level");
+  assert.ok(traded(vaulted.gun), vaulted.gun.acq.how);
+  // Relics still in the drop tables: listed, as hard as farming them, never as easy as a build in hand.
+  const farmable = companion([dog], false);
+  assert.ok(listed(farmable.gun), farmable.gun.acq.how);
+  assert.ok(farmable.gun.acq.difficulty >= 2, String(farmable.gun.acq.difficulty));
+  // Every part held for a second one: listed, as easy as building it.
+  const parts = companion([dog, inv("/S/DethcubePrimeBlueprint", "Dethcube Prime Blueprint", "prime_part", 1), inv("/S/DethcubePrimeCerebrum", "Dethcube Prime Cerebrum", "prime_part", 1)], true);
+  assert.ok(listed(parts.gun), parts.gun.acq.how);
+});
+
+// A prime built from another prime (Akbronco Prime from two Bronco Primes): the made-up Akexample
+// Prime takes two Example Primes and a Blueprint from a relic still in the drop tables.
+const AK = "/W/AkexamplePrime";
+const akexample = { uniqueName: AK, name: "Akexample Prime", category: "Secondary", masterable: true, isPrime: true, components: [{ uniqueName: "/W/AkexamplePrimeBlueprint", name: "Blueprint", itemCount: 1, ducats: 45 }, { uniqueName: EX, name: "Example Prime", itemCount: 2 }] } as CatalogItem;
+const akRelic = { uniqueName: "/R/LithE9", name: "Lith E9 Intact", vaulted: false, rewards: [{ name: "Akexample Prime Blueprint", rarity: "Common", chance: 25.33 }] } as RelicEntry;
+function akRow(inventory: InventoryRow[], vault: Vault) {
+  const m = buildModel({ observed_at: 1, inventory, catalog: [example, akexample], relics: [...relics(vault), akRelic], prices: {} } as unknown as Bundle);
+  return masteryRows(m).find((r) => r.unique === AK)!;
+}
+
+test("a prime built from a trade-only prime the player doesn't hold goes behind Vaulted with it", () => {
+  assert.ok(traded(akRow([], ALL_VAULTED)), akRow([], ALL_VAULTED).acq.how);
+  assert.ok(listed(akRow([], { Blueprint: false, Blade: false, Handle: false })));
+  // Both Example Primes held: nothing to trade for.
+  assert.ok(listed(akRow([inv(EX, "Example Prime", "Melee", 2)], ALL_VAULTED)));
+});
+
 test("a trade-only prime's held parts still count where selling is decided", () => {
   // The Blueprint held twice, the rest missing and vaulted with no relic: one copy kept to build, one spare.
   const { m, row } = rowOf([part("Blueprint", 2)]);

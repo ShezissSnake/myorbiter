@@ -569,10 +569,14 @@ function masteryRowsFresh(m: Model): MasteryRow[] {
   return rows;
 }
 
-export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
+/**
+ * `again`: as if the player didn't hold it, for what getting one more takes (a companion's weapon
+ * comes only with building its companion again, Akbronco Prime takes a second Bronco Prime).
+ */
+export function masteryRow(m: Model, item: CatalogItem, again = false): MasteryRow {
   const next = modularNext(m.modular(item.uniqueName), m.isMastered(item.uniqueName));
   if (next) return modularRow(m, item, next);
-  const owned = m.owned(item.uniqueName) > 0;
+  const owned = !again && m.owned(item.uniqueName) > 0;
   const parts = m.partsByParent.get(item.uniqueName) ?? [];
   const isPrime = parts.length > 0 || item.isPrime === true;
   let partsOwned = 0;
@@ -655,7 +659,7 @@ export function masteryRow(m: Model, item: CatalogItem): MasteryRow {
     ownedRelicsForIt: relicsForIt.size,
     buyFor,
   });
-  const acq = owned ? made : withCompanion(m, item, made);
+  const acq = owned ? made : withWeapons(m, lackingWeapons, withCompanion(m, item, made));
   return {
     name: item.name,
     unique: item.uniqueName,
@@ -691,11 +695,26 @@ function withCompanion(m: Model, item: CatalogItem, acq: Acquisition): Acquisiti
   const name = comesWith(item.name);
   const pet = name ? [...m.catalogByUnique.values()].find((i) => i.name === name && i.uniqueName !== item.uniqueName) : undefined;
   if (!pet) return acq;
-  const its = masteryRow(m, pet).acq;
+  // Building the companion (again, when it's held) is what gets the weapon.
+  const its = masteryRow(m, pet, true).acq;
   const out: Acquisition = { ...acq, available: its.available, difficulty: Math.max(1, its.difficulty) };
   if (its.tradeOnly) out.tradeOnly = true;
   else delete out.tradeOnly;
   return out;
+}
+
+/**
+ * A prime built from other primes the player doesn't hold enough of (Akbronco Prime from two
+ * Bronco Primes): when getting one of those takes trading, so does this one.
+ */
+function withWeapons(m: Model, lacking: { uniqueName: string }[], acq: Acquisition): Acquisition {
+  if (!acq.available) return acq;
+  for (const c of lacking) {
+    const weapon = m.catalogByUnique.get(c.uniqueName);
+    const its = weapon ? masteryRow(m, weapon, true).acq : null;
+    if (its?.tradeOnly) return { ...acq, available: false, tradeOnly: true, difficulty: Math.max(acq.difficulty, its.difficulty) };
+  }
+  return acq;
 }
 
 /**
