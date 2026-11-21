@@ -8,13 +8,15 @@
   // the point (what to crack now, when it refreshes).
   // `extra`: a figure only Details shows (the page's main figures stay).
   // `spot`: its name for links that light it (App's goTo, "relics#traces").
-  let { label, note, tone = "platinum", hover = null, title = null, keep = false, extra = false, spot = null, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; keep?: boolean; extra?: boolean; spot?: string | null; children: Snippet } = $props();
+  // `line`: a note that can run long (a list of names) keeps to one line, cut short with an
+  // ellipsis, so it doesn't stretch the band for every figure; the whole of it is on hover.
+  let { label, note, tone = "platinum", hover = null, title = null, keep = false, extra = false, spot = null, line = false, children }: { label: string; note?: string; tone?: "platinum" | "gold" | "dim"; hover?: string | null; title?: string | null; keep?: boolean; extra?: boolean; spot?: string | null; line?: boolean; children: Snippet } = $props();
 </script>
 
 <div class="cell" class:extra data-card={spot} title={title ?? (note ? `${label}: ${note}` : label)}>
   <div class="v mark t-{tone}">{@render children()}</div>
   <div class="register l">{label}</div>
-  {#if note}<div class="note" class:keep><span use:info={hover}>{note}</span></div>{/if}
+  {#if note}<div class="note" class:keep class:line><span use:info={hover}>{note}</span></div>{/if}
 </div>
 
 <style>
@@ -32,6 +34,7 @@
     transition: grid-template-rows var(--quick) var(--out), margin-top var(--quick) var(--out), opacity var(--quick) var(--out), visibility 0s;
   }
   .note > span { display: block; min-height: 0; overflow: hidden; }
+  .note.line > span { white-space: nowrap; text-overflow: ellipsis; }
   /* A short window: the same figures, tighter. */
   @media (max-height: 860px) {
     .cell { padding-top: .65rem; padding-bottom: .7rem; }
