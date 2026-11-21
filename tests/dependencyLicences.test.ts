@@ -268,11 +268,21 @@ test("a line of cargo tree's it can't read stops it: no crate is left out unread
 });
 
 // A stand-in cargo on PATH: `metadata` answers with the program's own crate, `tree` with $FAKE_TREE.
+// It colours as cargo does: its repeat mark wrapped in colour codes when CARGO_TERM_COLOR or
+// CLICOLOR_FORCE asks for colour (as the Release workflow and the builder image set
+// CARGO_TERM_COLOR=always), unless `--color never` (or `--color=never`) is given, which beats both.
 const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => {
   const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   mkdirSync(join(dir, "bin"));
-  writeFileSync(join(dir, "bin", "cargo"),
-    '#!/bin/sh\nif [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; else cat "$FAKE_TREE"; fi\n');
+  writeFileSync(join(dir, "bin", "cargo"), [
+    "#!/bin/sh",
+    'if [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; exit 0; fi',
+    'colour=auto; [ "$CLICOLOR_FORCE" = 1 ] && colour=always; [ -n "$CARGO_TERM_COLOR" ] && colour=$CARGO_TERM_COLOR',
+    'prev=; for a in "$@"; do [ "$prev" = --color ] && colour=$a; case $a in --color=*) colour=${a#--color=};; esac; prev=$a; done',
+    "e=$(printf '\\033')",
+    'if [ "$colour" = always ]; then sed "s/ (\\*)\\$/ ${e}[33m${e}[2m(*)${e}[39m${e}[22m/" "$FAKE_TREE"; else cat "$FAKE_TREE"; fi',
+    "",
+  ].join("\n"));
   chmodSync(join(dir, "bin", "cargo"), 0o755);
   writeFileSync(join(dir, "tree.txt"), tree);
   const saved = { PATH: process.env.PATH, FAKE_TREE: process.env.FAKE_TREE };
@@ -299,6 +309,59 @@ test("the Rust half stops when cargo answers with a line it can't read, or with 
   await withCargo("myorbiter v0.1.0 (/home/user/orbiter/src-tauri)|GPL-3.0-only\n", async (repo) => {
     assert.throws(() => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo), /no crate/);
   });
+});
+
+// Each value set for the call, and the environment as it was afterwards.
+const withEnv = <T>(values: Record<string, string>, run: () => T): T => {
+  const saved = Object.fromEntries(Object.keys(values).map((k) => [k, process.env[k]]));
+  Object.assign(process.env, values);
+  try {
+    return run();
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+};
+
+test("cargo's answer is read the same whatever colour or terminal settings the build runs under", { skip: process.platform === "win32" }, async () => {
+  const tree = [
+    "myorbiter v0.1.0 (/home/user/orbiter/src-tauri)|GPL-3.0-only",
+    "made-up-a v1.0.0|MIT OR Apache-2.0",
+    "made-up-b v2.0.0|MIT",
+    "made-up-a v1.0.0|MIT OR Apache-2.0 (*)",
+    "made-up-b v2.0.0|MIT (*)",
+    "",
+  ].join("\n");
+  await withCargo(tree, async (repo) => {
+    // A cargo folder of its own, with the two made-up crates unpacked and their texts.
+    const home = join(repo, "cargo-home");
+    for (const c of ["made-up-a-1.0.0", "made-up-b-2.0.0"]) {
+      const d = join(home, "registry", "src", "index.example-0000000000000000", c);
+      mkdirSync(d, { recursive: true });
+      writeFileSync(join(d, "Cargo.toml"), `[package]\nname = "${c.replace(/-[\d.]+$/, "")}"\n`);
+      writeFileSync(join(d, "LICENSE-MIT"), "a made-up licence text\n");
+    }
+    // As a terminal sets them, as the Release workflow and the builder image set them, and both.
+    for (const env of <Record<string, string>[]>[{}, { CARGO_TERM_COLOR: "always" }, { CLICOLOR_FORCE: "1" },
+      { CARGO_TERM_COLOR: "always", CI: "true", TERM: "xterm-256color", LANG: "C.UTF-8" }]) {
+      const packages = withEnv({ ...env, CARGO_HOME: home }, () => readRust("myorbiter", "x86_64-unknown-linux-gnu", repo));
+      const what = JSON.stringify(env);
+      assert.deepEqual(packages.map((p) => `${p.name} ${p.version} ${p.licence}`), ["made-up-a 1.0.0 MIT OR Apache-2.0", "made-up-b 2.0.0 MIT"], what);
+      assert.deepEqual(gate(packages, allowed, noText).failures, [], what);
+    }
+  });
+});
+
+test("a line of cargo's with a colour code or another control character in it stops it as one it can't read; a line ending in CR LF reads", () => {
+  for (const line of ["made-up v1.0.0|MIT \x1b[33m\x1b[2m(*)\x1b[39m\x1b[22m", "made-up v1.0.0|\x1b[1mMIT\x1b[0m", "made-up v1.0.0|MIT\x07"]) {
+    assert.throws(() => parseCargoTree(`base64 v0.23.1|MIT OR Apache-2.0\n${line}\n`), /a line this script can't read/, JSON.stringify(line));
+  }
+  assert.deepEqual(parseCargoTree("made-up v1.0.0|MIT OR Apache-2.0 (*)\r\nother v2.0.0|MIT\r\n"), [
+    { name: "made-up", version: "1.0.0", source: null, licence: "MIT OR Apache-2.0" },
+    { name: "other", version: "2.0.0", source: null, licence: "MIT" },
+  ]);
 });
 
 test("a page module's package folder, with npm's layout, pnpm's and Windows paths", () => {

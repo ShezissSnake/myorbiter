@@ -316,15 +316,16 @@ export function readTexts(dir, extra = []) {
 
 /**
  * `cargo tree --format '{p}|{l}'` lines: { name, version, source (null for the registry), licence }.
- * A line it can't read stops it, so no crate is left out of the list unread.
+ * A line it can't read stops it, so no crate is left out of the list unread: a colour code (or any
+ * other control character) among them, since cargo is asked for none (readRust).
  */
 export function parseCargoTree(text) {
   const seen = new Map();
   for (const raw of text.split("\n")) {
-    const line = raw.replace(/ \(\*\)$/, "").trimEnd();
+    const line = raw.trimEnd().replace(/ \(\*\)$/, "");
     if (line === "") continue;
-    const m = /^(\S+) v(\S+)(?: \((.*)\))?\|(.*)$/.exec(line);
-    if (!m) throw new Error(`cargo tree printed a line this script can't read, so it can't list that crate: "${line}"`);
+    const m = /[\x00-\x1f\x7f]/.test(line) ? null : /^(\S+) v(\S+)(?: \((.*)\))?\|(.*)$/.exec(line);
+    if (!m) throw new Error(`cargo tree printed a line this script can't read, so it can't list that crate: ${JSON.stringify(line)}`);
     const [, name, version, source, licence] = m;
     seen.set(`${name} ${version} ${source ?? ""}`, { name, version, source: source ?? null, licence: licence.trim() || null });
   }
@@ -361,9 +362,12 @@ function licenceFile(dir) {
 export function readRust(program, target, repo = REPO) {
   const prog = PROGRAMS[program];
   const cwd = join(repo, prog.cargo);
-  const meta = JSON.parse(run("cargo", ["metadata", "--format-version", "1", "--no-deps", "--offline", "--locked"], cwd));
+  // `--color never`: cargo colours its answer when the build asks for colour (CARGO_TERM_COLOR, as
+  // the Release workflow and the builder image set it to always, or CLICOLOR_FORCE), wrapping
+  // `cargo tree`'s repeat mark in colour codes; the flag beats both, and cargo's own config.
+  const meta = JSON.parse(run("cargo", ["metadata", "--color", "never", "--format-version", "1", "--no-deps", "--offline", "--locked"], cwd));
   const own = new Set(meta.packages.map((p) => `${p.name} ${p.version}`));
-  const tree = run("cargo", ["tree", "--offline", "--locked", "--target", target, "-p", prog.pkg, "-e", "normal,no-proc-macro",
+  const tree = run("cargo", ["tree", "--color", "never", "--offline", "--locked", "--target", target, "-p", prog.pkg, "-e", "normal,no-proc-macro",
     "--features", "tauri/custom-protocol", "--prefix", "none", "--format", "{p}|{l}"], cwd);
   const packages = [];
   for (const c of parseCargoTree(tree)) {
