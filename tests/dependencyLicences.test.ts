@@ -268,17 +268,19 @@ test("a line of cargo tree's it can't read stops it: no crate is left out unread
 });
 
 // A stand-in cargo on PATH: `metadata` answers with the program's own crate, `tree` with $FAKE_TREE.
-// It colours as cargo does: its repeat mark wrapped in colour codes when CARGO_TERM_COLOR or
-// CLICOLOR_FORCE asks for colour (as the Release workflow and the builder image set
-// CARGO_TERM_COLOR=always), unless `--color never` (or `--color=never`) is given, which beats both.
+// It colours as cargo does (CARGO_COLOURS, below): `--color` if given, else CARGO_TERM_COLOR, else
+// auto; and auto, its answer going to a pipe, colours only under CLICOLOR_FORCE=1. So its repeat
+// mark is wrapped in colour codes under CARGO_TERM_COLOR=always (as the Release workflow and the
+// builder image set it) or CLICOLOR_FORCE=1, unless `--color never` (or `--color=never`) is given.
 const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => {
   const dir = mkdtempSync(join(tmpdir(), "dependency-licences-"));
   mkdirSync(join(dir, "bin"));
   writeFileSync(join(dir, "bin", "cargo"), [
     "#!/bin/sh",
     'if [ "$1" = metadata ]; then echo \'{"packages":[{"name":"myorbiter","version":"0.1.0"}]}\'; exit 0; fi',
-    'colour=auto; [ "$CLICOLOR_FORCE" = 1 ] && colour=always; [ -n "$CARGO_TERM_COLOR" ] && colour=$CARGO_TERM_COLOR',
+    'colour=${CARGO_TERM_COLOR:-auto}',
     'prev=; for a in "$@"; do [ "$prev" = --color ] && colour=$a; case $a in --color=*) colour=${a#--color=};; esac; prev=$a; done',
+    '[ "$colour" = auto ] && [ "$CLICOLOR_FORCE" = 1 ] && colour=always',
     "e=$(printf '\\033')",
     'if [ "$colour" = always ]; then sed "s/ (\\*)\\$/ ${e}[33m${e}[2m(*)${e}[39m${e}[22m/" "$FAKE_TREE"; else cat "$FAKE_TREE"; fi',
     "",
@@ -297,6 +299,30 @@ const withCargo = async (tree: string, run: (repo: string) => Promise<void>) => 
     rmSync(dir, { recursive: true, force: true });
   }
 };
+
+// When real cargo (1.99) colours `cargo tree`'s repeat mark, its answer going to a pipe: each row
+// was run by hand with real cargo, and the stand-in answers the same.
+const CARGO_COLOURS: [Record<string, string>, string[], boolean][] = [
+  [{}, [], false],
+  [{ CARGO_TERM_COLOR: "always" }, [], true],
+  [{ CLICOLOR_FORCE: "1" }, [], true],
+  [{ CARGO_TERM_COLOR: "auto", CLICOLOR_FORCE: "1" }, [], true],
+  [{ CARGO_TERM_COLOR: "never", CLICOLOR_FORCE: "1" }, [], false],
+  [{ CLICOLOR_FORCE: "1" }, ["--color", "auto"], true],
+  [{ CARGO_TERM_COLOR: "never" }, ["--color=always"], true],
+  [{ CARGO_TERM_COLOR: "always", CLICOLOR_FORCE: "1" }, ["--color", "never"], false],
+];
+
+test("the stand-in cargo colours its answer exactly when real cargo does", { skip: process.platform === "win32" }, async () => {
+  await withCargo("made-up v1.0.0|MIT (*)\n", async () => {
+    for (const [values, args, coloured] of CARGO_COLOURS) {
+      const env = { ...process.env, ...values };
+      for (const k of ["CARGO_TERM_COLOR", "CLICOLOR_FORCE"]) if (!(k in values)) delete env[k];
+      const answer = execFileSync("cargo", ["tree", ...args, "--prefix", "none"], { env, encoding: "utf8" });
+      assert.equal(answer.includes("\x1b["), coloured, `${JSON.stringify(values)} ${args.join(" ")}`);
+    }
+  });
+});
 
 test("the Rust half stops when cargo answers with a line it can't read, or with no crate", { skip: process.platform === "win32" }, async () => {
   await withCargo("gplcrate 1.0.0|GPL-3.0\n", async (repo) => {
