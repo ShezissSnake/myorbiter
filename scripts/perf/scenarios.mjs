@@ -317,6 +317,171 @@ const scrollList = (ms) => `new Promise((done) => {
 })`;
 
 /**
+ * Scrolls the shown page down `px` a frame until it can go no further and its height has held for
+ * 1.5 s (a long list drawn as far as it goes), or `capMs` passed. Each frame it notes whether the
+ * screen stood at the end of what was drawn while the list (`count`, its "N items") had more:
+ * the strip a player would see there instead of cards. `jump`: as a drag of the scroll bar to the
+ * bottom, held: straight to the end, held there until the strip has been out of sight for 10
+ * frames, then to the end again. Resolves with the frames, those blank frames (all, and the
+ * longest run of them), the jumps, the cards drawn and the list's length.
+ */
+const toBottom = (px, capMs, jump = false) => `new Promise((done) => {
+  const pane = document.querySelector('.pane.shown');
+  const page = pane?.querySelector('.page');
+  if (!page) return done(null);
+  const count = () => Number((pane.querySelector('.tools .end .nowrap')?.textContent ?? '').replace(/[^0-9]/g, '')) || null;
+  const drawn = () => pane.querySelector('.cards.swap:not(.off) .grid')?.children.length ?? 0;
+  const t0 = performance.now();
+  let frames = 0, blank = 0, run = 0, longestRun = 0, stillSince = 0, lastH = -1, jumps = 0, clear = 10;
+  const step = () => {
+    frames++;
+    if (!${jump}) page.scrollBy(0, ${px});
+    else if (clear >= 10) { page.scrollTop = page.scrollHeight; jumps++; clear = 0; }
+    const atEnd = page.scrollTop + page.clientHeight >= page.scrollHeight - 2;
+    const n = count();
+    if (atEnd && n != null && drawn() < n) { blank++; run++; longestRun = Math.max(longestRun, run); clear = 0; } else { run = 0; clear++; }
+    const t = performance.now();
+    if (!atEnd || page.scrollHeight !== lastH) stillSince = t;
+    lastH = page.scrollHeight;
+    const ms = t - t0;
+    if ((atEnd && t - stillSince >= 1500) || ms > ${capMs}) {
+      return done({ ms: Math.round(ms), frames, blank, longestRun, jumps, drawn: drawn(), count: count(), screens: Math.round((page.scrollHeight / page.clientHeight) * 10) / 10, reachedEnd: atEnd && ms <= ${capMs} });
+    }
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+})`;
+
+/**
+ * Runs `promise` (page code) in the page and waits for it in pieces: the inspector waits at most
+ * 60 s for one answer, and a scaled list takes minutes to scroll to its bottom.
+ */
+async function long(s, promise) {
+  await s.eval(`(window.__long = { r: undefined }, (${promise}).then((v) => (window.__long.r = { v }), (e) => (window.__long.r = { e: String(e) })), 0)`);
+  for (;;) {
+    const r = await s.evalAsync(`new Promise((done) => { const t0 = performance.now(); const w = () => (window.__long.r ? done(window.__long.r) : performance.now() - t0 > 15000 ? done(null) : setTimeout(w, 250)); w(); })`);
+    if (!r) continue;
+    if (r.e) throw new Error(r.e);
+    return r.v;
+  }
+}
+
+/**
+ * Inventory's list as it stands: the cards drawn, the list's length, and while the page is shown,
+ * where it is scrolled to and the first card in sight (its name and how far below the page's top
+ * edge it sits). Out of sight only the counts, which read no layout.
+ */
+const INVENTORY_STATE = `(() => {
+  const pane = window.__inventoryPane;
+  if (!pane) return null;
+  const grid = pane.querySelector('.cards.swap .grid');
+  const out = { shown: pane.classList.contains('shown'), drawn: grid ? grid.children.length : 0, count: Number((pane.querySelector('.tools .end .nowrap')?.textContent ?? '').replace(/[^0-9]/g, '')) || null };
+  if (!out.shown) return out;
+  const page = pane.querySelector('.page');
+  const top = page.getBoundingClientRect().top;
+  const first = grid && [...grid.children].find((c) => c.getBoundingClientRect().bottom > top + 1);
+  return { ...out, scrollTop: Math.round(page.scrollTop), scrollHeight: page.scrollHeight, firstInSight: first ? { name: (first.querySelector('h3')?.textContent ?? '').trim(), offset: Math.round(first.getBoundingClientRect().top - top) } : null };
+})()`;
+
+/**
+ * What the first speed measurement lacked, one fresh app for each part:
+ * - `switch`: Inventory scrolled to the very bottom of its cards, then switches out of it and back
+ *   (to Mods, Home and Prime parts), first while at the bottom and again after scrolling back to
+ *   the top; with the cards drawn and the place in the list before and after each switch.
+ * - `blank`: Inventory flung to the bottom at 480 px a frame; `drag`: the same list with its scroll
+ *   bar dragged to the bottom and held there. Both count the frames that stood at the end of the
+ *   cards drawn so far.
+ * - `folds`: the sidebar folded and unfolded, one of its sections closed and opened, Orders'
+ *   automatic panel opened and closed; twice each. The aim for these: no task over 50 ms.
+ */
+SCENARIOS.listsAndFolds = {
+  perPage: ["switch", "blank", "drag", "folds"],
+  async run(s, { page }) {
+    const settle = () => s.measure("void 0", { quiet: 1500, max: 6000 });
+    const cap = Number(process.env.PERF_BOTTOM_MS ?? 240_000);
+    if (page === "blank" || page === "drag") {
+      await s.measure(nav("Inventory"));
+      await settle();
+      return { part: page, bottom: await long(s, toBottom(480, cap, page === "drag")) };
+    }
+    if (page === "switch") {
+      // Each step named on the log, and what's measured kept if a step fails (a page that stops
+      // answering at the bottom of a scaled list): the results show how far it got.
+      const out = { part: page, laps: [] };
+      const step = (what) => ((out.step = what), console.error(`listsAndFolds switch: ${what}`));
+      try {
+        const state = () => s.eval(INVENTORY_STATE);
+        step("open Inventory");
+        await s.measure(nav("Inventory"));
+        await settle();
+        await s.eval(`(window.__inventoryPane = document.querySelector('.pane.shown'), 0)`);
+        out.atStart = await state();
+        step("to the bottom");
+        out.bottom = await long(s, toBottom(120, cap));
+        await settle();
+        const laps = async (where) => {
+          for (const to of ["Mods", "Home", "Prime parts"]) {
+            step(`${where}: to ${to}`);
+            const before = await state();
+            const leave = await s.measure(nav(to));
+            await settle();
+            const away = await state();
+            step(`${where}: back from ${to}`);
+            const back = await s.measure(nav("Inventory"));
+            await settle();
+            out.laps.push({ where, to, before, leave, away, back, after: await state() });
+          }
+        };
+        await laps("bottom");
+        // Back to the top as a wheel would, 120 px a frame.
+        step("back to the top");
+        await long(s, `new Promise((done) => { const p = document.querySelector('.pane.shown .page'); const up = () => { p.scrollBy(0, -120); if (p.scrollTop <= 0) return setTimeout(done, 400, 0); requestAnimationFrame(up); }; requestAnimationFrame(up); })`);
+        await settle();
+        await laps("top");
+        step("done");
+      } catch (e) {
+        out.error = String(e.stack ?? e);
+      }
+      return out;
+    }
+    // folds
+    const out = { part: page, sidebar: [], section: [], automatic: [] };
+    const railFold = `document.querySelector('.rail button.fold').click()`;
+    for (let i = 0; i < 2; i++) {
+      const fold = await s.measure(railFold);
+      await settle();
+      const unfold = await s.measure(railFold);
+      await settle();
+      out.sidebar.push({ fold, unfold });
+    }
+    // An open section of the sidebar that isn't the open page's (Home is outside them).
+    const sec = await s.eval(`document.querySelector('.rail button.secbar[aria-expanded="true"]:not(.here)')?.dataset.section ?? null`);
+    out.sectionName = sec;
+    if (sec) {
+      const bar = `document.querySelector('.rail button.secbar[data-section="' + CSS.escape(${J(sec)}) + '"]').click()`;
+      for (let i = 0; i < 2; i++) {
+        const close = await s.measure(bar);
+        await settle();
+        const open = await s.measure(bar);
+        await settle();
+        out.section.push({ close, open });
+      }
+    }
+    await s.measure(nav("Orders"));
+    await settle();
+    const panel = `document.querySelector('.pane.shown button.fold[title^="The automatic settings"]').click()`;
+    for (let i = 0; i < 2; i++) {
+      const open = await s.measure(panel);
+      await settle();
+      const close = await s.measure(panel);
+      await settle();
+      out.automatic.push({ open, close });
+    }
+    return out;
+  },
+};
+
+/**
  * Record timings (src/lib/timing.ts) on, and `PERF_TOUR_MS` (5 minutes) of going through every
  * page as a player would: each rail page, Home, a Sync each lap; and each lap the three a player
  * feels most: a long list scrolled (Inventory, Mods, Orders), an item's card opened and closed
