@@ -156,3 +156,35 @@ export function dealFromOrder(m: Model, index: MarketIndex, o: FeedOrder, watch:
     whisper: tradeWhisper({ player: seller, action: "buy", item: it.name, platinum: o.platinum, rank, subtype: it.subtypes?.length ? (o.subtype ?? sub) : null, perTrade: o.perTrade, cyanStars: o.cyanStars, amberStars: o.amberStars }),
   };
 }
+
+/** How often the cheap-buy scan reads the watchlist's order books. */
+export const DEALS_EVERY = 10 * 60_000;
+
+/** What decides whether a cheap-buy scan is due (see `dealsScanDue`). */
+export interface DealsScanState {
+  now: number;
+  /** When the last scan ran (0: none yet, or one asked for at once). */
+  last: number;
+  /** The collection is built (the watchlist comes from it). */
+  model: boolean;
+  console: boolean;
+  /** The Cheap buys notification is on. */
+  notify: boolean;
+  /** Home's Cheap buys card is on (not hidden in Customise). */
+  cardOn: boolean;
+  /** The window is hidden or minimised. */
+  hidden: boolean;
+}
+
+/**
+ * Whether the cheap-buy scan runs now: every `DEALS_EVERY`, and only while its result can reach the
+ * player, that is while the Cheap buys notification is on, or while Home's Cheap buys card is on
+ * and the window is not hidden. With neither, no order book is asked for it. When one comes back,
+ * the scan is due at once if the last one is `DEALS_EVERY` old (the time between scans is never
+ * shorter than before: the books read are kept 5 minutes, so a scan sooner would ask for them all
+ * again).
+ */
+export function dealsScanDue(s: DealsScanState): boolean {
+  const reaches = s.notify || (s.cardOn && !s.hidden);
+  return reaches && s.model && !s.console && s.now - s.last >= DEALS_EVERY;
+}

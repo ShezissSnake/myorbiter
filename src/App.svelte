@@ -10,7 +10,7 @@
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
-  import { watchlist } from "./lib/core/deals";
+  import { dealsScanDue, watchlist } from "./lib/core/deals";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -2089,12 +2089,21 @@
       mkt.deals = mkt.deals.filter((d) => !d.why.startsWith("your alert") || still.has(d.name));
     });
   });
-  // Cheap buys: the watchlist's order books every ten minutes, while MyOrbiter is open.
+  // Whether the window is hidden or minimised, as the page sees it: the cheap-buy scan below goes by it.
+  let pageHidden = $state(typeof document !== "undefined" && document.hidden);
+  $effect(() => {
+    const seen = () => (pageHidden = document.hidden);
+    document.addEventListener("visibilitychange", seen);
+    return () => document.removeEventListener("visibilitychange", seen);
+  });
+  // Cheap buys: the watchlist's order books every ten minutes, while their result can reach the
+  // player (core/deals.ts, dealsScanDue).
   let lastDeals = 0;
   $effect(() => {
-    const now = tick;
-    if (!bgModel || onConsole || now - lastDeals < 10 * 60_000) return;
-    lastDeals = now;
+    void tick;
+    const due = dealsScanDue({ now: Date.now(), last: lastDeals, model: !!bgModel, console: onConsole, notify: settings.notify.deals, cardOn: !settings.homeHidden.includes("deals"), hidden: pageHidden });
+    if (!due || !bgModel) return;
+    lastDeals = Date.now();
     const m = bgModel;
     untrack(() => void mkt.scanDeals(m, watchlist(m, 20, settings.market.buyAlerts)));
   });
