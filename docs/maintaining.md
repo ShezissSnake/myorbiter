@@ -228,8 +228,11 @@ It stops as well when:
 - code other than the known tools reads a package's `package.json`, or a known tool does so for
   the config (the config is in the stack that called it);
 - the build starts a thread, or a process whose command line isn't one of the program's
-  `commands` in the script (MyOrbiter's config runs `git log` for its build stamp): what they read
-  isn't heard;
+  `commands` in the script for the system the build runs on (MyOrbiter's config runs `git log` for
+  its build stamp; on Windows, Vite runs `net use` in both pages' builds, to read which network
+  drives are mapped): what they read isn't heard. A command line goes there exactly as the build
+  starts it, for each program and system that start it, and only once it is shown to read no
+  package's file;
 - the build makes a symbolic link (`symlink`, `symlinkSync` or `fs.promises.symlink`), wherever it
   leads: what reads the output follows it later (the app's bundler takes in the file a link in the
   page's output leads to), where the script doesn't listen;
@@ -239,7 +242,10 @@ It stops as well when:
   Node's `fs`. This check sees only that: that Vite still reads the files it emits where the script
   listens, as it reads the files it inlines. A page that emits no such file gives it nothing to
   check;
-- cargo's answer has a line the script can't read, or no crate at all;
+- cargo's answer has a line the script can't read (a colour code or another control character
+  inside a line among them, though a line ending in CR LF still reads: the script asks cargo for no
+  colour, with `--color never`, whatever `CARGO_TERM_COLOR` or `CLICOLOR_FORCE` the build sets), or
+  no crate at all;
 - the script is given an argument it doesn't know.
 
 It never passes by leaving out a package it has found, and it stops on every reader above it
@@ -294,6 +300,19 @@ the page's own.
   otherwise the config or plugin stops loading or reading it. A thread, or a process the script
   doesn't know: the config or plugin that starts it changes, or (a process whose output can't
   carry a package's file) its command line goes into `commands` in the same change.
+
+A run by hand passing is not the Release run passing: the Release run sets variables around the
+build and runs it on Windows too. `tests/dependencyLicences.test.ts` lists every variable the
+Release workflow's build jobs write and the builder image's (`ci/Dockerfile`), each with what it
+does to the script. One added there fails `npm test` until its effect is looked at and written
+down, when it is written as a name on its own line under an `env:`, as `NAME=value` in an `ENV`
+line, or as `echo "NAME=…" >>"$GITHUB_ENV"` alone on its line; any other write to `$GITHUB_ENV`,
+and any to `$GITHUB_PATH`, fails it too. Written any other way (an `env:` in braces, an
+`ENV NAME value` line), it isn't seen. The test also reads a stand-in cargo's answer, coloured as
+cargo colours it, under the plain values those files write (not a `${{ }}` one, nor a folder or
+search path). What the runner or an action sets is in no file and not listed. On Windows, Vite
+runs `net use`; the same test file holds the part of the installed Vite that runs it, so a Vite
+that changes it fails `npm test` too.
 
 Run by hand, after `npm ci` (and `pnpm install --frozen-lockfile` in `tennoscope/app` for
 TennoScope) and a build of the program, so its crates are unpacked:
