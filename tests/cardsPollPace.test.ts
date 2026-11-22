@@ -78,8 +78,11 @@ test("on a console the clock moves once in 5 s; while the game runs, on every re
 test("both +rep offers end on time: the strip's 30 min and a notification's 24 h, within a tick", () => {
   // A console account: no reads, so without a deadline the clock moves only once in 5 s. The
   // offers' own rules (repStripOpen, repOffered) are read with the page's clock, as the page does.
+  // The ticks run on one grid (from START, every 0.8 s) and the trade's time moves by 1 ms over two
+  // ticks, so every phase of the ticks against a window's end is tried; and the clock starts at
+  // several lags behind the first tick (where the slow pace last left it).
   const offer = { key: "t1", partner: "ExamplePlayer", autoRep: false, linked: true, onMarket: true, rep: {}, trades: [] };
-  for (let off = 0; off < 6_000; off += 100) {
+  for (let off = 0; off < 2 * CARDS_TICK_MS; off++) {
     const at = START + off;
     const ends = repDeadlines([{ key: "t1", at }], [{ at: at + 2_000, rep: { key: "t1" } }]);
     const offers: [string, number, (clock: number) => boolean][] = [
@@ -87,14 +90,16 @@ test("both +rep offers end on time: the strip's 30 min and a notification's 24 h
       ["notification", at + REP_OFFER_WINDOW, (clock) => repOffered({ ...offer, at, now: clock })],
     ];
     for (const [name, end, open] of offers) {
-      // Ticks from a little before the end, the clock as the poll left it (up to 5 s behind).
-      let clock = end - 4_900;
-      let closed = -1;
-      for (let now = end - 4_000; now < end + 10_000; now += CARDS_TICK_MS) {
-        if (clockMoves({ now, clock, due: false, deadlines: ends })) clock = now;
-        if (closed < 0 && !open(clock)) closed = now;
+      const first = START + Math.floor((end - 6_000 - START) / CARDS_TICK_MS) * CARDS_TICK_MS;
+      for (const lag of [0, 1_000, 2_500, CARDS_SLOW_MS - CARDS_TICK_MS]) {
+        let clock = first - lag;
+        let closed = -1;
+        for (let now = first; now < end + 10_000; now += CARDS_TICK_MS) {
+          if (clockMoves({ now, clock, due: false, deadlines: ends })) clock = now;
+          if (closed < 0 && !open(clock)) closed = now;
+        }
+        assert.ok(closed > end && closed <= end + CARDS_TICK_MS, `${name} (trade at +${off} ms, clock ${lag} ms behind): closed ${closed - end} ms after its end`);
       }
-      assert.ok(closed > end && closed <= end + CARDS_TICK_MS, `${name} (trade at +${off} ms): closed ${closed - end} ms after its end`);
     }
   }
 });
