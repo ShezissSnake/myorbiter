@@ -12,6 +12,7 @@
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { dealsScanDue, watchlist } from "./lib/core/deals";
   import { CARDS_SLOW_MS, cardsPollDue } from "./lib/core/cardsPoll";
+  import { statusPollDue } from "./lib/core/statusPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -2814,7 +2815,8 @@
         if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();
-      statusPoll = setInterval(() => mkt.pollStatus(), 3_000);
+      // Signed out and let go, the status can't change: no read (core/statusPoll).
+      statusPoll = setInterval(() => statusPollDue({ linked: mkt.linked, asked: mkt.statusAsked, status: mkt.status }) && mkt.pollStatus(), 3_000);
       marketPoll = setInterval(() => {
         if (stopped) return;
         const s = settings.market;
