@@ -60,17 +60,34 @@ function takeMoves(n: number): boolean {
  */
 const asking = new Map<Element, Set<(on: boolean) => void>>();
 let watcher: IntersectionObserver | null = null;
-function onScreen(node: Element, answer: (on: boolean) => void): () => void {
+/** Meters asked about whose first answer came before they were laid out. */
+const unlaid = new WeakSet<Element>();
+function answer(node: Element, on: boolean) {
+  const waiting = asking.get(node);
+  asking.delete(node);
+  unlaid.delete(node);
+  watcher?.unobserve(node);
+  for (const f of waiting ?? []) f(on);
+}
+function onScreen(node: Element, reply: (on: boolean) => void): () => void {
   watcher ??= new IntersectionObserver((entries) => {
     for (const e of entries) {
       const waiting = asking.get(e.target);
       if (!waiting) continue;
-      asking.delete(e.target);
-      watcher!.unobserve(e.target);
       // Some of it inside the window and the page's scrolling box: a box of no size, or one only
       // touching the edge, isn't seen.
       const on = e.isIntersecting && e.intersectionRect.width > 0 && e.intersectionRect.height > 0;
-      for (const f of waiting) f(on);
+      // No box at all: not laid out yet, inside a card that content-visibility still skips in the
+      // first frame of a page just shown. The card is laid out in the next frame if it's near the
+      // screen, and the observer answers again then; one that stays skipped is off screen.
+      const box = e.boundingClientRect;
+      if (!on && !box.width && !box.height && !unlaid.has(e.target)) {
+        const target = e.target;
+        unlaid.add(target);
+        requestAnimationFrame(() => requestAnimationFrame(() => asking.get(target) === waiting && answer(target, false)));
+        continue;
+      }
+      answer(e.target, on);
     }
   });
   const waiting = asking.get(node) ?? new Set<(on: boolean) => void>();
@@ -78,11 +95,12 @@ function onScreen(node: Element, answer: (on: boolean) => void): () => void {
     asking.set(node, waiting);
     watcher.observe(node);
   }
-  waiting.add(answer);
+  waiting.add(reply);
   return () => {
-    waiting.delete(answer);
+    waiting.delete(reply);
     if (waiting.size || asking.get(node) !== waiting) return;
     asking.delete(node);
+    unlaid.delete(node);
     watcher?.unobserve(node);
   };
 }
