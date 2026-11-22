@@ -289,7 +289,9 @@
     const queue = available.map((p) => p.id).filter((id) => id !== "rivens");
     const next = () => {
       const id = queue.shift();
-      if (!id) return;
+      // Then Settings, built closed and kept (Sheet's `built`): its first open is a slide, not a
+      // build of the whole panel.
+      if (!id) return void loadSettingsSheet().then(() => whenIdle(() => inBackground(() => (wanted.settings = true))), () => {});
       if (visited[id]) return void whenIdle(next);
       const load = lazyPages[id];
       const draw = () => {

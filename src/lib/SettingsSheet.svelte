@@ -166,7 +166,7 @@
   }
 </script>
 
-<Sheet bind:open keep title="Settings" kicker="MyOrbiter" help="settings">
+<Sheet bind:open keep built title="Settings" kicker="MyOrbiter" help="settings">
   <section>
     <div class="hmark"><h3 class="register">Platform</h3><HelpMark part="settings.platform" /></div>
     <label class="field" data-field="settings.platform">

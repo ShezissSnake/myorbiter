@@ -18,14 +18,16 @@
   // transition, not a Svelte transition, and its blurred shadow comes only once it has settled
   // (a blur repainted every frame of the slide made the window redraw): a transition of no length
   // that waits out the slide, so no timer and no class change lands on the page a frame later.
+  // `built`: with `keep`, built now though closed (in the background at start), so even the first
+  // open is only that class change.
 
   import HelpMark from "./HelpMark.svelte";
   // `help`: the panel's part id, for its "?" beside Close.
-  let { open = $bindable(), title, kicker, kind, wide = false, keep = false, help, children }: { open: boolean; title: string; kicker?: string; /** The kicker names this kind: its slot's icon leads it. */ kind?: string; wide?: boolean; keep?: boolean; help?: string; children: Snippet } = $props();
+  let { open = $bindable(), title, kicker, kind, wide = false, keep = false, built = false, help, children }: { open: boolean; title: string; kicker?: string; /** The kicker names this kind: its slot's icon leads it. */ kind?: string; wide?: boolean; keep?: boolean; built?: boolean; help?: string; children: Snippet } = $props();
 
   let seen = $state(false);
   $effect.pre(() => {
-    if (open) seen = true;
+    if (open || built) seen = true;
   });
   let body = $state<HTMLElement>();
   $effect(() => {
