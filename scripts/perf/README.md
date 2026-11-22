@@ -62,6 +62,14 @@ times higher than in the app.
   it on, goes through every page and Sync, and each lap a long list scrolled (Inventory, Mods,
   Orders), an item's card and Settings opened and closed, for `PERF_TOUR_MS` (5 minutes); it returns
   the report the app wrote (Settings › Logs › Copy timing report).
+- `firstMinute`: the first 60 s after start, with a heartbeat from before the app's first script
+  (`beat: true` sets `perf-beat` for probe.js): every gap over 50 ms, the longest, and the time
+  blocked between 1 s and 15 s (the part of each gap over 50 ms). `rest`: two minutes untouched
+  on Home and on Inventory (`PERF_REST_MS`), for the counting build: effect runs and derived
+  recomputations per component, and the pages hidden meanwhile. For both passes in one go,
+  `PERF_COUNT_SCENARIOS=rest PERF_TIMELINE=0 scripts/perf/measure.sh <outdir> tour,firstMinute 1`
+  runs the timed scenarios on the plain build and `rest` alone, without the Timeline, on the
+  counting build.
 
 ## Reading the numbers
 
