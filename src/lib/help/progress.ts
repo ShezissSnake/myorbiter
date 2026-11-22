@@ -59,8 +59,8 @@ const MASTERY: Walkthrough = {
       lines: [
         "Easiest first, or Buy with plat: what platinum gets you, cheapest first.",
         "Filter by name, kind or how you get it, or pick a kind beside it.",
-        "Prime, Non-prime, or All.",
-        "More filters: how hard (Easy, Moderate, Hard) and Show unavailable, for what you can't get now.",
+        "Prime, Non-prime, or All. Vaulted adds primes you can only trade for.",
+        "Show unavailable: what you can't get now. More filters: how hard it is.",
       ],
       shot: {
         open: "mastery",
