@@ -3,7 +3,7 @@
   // is remembered per page on this computer. A click on a card or a row does whatever `onopen` does
   // (the item details sheet, for gear); where it declines (returns null or false), or there's no
   // `onopen`, the row's own details open instead: in a panel for a card, in place for a row.
-  import { untrack, type Snippet } from "svelte";
+  import { getContext, untrack, type Snippet } from "svelte";
   import { sortRows, type Column } from "./table";
   import Table from "./Table.svelte";
   import CardGrid from "./CardGrid.svelte";
@@ -13,7 +13,10 @@
   import NoMatch from "./NoMatch.svelte";
   import { nearEnd } from "./nearEnd";
   import Count from "./Count.svelte";
-  import { keepWhile } from "../pane.svelte";
+  import { keepWhile, shownPage, whenIdle } from "../pane.svelte";
+  import { PANE } from "../statusStrip.svelte";
+  import { cardsAhead, cardsToKeep, foldStep } from "../core/cards";
+  import { rowsFor } from "../core/progress";
   import { arrive, fresh } from "../motion";
   import HelpMark from "./HelpMark.svelte";
   import { inView, progressive } from "../progress.svelte";
@@ -190,8 +193,82 @@
   const cardRows = $derived.by(keepWhile(() => layout === "cards", () => sorted));
   // The cards in sight drawn at once, the rest a few a frame after (lib/progress.svelte.ts).
   let grid = $state<HTMLElement | null>(null);
-  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180 });
-  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow }));
+  /** The page the list is on (PaneId), if it's on one. */
+  const pane = getContext<string | undefined>(PANE);
+  const pageShown = () => pane == null || shownPage(pane);
+  const cardView = inView(() => grid?.firstElementChild as HTMLElement | null, { min: 6, guess: 180, exact: true, spare: 4, measured: (scrolled) => ahead(false, scrolled) });
+  /**
+   * While the cards are in sight, each time the page scrolls: the cards down to the screen's
+   * bottom and a screen and a half more (core/cards.ts, `cardsAhead`), so a scroll finds them
+   * there. The ones on the screen are drawn at once, those below it a few at a time in idle
+   * moments (progressive). Measured without a scroll (the page shown, the cards first drawn): only
+   * those on the screen, so a page switch draws no more than it shows. `more`: the marker under the
+   * cards came near (a grid not measured yet). Out of sight (a page or the table shown instead), nothing.
+   */
+  function ahead(more = false, scrolled = false) {
+    if (!pageShown() || layout !== "cards" || cardView.hidden()) return;
+    const n = cardsAhead({ total: cardRows.length, shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, { more, drawn: cardsDrawn.length, scrolled });
+    if (n !== shown) shown = n;
+  }
+  // Shown again (its page, or the cards after the table): measured, the cards in sight drawn.
+  $effect(() => cardView.onShow(() => requestAnimationFrame(() => cardView.measure(true))));
+
+  /** The card with the focus, or Tab's place in the grid (roving.ts): its index, -1 for none. */
+  function focusAt(): number {
+    const g = grid?.firstElementChild;
+    if (!g) return -1;
+    const kids = [...g.children];
+    const a = document.activeElement;
+    const has = a && g.contains(a) ? kids.findIndex((k) => k.contains(a)) : -1;
+    const tab = g.querySelector(":scope > [tabindex='0']");
+    return Math.max(has, tab ? kids.indexOf(tab) : -1);
+  }
+  /** How long a slice of a fold may take (ms), as for a list drawn out of sight (progress.svelte.ts). */
+  const FOLD_BUDGET_MS = 12;
+  /** The most cards a slice of a fold takes off. */
+  const FOLD_MOST = 480;
+  /** How long a page is out of sight before its cards fold (ms): not in the switch away, and not at all for a quick look elsewhere. */
+  const FOLD_AFTER_MS = 1000;
+  // Its page left: the cards below where the player was fold back (core/cards.ts, `cardsToKeep`), so
+  // a page left with hundreds drawn below the screen doesn't carry them through every switch. A
+  // second after, a slice at a time in idle moments (pane.svelte.ts, whenIdle), each sized by how
+  // long the last took. Coming back shows the same cards in the same place: all of those above and
+  // on the screen stay, those a scroll there would draw ahead, and the card with the focus. Shown
+  // again mid-fold, the fold stops.
+  $effect(() => {
+    if (pageShown()) return;
+    let cancel = () => {};
+    let gone = false;
+    untrack(() => {
+      if (layout !== "cards") return;
+      const keep = cardsToKeep({ shown, reach: cardView.count(), perRow: cardView.perRow(), screenful: cardView.screenful() }, focusAt(), cardLimit);
+      if (keep >= shown) return;
+      let slice = Math.max(cardView.screenful(), 48);
+      const next = () => {
+        cancel = whenIdle(() => {
+          const from = shown;
+          if (gone || from <= keep) return;
+          const t0 = performance.now();
+          shown = foldStep(from, keep, slice);
+          // The cards go in this task's microtasks (Svelte's flush), queued before these.
+          queueMicrotask(() =>
+            queueMicrotask(() => {
+              if (gone) return;
+              slice = rowsFor(performance.now() - t0, from - shown, FOLD_BUDGET_MS, FOLD_MOST, slice);
+              if (shown > keep) next();
+            }),
+          );
+        });
+      };
+      const wait = setTimeout(next, FOLD_AFTER_MS);
+      cancel = () => clearTimeout(wait);
+    });
+    return () => {
+      gone = true;
+      cancel();
+    };
+  });
+  const cardsDrawn = $derived.by(progressive(() => cardRows.slice(0, shown), (r) => key(r), { first: cardView.count, step: 6, measure: cardView.measure, hidden: cardView.hidden, onShow: cardView.onShow, onMeasure: cardView.onMeasure }));
 </script>
 
 <!-- An h2 between the page's h1 and the cards' h3, so headings don't jump a level (a screen reader's
@@ -232,7 +309,7 @@
       <CardGrid {min}>
         {#each cardsDrawn as r (key(r))}{@render card(r, () => open(r))}{/each}
       </CardGrid>
-      {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => (shown += 48)}>{cardRows.length - shown} more below</div>{/if}
+      {#if cardRows.length > shown}<div class="more dim small" use:nearEnd={() => ahead(true)}>{cardRows.length - shown} more below</div>{/if}
     {:else}
       <p class="nothing">{#if clear}<NoMatch {clear} />{:else}{empty}{/if}</p>
     {/if}

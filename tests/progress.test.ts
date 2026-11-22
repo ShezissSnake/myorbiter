@@ -3,7 +3,7 @@
 // step is exactly the new list, whatever the order of the old one.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rowsInView, settled, stepRows } from "../src/lib/core/progress";
+import { drawnHead, itemsToFoot, rowsInView, settled, stepRows } from "../src/lib/core/progress";
 
 type R = { id: string; v: number };
 const row = (id: string, v = 0): R => ({ id, v });
@@ -95,12 +95,68 @@ test("a list first drawn (nothing before): the first slice, then the rest", () =
   assert.deepEqual(steps.map((s) => s.length), [10, 18, 26, 30]);
 });
 
+test("a list that only grew carries on from the rows it has drawn", () => {
+  const all = Array.from({ length: 240 }, (_, i) => row(`r${i}`));
+  const drawn = all.slice(0, 168);
+  const target = all.slice(0, 216);
+  assert.equal(drawnHead(target, drawn), 168);
+  // Stepping from there: the next rows at once, not 140 steps through rows already drawn.
+  const steps = walk(target, drawn, drawnHead(target, drawn) + 6, 6);
+  assert.deepEqual(steps.map((s) => s.length), [174, 180, 186, 192, 198, 204, 210, 216]);
+  // A list that shrank (a fold): all of what's left is drawn.
+  assert.equal(drawnHead(all.slice(0, 24), drawn), 24);
+  // A re-sort or new rows: only the rows still the same in place count.
+  assert.equal(drawnHead([all[0], all[2], all[1]], drawn), 1);
+  assert.equal(drawnHead(all.map((r) => row(r.id, 1)), drawn), 0);
+  assert.equal(drawnHead([], drawn), 0);
+  assert.equal(drawnHead(target, []), 0);
+});
+
 test("rows in view: from the list's top to the window's foot, at least the minimum", () => {
   assert.equal(rowsInView(600, 40, 1000, 8), 12); // 400 px of a 1000 px window: 10 rows, and 2 spare
   assert.equal(rowsInView(-400, 40, 1000, 8), 37); // scrolled 400 px into it: 35 rows down to the foot
   assert.equal(rowsInView(1200, 40, 1000, 8), 8); // below the window
   assert.equal(rowsInView(0, 0, 1000, 8), 8); // not laid out
   assert.equal(rowsInView(0, 40, 1000, 8, false), 8);
+});
+
+test("items down to the screen's foot, from the first item below it: whole rows and two more", () => {
+  // Card 541 the first below the foot, 4 a row: rows to 544, and two more.
+  assert.equal(itemsToFoot(541, 4, 2), 552);
+  assert.equal(itemsToFoot(540, 4, 2), 548);
+  // The list's end in sight (all 590 above the foot): all of it, and two rows past (whole rows).
+  assert.equal(itemsToFoot(590, 4, 2), 600);
+  // Near the top: at least the minimum rows.
+  assert.equal(itemsToFoot(3, 4, 6), 24);
+  assert.equal(itemsToFoot(0, 4, 2), 8);
+  // A list one item a row, or not measured.
+  assert.equal(itemsToFoot(10, 1, 8), 12);
+  assert.equal(itemsToFoot(10, 0, 8), 12);
+  // Four spare rows (a grid of cards, so a fast scroll doesn't reach the end of what's drawn).
+  assert.equal(itemsToFoot(541, 4, 2, 4), 560);
+  assert.equal(itemsToFoot(0, 4, 2, 4), 16);
+});
+
+test("a list in sight with no idle time to wait for: its next slice sized by the frame the last one made", async () => {
+  const { sightRows } = await import("../src/lib/core/progress");
+  // 6 cards drawn and the next frame came 16.7 ms later: 6 again.
+  assert.equal(sightRows(16.7, 6, 6, 6), 6);
+  // That frame took 100 ms (a slow webview): 2 next (about 26 ms of them), never fewer.
+  assert.equal(sightRows(100, 6, 6, 6), 2);
+  assert.equal(sightRows(66, 6, 6, 6), 2);
+  assert.equal(sightRows(400, 6, 6, 6), 2);
+  // A frame of two refreshes (33 ms) is already too long: fewer next, so that a slice and the
+  // frame's own work stay well under 50 ms.
+  assert.equal(sightRows(33, 6, 6, 6), 4);
+  assert.equal(sightRows(40, 4, 4, 6), 2);
+  // Fast again: back up to the step, a little at a time (even from 2 at 60 frames a second).
+  assert.equal(sightRows(16.7, 2, 2, 6), 3);
+  assert.equal(sightRows(16.7, 3, 3, 6), 4);
+  assert.equal(sightRows(16.7, 4, 4, 6), 6);
+  // No frame to go by (the first slice, or a pause between): as before.
+  assert.equal(sightRows(0, 6, 4, 6), 4);
+  assert.equal(sightRows(2000, 6, 4, 6), 4);
+  assert.equal(sightRows(30, 0, 4, 6), 4);
 });
 
 test("a list out of sight sizes its next slice by how long the last took", async () => {

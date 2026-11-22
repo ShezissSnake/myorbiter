@@ -40,6 +40,18 @@ function keysOf<T>(target: readonly T[], key: (r: T) => string): Set<string> {
   return keys;
 }
 
+/**
+ * How many of `target`'s first rows are already drawn, in place: the rows `drawn` and `target`
+ * start with, the same row for row. A list that only grew (more of the same rows below what's
+ * drawn) carries on from there rather than stepping again through the rows it already has.
+ */
+export function drawnHead<T>(target: readonly T[], drawn: readonly T[]): number {
+  const n = Math.min(target.length, drawn.length);
+  let i = 0;
+  while (i < n && target[i] === drawn[i]) i++;
+  return i;
+}
+
 /** Whether a step drew everything: what's drawn is the target, row for row. */
 export const settled = <T,>(target: readonly T[], drawn: readonly T[]) => same(target, drawn);
 
@@ -61,6 +73,17 @@ export function rowsInView(top: number, rowHeight: number, viewport: number, min
 }
 
 /**
+ * The items that fill the screen down to its foot, from the index of the first item below it
+ * (`firstBelow`; the list's length when its end is in sight): those, in whole rows of `perRow`, and
+ * `spare` rows more; at least `minRows` rows. Exact where `rowsInView`'s estimate from the first
+ * row's height drifts: far down a grid whose rows aren't all the same height.
+ */
+export function itemsToFoot(firstBelow: number, perRow: number, minRows = 8, spare = 2): number {
+  const per = Math.max(1, Math.floor(perRow) || 1);
+  return Math.max(minRows, Math.ceil(Math.max(0, firstBelow) / per) + Math.max(0, spare)) * per;
+}
+
+/**
  * Rows the next slice of a list drawn out of sight should draw: as many as fit `budget` ms at the
  * pace the last slice went (`rows` rows in `ms`), from 2 up to `most`. No rows, or no time
  * measured, says nothing: `last` again.
@@ -68,4 +91,17 @@ export function rowsInView(top: number, rowHeight: number, viewport: number, min
 export function rowsFor(ms: number, rows: number, budget: number, most: number, last = most): number {
   if (!(rows > 0) || !(ms > 0)) return last;
   return Math.max(2, Math.min(most, Math.floor((budget * rows) / ms)));
+}
+
+/**
+ * Rows the next slice of a list in sight draws where there's no idle time to wait for (WebKitGTK:
+ * a slice a frame): as many as keep a frame to about `budget` ms, going by the frame the last slice
+ * (`rows` rows) made, `frameMs` from the frame it was drawn in to the next; from 2 up to `step`. A
+ * frame much longer than any slice makes (a pause, the page out of sight between) says nothing:
+ * `last` again. The budget leaves a slice and the frame's own work (the scroll, style, paint) well
+ * under 50 ms, and is still past 25 ms, so slices grow back from 2 rows at 60 frames a second.
+ */
+export function sightRows(frameMs: number, rows: number, last: number, step: number, budget = 26): number {
+  if (!(frameMs > 0) || frameMs > 1000) return last;
+  return rowsFor(frameMs, rows, budget, step, last);
 }
