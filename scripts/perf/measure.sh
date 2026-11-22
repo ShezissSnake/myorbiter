@@ -35,9 +35,11 @@ sleep 5
 export PERF_WINDOW=1 XDG_RUNTIME_DIR=$xdg WAYLAND_DISPLAY=wl GDK_BACKEND=wayland DISPLAY= \
   WEBKIT_FORCE_DMABUF_RENDERER=1 WEBKIT_DMABUF_RENDERER_FORCE_SHM=1 PERF_TMP=$out
 # Timings on the plain build; counts and what ran (Timeline, JS samples) on the counting build.
-# PERF_PASSES=counts (or timings) runs one pass only.
+# PERF_PASSES=counts (or timings) runs one pass only. PERF_COUNT_SCENARIOS: other scenarios for the
+# counts pass (say, `rest` alone); PERF_TIMELINE=0: that pass without the Timeline recording.
 passes=${PERF_PASSES:-timings,counts}
+timeline=--timeline; [[ ${PERF_TIMELINE:-1} == 0 ]] && timeline=
 [[ $passes == *timings* ]] && run node scripts/perf/run.mjs --url http://localhost:1432/ --scenarios "$scenarios" --runs "$runs" --out "$out/timings.json"
-[[ $passes == *counts* ]] && run node scripts/perf/run.mjs --url http://localhost:1433/ --scenarios "$scenarios" --runs 1 --timeline --out "$out/counts.json"
+[[ $passes == *counts* ]] && run node scripts/perf/run.mjs --url http://localhost:1433/ --scenarios "${PERF_COUNT_SCENARIOS:-$scenarios}" --runs 1 $timeline --out "$out/counts.json"
 cp "$out/plain/chunks.json" "$out/chunks.json"
 echo "results in $out"

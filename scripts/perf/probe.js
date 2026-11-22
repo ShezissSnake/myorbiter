@@ -236,6 +236,41 @@
     return { settledMs: Math.round(f ? f.post : now()), lastMutation: Math.round(mut.last), lastFetch: Math.round(lastFetch) };
   };
 
+  // The first minute (run.mjs sets `perf-beat` for a scenario with `beat: true`): a heartbeat of
+  // its own from before the app's first script to 60 s, every gap over 50 ms kept with when it
+  // began. Off otherwise: the heartbeat costs a little itself.
+  const early = { gaps: [], until: 60000, last: now() };
+  if (localStorage.getItem("perf-beat") === "1") {
+    const tick = () => {
+      const t = now();
+      if (t - early.last > 50) early.gaps.push({ at: Math.round(early.last), ms: Math.round(t - early.last) });
+      early.last = t;
+      if (t < early.until) setTimeout(tick, 0);
+    };
+    setTimeout(tick, 0);
+    // The page's own timer callbacks, timed (a background slice runs in one): the longest, and
+    // each one over 20 ms with when it began and its timer's delay. The heartbeat's are left out.
+    const slices = (early.slices = []);
+    // Timed to the end of the microtasks it set off (Svelte draws in one, after the callback
+    // returns): a few microtask hops past the callback, which covers a flush and its effects.
+    const after = (n, f) => (n ? queueMicrotask(() => after(n - 1, f)) : f());
+    const timed = (f, ms) => function (...a) {
+      const t = now();
+      try { return f.apply(this, a); } finally {
+        after(4, () => {
+          const d = now() - t;
+          if (d > 20 && t < early.until) slices.push({ at: Math.round(t), ms: Math.round(d), delay: ms | 0 });
+        });
+      }
+    };
+    const st = window.setTimeout, si = window.setInterval;
+    window.setTimeout = function (f, ms, ...a) { return st.call(this, typeof f === "function" && f !== tick ? timed(f, ms) : f, ms, ...a); };
+    window.setInterval = function (f, ms, ...a) { return si.call(this, typeof f === "function" ? timed(f, ms) : f, ms, ...a); };
+  }
+  /** The first minute's heartbeat gaps and timer callbacks over 20 ms (empty without `perf-beat`). */
+  P.earlyGaps = () => early.gaps.slice();
+  P.earlySlices = () => (early.slices ?? []).slice();
+
   P.counts = snapCounts;
   P.sleep = sleep;
   P.nextFrame = nextFrame;

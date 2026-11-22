@@ -228,3 +228,48 @@ test("scrolling: the frames drawn while a list scrolls, per page; a lone scroll 
     restore();
   }
 });
+
+test("a change in a view kept drawn but not shown (.swap.off) doesn't hold an action's settling back", async () => {
+  const restore = fakeWindow();
+  const g = globalThis as Record<string, unknown>;
+  let frames: (() => void)[] = [];
+  g.requestAnimationFrame = (f: () => void) => (frames.push(f), frames.length);
+  const flush = async () => {
+    const f = frames;
+    frames = [];
+    for (const x of f) x();
+    await new Promise((r) => setTimeout(r, 5));
+  };
+  let changed: ((recs: unknown[]) => void) | null = null;
+  g.MutationObserver = class { constructor(cb: (recs: unknown[]) => void) { changed = cb; } observe() {} disconnect() { changed = null; } };
+  g.Element = class {};
+  const el = (sel: string | null) => Object.assign(Object.create((g.Element as { prototype: object }).prototype), { closest: (s: string) => (s === sel ? {} : null) });
+  const shown = el(null);
+  const offView = el(".swap.off");
+  const rec = new Recorder();
+  try {
+    rec.enable({ page: () => "mastery", sizes: () => ({}), gameRunning: () => null, log: () => {} });
+    const t0 = performance.now();
+    (rec as unknown as { begin(t: number, how: string, c: string): void }).begin(t0, "click", "button");
+    await flush();
+    changed!([{ target: shown }]);
+    await flush();
+    const paintedAt = performance.now() - t0;
+    // The other view filling in behind, for a while after (closer together than the recorder's
+    // quiet wait: counted, they would hold the action open). Once settled, nothing is watched.
+    for (let i = 0; i < 4; i++) {
+      await new Promise((r) => setTimeout(r, 120));
+      (changed as ((recs: unknown[]) => void) | null)?.([{ target: offView }]);
+      await flush();
+    }
+    await new Promise((r) => setTimeout(r, 600));
+    const [a] = rec.data().actions;
+    assert.ok(a, "kept");
+    assert.ok(a.settled <= paintedAt + 1, `settled ${a.settled}, the shown change painted at ${paintedAt}`);
+  } finally {
+    rec.disable();
+    delete g.MutationObserver;
+    delete g.Element;
+    restore();
+  }
+});

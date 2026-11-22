@@ -6,11 +6,14 @@
   import ProgressButton from "./ProgressButton.svelte";
   import { profileUrl } from "../backend";
   import { mkt } from "../marketStore.svelte";
+  import { giveWhileOpen } from "../core/saleNotice";
 
   // label: the button's words ("+rep" where the partner is named beside it). named: "+rep Bob", on a
   // notification; the name keeps its case (warframe.market names are case-sensitive), unlike the
   // register-type button around it.
-  let { partner, text, given = false, ongiven, label = "+rep", named = false }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string; named?: boolean } = $props();
+  // open: whether the offer is still open at a time (its window); asked with the time of the click
+  // itself, so a click after the window ended gives nothing.
+  let { partner, text, given = false, ongiven, label = "+rep", named = false, open = () => true }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string; named?: boolean; open?: (now: number) => boolean } = $props();
 
   let busy = $state(false);
   let error = $state<string | null>(null);
@@ -23,7 +26,9 @@
     try {
       // No account under that name: nothing to give it to.
       if (!(await mkt.user(partner))) return;
-      const r = await mkt.giveRep(partner, text);
+      const r = await giveWhileOpen(open, Date.now, () => mkt.giveRep(partner, text));
+      // Its window ended: nothing given (the offer goes on the page's next tick).
+      if (r === undefined) return;
       if (r === "reported") reported = true;
       else ongiven?.();
     } catch (e) {

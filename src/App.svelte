@@ -6,12 +6,13 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
-  import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { dealsScanDue, watchlist } from "./lib/core/deals";
-  import { cardsPollDue } from "./lib/core/cardsPoll";
+  import { cardsPollDue, clockMoves } from "./lib/core/cardsPoll";
+  import { statusPollDue } from "./lib/core/statusPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -289,7 +290,9 @@
     const queue = available.map((p) => p.id).filter((id) => id !== "rivens");
     const next = () => {
       const id = queue.shift();
-      if (!id) return;
+      // Then Settings, built closed and kept (Sheet's `built`): its first open is a slide, not a
+      // build of the whole panel.
+      if (!id) return void loadSettingsSheet().then(() => whenIdle(() => inBackground(() => (wanted.settings = true))), () => {});
       if (visited[id]) return void whenIdle(next);
       const load = lazyPages[id];
       const draw = () => {
@@ -730,9 +733,14 @@
   /** The overlay's files: the reward screen's cards (named for Record timings while it runs). */
   const pollCards = () => timing.tick("overlay files", pollCardsNow);
   async function pollCardsNow() {
-    clock = Date.now();
-    if (!cardsPollDue({ now: clock, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report })) return;
-    lastCardsPoll = clock;
+    const now = Date.now();
+    const due = cardsPollDue({ now, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report });
+    // `clock` moves with the poll, and at the slow pace when there's none (a console account):
+    // what reads it (fresh cards, the +rep offer) isn't worked out again on every 0.8 s tick. A +rep
+    // offer's window still ends on time: the clock moves on the tick that passes its end.
+    if (clockMoves({ now, clock: untrack(() => clock), due, deadlines: untrack(() => repEnds) })) clock = now;
+    if (!due) return;
+    lastCardsPoll = now;
     cardsPolling = true;
     try {
       const next = await rewardCards();
@@ -1384,12 +1392,12 @@
 
   // +rep after a trade: for the latest trade of the last half hour, when its partner is on
   // warframe.market and you haven't given it or said Not now.
-  const REP_WINDOW = 30 * 60_000;
+  const REP_WINDOW = REP_STRIP_WINDOW;
   const repDue = $derived.by(() => {
     // Automatic +rep gives it by itself: no offer to give it by hand as well.
     if (settings.market.autoRep) return null;
     const t = settings.market.trades[0];
-    if (!t || clock - t.at > REP_WINDOW || settings.market.rep[t.key]) return null;
+    if (!t || !repStripOpen(t.at, offerTime(clock, Date.now())) || settings.market.rep[t.key]) return null;
     // One +rep per player: already given on an earlier trade (names in any case).
     const partner = t.partner.toLowerCase();
     if (settings.market.trades.some((x) => x.partner.toLowerCase() === partner && settings.market.rep[x.key] === "given")) return null;
@@ -1716,22 +1724,29 @@
     if (id) toldNotice.set(key, id);
   }
   /**
+   * Where the +rep offers' windows end (the latest trade's, and each notification's that offers
+   * +rep): the cards poll moves `clock` on the tick that passes one, so an offer ends on time.
+   */
+  const repEnds = $derived(repDeadlines(settings.market.trades, settings.game.notices));
+  /**
    * A notification's +rep, while it's still due: you give it by hand, the buyer is on
    * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now
-   * (here or on the strip at the top) takes it away.
+   * (here or on the strip at the top) takes it away. `now`: the page's clock (or the real time when
+   * the clock lags: offerTime), or the time of a give itself (Date.now()), so a give after the
+   * window's end gives nothing.
    */
-  function repShown(n: Notice): { key: string; partner: string; given: boolean } | null {
+  function repShown(n: Notice, now = offerTime(clock, Date.now())): { key: string; partner: string; given: boolean } | null {
     const r = n.rep;
     if (!r) return null;
     if (settings.market.rep[r.key] === "given") return { ...r, given: true };
     const at = settings.market.trades.find((x) => x.key === r.key)?.at ?? n.at;
-    const ok = repOffered({ key: r.key, partner: r.partner, at, now: clock, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
+    const ok = repOffered({ key: r.key, partner: r.partner, at, now, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
     return ok ? { ...r, given: false } : null;
   }
   /** The desktop notification's Give +rep: given from here, MyOrbiter left where it is. */
   async function repFromNotice(id: string) {
     const n = settings.game.notices.find((x) => x.id === id);
-    const r = n ? repShown(n) : null;
+    const r = n ? repShown(n, Date.now()) : null;
     if (!r || r.given) return;
     try {
       const how = await mkt.giveRep(r.partner, settings.market.repText);
@@ -2808,7 +2823,8 @@
         if (mkt.linked && settings.market.presence) mkt.setStatus(mkt.presenceFor(settings.market.presence));
       });
       mkt.pollStatus();
-      statusPoll = setInterval(() => mkt.pollStatus(), 3_000);
+      // Signed out and let go, the status can't change: no read (core/statusPoll).
+      statusPoll = setInterval(() => statusPollDue({ linked: mkt.linked, asked: mkt.statusAsked, status: mkt.status }) && mkt.pollStatus(), 3_000);
       marketPoll = setInterval(() => {
         if (stopped) return;
         const s = settings.market;
@@ -3258,7 +3274,7 @@
       {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
-          <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
+          <RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={() => markRep(repDue.t.key, "given")} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
         </div></div></div>
       {/if}
@@ -3335,7 +3351,7 @@
 {#snippet noticeActs(n: Notice)}
   {@const r = repShown(n)}
   {#if r}
-    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} ongiven={() => markRep(r.key, "given")} />
+    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} open={(now) => repShown(n, now)?.given === false} ongiven={() => markRep(r.key, "given")} />
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}

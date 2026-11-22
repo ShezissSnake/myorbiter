@@ -205,10 +205,12 @@
   const saved = $derived(showOld ? savedAll : filterByAge(savedAll, settings.buildsMaxAgeDays, now));
 
   // MyOrbiter's suggestions: from the mods you hold (an aura or stance to get shown, uncounted), for each tier, in the variant picked on its card.
-  const rows = $derived([...model.inventoryByBase.values()].flat() as InventoryRow[]);
-  const owns = $derived(ownedFrom(rows));
+  // These, the suggestions and the tiers' lists wait while the page is hidden, like mostBuilt: a
+  // sync then doesn't work them out again for nobody (whileShown).
+  const rows = $derived.by(whileShown("builds", () => [...model.inventoryByBase.values()].flat() as InventoryRow[]));
+  const owns = $derived.by(whileShown("builds", () => ownedFrom(rows)));
   /** Everything held (shards, companions, the Grimoire…), so the loadout can mark what you have. */
-  const held = $derived(heldFrom(rows));
+  const held = $derived.by(whileShown("builds", () => heldFrom(rows)));
   let variantOf = $state<Record<Tier, string | null>>({ low: null, medium: null, high: null });
   const variants = $derived(item && canSuggest(item) ? variantsFor(item).map((v) => ({ id: v.id, label: v.label, tags: v.tags })) : []);
   // A weapon's ideal riven: your rivens for it, and the listings the Rivens page last read for it.
@@ -240,7 +242,7 @@
       void owns;
     });
   });
-  const suggestions = $derived.by((): Partial<Record<Tier, Suggestion>> => {
+  const suggestions = $derived.by(whileShown("builds", (): Partial<Record<Tier, Suggestion>> => {
     if (!item || !canSuggest(item)) return {};
     try {
       const idx = index();
@@ -249,8 +251,8 @@
       console.error("MyOrbiter's suggestion failed:", e);
       return {};
     }
-  });
-  const suggested = $derived(Object.fromEntries(Object.entries(suggestions).map(([t, s]) => [t, toBuild(s, now) as unknown as Build])) as Partial<Record<Tier, Build>>);
+  }));
+  const suggested = $derived.by(whileShown("builds", () => Object.fromEntries(Object.entries(suggestions).map(([t, s]) => [t, toBuild(s, now) as unknown as Build])) as Partial<Record<Tier, Build>>));
   /** A suggestion's aura or stance the player doesn't own: shown, not counted (by the build shown). */
   const uncountedOf = $derived(new Map(TIERS.flatMap((t) => (suggested[t] && suggestions[t]?.uncounted.length ? [[suggested[t]!, suggestions[t]!.uncounted] as const] : []))));
 
@@ -317,7 +319,7 @@
   const tierFor = (b: Build): TierResult => tiers.get(b, model.catalogByUnique, () => tierOf(b, item!, model.catalogByUnique, kind!, { uncounted: uncountedOf.get(b) }), kind!);
   const reports = new PerBuild<MissingReport>();
   const reportFor = (b: Build): MissingReport => reports.get(b, model, () => missing(b, model, { tier: tierFor(b) }), kind!);
-  const arranged = $derived(item && kind ? arrange(saved, site, suggested, tierFor) : { low: [], medium: [], high: [] });
+  const arranged = $derived.by(whileShown("builds", () => (item && kind ? arrange(saved, site, suggested, tierFor) : { low: [], medium: [], high: [] })));
   // Tags: the ones on this item's builds, every tier; picking some keeps the builds carrying them all.
   let picked = $state<string[]>([]);
   const tags = $derived(tagsIn(TIERS.flatMap((t) => arranged[t].map((s) => s.build))));

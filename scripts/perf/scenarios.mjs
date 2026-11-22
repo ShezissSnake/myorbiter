@@ -157,9 +157,14 @@ export const SCENARIOS = {
     async run(s) {
       const open = OPEN_SETTINGS;
       const close = `document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))`;
+      // Whether the sheet is open after each step, so a click that missed shows as such.
+      const isOpen = `!!document.querySelector(".sheet.on[aria-label='Settings']:not([inert])")`;
       const first = await s.measure(open, { quiet: 600 });
+      first.open = await s.eval(isOpen);
       const closed = await s.measure(close, { quiet: 600 });
+      closed.open = await s.eval(isOpen);
       const second = await s.measure(open, { quiet: 600 });
+      second.open = await s.eval(isOpen);
       return { first, closed, second };
     },
   },
@@ -566,5 +571,55 @@ SCENARIOS.tour = {
     await new Promise((r) => setTimeout(r, 1000));
     const report = await s.eval(`document.querySelector('textarea[aria-label="Timing report"]')?.value ?? null`);
     return { laps, scrolled, cards: cards.length, report };
+  },
+};
+
+/**
+ * The first minute after start: a heartbeat from before the app's first script (probe.js,
+ * `perf-beat`) to 60 s, so the warm-up's background work shows as gaps. Reported: gaps over 50
+ * and over 100 ms, the longest, and the time blocked between 1 s and 15 s (each gap's part over
+ * 50 ms, for gaps that begin in that span). Also the page's timer callbacks over 20 ms (a
+ * background slice runs in one): the longest, and how many over 50 ms.
+ */
+SCENARIOS.firstMinute = {
+  early: true,
+  beat: true,
+  async run(s) {
+    while ((await s.eval("performance.now()")) < 61000) await new Promise((r) => setTimeout(r, 1000));
+    const gaps = await s.eval("window.__perf.earlyGaps()");
+    const slices = await s.eval("window.__perf.earlySlices()");
+    const span = gaps.filter((g) => g.at >= 1000 && g.at < 15000);
+    return {
+      gaps,
+      slices,
+      longestSliceMs: slices.reduce((m, x) => Math.max(m, x.ms), 0),
+      slicesOver50: slices.filter((x) => x.ms > 50).length,
+      over50: gaps.length,
+      over100: gaps.filter((g) => g.ms > 100).length,
+      longestMs: gaps.reduce((m, g) => Math.max(m, g.ms), 0),
+      blocked1to15Ms: span.reduce((m, g) => m + Math.max(0, g.ms - 50), 0),
+    };
+  },
+};
+
+/**
+ * Two minutes at rest, settled, on Home and on Inventory: what runs with nobody touching the app,
+ * run on the counting build (PERF_COUNT=1). Effect runs and derived recomputations per component
+ * over the two minutes, and which pages were hidden meanwhile.
+ */
+SCENARIOS.rest = {
+  runs: 1,
+  perPage: ["Home", "Inventory"],
+  async run(s, { page }) {
+    if (page !== "Home") await s.measure(nav(page), { quiet: 1000 });
+    await s.measure("void 0", { quiet: 1500, max: 4000 });
+    const ms = Number(process.env.PERF_REST_MS ?? 120_000);
+    const c0 = await s.eval("window.__perf.counts()");
+    const m = await s.measure("void 0", { quiet: ms + 60_000, max: ms });
+    const c1 = await s.eval("window.__perf.counts()");
+    // Every component, not only the top few: effect runs and derived recomputations in the span.
+    const diff = (k) => Object.fromEntries(Object.entries(c1?.[k] ?? {}).map(([n, v]) => [n, v - (c0?.[k]?.[n] ?? 0)]).filter(([, v]) => v).sort((p, q) => q[1] - p[1]));
+    const hidden = await s.eval(`[...document.querySelectorAll('.pane:not(.shown)')].map(e => (e.querySelector('h1, h2')?.textContent ?? '?').trim().slice(0, 40))`);
+    return { page, ms, longestTaskMs: m.longestTaskMs, tasksOver50: m.tasksOver50, requests: m.requests.length, effect: diff("effect"), derived: diff("derived"), mount: diff("mount"), hidden, haveCounts: !!c1 };
   },
 };

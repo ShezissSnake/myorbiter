@@ -826,9 +826,14 @@ function postAfter(f: () => void) {
   c.port2.postMessage(0);
 }
 
+/**
+ * A change nobody sees: in a hidden page, or in a view kept drawn but not shown (a page's other
+ * tab, `.swap.off`: Mastery's Buy with plat filling in behind its list).
+ */
 function hidden(rec: MutationRecord | undefined): boolean {
   const n = rec?.target;
   const el = n instanceof Element ? n : (n?.parentElement ?? null);
+  if (el?.closest(".swap.off")) return true;
   const pane = el?.closest(".pane");
   return !!pane && !pane.classList.contains("shown");
 }

@@ -1,10 +1,11 @@
 // How meters move (design/motion.md rule 9): each meter remembers the value it last showed on
 // screen (core/meterMemory.ts, kept in the settings with the other interface state). When its page
 // opens, or its value changes while the page is open, a meter on screen whose value differs from
-// that one steps from the old value to the new over SETTLE, one frame after the page has painted.
-// Unchanged, never shown before, off screen, or with reduced motion on: it shows the new value at
-// once. Each meter moves one layer per part, by transform only; past FRAME_BUDGET moving layers in
-// one frame, the rest jump.
+// that one steps from the old value to the new over SETTLE, once an IntersectionObserver has seen
+// it on screen in the frame after the page painted (a frame later in a card content-visibility
+// still skipped then). Unchanged, never shown before, off screen, or with reduced motion on: it
+// shows the new value at once. Each meter moves one layer per part, by transform only; past
+// FRAME_BUDGET moving layers in one frame, the rest jump.
 //
 // Used by the two meters (ui/Segments.svelte, ui/Vessel.svelte) through `meterMotion`.
 import { getContext, untrack } from "svelte";
@@ -52,16 +53,75 @@ function takeMoves(n: number): boolean {
   return true;
 }
 
-/** Whether any of the element is inside the window. */
-function onScreen(node: Element): boolean {
-  const r = node.getBoundingClientRect();
-  return r.width > 0 && r.bottom > 0 && r.right > 0 && r.top < innerHeight && r.left < innerWidth;
+/**
+ * Whether a meter is on screen, asked of one IntersectionObserver for all of them: it answers with
+ * the next frame's layout, where reading a box (getBoundingClientRect) would lay the page out at
+ * once, a page just shown included (132–206 ms on Arcanes' first visit). Each meter is watched only
+ * from its question to the answer.
+ */
+const asking = new Map<Element, Set<(on: boolean) => void>>();
+let watcher: IntersectionObserver | null = null;
+/** Meters asked about whose first answer came before they were laid out. */
+const unlaid = new WeakSet<Element>();
+function answer(node: Element, on: boolean) {
+  const waiting = asking.get(node);
+  asking.delete(node);
+  unlaid.delete(node);
+  watcher?.unobserve(node);
+  for (const f of waiting ?? []) f(on);
+}
+function onScreen(node: Element, reply: (on: boolean) => void): () => void {
+  watcher ??= new IntersectionObserver((entries) => {
+    for (const e of entries) {
+      const waiting = asking.get(e.target);
+      if (!waiting) continue;
+      // Some of it inside the window and the page's scrolling box: a box of no size, or one only
+      // touching the edge, isn't seen.
+      const on = e.isIntersecting && e.intersectionRect.width > 0 && e.intersectionRect.height > 0;
+      // No box at all: not laid out yet, inside a card that content-visibility still skips in the
+      // first frame of a page just shown. The card is laid out in the next frame if it's near the
+      // screen, and the observer answers again then; one that stays skipped is off screen.
+      const box = e.boundingClientRect;
+      if (!on && !box.width && !box.height && !unlaid.has(e.target)) {
+        const target = e.target;
+        unlaid.add(target);
+        requestAnimationFrame(() => requestAnimationFrame(() => asking.get(target) === waiting && answer(target, false)));
+        continue;
+      }
+      answer(e.target, on);
+    }
+  });
+  const waiting = asking.get(node) ?? new Set<(on: boolean) => void>();
+  if (!asking.has(node)) {
+    asking.set(node, waiting);
+    watcher.observe(node);
+  }
+  waiting.add(reply);
+  return () => {
+    waiting.delete(reply);
+    if (waiting.size || asking.get(node) !== waiting) return;
+    asking.delete(node);
+    unlaid.delete(node);
+    watcher?.unobserve(node);
+  };
 }
 
-/** Runs `f` one frame after the next paint; returns a cancel. */
-function afterPaint(f: () => void): () => void {
-  let id = requestAnimationFrame(() => (id = requestAnimationFrame(f)));
-  return () => cancelAnimationFrame(id);
+/**
+ * Runs `f` with whether `node()` is on screen, one frame after the next paint: the question goes
+ * in the frame after the page painted, and the observer answers after that frame's layout. With no
+ * element, `f(false)` then. Returns a cancel.
+ */
+function afterPaint(node: () => Element | undefined, f: (on: boolean) => void): () => void {
+  let unask: (() => void) | null = null;
+  const id = requestAnimationFrame(() => {
+    const el = node();
+    if (!el) return f(false);
+    unask = onScreen(el, f);
+  });
+  return () => {
+    cancelAnimationFrame(id);
+    unask?.();
+  };
 }
 
 /** A layer's key in the memory: the meter's own for the first part, then key#1, key#2… */
@@ -116,11 +176,10 @@ export function meterMotion(read: () => { key: string | null; values: number[] }
     }
     const to = [...values];
     if (settled && settled.length === to.length && settled.every((v, i) => v === to[i])) return;
-    return afterPaint(() => {
+    return afterPaint(node, (on) => {
       settled = to;
-      const el = node();
       const was = untrack(() => drawn);
-      if (!key || !el || !onScreen(el)) {
+      if (!key || !on) {
         // Not remembered, or off screen: the new value, no motion, nothing remembered.
         drawn = to;
         tick(to[0] ?? 0, to[0] ?? 0);
