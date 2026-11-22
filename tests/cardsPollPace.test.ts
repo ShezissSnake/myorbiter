@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CARDS_SLOW_MS, CARDS_TICK_MS, cardsPollDue, clockMoves, type CardsPollState } from "../src/lib/core/cardsPoll";
-import { REP_OFFER_WINDOW, REP_STRIP_WINDOW, giveWhileOpen, repDeadlines, repOffered, repStripOpen } from "../src/lib/core/saleNotice";
+import { REP_OFFER_WINDOW, REP_STRIP_WINDOW, giveWhileOpen, offerTime, repDeadlines, repOffered, repStripOpen } from "../src/lib/core/saleNotice";
 
 const START = 1_792_700_000_000;
 
@@ -48,8 +48,8 @@ test("the page's cards poll goes by the decision, and its clock still runs on a 
   assert.match(poll, /if \(clockMoves\(\{ now, clock: untrack\(\(\) => clock\), due, deadlines: untrack\(\(\) => repEnds\) \}\)\) clock = now;\s*\n\s*if \(!due\) return;/);
   // The deadlines are the +rep offers' ends, and both offers read that clock by their own rules.
   assert.match(app, /const repEnds = \$derived\(repDeadlines\(settings\.market\.trades, settings\.game\.notices\)\);/);
-  assert.match(app, /if \(!t \|\| !repStripOpen\(t\.at, clock\) \|\| settings\.market\.rep\[t\.key\]\) return null;/);
-  assert.match(app, /function repShown\(n: Notice, now = clock\)/);
+  assert.match(app, /if \(!t \|\| !repStripOpen\(t\.at, offerTime\(clock, Date\.now\(\)\)\) \|\| settings\.market\.rep\[t\.key\]\) return null;/);
+  assert.match(app, /function repShown\(n: Notice, now = offerTime\(clock, Date\.now\(\)\)\)/);
   // A notification's deadline and its check go from the same time: its trade's, else its own.
   const core = readFileSync(new URL("../src/lib/core/saleNotice.ts", import.meta.url), "utf8");
   assert.match(core, /out\.push\(\(trades\.find\(\(x\) => x\.key === key\)\?\.at \?\? n\.at\) \+ REP_OFFER_WINDOW \+ 1\);/);
@@ -153,4 +153,22 @@ test("a +rep given after its window's end gives nothing, even while the page's c
   assert.equal(app.match(/<RepButton /g)?.length, 2, "no other +rep button on the page");
   const fromNotice = app.slice(app.indexOf("async function repFromNotice("), app.indexOf("await mkt.giveRep(r.partner, settings.market.repText)"));
   assert.match(fromNotice, /const r = n \? repShown\(n, Date\.now\(\)\) : null;\s*\n\s*if \(!r \|\| r\.given\) return;/);
+});
+
+test("an offer that turns up with its end already past is never shown, though the clock lags", () => {
+  // The slow pace: the clock 5 s behind. A trade read late, whose window ended 2 s ago: by the
+  // clock alone it would still show until the next tick; by offerTime it never shows.
+  const offer = { key: "t1", partner: "ExamplePlayer", autoRep: false, linked: true, onMarket: true, rep: {}, trades: [] };
+  const now = START;
+  const clock = now - (CARDS_SLOW_MS - 1);
+  for (const [name, window, open] of [
+    ["strip", REP_STRIP_WINDOW, (at: number, t: number) => repStripOpen(at, t)],
+    ["notification", REP_OFFER_WINDOW, (at: number, t: number) => repOffered({ ...offer, at, now: t })],
+  ] as const) {
+    const at = now - window - 2_000;
+    assert.equal(open(at, clock), true, `${name}: open by the lagging clock alone`);
+    assert.equal(open(at, offerTime(clock, now)), false, `${name}: not shown`);
+    // One still open by the real time shows.
+    assert.equal(open(now - window + 2_000, offerTime(clock, now)), true, `${name}: still open`);
+  }
 });

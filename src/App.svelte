@@ -6,7 +6,7 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
-  import { REP_STRIP_WINDOW, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1397,7 +1397,7 @@
     // Automatic +rep gives it by itself: no offer to give it by hand as well.
     if (settings.market.autoRep) return null;
     const t = settings.market.trades[0];
-    if (!t || !repStripOpen(t.at, clock) || settings.market.rep[t.key]) return null;
+    if (!t || !repStripOpen(t.at, offerTime(clock, Date.now())) || settings.market.rep[t.key]) return null;
     // One +rep per player: already given on an earlier trade (names in any case).
     const partner = t.partner.toLowerCase();
     if (settings.market.trades.some((x) => x.partner.toLowerCase() === partner && settings.market.rep[x.key] === "given")) return null;
@@ -1731,10 +1731,11 @@
   /**
    * A notification's +rep, while it's still due: you give it by hand, the buyer is on
    * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now
-   * (here or on the strip at the top) takes it away. `now`: the page's clock, or the time of a
-   * give itself (Date.now()), so a give after the window's end gives nothing.
+   * (here or on the strip at the top) takes it away. `now`: the page's clock (or the real time when
+   * the clock lags: offerTime), or the time of a give itself (Date.now()), so a give after the
+   * window's end gives nothing.
    */
-  function repShown(n: Notice, now = clock): { key: string; partner: string; given: boolean } | null {
+  function repShown(n: Notice, now = offerTime(clock, Date.now())): { key: string; partner: string; given: boolean } | null {
     const r = n.rep;
     if (!r) return null;
     if (settings.market.rep[r.key] === "given") return { ...r, given: true };

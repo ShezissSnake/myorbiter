@@ -86,6 +86,13 @@ export const REP_STRIP_WINDOW = 30 * 60_000;
 export const repStripOpen = (at: number, now: number) => now - at <= REP_STRIP_WINDOW;
 
 /**
+ * The time an offer is shown by: the page's clock, which moves on the tick that passes an offer's
+ * end; or the real time, when the clock lags behind it (up to 5 s at the slow pace). So an offer
+ * that turns up with its end already past (a trade read late) is never shown, not even for a tick.
+ */
+export const offerTime = (clock: number, now: number) => Math.max(clock, now);
+
+/**
  * Gives +rep only if its offer is still open at the moment of giving: `open` is asked with `now()`
  * then, not with the page's clock (which can be up to a tick behind). An offer whose window has
  * ended gives nothing (undefined); else `give`'s result.
