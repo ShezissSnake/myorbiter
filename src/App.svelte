@@ -6,7 +6,7 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
-  import { REP_OFFER_WINDOW, repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { REP_STRIP_WINDOW, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -738,7 +738,7 @@
     // `clock` moves with the poll, and at the slow pace when there's none (a console account):
     // what reads it (fresh cards, the +rep offer) isn't worked out again on every 0.8 s tick. A +rep
     // offer's window still ends on time: the clock moves on the tick that passes its end.
-    if (clockMoves({ now, clock: untrack(() => clock), due, deadlines: untrack(() => repDeadlines) })) clock = now;
+    if (clockMoves({ now, clock: untrack(() => clock), due, deadlines: untrack(() => repEnds) })) clock = now;
     if (!due) return;
     lastCardsPoll = now;
     cardsPolling = true;
@@ -1392,12 +1392,12 @@
 
   // +rep after a trade: for the latest trade of the last half hour, when its partner is on
   // warframe.market and you haven't given it or said Not now.
-  const REP_WINDOW = 30 * 60_000;
+  const REP_WINDOW = REP_STRIP_WINDOW;
   const repDue = $derived.by(() => {
     // Automatic +rep gives it by itself: no offer to give it by hand as well.
     if (settings.market.autoRep) return null;
     const t = settings.market.trades[0];
-    if (!t || clock - t.at > REP_WINDOW || settings.market.rep[t.key]) return null;
+    if (!t || !repStripOpen(t.at, clock) || settings.market.rep[t.key]) return null;
     // One +rep per player: already given on an earlier trade (names in any case).
     const partner = t.partner.toLowerCase();
     if (settings.market.trades.some((x) => x.partner.toLowerCase() === partner && settings.market.rep[x.key] === "given")) return null;
@@ -1727,17 +1727,7 @@
    * Where the +rep offers' windows end (the latest trade's, and each notification's that offers
    * +rep): the cards poll moves `clock` on the tick that passes one, so an offer ends on time.
    */
-  const repDeadlines = $derived.by(() => {
-    const out: number[] = [];
-    const t = settings.market.trades[0];
-    if (t) out.push(t.at + REP_WINDOW);
-    for (const n of settings.game.notices) {
-      if (!n.rep) continue;
-      const at = settings.market.trades.find((x) => x.key === n.rep!.key)?.at ?? n.at;
-      out.push(at + REP_OFFER_WINDOW);
-    }
-    return out;
-  });
+  const repEnds = $derived(repDeadlines(settings.market.trades, settings.game.notices));
   /**
    * A notification's +rep, while it's still due: you give it by hand, the buyer is on
    * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now

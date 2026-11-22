@@ -80,6 +80,28 @@ export function salesToTell<T extends Trade>(trades: T[], key: (t: T) => string,
 /** How long a notification's +rep button stays: the same day's reach as automatic +rep. */
 export const REP_OFFER_WINDOW = 24 * 60 * 60_000;
 
+/** How long the +rep strip after a trade stays (the latest trade's, from its time). */
+export const REP_STRIP_WINDOW = 30 * 60_000;
+/** Whether the latest trade, made at `at`, is still within the strip's window at `now`. */
+export const repStripOpen = (at: number, now: number) => now - at <= REP_STRIP_WINDOW;
+
+/**
+ * Where the +rep offers' windows end: the strip's for the latest trade, and each notification's
+ * that offers +rep (from its trade's time, else the notification's). The page's clock moves on the
+ * tick that passes one (core/cardsPoll.ts `clockMoves`), so an offer ends within a tick of it.
+ * Each is the first millisecond the offer is over (a window's last one still offers it).
+ */
+export function repDeadlines(trades: readonly { key: string; at: number }[], notices: readonly { at: number; rep?: { key: string } | null }[]): number[] {
+  const out: number[] = [];
+  if (trades[0]) out.push(trades[0].at + REP_STRIP_WINDOW + 1);
+  for (const n of notices) {
+    if (!n.rep) continue;
+    const key = n.rep.key;
+    out.push((trades.find((x) => x.key === key)?.at ?? n.at) + REP_OFFER_WINDOW + 1);
+  }
+  return out;
+}
+
 /**
  * Whether a sale's notification offers +rep for its buyer: you give +rep by hand (automatic +rep
  * off), you're signed in, the buyer is on warframe.market, and neither this trade has been given
