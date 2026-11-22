@@ -251,11 +251,16 @@
     // The page's own timer callbacks, timed (a background slice runs in one): the longest, and
     // each one over 20 ms with when it began and its timer's delay. The heartbeat's are left out.
     const slices = (early.slices = []);
+    // Timed to the end of the microtasks it set off (Svelte draws in one, after the callback
+    // returns): a few microtask hops past the callback, which covers a flush and its effects.
+    const after = (n, f) => (n ? queueMicrotask(() => after(n - 1, f)) : f());
     const timed = (f, ms) => function (...a) {
       const t = now();
       try { return f.apply(this, a); } finally {
-        const d = now() - t;
-        if (d > 20 && t < early.until) slices.push({ at: Math.round(t), ms: Math.round(d), delay: ms | 0 });
+        after(4, () => {
+          const d = now() - t;
+          if (d > 20 && t < early.until) slices.push({ at: Math.round(t), ms: Math.round(d), delay: ms | 0 });
+        });
       }
     };
     const st = window.setTimeout, si = window.setInterval;
