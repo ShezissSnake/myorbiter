@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { CARDS_SLOW_MS, CARDS_TICK_MS, cardsPollDue, clockMoves, type CardsPollState } from "../src/lib/core/cardsPoll";
-import { REP_OFFER_WINDOW, REP_STRIP_WINDOW, repDeadlines, repOffered, repStripOpen } from "../src/lib/core/saleNotice";
+import { REP_OFFER_WINDOW, REP_STRIP_WINDOW, giveWhileOpen, repDeadlines, repOffered, repStripOpen } from "../src/lib/core/saleNotice";
 
 const START = 1_792_700_000_000;
 
@@ -49,7 +49,8 @@ test("the page's cards poll goes by the decision, and its clock still runs on a 
   // The deadlines are the +rep offers' ends, and both offers read that clock by their own rules.
   assert.match(app, /const repEnds = \$derived\(repDeadlines\(settings\.market\.trades, settings\.game\.notices\)\);/);
   assert.match(app, /if \(!t \|\| !repStripOpen\(t\.at, clock\) \|\| settings\.market\.rep\[t\.key\]\) return null;/);
-  assert.match(app, /const ok = repOffered\(\{ key: r\.key, partner: r\.partner, at, now: clock,/);
+  assert.match(app, /function repShown\(n: Notice, now = clock\)/);
+  assert.match(app, /const ok = repOffered\(\{ key: r\.key, partner: r\.partner, at, now,/);
 });
 
 test("on a console the clock moves once in 5 s; while the game runs, on every read", () => {
@@ -96,4 +97,34 @@ test("both +rep offers end on time: the strip's 30 min and a notification's 24 h
       assert.ok(closed > end && closed <= end + CARDS_TICK_MS, `${name} (trade at +${off} ms): closed ${closed - end} ms after its end`);
     }
   }
+});
+
+test("a +rep given after its window's end gives nothing, even while the page's clock still says open", async () => {
+  const offer = { key: "t1", partner: "ExamplePlayer", autoRep: false, linked: true, onMarket: true, rep: {}, trades: [] };
+  const at = START;
+  const offers: [string, number, (now: number) => boolean][] = [
+    ["strip", at + REP_STRIP_WINDOW, (now) => repStripOpen(at, now)],
+    ["notification", at + REP_OFFER_WINDOW, (now) => repOffered({ ...offer, at, now })],
+  ];
+  for (const [name, end, open] of offers) {
+    const clock = end - 500; // the page's clock, a tick behind: still open by it
+    assert.equal(open(clock), true, `${name}: open by the clock`);
+    let given = 0;
+    const give = async () => (given++, "given" as const);
+    assert.equal(await giveWhileOpen(open, () => end + 1, give), undefined, `${name}: a give 1 ms after the end`);
+    assert.equal(given, 0, `${name}: nothing sent after the end`);
+    assert.equal(await giveWhileOpen(open, () => end, give), "given", `${name}: a give in the window's last millisecond`);
+    assert.equal(given, 1);
+  }
+  // The page gives through that guard, asked with the time of the give itself: the strip's and a
+  // notification's button (RepButton), and the desktop notification's Give +rep (repFromNotice).
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  const button = readFileSync(new URL("../src/lib/ui/RepButton.svelte", import.meta.url), "utf8");
+  assert.match(button, /const r = await giveWhileOpen\(open, Date\.now, \(\) => mkt\.giveRep\(partner, text\)\);\s*\n(\s*\/\/.*\n)?\s*if \(r === undefined\) return;/);
+  assert.equal(button.match(/mkt\.giveRep\(/g)?.length, 1, "RepButton gives only through the guard");
+  assert.match(app, /<RepButton partner=\{repDue\.t\.partner\} text=\{settings\.market\.repText\} open=\{\(now\) => !!repDue && repStripOpen\(repDue\.t\.at, now\)\}/);
+  assert.match(app, /<RepButton partner=\{r\.partner\} text=\{settings\.market\.repText\} named given=\{r\.given\} open=\{\(now\) => repShown\(n, now\)\?\.given === false\}/);
+  assert.equal(app.match(/<RepButton /g)?.length, 2, "no other +rep button on the page");
+  const fromNotice = app.slice(app.indexOf("async function repFromNotice("), app.indexOf("await mkt.giveRep(r.partner, settings.market.repText)"));
+  assert.match(fromNotice, /const r = n \? repShown\(n, Date\.now\(\)\) : null;\s*\n\s*if \(!r \|\| r\.given\) return;/);
 });

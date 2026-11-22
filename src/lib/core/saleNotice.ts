@@ -86,6 +86,16 @@ export const REP_STRIP_WINDOW = 30 * 60_000;
 export const repStripOpen = (at: number, now: number) => now - at <= REP_STRIP_WINDOW;
 
 /**
+ * Gives +rep only if its offer is still open at the moment of giving: `open` is asked with `now()`
+ * then, not with the page's clock (which can be up to a tick behind). An offer whose window has
+ * ended gives nothing (undefined); else `give`'s result.
+ */
+export async function giveWhileOpen<T>(open: (now: number) => boolean, now: () => number, give: () => Promise<T>): Promise<T | undefined> {
+  if (!open(now())) return undefined;
+  return give();
+}
+
+/**
  * Where the +rep offers' windows end: the strip's for the latest trade, and each notification's
  * that offers +rep (from its trade's time, else the notification's). The page's clock moves on the
  * tick that passes one (core/cardsPoll.ts `clockMoves`), so an offer ends within a tick of it.

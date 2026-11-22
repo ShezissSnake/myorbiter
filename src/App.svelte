@@ -1731,20 +1731,21 @@
   /**
    * A notification's +rep, while it's still due: you give it by hand, the buyer is on
    * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now
-   * (here or on the strip at the top) takes it away.
+   * (here or on the strip at the top) takes it away. `now`: the page's clock, or the time of a
+   * give itself (Date.now()), so a give after the window's end gives nothing.
    */
-  function repShown(n: Notice): { key: string; partner: string; given: boolean } | null {
+  function repShown(n: Notice, now = clock): { key: string; partner: string; given: boolean } | null {
     const r = n.rep;
     if (!r) return null;
     if (settings.market.rep[r.key] === "given") return { ...r, given: true };
     const at = settings.market.trades.find((x) => x.key === r.key)?.at ?? n.at;
-    const ok = repOffered({ key: r.key, partner: r.partner, at, now: clock, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
+    const ok = repOffered({ key: r.key, partner: r.partner, at, now, autoRep: settings.market.autoRep, linked: mkt.linked, onMarket: !!mkt.users[r.partner.toLowerCase()], rep: settings.market.rep, trades: settings.market.trades });
     return ok ? { ...r, given: false } : null;
   }
   /** The desktop notification's Give +rep: given from here, MyOrbiter left where it is. */
   async function repFromNotice(id: string) {
     const n = settings.game.notices.find((x) => x.id === id);
-    const r = n ? repShown(n) : null;
+    const r = n ? repShown(n, Date.now()) : null;
     if (!r || r.given) return;
     try {
       const how = await mkt.giveRep(r.partner, settings.market.repText);
@@ -3272,7 +3273,7 @@
       {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
-          <RepButton partner={repDue.t.partner} text={settings.market.repText} ongiven={() => markRep(repDue.t.key, "given")} />
+          <RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={() => markRep(repDue.t.key, "given")} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
         </div></div></div>
       {/if}
@@ -3349,7 +3350,7 @@
 {#snippet noticeActs(n: Notice)}
   {@const r = repShown(n)}
   {#if r}
-    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} ongiven={() => markRep(r.key, "given")} />
+    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} open={(now) => repShown(n, now)?.given === false} ongiven={() => markRep(r.key, "given")} />
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}
