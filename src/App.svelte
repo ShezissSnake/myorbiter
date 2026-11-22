@@ -6,12 +6,12 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
-  import { repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { REP_OFFER_WINDOW, repOffered, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { dealsScanDue, watchlist } from "./lib/core/deals";
-  import { CARDS_SLOW_MS, cardsPollDue } from "./lib/core/cardsPoll";
+  import { cardsPollDue, clockMoves } from "./lib/core/cardsPoll";
   import { statusPollDue } from "./lib/core/statusPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
@@ -736,8 +736,9 @@
     const now = Date.now();
     const due = cardsPollDue({ now, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report });
     // `clock` moves with the poll, and at the slow pace when there's none (a console account):
-    // what reads it (fresh cards, the +rep offer) isn't worked out again on every 0.8 s tick.
-    if (due || now - untrack(() => clock) >= CARDS_SLOW_MS) clock = now;
+    // what reads it (fresh cards, the +rep offer) isn't worked out again on every 0.8 s tick. A +rep
+    // offer's window still ends on time: the clock moves on the tick that passes its end.
+    if (clockMoves({ now, clock: untrack(() => clock), due, deadlines: untrack(() => repDeadlines) })) clock = now;
     if (!due) return;
     lastCardsPoll = now;
     cardsPolling = true;
@@ -1722,6 +1723,21 @@
     const id = tell("sold", title, body, "sales", offer ? { key, partner: t.partner } : undefined);
     if (id) toldNotice.set(key, id);
   }
+  /**
+   * Where the +rep offers' windows end (the latest trade's, and each notification's that offers
+   * +rep): the cards poll moves `clock` on the tick that passes one, so an offer ends on time.
+   */
+  const repDeadlines = $derived.by(() => {
+    const out: number[] = [];
+    const t = settings.market.trades[0];
+    if (t) out.push(t.at + REP_WINDOW);
+    for (const n of settings.game.notices) {
+      if (!n.rep) continue;
+      const at = settings.market.trades.find((x) => x.key === n.rep!.key)?.at ?? n.at;
+      out.push(at + REP_OFFER_WINDOW);
+    }
+    return out;
+  });
   /**
    * A notification's +rep, while it's still due: you give it by hand, the buyer is on
    * warframe.market and has none from you yet. Once given it stays, as "+rep given ✓"; Not now

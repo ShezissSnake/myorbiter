@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CARDS_SLOW_MS, CARDS_TICK_MS, cardsPollDue, type CardsPollState } from "../src/lib/core/cardsPoll";
+import { CARDS_SLOW_MS, CARDS_TICK_MS, cardsPollDue, clockMoves, type CardsPollState } from "../src/lib/core/cardsPoll";
 
 const START = 1_792_700_000_000;
 
@@ -44,7 +44,7 @@ test("the page's cards poll goes by the decision, and its clock still runs on a 
   assert.match(poll, /const due = cardsPollDue\(\{ now, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts\.report \}\);/);
   // The clock moves with a read, and at least at the slow pace without one (a console account
   // never reads): what reads it isn't worked out again on every 0.8 s tick, and still expires.
-  assert.match(poll, /if \(due \|\| now - untrack\(\(\) => clock\) >= CARDS_SLOW_MS\) clock = now;\s*\n\s*if \(!due\) return;/);
+  assert.match(poll, /if \(clockMoves\(\{ now, clock: untrack\(\(\) => clock\), due, deadlines: untrack\(\(\) => repDeadlines\) \}\)\) clock = now;\s*\n\s*if \(!due\) return;/);
 });
 
 test("on a console the clock moves once in 5 s; while the game runs, on every read", () => {
@@ -56,7 +56,7 @@ test("on a console the clock moves once in 5 s; while the game runs, on every re
     for (let t = 0; t < 60_000; t += CARDS_TICK_MS) {
       const now = START + t;
       const due = cardsPollDue({ ...s, now, last, polling: false });
-      if (due || now - clock >= CARDS_SLOW_MS) {
+      if (clockMoves({ now, clock, due, deadlines: [] })) {
         clock = now;
         n++;
       }
@@ -67,4 +67,24 @@ test("on a console the clock moves once in 5 s; while the game runs, on every re
   assert.equal(moves({ console: true, report: null }), 11);
   assert.equal(moves({ console: false, report: null }), 11);
   assert.equal(moves({ console: false, report: { game_running: true } }), 75);
+});
+
+test("a +rep offer's window ends on time: the clock reaches its end within a tick, never 5 s late", () => {
+  // A console account (no reads, so the slow pace), a window ending at every offset within a tick.
+  for (let off = 0; off < 5_000; off += 100) {
+    const end = START + 10_000 + off;
+    let clock = START;
+    let firstPast = -1;
+    for (let t = 0; t < 30_000; t += CARDS_TICK_MS) {
+      const now = START + t;
+      if (clockMoves({ now, clock, due: false, deadlines: [end] })) clock = now;
+      if (firstPast < 0 && clock >= end) firstPast = now;
+    }
+    assert.ok(firstPast >= end && firstPast - end < CARDS_TICK_MS, `window ending at +${10_000 + off} ms: the clock passed it at +${firstPast - START} ms`);
+  }
+  // The page's own pieces: the deadlines are the +rep windows' ends, and the offer reads `clock`.
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  const deadlines = app.slice(app.indexOf("const repDeadlines = $derived.by("), app.indexOf("function repShown("));
+  assert.match(deadlines, /out\.push\(t\.at \+ REP_WINDOW\)/);
+  assert.match(deadlines, /out\.push\(at \+ REP_OFFER_WINDOW\)/);
 });
