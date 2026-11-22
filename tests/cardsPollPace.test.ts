@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { CARDS_TICK_MS, cardsPollDue, type CardsPollState } from "../src/lib/core/cardsPoll";
+import { CARDS_SLOW_MS, CARDS_TICK_MS, cardsPollDue, type CardsPollState } from "../src/lib/core/cardsPoll";
 
 const START = 1_792_700_000_000;
 
@@ -41,5 +41,30 @@ test("while TennoScope says the game runs, the pace stays 0.8 s", () => {
 test("the page's cards poll goes by the decision, and its clock still runs on a console", () => {
   const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
   const poll = app.slice(app.indexOf("async function pollCardsNow()"), app.indexOf("const next = await rewardCards()"));
-  assert.match(poll, /clock = Date\.now\(\);\s*\n\s*if \(!cardsPollDue\(\{ now: clock, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts\.report \}\)\) return;/);
+  assert.match(poll, /const due = cardsPollDue\(\{ now, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts\.report \}\);/);
+  // The clock moves with a read, and at least at the slow pace without one (a console account
+  // never reads): what reads it isn't worked out again on every 0.8 s tick, and still expires.
+  assert.match(poll, /if \(due \|\| now - untrack\(\(\) => clock\) >= CARDS_SLOW_MS\) clock = now;\s*\n\s*if \(!due\) return;/);
+});
+
+test("on a console the clock moves once in 5 s; while the game runs, on every read", () => {
+  /** The clock's moves in a minute of ticks, by the page's rule. */
+  const moves = (s: Omit<CardsPollState, "now" | "last" | "polling">) => {
+    let last = 0;
+    let clock = START - CARDS_SLOW_MS;
+    let n = 0;
+    for (let t = 0; t < 60_000; t += CARDS_TICK_MS) {
+      const now = START + t;
+      const due = cardsPollDue({ ...s, now, last, polling: false });
+      if (due || now - clock >= CARDS_SLOW_MS) {
+        clock = now;
+        n++;
+      }
+      if (due) last = now;
+    }
+    return n;
+  };
+  assert.equal(moves({ console: true, report: null }), 11);
+  assert.equal(moves({ console: false, report: null }), 11);
+  assert.equal(moves({ console: false, report: { game_running: true } }), 75);
 });

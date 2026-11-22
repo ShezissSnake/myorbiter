@@ -11,7 +11,7 @@
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
   import { dealsScanDue, watchlist } from "./lib/core/deals";
-  import { cardsPollDue } from "./lib/core/cardsPoll";
+  import { CARDS_SLOW_MS, cardsPollDue } from "./lib/core/cardsPoll";
   import { arcaneRows, inventoryRows, masteryRows, modRows, partRows, relicRows, saveForSets, type SetSave } from "./lib/core/views";
   import { allSetRows, allSetSaves, damagedPartNeeds, gearSetRows, inventoryValue, needsByUnique, relicsYouNeed, spareRows } from "./lib/core/spares";
   import { baroRate, baroStock, until, varziaNeeds } from "./lib/core/traders";
@@ -732,9 +732,13 @@
   /** The overlay's files: the reward screen's cards (named for Record timings while it runs). */
   const pollCards = () => timing.tick("overlay files", pollCardsNow);
   async function pollCardsNow() {
-    clock = Date.now();
-    if (!cardsPollDue({ now: clock, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report })) return;
-    lastCardsPoll = clock;
+    const now = Date.now();
+    const due = cardsPollDue({ now, last: lastCardsPoll, polling: cardsPolling, console: onConsole, report: ts.report });
+    // `clock` moves with the poll, and at the slow pace when there's none (a console account):
+    // what reads it (fresh cards, the +rep offer) isn't worked out again on every 0.8 s tick.
+    if (due || now - untrack(() => clock) >= CARDS_SLOW_MS) clock = now;
+    if (!due) return;
+    lastCardsPoll = now;
     cardsPolling = true;
     try {
       const next = await rewardCards();
