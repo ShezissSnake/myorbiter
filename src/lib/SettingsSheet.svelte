@@ -29,6 +29,7 @@
   import RenderingSetting from "./ui/RenderingSetting.svelte";
   import TimingSetting from "./ui/TimingSetting.svelte";
   import { MAX_HIDE_MINUTES } from "./core/lastCopy";
+  import { keepWhile } from "./pane.svelte";
 
   let {
     open = $bindable(),
@@ -41,6 +42,10 @@
     focus = $bindable(null),
     ongo = () => {},
   }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null; focus?: string | null; ongo?: (to: string) => void } = $props();
+
+  // The panel is built before it's first opened and kept when closed: TennoScope's status, read
+  // again every 15 s, reaches it only while it's open (opening shows the current one).
+  const tsStatus = $derived.by(keepWhile(() => open, () => ts.status));
 
   // Show me (What's New), an update's Settings and a link notice's Logs open the panel at a
   // section: scrolled to and ringed briefly. Clearing `focus` runs this effect again, so the timer
@@ -225,9 +230,9 @@
     <div class="field" role="group" aria-labelledby="ts-program">
       <span class="register" id="ts-program">Program</span>
       <div class="row">
-        <span class="path program" title={ts.status?.custom ?? ts.status?.binary ?? undefined}>{#if ts.status?.custom}{ts.status.custom}{:else if ts.status?.binary}<span class="dim">Found:</span> {ts.status.binary}{:else}<span class="dim">Not found</span>{/if}</span>
+        <span class="path program" title={tsStatus?.custom ?? tsStatus?.binary ?? undefined}>{#if tsStatus?.custom}{tsStatus.custom}{:else if tsStatus?.binary}<span class="dim">Found:</span> {tsStatus.binary}{:else}<span class="dim">Not found</span>{/if}</span>
         <button type="button" class="stamp" disabled={choosing} title="Pick the TennoScope program in your system's file picker" onclick={chooseProgram}>{choosing ? "Choosing…" : "Choose…"}</button>
-        {#if ts.status?.custom}<button type="button" class="stamp" title="Forget the chosen program: MyOrbiter finds TennoScope itself again" onclick={forgetProgram}>Find it</button>{/if}
+        {#if tsStatus?.custom}<button type="button" class="stamp" title="Forget the chosen program: MyOrbiter finds TennoScope itself again" onclick={forgetProgram}>Find it</button>{/if}
       </div>
       <span class="hint">Unless you choose one, MyOrbiter finds it: the copy inside MyOrbiter, then (in a development build) one built in MyOrbiter's tennoscope/ folder or an older checkout in your home folder, then an installed one. Choose opens your system's file picker and takes only a program named tennoscope or tennoscope.exe, or a TennoScope AppImage. MyOrbiter runs the program you choose as TennoScope each time it starts: use only a TennoScope you built or downloaded yourself.</span>
       {#if tsError}<span class="hint err">Not changed: {tsError}</span>{/if}
