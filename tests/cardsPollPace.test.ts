@@ -81,6 +81,21 @@ test("on a console the clock moves once in 5 s; while the game runs, on every re
   assert.equal(moves({ console: false, report: { game_running: true } }), 75);
 });
 
+test("the page's clock follows the computer's clock set back, at once, so the +rep offers don't close early", () => {
+  // A console account: no reads. The computer's clock steps back an hour; main's clock followed it
+  // on the next tick, and so does this one, whatever the step.
+  for (const step of [1, 800, CARDS_SLOW_MS, 60 * 60_000]) {
+    const clock = START;
+    assert.equal(clockMoves({ now: START - step, clock, due: false, deadlines: [] }), true, `set back ${step} ms`);
+  }
+  // A strip offer whose trade was 29 min ago by the new time stays open on the tick after the step.
+  const at = START - 60 * 60_000 - 29 * 60_000;
+  let clock = START;
+  const now = START - 60 * 60_000 + 800;
+  if (clockMoves({ now, clock, due: false, deadlines: repDeadlines([{ key: "t1", at }], []) })) clock = now;
+  assert.equal(repStripOpen(at, clock), true);
+});
+
 test("both +rep offers end on time: the strip's 30 min and a notification's 24 h, within a tick", () => {
   // A console account: no reads, so without a deadline the clock moves only once in 5 s. The
   // offers' own rules (repStripOpen, repOffered) are read with the page's clock, as the page does.

@@ -32,8 +32,9 @@ export function cardsPollDue(s: CardsPollState): boolean {
 /**
  * Whether the page's `clock` moves on this tick. It moves with a read, at least once in
  * CARDS_SLOW_MS without one, and on the first tick at or past a deadline it passed: the +rep
- * offers' windows end there, and they end on time (within a tick), not up to 5 s late.
+ * offers' windows end there, and they end on time (within a tick), not up to 5 s late. It also
+ * follows the computer's clock set back (now before it), at once, so the offers don't close early.
  */
 export function clockMoves(o: { now: number; clock: number; due: boolean; deadlines: readonly number[] }): boolean {
-  return o.due || o.now - o.clock >= CARDS_SLOW_MS || o.deadlines.some((d) => d > o.clock && d <= o.now);
+  return o.due || o.now < o.clock || o.now - o.clock >= CARDS_SLOW_MS || o.deadlines.some((d) => d > o.clock && d <= o.now);
 }
