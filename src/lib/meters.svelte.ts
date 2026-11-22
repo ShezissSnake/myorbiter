@@ -1,10 +1,11 @@
 // How meters move (design/motion.md rule 9): each meter remembers the value it last showed on
 // screen (core/meterMemory.ts, kept in the settings with the other interface state). When its page
 // opens, or its value changes while the page is open, a meter on screen whose value differs from
-// that one steps from the old value to the new over SETTLE, one frame after the page has painted.
-// Unchanged, never shown before, off screen, or with reduced motion on: it shows the new value at
-// once. Each meter moves one layer per part, by transform only; past FRAME_BUDGET moving layers in
-// one frame, the rest jump.
+// that one steps from the old value to the new over SETTLE, once an IntersectionObserver has seen
+// it on screen in the frame after the page painted (a frame later in a card content-visibility
+// still skipped then). Unchanged, never shown before, off screen, or with reduced motion on: it
+// shows the new value at once. Each meter moves one layer per part, by transform only; past
+// FRAME_BUDGET moving layers in one frame, the rest jump.
 //
 // Used by the two meters (ui/Segments.svelte, ui/Vessel.svelte) through `meterMotion`.
 import { getContext, untrack } from "svelte";
