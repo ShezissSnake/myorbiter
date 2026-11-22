@@ -37,7 +37,7 @@
   import CodexRings from "../ui/CodexRings.svelte";
   import { codexRings, ringTotal, rowGroups, someNames } from "../core/codex";
   import type { Group } from "../core/collection";
-  import { keepWhile, shownPage, whenIdle, whileShown, whileShownEvery } from "../pane.svelte";
+  import { keepWhile, whenIdle, whileShown, whileShownEvery } from "../pane.svelte";
   import { arrive, fresh } from "../motion";
   import { inBackground } from "../progress.svelte";
   import Kind from "../ui/Kind.svelte";
@@ -114,9 +114,9 @@
   const counts = $derived(switchCounts(model, all, fits, view === "plat" ? "plat" : "effort"));
   const vaultedCount = $derived(counts.vaulted);
   const unavailableCount = $derived(counts.unavailable);
-  // The two views (tabs): both stay drawn once drawn (the other too, once the page is on screen and
-  // idle), the one not chosen hidden and keeping its rows until it's shown again; switching is then
-  // only showing it.
+  // The two views (tabs): both stay drawn once drawn (the other too, in an idle moment after the
+  // page is: with the pages opened ahead at start, not on the first visit), the one not chosen
+  // hidden and keeping its rows until it's shown again; switching is then only showing it.
   let drawnPlat = $state(false);
   let drawnEffort = $state(false);
   $effect.pre(() => {
@@ -124,7 +124,7 @@
     else drawnEffort = true;
   });
   $effect(() => {
-    if (shownPage("mastery") && !(drawnPlat && drawnEffort)) return whenIdle(() => inBackground(() => (drawnPlat = drawnEffort = true)));
+    if (!(drawnPlat && drawnEffort)) return whenIdle(() => inBackground(() => (drawnPlat = drawnEffort = true)));
   });
   // Buy with plat lists what platinum buys: a vaulted prime that can only be traded for is just that.
   const platRows = $derived.by(keepWhile(() => view === "plat", () => viewRows(all, fits, "plat", { vaulted: showVaulted, unavailable: showUnavailable })));
