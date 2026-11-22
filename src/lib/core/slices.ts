@@ -62,8 +62,9 @@ export class Slices {
       job();
     } finally {
       this.running = false;
-      // The next in a task of its own, so the drawing this one set off (Svelte's flush, in this
-      // task's microtasks) is counted against the budget before it starts.
+      // A job that was waiting runs in a task of its own, so the drawing this one set off (Svelte's
+      // flush, in this task's microtasks) is counted against the budget before it starts. (A job
+      // that arrives with nothing waiting runs at once, in its caller's task: `run`.)
       if (this.queue.length) {
         this.queued = true;
         this.clock.task(this.next);
