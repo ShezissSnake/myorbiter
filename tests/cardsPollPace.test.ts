@@ -50,6 +50,12 @@ test("the page's cards poll goes by the decision, and its clock still runs on a 
   assert.match(app, /const repEnds = \$derived\(repDeadlines\(settings\.market\.trades, settings\.game\.notices\)\);/);
   assert.match(app, /if \(!t \|\| !repStripOpen\(t\.at, clock\) \|\| settings\.market\.rep\[t\.key\]\) return null;/);
   assert.match(app, /function repShown\(n: Notice, now = clock\)/);
+  // A notification's deadline and its check go from the same time: its trade's, else its own.
+  const core = readFileSync(new URL("../src/lib/core/saleNotice.ts", import.meta.url), "utf8");
+  assert.match(core, /out\.push\(\(trades\.find\(\(x\) => x\.key === key\)\?\.at \?\? n\.at\) \+ REP_OFFER_WINDOW \+ 1\);/);
+  const shown = app.slice(app.indexOf("function repShown("), app.indexOf("async function repFromNotice("));
+  assert.match(shown, /const at = settings\.market\.trades\.find\(\(x\) => x\.key === r\.key\)\?\.at \?\? n\.at;/);
+  assert.match(shown, /const ok = repOffered\(\{ key: r\.key, partner: r\.partner, at, now,/);
   assert.match(app, /const ok = repOffered\(\{ key: r\.key, partner: r\.partner, at, now,/);
 });
 
