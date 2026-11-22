@@ -9,6 +9,7 @@
 // What a page shows is always what the same rows would be worked out fresh: only *when* changes.
 import { untrack } from "svelte";
 import { sinceInput, stillMoving } from "./motion";
+import { Slices } from "./core/slices";
 
 let current: () => string = () => "";
 /** App: where to read the page on screen from (its tab, a reactive read). */
@@ -122,7 +123,8 @@ export function idleReady(left: number, since: number, room = 30, quiet = QUIET_
  * Runs `f` once the app is really idle: an idle period with room for a slice of work (`room` ms), so
  * a slice doesn't start just before the next frame or a click, and a quiet moment after the last
  * click or key (`idleReady`). Where there's no requestIdleCallback (WebKitGTK), a little later
- * instead, once it's quiet.
+ * instead, once it's quiet, and only while this frame's background work is under its budget
+ * (core/slices.ts): pieces of background work falling due together go one frame's budget at a time.
  */
 export function whenIdle(f: () => void, room = 30): () => void {
   let id = 0;
@@ -160,11 +162,33 @@ export function whenIdle(f: () => void, room = 30): () => void {
     else ask();
     return cancel;
   }
+  const ready = () => !backgroundHeld() && sinceInput() >= QUIET_MS && !stillMoving();
+  // Quiet: in this frame's share of background work, or after the next frame (core/slices.ts),
+  // looked at again then. With no frames at all (no window: the tests), at once.
   const tick = () => {
     if (done) return;
-    if (!backgroundHeld() && sinceInput() >= QUIET_MS && !stillMoving()) f();
-    else later(tick);
+    if (!ready()) return later(tick);
+    if (typeof requestAnimationFrame !== "function") return f();
+    slices.run(() => {
+      if (done) return;
+      if (ready()) f();
+      else later(tick);
+    });
   };
   wait = setTimeout(tick, 300);
   return cancel;
 }
+
+/** Calls `f` just after the next frame is drawn; where no frame comes (a hidden window), after 100 ms. */
+function afterFrame(f: () => void) {
+  let ran = false;
+  const go = () => {
+    if (ran) return;
+    ran = true;
+    f();
+  };
+  const t = setTimeout(go, 100);
+  requestAnimationFrame(() => setTimeout(() => (clearTimeout(t), go()), 0));
+}
+/** The background work of the fallback (no requestIdleCallback): a frame's budget at a time. */
+const slices = new Slices({ now: () => performance.now(), afterFrame, task: (f) => void setTimeout(f, 0) });

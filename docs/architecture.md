@@ -281,6 +281,7 @@ more than one page shares and that is not a setting is a store, a class or objec
 | --- | --- | --- |
 | Page timers | Fixed intervals in one `onMount`, cleared on teardown; failures back off with `backoff(base, failures, cap)` | `src/App.svelte`, `src/lib/core/upkeep.ts` |
 | Hidden pages | `whileShown(id, ...)` works rows out only while the page is shown; `catchUp` when idle | `src/lib/pane.svelte.ts` (example `src/lib/tabs/Sets.svelte`) |
+| Idle work | `whenIdle` waits for a quiet moment: `requestIdleCallback` where there is one; else (WebKitGTK) a timer, then a shared queue that ends a task after a 12 ms budget and goes on after the next frame (one job is never cut) | `src/lib/pane.svelte.ts`, `core/slices.ts` |
 | Long lists | Drawn in slices, the rows in sight first | `src/lib/progress.svelte.ts`, `core/progress.ts` |
 | A sync | `holdBackground` holds the rest until its read is on screen | `src/App.svelte`, `pane.svelte.ts` |
 | warframe.market | One gate: `MIN_GAP` 400 ms, `SLOW_GAP` 1.5 s for 90 s after a 429, `Retry-After` honoured, 10 contract requests and 120 writes a minute | `src-tauri/src/market.rs` |
