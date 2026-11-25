@@ -8,7 +8,7 @@ import { until } from "../src/lib/core/traders";
 import { nextMondayUtc } from "../src/lib/core/today";
 import { TRADE_CLOCK_LEEWAY_MS, tradeAllowance, utcDayStart } from "../src/lib/core/tradeLimit";
 import { isDone, setDone } from "../src/lib/core/chores";
-import { localDayStart, salesByDay } from "../src/lib/core/salesDays";
+import { localDayStart, MOST_BARS, salesByDay, salesChart, scaleTicks } from "../src/lib/core/salesDays";
 import { inventoryTrust, MAX_INVENTORY_AGE_MS } from "../src/lib/core/listGuard";
 import { forAll } from "./support/prop";
 
@@ -64,6 +64,99 @@ test("Sales by day: every sale in its own local day, each day midnight to midnig
       const day = days.find((d, i) => s.at >= d.at && (i === n - 1 || s.at < days[i + 1].at))!;
       assert.equal(day.at, localDayStart(s.at), `${ctx}: a sale at ${new Date(s.at).toString()} counted on ${new Date(day.at).toString()}`);
     }
+  });
+});
+
+test("Sales' chart: 7 and 30 days are salesByDay's days; All runs from the first sale's day to today", () => {
+  forAll("salesChart", (r, seed) => {
+    process.env.TZ = r.pick(ZONES);
+    const now = awkward(r);
+    const today = localDayStart(now);
+    // Sales over a few days to several years back, some a few minutes ahead of now (a clock ahead).
+    const back = r.pick([3, 20, 45, 80, 92, 93, 200, 700, 3000]);
+    const sales = Array.from({ length: r.int(0, 30) }, () => ({ at: now - r.int(-10 * 60_000, back * 24 * H), quantity: r.int(1, 3), platinum: r.int(1, 900) }));
+    const ctx = `PROPERTY_SEED=${seed} TZ=${process.env.TZ}`;
+    for (const span of ["7", "30"] as const) {
+      const c = salesChart(sales, now, span);
+      assert.deepEqual(c.bars.map((b) => ({ at: b.at, plat: b.plat })), salesByDay(sales, now, Number(span)), `${ctx}: ${span} days`);
+      assert.equal(c.per, 1, ctx);
+    }
+    const c = salesChart(sales, now, "all");
+    const days = salesByDay(sales, now, c.days);
+    assert.ok(c.bars.length <= MOST_BARS && c.bars.length >= 1, `${ctx}: ${c.bars.length} bars`);
+    assert.equal(c.days, c.bars.length * c.per, ctx);
+    assert.ok(c.days >= 30, `${ctx}: ${c.days} days, fewer than 30 days shows`);
+    // Every day from the first sale's to today, and less than a bar's worth of days before it.
+    const first = sales.length ? localDayStart(Math.min(...sales.map((s) => s.at))) : today;
+    assert.ok(days[0].at <= first, `${ctx}: the first sale's day is left out`);
+    if (c.per === 1) assert.ok(days[0].at === first || c.days === 30, `${ctx}: a bar a day starts on ${new Date(days[0].at).toString()}, not the first sale's day`);
+    else assert.ok(days[c.per].at > first && c.days > MOST_BARS, `${ctx}: a whole bar before the first sale, or bars of ${c.per} days for ${c.days} days`);
+    // Each bar: its days in order, back to back, the last one ending at tomorrow's midnight.
+    for (const [i, b] of c.bars.entries()) {
+      assert.equal(b.at, days[i * c.per].at, `${ctx}: bar ${i}`);
+      assert.equal(b.end, i + 1 < c.bars.length ? c.bars[i + 1].at : localDayStart(today + 36 * H), `${ctx}: bar ${i} ends`);
+      assert.equal(b.plat, days.slice(i * c.per, (i + 1) * c.per).reduce((t, d) => t + d.plat, 0), `${ctx}: bar ${i}`);
+    }
+    // Every sale counted, those after now included.
+    assert.equal(c.total, sales.reduce((t, s) => t + s.quantity * s.platinum, 0), `${ctx}: total`);
+    const ahead = sales.filter((s) => s.at > now).reduce((t, s) => t + s.quantity * s.platinum, 0);
+    for (const span of ["7", "30", "all"] as const) {
+      const k = salesChart(sales, now, span);
+      // The best bar, and the average over every day shown, days with no sale counted.
+      assert.equal(k.best, Math.max(0, ...k.bars.map((b) => b.plat)), ctx);
+      assert.equal(k.daily, k.total ? k.total / k.days : null, ctx);
+      assert.ok(k.ticks.length ? k.top >= k.best : k.best === 0, ctx);
+      assert.ok(k.bars[k.bars.length - 1].plat >= ahead, `${ctx}: a sale after now is left off the last bar`);
+    }
+  }, 600);
+});
+
+test("Sales' chart: no sale, one sale, sales on one day, and a log reaching back decades", () => {
+  process.env.TZ = "Europe/London";
+  const now = Date.UTC(2026, 10, 25, 12);
+  const at = (daysAgo: number, platinum: number) => ({ at: now - daysAgo * 24 * H, quantity: 1, platinum });
+  const none = salesChart([], now, "all");
+  assert.equal(none.bars.length, 30);
+  assert.deepEqual([none.best, none.total, none.daily, none.ticks, none.top], [0, 0, null, [], 1]);
+  const one = salesChart([at(0, 1)], now, "all");
+  assert.deepEqual([one.bars.length, one.per, one.best, one.daily, one.ticks], [30, 1, 1, 1 / 30, [0, 1]]);
+  const oneDay = salesChart([at(5, 40), at(5, 60)], now, "all");
+  assert.deepEqual([oneDay.bars.length, oneDay.best, oneDay.bars[24].plat], [30, 100, 100]);
+  // Two months: a bar a day from the first sale's day, days with no sale included.
+  const months = salesChart([at(61, 10), at(30, 20), at(0, 30)], now, "all");
+  assert.deepEqual([months.bars.length, months.per, months.bars[0].plat, months.bars[1].plat, months.daily], [62, 1, 10, 0, 60 / 62]);
+  // From three months on (93 days), a bar a week, the last ending today.
+  assert.deepEqual([salesChart([at(91, 1)], now, "all").per, salesChart([at(91, 1)], now, "all").days], [1, 92]);
+  const weeks = salesChart([at(92, 1)], now, "all");
+  assert.deepEqual([weeks.per, weeks.bars.length, weeks.days, weeks.bars[13].end], [7, 14, 98, Date.UTC(2026, 10, 26)]);
+  // A clock ahead: a sale tomorrow counts today, and "All" still shows 30 days.
+  const ahead = salesChart([at(-1, 7)], now, "all");
+  assert.deepEqual([ahead.bars.length, ahead.bars[29].plat], [30, 7]);
+  // A sale dated in 1970 or before: at most MOST_BARS bars of 52 weeks, every later sale still counted.
+  for (const old of [0, -1e15, -Infinity]) {
+    const c = salesChart([{ at: old, quantity: 1, platinum: 5 }, at(0, 5)], now, "all");
+    assert.ok(c.bars.length <= MOST_BARS && c.per === 364, `${old}: ${c.bars.length} bars of ${c.per} days`);
+    assert.equal(c.bars[c.bars.length - 1].plat, 5, String(old));
+  }
+});
+
+test("Sales' chart scale: round steps from 0 past the best bar, at most four", () => {
+  assert.deepEqual(scaleTicks(0), []);
+  assert.deepEqual(scaleTicks(1), [0, 1]);
+  assert.deepEqual(scaleTicks(3), [0, 1, 2, 3]);
+  assert.deepEqual(scaleTicks(7), [0, 2, 4, 6, 8]);
+  assert.deepEqual(scaleTicks(250), [0, 100, 200, 300]);
+  assert.deepEqual(scaleTicks(29_448), [0, 10_000, 20_000, 30_000]);
+  forAll("scaleTicks", (r, seed) => {
+    const peak = r.pick([r.int(1, 20), r.int(1, 2000), r.int(1, 2_000_000)]);
+    const t = scaleTicks(peak);
+    const step = t[1];
+    const ctx = `PROPERTY_SEED=${seed} peak ${peak}: ${t.join(", ")}`;
+    assert.ok(t.length >= 2 && t.length <= 5, ctx);
+    assert.equal(t[0], 0, ctx);
+    assert.ok(t[t.length - 1] >= peak && t[t.length - 2] < peak, ctx);
+    assert.ok(Number.isInteger(step) && /^[125]0*$/.test(String(step)), ctx);
+    t.forEach((v, i) => assert.equal(v, i * step, ctx));
   });
 });
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { SALE_DELETE_KEEPS } from "../core/saleLog";
   import { whileShown, whileShownEvery } from "../pane.svelte";
-  import { localDayStart, salesByDay } from "../core/salesDays";
+  import { barWords, localDayStart, salesChart } from "../core/salesDays";
   // What you've sold and what it made, and how each sale compares with the market. Sales log
   // themselves from trades in the game log, or when you press Sold on a listing in Orders, or are
   // added here by hand for trades made outside warframe.market.
@@ -110,9 +110,22 @@
       .sort((a, b) => b.plat - a.plat)
       .slice(0, 8),
   );
-  // Platinum per day, for the bar chart. Days are calendar days (a clock change makes one 23 or 25 hours).
-  const days = $derived.by(whileShown("sales", () => salesByDay(sales, dayStart, span === "7" ? 7 : 30)));
-  const peak = $derived(Math.max(1, ...days.map((d) => d.plat)));
+  // Platinum per day, for the bar chart: the span's days, or under All every day since the first
+  // sale; past three months a bar covers a week or more (salesChart). Days are calendar days (a
+  // clock change makes one 23 or 25 hours).
+  const chart = $derived.by(whileShown("sales", () => salesChart(sales, dayStart, span)));
+  /** What one bar covers, in words: "day", "week", "2 weeks". */
+  const unit = $derived(barWords(chart.per));
+  /** The average line's height: platinum a day over the days shown, times a bar's days. */
+  const perBar = $derived(chart.daily == null ? null : chart.daily * chart.per);
+  // The scale's numbers: 1,500 or 15k, kept short beside the bars.
+  const tickText = (v: number) => (v >= 10_000 ? `${Math.round(v / 1000)}k` : v.toLocaleString("en"));
+  // An average under 10 keeps a tenth (3.4p a day), and one under a tenth says so; above, whole platinum.
+  const avgText = (v: number) => (v < 0.05 ? "under 0.1" : v < 10 ? (Math.round(v * 10) / 10).toLocaleString("en") : Math.round(v).toLocaleString("en"));
+  const dayText = (t: number, opts: Intl.DateTimeFormatOptions = {}) =>
+    new Date(t).toLocaleDateString(undefined, { day: "numeric", month: "short", ...(new Date(t).getFullYear() !== new Date(dayStart).getFullYear() ? { year: "numeric" } : {}), ...opts });
+  const barTitle = (b: { at: number; end: number; plat: number }) =>
+    `${chart.per === 1 ? dayText(b.at, { weekday: "short" }) : `${dayText(b.at)} – ${dayText(b.end - 1)}`}: ${b.plat.toLocaleString("en")}p`;
 
   // Adding one by hand.
   let item = $state("");
@@ -258,18 +271,26 @@
     <div class="reveal" transition:reveal><div>
     <div class="grid">
       <section class="chart">
-        <div class="head"><span class="register">Platinum per day</span>{#if days.some((d) => d.plat > 0)}<span class="dim small">best day <P v={peak} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} label="Span" onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "Best sellers over everything logged; the chart shows 30 days" }]} /><HelpMark part="sales.chart" /></div>
-        <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
-        {#key picks}
-        <div class="bars" class:grow={picks > 0} role="img" aria-label="Platinum made per day">
-          {#each days as d (d.at)}
-            <div class="col" title="{new Date(d.at).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}: {d.plat}p">
-              <div class="fill" style:height="{(d.plat / peak) * 100}%"></div>
-            </div>
-          {/each}
+        <div class="head"><span class="register">Platinum per {unit}</span>{#if chart.best > 0}<span class="dim small">best {unit} <P v={chart.best} tick /></span>{/if}<span class="grow"></span><Seg bind:value={span} label="Span" onchange={() => picks++} options={[{ v: "7", label: "7 days", title: "The chart and best sellers over the last 7 days" }, { v: "30", label: "30 days", title: "The chart and best sellers over the last 30 days" }, { v: "all", label: "All", title: "The chart and best sellers over everything logged: every day since the first sale, a bar a week or more past three months" }]} /><HelpMark part="sales.chart" /></div>
+        <!-- The scale (round values, none with nothing sold), then the bars with the average as a
+             dashed line across them. -->
+        <div class="plot">
+          <div class="yaxis register" aria-hidden="true">{#if chart.ticks.length}<span class="widest">{chart.ticks.map(tickText).reduce((w, t) => (t.length > w.length ? t : w), "")}</span>{/if}{#each chart.ticks as t (t)}<span class="tick" style:bottom="{(t / chart.top) * 100}%">{tickText(t)}</span>{/each}</div>
+          <!-- A span picked redraws the bars growing up from the axis (scaleY, QUICK); a new sale just changes them. -->
+          {#key picks}
+          <div class="bars" class:grow={picks > 0} class:dense={chart.bars.length > 31} role="img" aria-label="Platinum made per {unit}{perBar != null ? `, averaging ${avgText(perBar)} platinum a ${unit}` : ""}">
+            {#each chart.ticks as t (t)}{#if t > 0}<i class="rule" style:bottom="{(t / chart.top) * 100}%"></i>{/if}{/each}
+            {#each chart.bars as b (b.at)}
+              <div class="col" title={barTitle(b)}>
+                <div class="fill" style:height="{(b.plat / chart.top) * 100}%"></div>
+              </div>
+            {/each}
+            {#if perBar != null}<i class="avg" style:bottom="{(perBar / chart.top) * 100}%"></i>{/if}
+          </div>
+          {/key}
         </div>
-        {/key}
-        <div class="axis register"><span>{new Date(days[0].at).toLocaleDateString(undefined, { day: "numeric", month: "short" })}</span><span>today</span></div>
+        <div class="axis register"><span>{dayText(chart.bars[0].at)}</span><span>today</span></div>
+        <p class="key small dim">{#if perBar != null}<i class="dash" aria-hidden="true"></i><span>Average <b>{avgText(perBar)}p</b> a {unit}{#if chart.per > 1}{" "}({avgText(chart.daily ?? 0)}p a day){/if}, over the {chart.days} days shown</span>{:else}<span>Nothing sold in these {chart.days} days.</span>{/if}{#if chart.per > 1}<span class="grow"></span><span>One bar: {chart.per} days</span>{/if}</p>
       </section>
       <section class="top">
         <div class="head"><span class="register">Best sellers</span><span class="grow"></span><HelpMark part="sales.best" /></div>
@@ -343,7 +364,22 @@
   .chart, .top { border: 1px solid var(--rule); background: var(--plate); padding: 1rem 1.2rem; }
   .head { display: flex; align-items: center; margin-bottom: .8rem; gap: 1rem; }
   .head .small { display: inline-flex; align-items: center; gap: .4rem; }
-  .bars { display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
+  /* The scale beside the bars: each number centred on its height, its rule drawn across the bars. */
+  .plot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; }
+  .yaxis { position: relative; color: var(--platinum-deep); font-size: 11px; text-align: right; }
+  /* The top value, unseen and in the flow, makes the column as wide as the widest number. */
+  .widest { display: block; height: 0; overflow: hidden; visibility: hidden; }
+  .tick { position: absolute; right: 0; line-height: 1; transform: translateY(50%); white-space: nowrap; }
+  .bars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
+  /* Past a month of bars, a 1 px gap leaves the bar itself the room. */
+  .bars.dense { gap: 1px; }
+  .rule, .avg { position: absolute; left: 0; right: 0; height: 0; pointer-events: none; }
+  .rule { border-top: 1px solid rgb(255 255 255 / 6%); }
+  /* The average: a thin dashed line over the bars, in gold so it reads against them. */
+  .avg { z-index: 1; border-top: 1px dashed var(--gold); }
+  .key { display: flex; align-items: center; gap: .45rem; margin: .5rem 0 0; }
+  .key b { color: var(--platinum); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .dash { display: inline-block; flex: none; width: 1.1rem; border-top: 1px dashed var(--gold); }
   .col { flex: 1; height: 100%; display: flex; align-items: flex-end; background: rgb(255 255 255 / 2%); }
   .fill { width: 100%; background: linear-gradient(var(--platinum), var(--platinum-deep)); transform-origin: bottom; }
   .grow .fill { animation: bar-grow var(--quick) var(--out) both; }

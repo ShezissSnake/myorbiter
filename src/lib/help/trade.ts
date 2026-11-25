@@ -225,7 +225,7 @@ const SALES: Walkthrough = {
   guide: guideOf("sales"),
   does: [
     { text: "Shows what you sold today, in 7 days and in 30", icon: "platinum" },
-    { text: "Charts platinum per day over 7 or 30 days" },
+    { text: "Charts platinum per day over 7 days, 30 or everything" },
     { text: "Lists each sale against the daily median when it sold" },
     { text: "Logs sales made in game, once you turn that on" },
   ],
@@ -248,8 +248,9 @@ const SALES: Walkthrough = {
     {
       title: "Platinum per day, best sellers",
       lines: [
-        "Platinum per day over 7 or 30 days; All widens Best sellers only.",
+        "Platinum per day over 7 days, 30, or All: every day since your first sale.",
         "Best sellers: what made the most. Sells often marks what's worth listing more of.",
+        "Dashed: the average, empty days counted. Past three months, a bar is a week or more.",
       ],
       shot: {
         open: "sales",
