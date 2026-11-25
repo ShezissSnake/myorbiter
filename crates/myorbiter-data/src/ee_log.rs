@@ -390,9 +390,13 @@ fn parse_item(line: &str) -> Option<TradeItem> {
     let (name, rank, riven) = match body.rsplit_once(" (") {
         Some((name, tag)) if tag.ends_with(')') && tag.contains("RANK") => {
             let rank = tag.trim_end_matches(')').split_whitespace().find_map(|w| w.parse::<u32>().ok());
+            let name = name.trim();
+            // A veiled riven (`Rifle Riven Mod`, `… (Veiled)`) is an item with a listing of its
+            // own, not one weapon's riven: it goes the way any listed item does, whatever its tag.
+            let veiled = name.ends_with("Riven Mod") || name.ends_with("(Veiled)");
             // `RIVEN RANK 0`: the tag's own first word, never a word of the item's name.
-            let riven = tag.split_whitespace().next() == Some("RIVEN");
-            (name.trim(), rank, riven)
+            let riven = !veiled && tag.split_whitespace().next() == Some("RIVEN");
+            (name, rank, riven)
         }
         _ => (body, (pips > 0).then_some(pips), false),
     };
@@ -720,6 +724,10 @@ and will receive from Buyer1\u{E000} the following:\n\
         // A name that merely holds the word is not one: only the tag's own first word counts.
         assert_eq!(parse_item("Riven Sliver x 3").map(|i| i.riven), Some(false));
         assert_eq!(parse_item("Rivenlike (RARE RANK 0)").map(|i| i.riven), Some(false));
+        // A veiled riven keeps main's path, an item with a listing, whichever way the game tags it.
+        assert_eq!(parse_item("Rifle Riven Mod (Veiled) (RIVEN RANK 0)"), Some(TradeItem { name: "Rifle Riven Mod (Veiled)".into(), rank: Some(0), count: 1, riven: false }));
+        assert_eq!(parse_item("Rifle Riven Mod (RIVEN RANK 0)").map(|i| (i.name, i.riven)), Some(("Rifle Riven Mod".into(), false)));
+        assert_eq!(parse_item("Kitgun Riven Mod (Veiled) (RARE RANK 0)").map(|i| i.riven), Some(false));
         // The JSON carries the mark only for a riven, so the page's other items read as before.
         let json = serde_json::to_string(&s.trades[0].offered[0]).unwrap();
         assert!(json.contains("\"riven\":true"), "{json}");

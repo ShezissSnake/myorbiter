@@ -7,7 +7,7 @@
 // player is told, with one click to close.
 import type { MyAuction, RivenMeta } from "./rivens";
 import type { Trade, TradeItem } from "./types";
-import { isSale } from "./saleNotice";
+import { isSale, recentTrade } from "./saleNotice";
 
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -29,10 +29,24 @@ export interface HeldRiven {
   name: string | null;
 }
 
-/** The last inventory read's rivens and when it was taken (unix ms; null when not known). */
+/**
+ * The last inventory read's rivens, and a time no earlier than that very read (unix ms: when
+ * MyOrbiter first had this list), so a time before the trade means the read was before it; null
+ * when not known, and then nothing is closed.
+ */
 export interface HeldRivens {
   rivens: HeldRiven[];
   at: number | null;
+}
+
+/**
+ * Whether a riven given in a trade is recent enough to be closed by MyOrbiter itself (case 8): from
+ * the last half hour (`recentTrade`), and not already in the log when this run first read its
+ * session (`inFirstRead`): such a trade was made while MyOrbiter was shut, with a log time or
+ * without, and is only told.
+ */
+export function rivenRecent(t: Trade, now: number, inFirstRead: boolean): boolean {
+  return !inFirstRead && recentTrade(t, now, inFirstRead);
 }
 
 /** How many rivens of the read may be the auction's riven: of its weapon and name, or of a weapon or name the read couldn't make out. */
@@ -49,7 +63,7 @@ export interface RivenSaleFacts {
   autoTrades: boolean;
   /** Signed in to warframe.market: without it the player's auctions aren't known. */
   linked: boolean;
-  /** The trade is inside the window in which sales are marked (recentTrade). */
+  /** The trade is recent enough to close by itself: inside the half hour and made while MyOrbiter ran (`rivenRecent`). */
   recent: boolean;
   /** The player's auctions, from a read made for this decision. */
   auctions: MyAuction[];
@@ -73,7 +87,8 @@ export type RivenVerdict =
  * trade's only riven; exactly one open auction fits it (`auctionFits`); its rank in the log is the
  * auction's; and the last inventory read holds at most one riven that may be the auction's, and
  * that one only if the read is from before the trade (a read after it that still holds one is a
- * riven the player kept). Any doubt is a tell. A riven received is never looked at.
+ * riven the player kept), by the time of that same read; a read whose time isn't known closes
+ * nothing. Any doubt is a tell. A riven received is never looked at.
  *
  * The inventory never closes anything on its own: it can only turn a close into a tell, so a read
  * that is partial, old or empty takes nothing down.
@@ -92,6 +107,8 @@ export function rivenVerdict(f: RivenSaleFacts): RivenVerdict {
   const a = fits[0];
   if (f.item.rank == null || f.item.rank !== a.rank) return tell(`its rank in the game (${f.item.rank ?? "not logged"}) isn't the auction's (${a.rank})`);
   if (!f.held) return tell("your inventory hasn't been read, so another riven of that name can't be ruled out");
+  // The held rivens go only with the time of the read that gave them: without it, nothing is closed.
+  if (f.held.at == null) return tell("when your inventory was last read isn't known, so another riven of that name can't be ruled out");
   const like = heldLike(f.held.rivens, a);
   if (like > 1) return tell("your inventory holds more than one riven that may be it");
   if (like === 1) {

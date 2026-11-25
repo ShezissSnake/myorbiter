@@ -597,6 +597,15 @@ export interface MyAuction {
   polarity: string;
 }
 
+/**
+ * Your riven auctions, or null when the answer isn't a list at all: for a decision that mustn't
+ * take a bad answer for "no auctions" (a riven sold in game). `parseMyAuctions` reads such an
+ * answer as none, as the pages always have.
+ */
+export function myAuctionsList(raw: unknown): MyAuction[] | null {
+  return Array.isArray(raw) ? parseMyAuctions(raw) : null;
+}
+
 /** `v1/profile/auctions` → your riven auctions. */
 export function parseMyAuctions(raw: unknown): MyAuction[] {
   if (!Array.isArray(raw)) return [];

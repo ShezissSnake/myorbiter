@@ -4,7 +4,7 @@ import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
 import { waitWords } from "./core/marketWait";
 import { mayAskFromWindow } from "./proxy.svelte";
-import { packListed, packPrices, startingFor, isAuctionOf, mayBeAuctionOf, sameRiven, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
+import { packListed, packPrices, startingFor, isAuctionOf, mayBeAuctionOf, sameRiven, myAuctionsList, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
 /** How often the pages read your riven auctions at most (`refreshMine`). */
@@ -180,7 +180,14 @@ class Rivens {
   /** Your riven auctions on warframe.market (signed in), from the last read. */
   mine = $state.raw<MyAuction[]>([]);
   mineAt = $state<number | null>(null);
+  /**
+   * When the read kept as `mine` was sent (unix ms), if its answer was a list of auctions; null
+   * otherwise. A riven sold in game goes by this time, never by when the answer came back.
+   */
+  mineSentAt: number | null = null;
   mineError = $state<string | null>(null);
+  /** Why the last `readNow` gave nothing: its read failed, or its answer wasn't a list. */
+  nowError: string | null = null;
   /** When the pages last asked for your auctions (`refreshMine`), and for whose. */
   private mineAsked: { at: number; who: string } | null = null;
   /**
@@ -213,17 +220,28 @@ class Rivens {
    * read sent before it and answered after can't put an older list back.
    */
   private async readMine(own: boolean): Promise<MyAuction[] | null> {
+    return (await this.readMineAnswer(own))?.list ?? null;
+  }
+  /**
+   * `readMine`, also saying whether the answer was a list at all (`sure`: `myAuctionsList`; one
+   * that isn't is still kept as no auctions, as the pages always have).
+   */
+  private async readMineAnswer(own: boolean): Promise<{ list: MyAuction[]; sure: boolean } | null> {
     const asked = this.epoch;
+    const sent = Date.now();
     try {
-      const list = parseMyAuctions(await market.myAuctions());
+      const raw = await market.myAuctions();
+      const list = parseMyAuctions(raw);
+      const sure = myAuctionsList(raw) != null;
       if (asked === this.epoch) {
         this.mine = list;
         this.unchecked = false;
         this.mineAt = Date.now();
+        this.mineSentAt = sure ? sent : null;
         this.mineError = null;
         if (own) this.epoch++;
       }
-      return list;
+      return { list, sure };
     } catch (e) {
       // Sell's own read keeps its reason for the message it shows, however late it came back.
       if (own || asked === this.epoch) this.mineError = String(e).replace(/^Error:\s*/, "");
@@ -234,6 +252,7 @@ class Rivens {
   private createEnded() {
     this.epoch++;
     this.mineAt = null;
+    this.mineSentAt = null;
   }
   /**
    * Reads your auctions (the pages, a reprice, a close); whether the read worked. An answer that
@@ -339,21 +358,26 @@ class Rivens {
   }
   /**
    * Reads your auctions now, for a decision that can't go by an older list (a riven sold in game):
-   * that read's own answer, or null if it failed. Kept as `mine` as any read is (`readMine`).
+   * that read's own answer, or null if it failed or wasn't a list of auctions (then `nowError` says
+   * which). Kept as `mine` as any read is (`readMine`).
    */
-  readNow(): Promise<MyAuction[] | null> {
-    return this.readMine(false);
+  async readNow(): Promise<MyAuction[] | null> {
+    const r = await this.readMineAnswer(false);
+    this.nowError = !r ? (this.mineError ?? "no answer") : r.sure ? null : "warframe.market's answer wasn't a list of auctions";
+    return r?.sure ? r.list : null;
   }
   /**
    * Closes auction `id` for a riven sold in game, only if a read made now still has it open and
    * `still` (core/rivenSold.ts, stillToClose) still finds it on that read. "closed": closed now,
    * or found closed already by a read after a close that failed; "gone": not open any more, so
    * nothing was sent; "changed": open but no longer the riven sold, nothing sent; "unread": the
-   * read failed, nothing sent. A close that fails and is still open after it throws its reason.
+   * read failed, or its answer wasn't a list of auctions, nothing sent. A close that fails and is
+   * still open after it throws its reason. "gone" and "closed" come only from answers that were lists.
    */
   async closeIfStill(id: string, still: (auctions: MyAuction[]) => MyAuction | null): Promise<"closed" | "gone" | "changed" | "unread"> {
-    const list = await this.readMine(false);
-    if (!list) return "unread";
+    const read = await this.readMineAnswer(false);
+    if (!read?.sure) return "unread";
+    const list = read.list;
     if (!list.some((a) => a.id === id && !a.closed)) return "gone";
     const a = still(list);
     if (!a || a.id !== id) return "changed";
@@ -361,8 +385,8 @@ class Rivens {
       await market.closeAuction(id);
     } catch (e) {
       // No answer in time doesn't mean it wasn't closed: a read that no longer has it open says so.
-      const look = await this.readMine(false);
-      if (look && !look.some((x) => x.id === id && !x.closed)) return "closed";
+      const look = await this.readMineAnswer(false);
+      if (look?.sure && !look.list.some((x) => x.id === id && !x.closed)) return "closed";
       throw e;
     }
     await this.loadMine();
