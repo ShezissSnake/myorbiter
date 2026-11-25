@@ -86,10 +86,11 @@ function full(now = Date.now()): Settings {
     homeFissuresOnly: true,
     side: { on: false, cards: ["alerts"], fissures: { kinds: ["normal", "storm"], eras: ["Lith", "Axi"], missions: ["Capture", "Survival"], only: true } },
     homeDismissed: ["welcome"],
-    notify: Object.fromEntries(Object.keys(defaultNotify()).map((k) => [k, false])) as unknown as Settings["notify"],
+    notify: Object.fromEntries(Object.entries(defaultNotify()).map(([k, on]) => [k, !on])) as unknown as Settings["notify"],
     notifyOptions: { paused: true, pausedUntil: now + HOUR, pausedHow: "hour", toasts: false, desktop: false, quietInFissure: true, quiet: ["deals"], discord: { url: "https://discord.com/api/webhooks/1/example", kinds: ["sold"] } },
     pagesHidden: ["stats"],
     newsSeen: "21",
+    notifyQuiet: 1,
     simplified: 2,
     details: true,
     chores: { daily: now + 10 * HOUR },
@@ -146,9 +147,10 @@ function full(now = Date.now()): Settings {
 /**
  * Fields the loader sets whatever the file says (so the fixture holds their one value): the
  * schema and page-list versions, the old switches and relic minimum it drops (Sell spares keeps
- * them under `spares`), the relic switch that is always on, and the rules' own version.
+ * them under `spares`), the relic switch that is always on, the rules' own version, and the mark
+ * that the notifications' quieter defaults were applied.
  */
-const FIXED = new Set(["schema", "simplified", "market.bulk", "market.minRelicPrice", "market.sellable.relicsWorthSelling", "market.spares.version"]);
+const FIXED = new Set(["schema", "simplified", "notifyQuiet","market.bulk", "market.minRelicPrice", "market.sellable.relicsWorthSelling", "market.spares.version"]);
 
 /**
  * Fields the fixture leaves at their default so that it holds a pair the app writes: `updates`

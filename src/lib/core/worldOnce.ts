@@ -110,3 +110,13 @@ export function circuitNews(c: CircuitWeek, known: unknown): { frames: string[];
   const incarnons = fresh(c.incarnons).filter((n) => !frames.includes(n));
   return { frames, incarnons, keys: [...frames, ...incarnons].map((n) => head + n) };
 }
+
+/**
+ * The world's events of one kind to tell now (an alert, an invasion), each once: the ones
+ * `firstTime` hasn't seen, which it marks seen. While the kind is off, none is told and none is
+ * marked, so one still running when the player turns the kind on is told then, once, and not
+ * again after a restart (the marks are kept in the settings).
+ */
+export function tellOnce<T>(on: boolean, items: readonly T[], firstTime: (item: T) => boolean): T[] {
+  return on ? items.filter((item) => firstTime(item)) : [];
+}

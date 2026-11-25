@@ -135,7 +135,7 @@
   import { NEWEST } from "./lib/whatsNew";
   import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
-  import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
+  import { circuitNews, dealNews, tellOnce, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, parseRiven, rivenTables, rollChoice, searchFor, weaponSlug, type MyAuction, type RivenMeta, type RivenRaw } from "./lib/core/rivens";
@@ -1018,10 +1018,8 @@
     return () => clearTimeout(t);
   });
   let showNotices = $state(false);
-  /** What the bell's panel opens on: what's new, or (from Settings) the switches. */
-  let noticesView = $state<"recent" | "choose">("recent");
-  function openNotices(view: "recent" | "choose" = "recent") {
-    noticesView = view;
+  /** The bell's panel: what MyOrbiter told you lately. Which kinds it tells you about are in Settings. */
+  function openNotices() {
     showNotices = true;
     toasts.dropMore();
   }
@@ -1032,7 +1030,7 @@
   function openNotice(id: string) {
     toasts.dismiss(id);
     // The test one: where the real ones are kept.
-    if (id.startsWith("test-")) return openNotices("recent");
+    if (id.startsWith("test-")) return openNotices();
     const n = settings.game.notices.find((x) => x.id === id);
     if (!n) return;
     settings.game.notices = settings.game.notices.map((x) => (x.id === id ? { ...x, read: true } : x));
@@ -1212,27 +1210,30 @@
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
 
-  // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward.
+  // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward,
+  // and only while its kind is on (tellOnce): one running when the kind is turned on is told then.
   $effect(() => {
     const alerts = live.alerts;
     const m = onConsole ? null : bgModel;
+    const on = { mastery: settings.notify.alerts, rare: settings.notify.alertLoot };
     if (!alerts?.length || !settingsReady || (!m && !onConsole)) return;
     untrack(() => {
       const { mastery, rare } = alertNeeds(m, alerts);
-      const freshM = mastery.filter((a) => firstTime(`alert|${a.key}`));
-      const freshR = rare.filter((a) => firstTime(`alert|${a.key}`));
+      const freshM = tellOnce(on.mastery, mastery, (a) => firstTime(`alert|${a.key}`));
+      const freshR = tellOnce(on.rare, rare, (a) => firstTime(`alert|${a.key}`));
       const line = (a: (typeof mastery)[number]) => `${a.help ? describeHelp(a.reward, a.help) : a.reward}: ${a.mission} at ${a.node}, ${until(a.expiry)} left`;
       if (freshM.length) tell("alerts", freshM.length === 1 ? `Alert: ${freshM[0].reward}` : `${freshM.length} alerts with something to master`, freshM.map(line).join("\n"));
       if (freshR.length) tell("alertLoot", freshR.length === 1 ? `Alert: ${freshR[0].reward}` : `${freshR.length} alerts with rare rewards`, freshR.map(line).join("\n"));
     });
   });
   // Invasions paying a rare reward (a Catalyst or Reactor blueprint, Forma…): as alerts' rare
-  // rewards, once per invasion and reward. No inventory needed, so consoles get them too.
+  // rewards, once per invasion and reward, while that kind is on. No inventory needed, so consoles get them too.
   $effect(() => {
     const invs = live.invasions;
+    const on = settings.notify.alertLoot;
     if (!invs?.length || !settingsReady) return;
     untrack(() => {
-      const fresh = invasionRares(invs).filter((n) => firstTime(`invasion|${n.key}`));
+      const fresh = tellOnce(on, invasionRares(invs), (n) => firstTime(`invasion|${n.key}`));
       if (fresh.length) tell("alertLoot", fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with rare rewards`, fresh.map((n) => `${n.reward}: side with ${n.side} at ${n.node}`).join("\n"));
     });
   });
@@ -1341,21 +1342,21 @@
     lastStatusError = e;
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
-  // across restarts so the same invasion doesn't announce itself every time MyOrbiter opens.
+  // across restarts so the same invasion doesn't announce itself every time MyOrbiter opens. Only
+  // while the kind is on (tellOnce): one running when it is turned on is told then.
   const invasionsNeeded = $derived(bgModel && !onConsole ? invasionNeeds(bgModel, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
+    const on = settings.notify.invasions;
     if (!needs.length) return;
     untrack(() => {
       const seen = new Set(settings.notifiedInvasions);
-      const fresh = needs.filter((n) => !seen.has(n.key));
+      const fresh = tellOnce(on, needs, (n) => !seen.has(n.key));
       if (!fresh.length) return;
-      if (settings.notify.invasions) {
-        tell("invasions", 
-          fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
-          fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
-        );
-      }
+      tell("invasions",
+        fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
+        fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
+      );
       settings.notifiedInvasions = [...fresh.map((n) => n.key), ...settings.notifiedInvasions].slice(0, 300);
     });
   });
@@ -3336,7 +3337,7 @@
       <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle, syncFullModeOff)} sizer={["Waiting…", "Up to date", "Not synced", SYNC_FULL_MODE_OFF]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope in Full mode, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
-      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you lately` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you lately"} onclick={() => openNotices()}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {#if compact}
         <MoreMenu items={moreItems} {compact} />
       {:else}
@@ -3563,13 +3564,13 @@
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}
-{#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
-<Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
+{#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:settings open_={openNotice} onchoose={() => { showNotices = false; goTo("settings#notifications"); }} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
+<Toasts open={openNotice} all={() => openNotices()} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <!-- The bottom right corner: a link that couldn't open. A newer build shows over the page (UpdateBanner). -->
 <div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /></div>
 <UpdatesPanel settings={() => settings.updates} onsettings={() => goTo("settings#updates")} />
-{#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
+{#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} test={testNotice} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
 <!-- The help a part's "?" opens: over the content area, the sidebar left as it is. Over the dialogs
      and panels too, since their parts have a "?" of their own. -->
 <HelpDialog go={(t: string) => goTo(t)} />

@@ -366,28 +366,28 @@
     "bytes": 30748
   },
   "notices-1.webp": {
-    "hash": "75ef0c45f3a55b49",
+    "hash": "2351689b186bc897",
     "w": 591,
-    "h": 559,
-    "bytes": 57206
+    "h": 396,
+    "bytes": 30862
   },
   "notices-2.webp": {
-    "hash": "4d1d9cefe0f41573",
-    "w": 543,
+    "hash": "b792b62af0bae806",
+    "w": 575,
     "h": 418,
-    "bytes": 52722
+    "bytes": 52938
   },
   "notices-3.webp": {
-    "hash": "e0df98162abb261a",
-    "w": 543,
-    "h": 347,
-    "bytes": 42518
+    "hash": "94a4f0b73d1a52d3",
+    "w": 575,
+    "h": 302,
+    "bytes": 43010
   },
   "notices-4.webp": {
-    "hash": "87ad21d886558324",
+    "hash": "1a2d919b70a64b7f",
     "w": 575,
-    "h": 396,
-    "bytes": 35068
+    "h": 333,
+    "bytes": 37918
   },
   "orders-1.webp": {
     "hash": "dd43a0ab4d444007",
@@ -588,10 +588,10 @@
     "bytes": 37550
   },
   "settings-1.webp": {
-    "hash": "d8360405c8dfb011",
+    "hash": "8db66f7ed33cc182",
     "w": 591,
-    "h": 407,
-    "bytes": 43854
+    "h": 461,
+    "bytes": 45970
   },
   "settings-2.webp": {
     "hash": "321442af1b6526d3",
@@ -600,10 +600,10 @@
     "bytes": 42864
   },
   "settings-3.webp": {
-    "hash": "18ddea2d2bace251",
+    "hash": "c05c3f6e9134b1ba",
     "w": 575,
-    "h": 418,
-    "bytes": 43754
+    "h": 213,
+    "bytes": 26682
   },
   "settings-4.webp": {
     "hash": "9171d5764777218a",
@@ -765,13 +765,13 @@
     "hash": "b804b6e3e2bd85af",
     "w": 989,
     "h": 348,
-    "bytes": 29908
+    "bytes": 29648
   },
   "whats-new-2.webp": {
     "hash": "0a9c2b96b81ab502",
     "w": 989,
     "h": 348,
-    "bytes": 49586
+    "bytes": 49628
   },
   "wishlist-1.webp": {
     "hash": "725b62f623f1ed4a",

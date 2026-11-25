@@ -177,8 +177,8 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
   - order books: when you open an item, price or list something, post a buy order, plan Sell spares
     or reprice; every 10 minutes on PC, once your inventory is read, for cheap buys (up to 20 things
     you're missing, plus one per price alert you set), while the Cheap parts and arcanes
-    notification is on, or Home's Cheap buys card is on and the window isn't hidden; and, if you
-    turn on automatic checking or repricing, each of your listings' books every 5 minutes or the
+    notification is on (off unless you turn it on), or Home's Cheap buys card is on and the window
+    isn't hidden; and, if you turn on automatic checking or repricing, each of your listings' books every 5 minutes or the
     interval you set (over an hour, a pass that stopped part way is tried again an hour later);
   - price history: when you open an item's chart or the buy form, and once a day for each relic you
     hold;
@@ -297,7 +297,8 @@ If you give MyOrbiter a Discord webhook, the notifications of the kinds ticked u
 Discord* are posted there. Five are ticked to begin with: Rivens you watch for, Cheap parts and
 arcanes, Fissures you watch for, Someone whispers you and Something sold; all of them but the
 fissures carry other players' names (the seller of a riven or a cheap part, whoever whispered you,
-the buyer). Posts are text, the same title and text MyOrbiter shows: item names, prices, places, your ducats, other
+the buyer). A kind is posted only while its switch is on: Cheap parts and arcanes starts off, like
+most kinds, so nothing about cheap buys goes to Discord until you turn it on. Posts are text, the same title and text MyOrbiter shows: item names, prices, places, your ducats, other
 players' names (buyers, sellers, whoever whispered you, with their reputation) and, if you pick
 warframe.market messages, the first 140 characters of each. Posts are cut to 1,900 characters,
 @mentions are off, and they're signed "MyOrbiter". Only Discord webhook addresses are accepted
@@ -335,15 +336,18 @@ starts on Stable and a copy that doesn't check on Experimental, without reading 
 A channel settled so follows the most stable build: each later check first reads the more stable
 channels' `latest.json` (Stable's, and Beta's too for an install on Experimental, most stable
 first, stopping at the first whose build is yours or newer), from github.com alone and the same way
-as that first check, then its own channel's as before, and moves to the most stable channel whose
-build is yours or newer. It never moves by itself to a less stable channel or to an older build,
+as that first check, and moves to that channel: the file just read answers the check, and its own
+channel's file is not read at all. Only when none of them has your build or a newer one (or a read
+of one gets no answer) does the check go on to read its own channel's `latest.json` as before. So a
+check that moves reads one or two files of github.com, each read as that first check reads it,
+and nothing of gitlab.com; one that stays reads those and then its own channel's. It never moves by itself to a less stable channel or to an older build,
 nor while an update downloads; a read of a more stable channel that gets no answer moves nothing,
 and the check goes on with its own channel's file as before (gitlab.com too, if github.com doesn't
 answer). An install on Stable, and one whose
 channel was picked, reads nothing more than before. A channel you pick never moves by itself. Follow
 the most stable build (in the panel the version at the top of the sidebar opens, and in Settings,
 Updates) turns following back on: a check at once reads what any following check reads, the more
-stable channels' files and then its own channel's, and moves to the most stable whose build is
+stable channels' files and, unless it moves to one of them, then its own channel's, and moves to the most stable whose build is
 yours or newer; to follow, it reads no less stable channel and never moves to one. On a channel
 with no build, that check also reads the nearest other channel's file for the offer to switch, as
 above, and Follow alone leaves the install where it is; after Switch to, following moves it to a
@@ -696,7 +700,7 @@ writes `settings.json` as it runs):
 - TennoScope's own folder (above), the sign-in it keeps if you signed in through its window, and on
   Linux `screencast.token`.
 
-Emptying the Discord address in Notifications removes `discord-webhook`, the address you confirmed,
+Emptying the Discord address in Settings, Notifications removes `discord-webhook`, the address you confirmed,
 from the config folder (pausing notifications or unticking kinds keeps it). MyOrbiter also removes
 it when it starts with no Discord address in its settings, such as a file an older MyOrbiter kept
 after the field was emptied. A start that can't read the settings removes nothing. Nor does a start

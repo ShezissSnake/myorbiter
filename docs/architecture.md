@@ -390,7 +390,7 @@ what it holds is in `demo/README.md`. Browser writes to warframe.market are pret
 | Relic and recipe data; item pictures (the `img://` scheme) | `relicdata.rs`, `recipes.rs`, `core/relicData.ts`, `core/recipes.ts`; `images.rs` |
 | Where a setting lives, or a new one | `Settings` in `src/lib/backend.ts`, `persist.svelte.ts` |
 | Settings and files on disk | `src-tauri/src/lib.rs`, `datamove.rs`; `docs/privacy.md` |
-| Notifications, the app's own log | `src/lib/notices.ts`, `src-tauri/src/desktop.rs`, `src-tauri/src/applog.rs` |
+| Notifications, the app's own log | `src/lib/notices.ts` (kinds), `src/lib/backend.ts` (`defaultNotify`, `quietOnce`: which start on, and the one-time reset), `src/lib/NoticeChoices.svelte` (Settings, Notifications), `src/lib/NoticesSheet.svelte` (the bell), `src-tauri/src/desktop.rs`, `src-tauri/src/applog.rs` |
 | Updates | `src/lib/updates.svelte.ts`, `core/updates.ts`, `src-tauri/src/updates.rs`; the banner, the version and its panel: `UpdateBanner.svelte`, `UpdatesChip.svelte`, `UpdatesPanel.svelte` |
 | Opening a link | `src/lib/links.svelte.ts`, `core/links.ts`, `src-tauri/src/link.rs` |
 | The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md`, `public/game/` and app source: `Guide.svelte`, `whatsNew.ts`, `FullMode.svelte`, `pages.ts`, `help/index.ts`, `core/links.ts`, `ui/evened.ts`, icons; not `docs/`) |

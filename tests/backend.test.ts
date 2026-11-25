@@ -291,14 +291,14 @@ test("the start removes the Discord file only once the settings are read, and no
   const call = app.indexOf("void discordAtStart(() => settings.notifyOptions.discord.url, settingsReadWhole()).catch(() => {});");
   assert.ok(read > 0 && ready > read && call > ready, "called once the settings are read and ready");
   assert.equal(app.split("discordAtStart(").length - 1, 1, "called once");
-  // The app's removal is reached through discordForget alone: the field (NoticesSheet), a yes after
-  // it was emptied (discordAsk) and the start (discordAtStart).
+  // The app's removal is reached through discordForget alone: the field (Settings, Notifications:
+  // NoticeChoices), a yes after it was emptied (discordAsk) and the start (discordAtStart).
   const src = new URL("../src/", import.meta.url);
   const files = readdirSync(src, { recursive: true, encoding: "utf8" }).filter((f) => /\.(ts|svelte)$/.test(f)).map((f) => f.replaceAll("\\", "/"));
   const invoking = files.filter((f) => readFileSync(new URL(f, src), "utf8").includes('"discord_forget"'));
   assert.deepEqual(invoking, ["lib/backend.ts"]);
   const callers = files.filter((f) => /\bdiscordForget\(/.test(readFileSync(new URL(f, src), "utf8"))).sort();
-  assert.deepEqual(callers, ["lib/NoticesSheet.svelte", "lib/backend.ts"]);
+  assert.deepEqual(callers, ["lib/NoticeChoices.svelte", "lib/backend.ts"]);
 });
 
 test("a kept worldstate part whose end has passed isn't kept", async () => {

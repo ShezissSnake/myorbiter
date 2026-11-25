@@ -30,6 +30,8 @@
   import TimingSetting from "./ui/TimingSetting.svelte";
   import { MAX_HIDE_MINUTES } from "./core/lastCopy";
   import { keepWhile } from "./pane.svelte";
+  import NoticeChoices from "./NoticeChoices.svelte";
+  import type { NoticeOutcome } from "./notices";
 
   let {
     open = $bindable(),
@@ -37,11 +39,19 @@
     defaultDir,
     eeFound,
     onpaths,
-    onnotices,
+    test,
     rivenKeyError = null,
     focus = $bindable(null),
     ongo = () => {},
-  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; onnotices: () => void; rivenKeyError?: string | null; focus?: string | null; ongo?: (to: string) => void } = $props();
+  }: { open: boolean; settings: Settings; defaultDir: string; eeFound: string | null; onpaths: () => void; test: () => Promise<NoticeOutcome>; rivenKeyError?: string | null; focus?: string | null; ongo?: (to: string) => void } = $props();
+
+  /**
+   * Settings comes in two tabs: everything else, and Notifications (a switch for every kind and how
+   * they reach you), which has room of its own for its twenty switches. Kept while the panel is
+   * closed; a link to a section opens the tab it is on (`focus`).
+   */
+  let tab = $state<"general" | "notifications">("general");
+  let tabsEl = $state<HTMLElement>();
 
   // The panel is built before it's first opened and kept when closed: TennoScope's status, read
   // again every 15 s, reaches it only while it's open (opening shows the current one).
@@ -55,8 +65,11 @@
     if (!open || !focus) return;
     const id = focus;
     focus = null;
+    tab = id === "notifications" ? "notifications" : "general";
     clearTimeout(focusTimer);
     focusTimer = setTimeout(() => {
+      // The Notifications tab is a whole tab: shown from its top, the tabs in view, nothing ringed.
+      if (id === "notifications") return tabsEl?.scrollIntoView({ block: "start", behavior: "smooth" });
       const el = document.getElementById(`settings-${id}`);
       if (!el) return;
       el.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -172,6 +185,12 @@
 </script>
 
 <Sheet bind:open keep built title="Settings" kicker="MyOrbiter" help="settings">
+  <nav class="tabs" aria-label="Parts of Settings" bind:this={tabsEl}>
+    <Seg bind:value={tab} options={[{ v: "general", label: "General", title: "Platform, pages, TennoScope, trades, updates and the rest" }, { v: "notifications", label: "Notifications", title: "A switch for every kind of notification, and how they reach you" }]} />
+  </nav>
+  {#if tab === "notifications"}
+    <div id="settings-notifications"><NoticeChoices bind:settings console={onConsole} {open} {test} /></div>
+  {:else}
   <section>
     <div class="hmark"><h3 class="register">Platform</h3><HelpMark part="settings.platform" /></div>
     <label class="field" data-field="settings.platform">
@@ -341,12 +360,6 @@
     </Switch>
   </section>
 
-  <section>
-    <div class="hmark"><h3 class="register">Notifications</h3><HelpMark part="settings.notifications" /></div>
-    <p class="hint">They have their own panel: the bell at the bottom of the sidebar. What MyOrbiter told you lately, and a switch for each kind ({onConsole ? "your listings, rivens, rare alerts, Baro, fissures" : "sales, listings, alerts and invasions with mastery you're missing, Baro, fissures"}…), with a pause for all of them.</p>
-    <div class="row"><button class="stamp" onclick={() => { open = false; onnotices(); }}>Open notifications</button></div>
-  </section>
-
   <section id="settings-updates" data-card="updates">
     <div class="hmark"><h3 class="register">Updates</h3><HelpMark part="settings.updates" /></div>
     <p class="ver"><img class="wordmark" src={wordmark} alt="This is MyOrbiter" height="28" /> <b class="mono" title="The version, and the channel it came from">{info ? versionLine(info.version, settings.updates) : "…"}</b></p>
@@ -370,7 +383,7 @@
       </Switch>
     {/if}
     <div class="row">
-      <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `${updates.unsettled ? "Ask the channels now which one to start on, and look for a newer build there" : `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now`}. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
+      <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `${updates.unsettled ? "Ask the channels now which one to start on, and look for a newer build there" : `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now${updates.followable && settings.updates.picked && settings.updates.follows && settings.updates.channel !== "stable" ?", also reading the more stable channels' file, to follow the most stable build" : ""}`}. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
       <button type="button" class="link out" title="Open this build's release page in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
     </div>
     {#if checks}<p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}<span class="sr" role="status">{updates.headline}</span></p>{/if}
@@ -425,6 +438,8 @@
   </section>
 
 
+  {/if}
+
   {#if dirty}
     <div class="unsaved">
       <span class="small">The program or folder paths changed. They apply together, then everything reloads.</span>
@@ -437,6 +452,7 @@
 </Sheet>
 
 <style>
+  .tabs { margin-bottom: -.2rem; }
   section { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; padding-bottom: 1.4rem; border-bottom: 1px solid var(--rule); }
   section:last-child { border-bottom: 0; }
   .sec { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }

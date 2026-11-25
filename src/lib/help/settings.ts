@@ -4,7 +4,7 @@
 // rather than `.pane.shown`. Every sentence about repricing is checked against the code that does it
 // (core/drift.ts, core/approved.ts, core/market.ts, marketStore.svelte.ts), not the panel's text
 // alone. The pictures' steps never press a switch, Check now, a test notification, Report a bug or
-// anything TennoScope runs; they only open the panels, switch Notifications to Choose, and pick
+// anything TennoScope runs; they only open the panels, open Settings' Notifications tab, and pick
 // Stable in the demo's empty channels (core/standIn.ts) for the picture of a channel with no build.
 
 import type { Walkthrough } from "./types";
@@ -28,11 +28,15 @@ const UPDATES = `${S} #settings-updates`;
 const LOGS = `${S} #settings-logs`;
 const REPORT = `${S} #settings-report`;
 
+/** Settings' Notifications tab (SettingsSheet.svelte's tabs; NoticeChoices.svelte below them). */
+const NTAB = `${S} .tabs .seg button[role=radio]:has-text('Notifications')`;
+const NOTIFY = [{ click: NTAB }, { wait: 800 }];
+const C = `${S} .choices`;
+/** The first group of kinds. */
+const GROUP = `${C} > section.grp:first-of-type`;
+/** The envelope's panel: what MyOrbiter told you lately. */
 const N = `.sheet[aria-label="Notifications"]`;
 const BELL = { click: ".rail .foot button.bell" };
-const CHOOSE = { click: `${N} .top button[role=radio]:has-text('Choose')` };
-/** The first group of kinds under Choose. */
-const GROUP = `${N} section.how + section.grp`;
 
 const T = `.sheet[aria-label="TennoScope"]`;
 /** TennoScope's panel opens from its button in the full sidebar's foot. */
@@ -46,17 +50,21 @@ const SETTINGS_MAIN: Walkthrough = {
   guide: "guide",
   pages: [
     {
-      title: "Where you play",
+      title: "Tabs, and where you play",
       lines: [
+        "Notifications tab: a switch for every kind, and how they reach you.",
         "Where you play: the warframe.market MyOrbiter reads and lists on; signing in sets it.",
         "Prices count other platforms' sellers when you both have cross-play on; Switch only its own.",
-        "On a console MyOrbiter can't read your game: everything built on your inventory is PC only.",
+        "On a console MyOrbiter can't read your game: inventory features are PC only.",
       ],
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${S} > header, ${sec("settings.platform")}`,
-        marks: [{ at: `${sec("settings.platform")} ${field("settings.platform")} select`, is: "n", n: 1, from: "corner" }],
+        part: `${S} > header, ${S} .tabs, ${sec("settings.platform")}`,
+        marks: [
+          { at: `${S} .tabs .seg > button:nth-child(2)`, is: "n", n: 1, from: "corner" },
+          { at: `${sec("settings.platform")} ${field("settings.platform")} select`, is: "n", n: 2, from: "corner" },
+        ],
       },
     },
     {
@@ -81,30 +89,26 @@ const SETTINGS_MAIN: Walkthrough = {
       },
     },
     {
-      title: "Builds and notifications",
+      title: "Builds from Nox's Frame",
       lines: [
         "Read builds from Nox's Frame: an item's top-voted builds, read when you open its builds.",
-        "Open notifications: the envelope's panel, a switch for each kind and a pause.",
         "Nothing is read in the background; each page is kept a week, read 3 seconds apart.",
         "Nox's Frame off: Builds lists none; its link still opens the site.",
       ],
       shot: {
         open: "settings",
         size: SIZE,
-        part: `${sec("settings.builds")}, ${sec("settings.notifications")}`,
-        marks: [
-          { at: `${sec("settings.builds")} ${sw("settings.builds-from-nox")}`, is: "n", n: 1, from: "corner" },
-          { at: `${sec("settings.notifications")} button.stamp`, is: "n", n: 2, from: "corner" },
-        ],
+        part: sec("settings.builds"),
+        marks: [{ at: `${sec("settings.builds")} ${sw("settings.builds-from-nox")}`, is: "n", n: 1, from: "corner" }],
       },
     },
     {
       title: "Updates, on your channel",
       lines: [
         "Channel: Stable tested, Beta the next Stable early, Experimental every change, may break.",
-        "Check now looks at once; MyOrbiter also looks at start and every 6 hours.",
+        "Check now: at once. MyOrbiter also looks at start and every 6 hours.",
         "A channel MyOrbiter chose follows the most stable build; empty ones offer the nearest.",
-        "Release notes: this build's page. Nothing installs, or changes a chosen channel, without your click.",
+        "Release notes: this build's page. Nothing installs, or changes a channel you picked, without your click.",
       ],
       shot: {
         open: "settings",
@@ -148,7 +152,6 @@ const SETTINGS_MAIN: Walkthrough = {
     "settings.platform": 1,
     "settings.pages": 2,
     "settings.builds": 3,
-    "settings.notifications": 3,
     "settings.updates": 4,
     "settings.logs": 5,
     "settings.report-bug": 5,
@@ -330,20 +333,21 @@ const NOTICES: Walkthrough = {
     {
       title: "What MyOrbiter told you",
       lines: [
+        "Choose what it tells you about: Settings, Notifications, a switch for each kind.",
+        "Pause: the same pause as in Settings; Recent still fills while paused.",
         "Recent: what MyOrbiter told you, newest first; click one to open what it's about.",
-        "Choose: which kinds it tells you about, and a pause for all of them.",
-        "The number on the envelope is how many are new.",
-        "Once you've had Recent open, closing the panel marks them all read.",
+        "The envelope's number is how many are new; closing the panel marks them read.",
       ],
       shot: {
         open: "home",
         size: SIZE,
         steps: [BELL, { wait: 1500 }],
-        // The head and the view switch, then the first few entries (or the line saying there are none yet).
-        part: `${N} > header, ${N} .top, ${N} p.empty, ${N} .days > .dayblock:first-child > h3, ${N} .days > .dayblock:first-child li:nth-child(-n+3)`,
+        // The head, Choose and the pause, then the first few entries (or the line saying there are none yet).
+        part: `${N} > header, ${N} .top, ${N} .pause,${N} p.empty, ${N} .days > .dayblock:first-child > h3, ${N} .days > .dayblock:first-child li:nth-child(-n+3)`,
         marks: [
-          { at: `${N} .top .seg > button:nth-child(1)`, is: "n", n: 1, from: "corner" },
-          { at: `${N} .top .seg > button:nth-child(2)`, is: "n", n: 2, from: "corner" },
+          { at: `${N} .top button.choose`, is: "n", n: 1, from: "corner" },
+          { at: `${N} .pausebtns`, is: "n", n: 2, from: "corner" },
+          { at: `${N} .days > .dayblock:first-child li:first-child button.notice`, is: "n", n: 3, from: "corner" },
         ],
       },
     },
@@ -356,15 +360,15 @@ const NOTICES: Walkthrough = {
         "Quiet while I'm in a fissure: only which reward to take pops up then.",
       ],
       shot: {
-        open: "home",
+        open: "settings",
         size: SIZE,
-        steps: [BELL, { wait: 1500 }, CHOOSE],
-        part: `${N} section.how > .pause, ${N} section.how ${sw("notices.toasts")}, ${N} section.how ${sw("notices.desktop")}, ${N} section.how ${sw("notices.quiet-in-fissure")}`,
+        steps: NOTIFY,
+        part: `${C} section.how > .pause, ${C} section.how ${sw("notices.toasts")}, ${C} section.how ${sw("notices.desktop")}, ${C} section.how ${sw("notices.quiet-in-fissure")}`,
         marks: [
-          { at: `${N} section.how .pausebtns`, is: "n", n: 1, from: "corner" },
-          { at: `${N} section.how ${sw("notices.toasts")}`, is: "n", n: 2, from: "corner" },
-          { at: `${N} section.how ${sw("notices.desktop")}`, is: "n", n: 3, from: "corner" },
-          { at: `${N} section.how ${sw("notices.quiet-in-fissure")}`, is: "n", n: 4, from: "corner" },
+          { at: `${C} section.how .pausebtns`, is: "n", n: 1, from: "corner" },
+          { at: `${C} section.how ${sw("notices.toasts")}`, is: "n", n: 2, from: "corner" },
+          { at: `${C} section.how ${sw("notices.desktop")}`, is: "n", n: 3, from: "corner" },
+          { at: `${C} section.how ${sw("notices.quiet-in-fissure")}`, is: "n", n: 4, from: "corner" },
         ],
       },
     },
@@ -372,33 +376,33 @@ const NOTICES: Walkthrough = {
       title: "Try it, or add Discord",
       lines: [
         "Send a test notification: one goes in 5 seconds, and it says what became of it.",
-        "Discord: paste a channel's webhook address; the kinds you pick go there too, unless paused.",
+        "Discord: paste a channel's webhook; kinds you pick go there too, if on and not paused.",
         "Click away during the countdown to try your desktop's notification.",
         "MyOrbiter asks once, in its own window, before sending to a new address.",
       ],
       shot: {
-        open: "home",
+        open: "settings",
         size: SIZE,
-        steps: [BELL, { wait: 1500 }, CHOOSE],
-        part: `${N} section.how > .testrow, ${N} section.how > .discord`,
+        steps: NOTIFY,
+        part: `${C} section.how > .testrow, ${C} section.how > .discord`,
         marks: [
-          { at: `${N} section.how .testrow button.stamp`, is: "n", n: 1, from: "corner" },
-          { at: `${N} section.how .discord input`, is: "n", n: 2, from: "bottom" },
+          { at: `${C} section.how .testrow button.stamp`, is: "n", n: 1, from: "corner" },
+          { at: `${C} section.how .discord input`, is: "n", n: 2, from: "corner" },
         ],
       },
     },
     {
       title: "Choose which kinds you get",
       lines: [
-        "Kinds come in groups: Trading, World, Fissures, Your account.",
+        "Kinds come in groups: Trading, World, Fissures, Your account; most start off.",
         "A switch for each kind: off, it's dropped, even from Recent; only setup's switch-off notice isn't.",
         "Recent only: kept in Recent without popping up.",
         "All off or All on: a whole group at once.",
       ],
       shot: {
-        open: "home",
+        open: "settings",
         size: SIZE,
-        steps: [BELL, { wait: 1500 }, CHOOSE],
+        steps: NOTIFY,
         // The first group's head and its first three kinds; the marks are on its first, Something sold.
         part: `${GROUP} > header, ${GROUP} > div.kind:nth-of-type(-n+3)`,
         marks: [
