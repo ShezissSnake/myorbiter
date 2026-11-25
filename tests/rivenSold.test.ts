@@ -112,24 +112,37 @@ test("case 8: a sale made while MyOrbiter was shut, with a log time or without, 
   const now = AT * 1000;
   // The inventory read known, before the trade, holding none of that riven: only the time decides.
   const known = (t: Trade): HeldRivens => ({ rivens: [], at: (t.at ?? AT) * 1000 - 60_000 });
+  // This run first read the trade's session 40 minutes ago; the trade was first seen just now.
+  const sessionRead = now - 40 * 60_000;
+  const later = { at: now, firstRead: false };
+  const inFirst = { at: sessionRead, firstRead: true };
   // Over half an hour old: not recent, so told with an auction fitting, never closed.
   const old = trade({ at: AT - 31 * 60 });
-  assert.equal(rivenRecent(old, now, false), false);
-  assert.match(why(facts({ trade: old, recent: rivenRecent(old, now, false), held: known(old) })), /older than half an hour/);
+  assert.equal(rivenRecent(old, now, later, sessionRead), false);
+  assert.match(why(facts({ trade: old, recent: rivenRecent(old, now, later, sessionRead), held: known(old) })), /older than half an hour/);
   // Under it, but already in the log at this run's first read of its session (made while
   // MyOrbiter was shut): not recent either, though it has a log time. Told, never closed.
   const fresh = trade({ at: AT - 29 * 60 });
-  assert.equal(rivenRecent(fresh, now, true), false);
-  assert.match(why(facts({ trade: fresh, recent: rivenRecent(fresh, now, true), held: known(fresh) })), /or was made while MyOrbiter was closed/);
+  assert.equal(rivenRecent(fresh, now, inFirst, sessionRead), false);
+  assert.match(why(facts({ trade: fresh, recent: rivenRecent(fresh, now, inFirst, sessionRead), held: known(fresh) })), /or was made while MyOrbiter was closed/);
   // The same trade turning up after that first read (made while MyOrbiter ran): closed.
-  assert.equal(rivenRecent(fresh, now, false), true);
-  assert.equal(rivenVerdict(facts({ trade: fresh, recent: rivenRecent(fresh, now, false), held: known(fresh) })).do, "close");
-  // No time in the log: the same two ways.
+  assert.equal(rivenRecent(fresh, now, later, sessionRead), true);
+  assert.equal(rivenVerdict(facts({ trade: fresh, recent: rivenRecent(fresh, now, later, sessionRead), held: known(fresh) })).do, "close");
+  // Turning up after the first read but made before it (the game writes its log in bursts): made
+  // while MyOrbiter was shut, by its log time. Told, never closed.
+  const flushedLate = trade({ at: AT - 10 * 60 });
+  assert.equal(rivenRecent(flushedLate, now, later, now - 5 * 60_000), false);
+  assert.match(why(facts({ trade: flushedLate, recent: rivenRecent(flushedLate, now, later, now - 5 * 60_000), held: known(flushedLate) })), /or was made while MyOrbiter was closed/);
+  assert.equal(rivenRecent(flushedLate, now, later, now - 15 * 60_000), true);
+  // No time in the log: in the first read, never; turning up after it, for half an hour from when
+  // it was first seen.
   const untimed = trade({ at: null });
-  assert.equal(rivenRecent(untimed, now, true), false);
-  assert.match(why(facts({ trade: untimed, recent: rivenRecent(untimed, now, true), held: known(untimed) })), /or was made while MyOrbiter was closed/);
-  assert.equal(rivenRecent(untimed, now, false), true);
-  assert.equal(rivenVerdict(facts({ trade: untimed, recent: rivenRecent(untimed, now, false), held: known(untimed) })).do, "close");
+  assert.equal(rivenRecent(untimed, now, inFirst, sessionRead), false);
+  assert.match(why(facts({ trade: untimed, recent: rivenRecent(untimed, now, inFirst, sessionRead), held: known(untimed) })), /or was made while MyOrbiter was closed/);
+  assert.equal(rivenRecent(untimed, now, later, sessionRead), true);
+  assert.equal(rivenVerdict(facts({ trade: untimed, recent: rivenRecent(untimed, now, later, sessionRead), held: known(untimed) })).do, "close");
+  assert.equal(rivenRecent(untimed, now, { at: now - 31 * 60_000, firstRead: false }, sessionRead), false);
+  assert.match(why(facts({ trade: untimed, recent: rivenRecent(untimed, now, { at: now - 31 * 60_000, firstRead: false }, sessionRead), held: known(untimed) })), /older than half an hour/);
   // With no auction fitting, an old sale is nothing at all.
   assert.equal(rivenVerdict(facts({ trade: old, recent: false, auctions: [] })).do, "nothing");
 });

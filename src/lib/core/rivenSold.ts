@@ -7,7 +7,7 @@
 // player is told, with one click to close.
 import type { MyAuction, RivenMeta } from "./rivens";
 import type { Trade, TradeItem } from "./types";
-import { isSale, recentTrade } from "./saleNotice";
+import { isSale, TELL_WINDOW } from "./saleNotice";
 
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
 
@@ -31,7 +31,7 @@ export interface HeldRiven {
 
 /**
  * The last inventory read's rivens, and a time no earlier than that very read (unix ms: when
- * MyOrbiter first had this list), so a time before the trade means the read was before it; null
+ * MyOrbiter first had that read), so a time before the trade means the read was before it; null
  * when not known, and then nothing is closed.
  */
 export interface HeldRivens {
@@ -40,13 +40,19 @@ export interface HeldRivens {
 }
 
 /**
- * Whether a riven given in a trade is recent enough to be closed by MyOrbiter itself (case 8): from
- * the last half hour (`recentTrade`), and not already in the log when this run first read its
- * session (`inFirstRead`): such a trade was made while MyOrbiter was shut, with a log time or
- * without, and is only told.
+ * Whether a riven given in a trade is recent enough to be closed by MyOrbiter itself (case 8): made
+ * while MyOrbiter ran, and in the last half hour. `seen`: when this run first saw the trade, and
+ * whether that was on its session's first read; `sessionRead`: when this run first read the
+ * trade's session (unix ms).
+ * - A trade already in the log at that first read was made while MyOrbiter was shut: only told.
+ * - A trade with a log time from before that first read, too: the game writes its log in bursts,
+ *   so it can turn up a little after.
+ * - With a log time, under half an hour old; without one, first seen under half an hour ago.
  */
-export function rivenRecent(t: Trade, now: number, inFirstRead: boolean): boolean {
-  return !inFirstRead && recentTrade(t, now, inFirstRead);
+export function rivenRecent(t: Trade, now: number, seen: { at: number; firstRead: boolean }, sessionRead: number): boolean {
+  if (seen.firstRead) return false;
+  if (t.at) return t.at * 1000 >= sessionRead && now - t.at * 1000 < TELL_WINDOW;
+  return now - seen.at < TELL_WINDOW;
 }
 
 /** How many rivens of the read may be the auction's riven: of its weapon and name, or of a weapon or name the read couldn't make out. */

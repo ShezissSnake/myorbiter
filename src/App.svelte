@@ -1671,22 +1671,24 @@
     // only an older one.
     void rivenRetry;
     void rivens.mineAt;
+    // Signing in runs this again, for a trade seen while signed out.
+    const linked = mkt.linked;
     // `mission` is null until the log has been read: each value is a read of it.
     if (!mission) return;
     untrack(() => {
-      // Case 8: a trade already in the log at this run's first read of its session was made while
-      // MyOrbiter was shut, with a log time or without, and is never closed by itself
-      // (rivenRecent). Every read marks its session, a read with no trades too (signed in or not),
-      // so a trade that turns up later was made while MyOrbiter ran. Fixed when a trade is first
-      // seen, so a later run doesn't change it.
+      // Case 8: a trade already in the log at this run's first read of its session, or with a log
+      // time from before that read, was made while MyOrbiter was shut, and is never closed by
+      // itself (rivenRecent). Every read marks its session, a read with no trades too (signed in
+      // or not), so a trade that turns up later was made while MyOrbiter ran. Fixed when a trade
+      // is first seen, so a later run doesn't change it.
       const firstRead = !rivenSessionsRead.has(session ?? "?");
-      rivenSessionsRead.add(session ?? "?");
+      if (firstRead) rivenSessionsRead.set(session ?? "?", Date.now());
       for (const t of trades) {
         if (rivenFirstSeen.has(tradeKey(session, t))) continue;
         rivenFirstSeen.set(tradeKey(session, t), firstRead);
         rivenSeenAt.set(tradeKey(session, t), Date.now());
       }
-      if (!trades.length || !mkt.linked) return;
+      if (!trades.length || !linked) return;
       const due = rivenTradesDue(settings.market.rivenSold, trades, (t) => tradeKey(session, t)).filter((t) => !rivenHandling.has(tradeKey(session, t)));
       if (!due.length) return;
       // warframe.market's weapon names, to tell which auctions fit. A trade doesn't ask for them:
@@ -1700,8 +1702,8 @@
   });
   /** Trades whose rivens are being decided now: not started twice while the first is out. */
   const rivenHandling = new Set<string>();
-  /** Game sessions whose log the rivens' decision has read (see rivenRecent). */
-  const rivenSessionsRead = new Set<number | string>();
+  /** Game sessions whose log the rivens' decision has read, and when it first did (unix ms; see rivenRecent). */
+  const rivenSessionsRead = new Map<number | string, number>();
   /** Each trade's key, and whether it was first seen on its session's first read (then it is never closed by itself, rivenRecent). */
   const rivenFirstSeen = new Map<string, boolean>();
   /** When each trade was first seen (unix ms): the time of a trade with none in the log. */
@@ -1715,18 +1717,21 @@
   /** Counted up a minute after a failed read, to run the decision again. */
   let rivenRetry = $state(0);
   /**
-   * TennoScope's list of held rivens as this run got it, and when it first got that list (unix
+   * TennoScope's list of held rivens as this run got it, and when it first got that read (unix
    * ms). The report carries no time for the inventory read behind the list; the time it first came
-   * is no earlier than that read, so a time before a trade means the read was before it. Kept
-   * together, so the twin rule never pairs one read's list with another's time. None until a
-   * report brings a list this run: the list saved in the settings has no time, and closes nothing.
+   * is no earlier than that read, so a time before a trade means the read was before it. A read is
+   * told from the one before by its list and the wallet of the same read (platinum, credits, Endo):
+   * a sale for platinum changes the platinum, so the first read after it gets a time after it, even
+   * when its rivens are as before. Kept together, so the twin rule never pairs one read's list with
+   * another's time. None until a report brings a list this run: the list saved in the settings has
+   * no time, and closes nothing.
    */
   let rivensSeen: { list: RivenRaw[]; json: string; at: number } | null = null;
   $effect(() => {
-    const list = ts.report?.rivens;
-    if (!list) return;
-    const json = JSON.stringify(list);
-    if (rivensSeen?.json !== json) rivensSeen = { list, json, at: Date.now() };
+    const r = ts.report;
+    if (!r?.rivens) return;
+    const json = JSON.stringify([r.rivens, r.platinum ?? null, r.credits ?? null, r.endo ?? null]);
+    if (rivensSeen?.json !== json) rivensSeen = { list: r.rivens, json, at: Date.now() };
   });
   /** The held rivens, by warframe.market's weapon and the riven's name, with their list's time (rivensSeen); null with none. */
   function heldRivens(meta: RivenMeta): HeldRivens | null {
@@ -1750,7 +1755,8 @@
       const now = Date.now();
       const keyOf = (t: (typeof trades)[number]) => tradeKey(session, t);
       // A trade not seen before (it can't be: the effect marks each one) counts as already in the log.
-      const recentOf = (t: (typeof trades)[number]) => rivenRecent(t, now, rivenFirstSeen.get(keyOf(t)) ?? true);
+      // A session not read yet (it can't be either) counts as read now.
+      const recentOf = (t: (typeof trades)[number]) => rivenRecent(t, now, { at: rivenSeenAt.get(keyOf(t)) ?? now, firstRead: rivenFirstSeen.get(keyOf(t)) ?? true }, rivenSessionsRead.get(session ?? "?") ?? now);
       // The trades with reads left: the auctions are read for them now.
       const readFor = trades.filter((t) => (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS);
       let fresh: MyAuction[] | null = null;
