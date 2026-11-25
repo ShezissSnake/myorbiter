@@ -290,7 +290,7 @@
           {/key}
         </div>
         <div class="axis register"><span>{dayText(chart.bars[0].at)}</span><span>today</span></div>
-        <p class="key small dim">{#if perBar != null}<i class="dash" aria-hidden="true"></i><span>Average <b>{avgText(perBar)}p</b> a {unit}{#if chart.per > 1}{" "}({avgText(chart.daily ?? 0)}p a day){/if}, over the {chart.days} days shown</span>{:else}<span>Nothing sold in these {chart.days} days.</span>{/if}{#if chart.per > 1}<span class="grow"></span><span>One bar: {chart.per} days</span>{/if}</p>
+        <p class="key small dim">{#if perBar != null}<i class="dash" aria-hidden="true"></i><span title="The dashed line: the platinum made over the {chart.days} days shown, shared out over every one of them, days with no sale counted">Average <b>{avgText(perBar)}p</b> a {unit}{#if chart.per > 1}{" "}({avgText(chart.daily ?? 0)}p a day){/if} over {chart.days} days</span>{:else}<span>Nothing sold in these {chart.days} days.</span>{/if}{#if chart.per > 1}<span class="grow"></span><span>One bar: {chart.per} days</span>{/if}</p>
       </section>
       <section class="top">
         <div class="head"><span class="register">Best sellers</span><span class="grow"></span><HelpMark part="sales.best" /></div>
@@ -368,7 +368,7 @@
   .plot { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .5rem; }
   .yaxis { position: relative; color: var(--platinum-deep); font-size: 11px; text-align: right; }
   /* The top value, unseen and in the flow, makes the column as wide as the widest number. */
-  .widest { display: block; height: 0; overflow: hidden; visibility: hidden; }
+  .widest { display: block; line-height: 1; visibility: hidden; }
   .tick { position: absolute; right: 0; line-height: 1; transform: translateY(50%); white-space: nowrap; }
   .bars { position: relative; display: flex; align-items: flex-end; gap: 3px; height: 9rem; }
   /* Past a month of bars, a 1 px gap leaves the bar itself the room. */
@@ -377,7 +377,8 @@
   .rule { border-top: 1px solid rgb(255 255 255 / 6%); }
   /* The average: a thin dashed line over the bars, in gold so it reads against them. */
   .avg { z-index: 1; border-top: 1px dashed var(--gold); }
-  .key { display: flex; align-items: center; gap: .45rem; margin: .5rem 0 0; }
+  .key { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .45rem; margin: .5rem 0 0; }
+  .key > span { white-space: nowrap; }
   .key b { color: var(--platinum); font-weight: 600; font-variant-numeric: tabular-nums; }
   .dash { display: inline-block; flex: none; width: 1.1rem; border-top: 1px dashed var(--gold); }
   .col { flex: 1; height: 100%; display: flex; align-items: flex-end; background: rgb(255 255 255 / 2%); }
