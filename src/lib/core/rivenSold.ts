@@ -117,6 +117,17 @@ export function unreadVerdict(v: RivenVerdict, fresh: boolean): RivenVerdict {
 }
 
 /**
+ * Whether a verdict is kept as the riven's decision. Nothing to do (no open auction fits) is kept
+ * only from a read of the auctions made after the trade (`readAt`, `tradeAt` in unix ms; `readAt`
+ * null when no read is known): an older list can lack an auction put up since, so the riven stays
+ * due and is decided at a later read. A telling or a close is kept from any read (on an older list
+ * a close has already become a telling, `unreadVerdict`).
+ */
+export function verdictKept(v: RivenVerdict, readAt: number | null, tradeAt: number): boolean {
+  return v.do !== "nothing" || (readAt != null && readAt >= tradeAt);
+}
+
+/**
  * The trades with a riven given that isn't decided yet, by its trade's key (`key`: tradeKey with
  * the log's own session start, the same on every read of the same log). A log read again, or read
  * anew after a restart, brings the same keys, so a trade decided once is never due again.

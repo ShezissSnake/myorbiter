@@ -7,7 +7,7 @@
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
   import { REP_STRIP_WINDOW, offerTime, recentTrade, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
-  import { keepRivenSold, RIVEN_READS, rivenDecided, rivenTradesDue, rivenVerdict, setRivenSold, unreadVerdict, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
+  import { keepRivenSold, RIVEN_READS, rivenDecided, rivenTradesDue, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1658,13 +1658,15 @@
   // restarts), so a log read again or a restart never closes twice. The player's auctions are read
   // for a riven given, at most RIVEN_READS times a minute apart while the read fails (counted in
   // this run only); after that it is decided by the auctions already known (the reads the pages
-  // make anyway) and not closed.
+  // make anyway) and not closed, and no fitting auction there is taken as final only when that
+  // read came after the trade.
   $effect(() => {
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
     const meta = rivens.meta;
     // A minute after a failed read of the auctions, this runs again even with the log unchanged;
-    // and after any read of the auctions, for rivens whose reads ran out with none known yet.
+    // and after any read of the auctions, for rivens whose reads ran out with none known yet, or
+    // only an older one.
     void rivenRetry;
     void rivens.mineAt;
     if (!trades.length || !mkt.linked) return;
@@ -1674,11 +1676,17 @@
       // doesn't make a trade that was already in the log recent.
       const firstRead = !rivenSessionsRead.has(session ?? "?");
       rivenSessionsRead.add(session ?? "?");
-      for (const t of trades) if (!rivenFirstSeen.has(tradeKey(session, t))) rivenFirstSeen.set(tradeKey(session, t), firstRead);
+      for (const t of trades) {
+        if (rivenFirstSeen.has(tradeKey(session, t))) continue;
+        rivenFirstSeen.set(tradeKey(session, t), firstRead);
+        rivenSeenAt.set(tradeKey(session, t), Date.now());
+      }
       const due = rivenTradesDue(settings.market.rivenSold, trades, (t) => tradeKey(session, t)).filter((t) => !rivenHandling.has(tradeKey(session, t)));
       if (!due.length) return;
-      // warframe.market's weapon names, to tell which auctions fit: this effect runs again when they come.
-      if (!meta) return void rivens.loadMeta();
+      // warframe.market's weapon names, to tell which auctions fit. A trade doesn't ask for them:
+      // they come when Orders, Rivens or Builds is opened or a riven cycle is shown, and this
+      // effect runs again then.
+      if (!meta) return;
       if (Date.now() < rivenReadAgainAt) return;
       for (const t of due) rivenHandling.add(tradeKey(session, t));
       void decideRivens(due, session, meta);
@@ -1690,6 +1698,10 @@
   const rivenSessionsRead = new Set<number | string>();
   /** Each trade's key, and whether it was first seen on its session's first read (then, with no time, it isn't recent). */
   const rivenFirstSeen = new Map<string, boolean>();
+  /** When each trade was first seen (unix ms): the time of a trade with none in the log. */
+  const rivenSeenAt = new Map<string, number>();
+  /** Rivens left due because the auctions last read are older than their trade: logged once each. */
+  const rivenWaitLogged = new Set<string>();
   /** Reads of the auctions made for each trade (at most RIVEN_READS). */
   const rivenReads = new Map<string, number>();
   /** After a read of the auctions failed: not before this time again (unix ms). */
@@ -1722,9 +1734,12 @@
       // The trades with reads left: the auctions are read for them now.
       const readFor = trades.filter((t) => (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS);
       let fresh: MyAuction[] | null = null;
+      // When the read made here was sent: after every trade it decides, as it is sent once they are seen.
+      let freshAt = 0;
       if (readFor.length) {
         for (const t of readFor) rivenReads.set(keyOf(t), (rivenReads.get(keyOf(t)) ?? 0) + 1);
         // The player's auctions as they are now: the decision never goes by an older list.
+        freshAt = Date.now();
         fresh = await rivens.readNow();
         if (!fresh) {
           const again = readFor.some((t) => (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS);
@@ -1740,6 +1755,7 @@
       // yet, the rivens wait for one (this effect runs again after each read).
       const auctions = fresh ?? (rivens.mineAt != null ? rivens.mine : null);
       if (!auctions) return;
+      const readAt = fresh ? freshAt : rivens.mineAt;
       const held = heldRivens(meta);
       for (const t of trades) {
         const key = keyOf(t);
@@ -1750,6 +1766,15 @@
           const v = unreadVerdict(rivenVerdict({ trade: t, item, autoTrades: settings.market.autoTrades, linked: mkt.linked, recent, auctions, meta, held }), fresh != null);
           const base = { trade: key, riven: item.name, rank: item.rank, at: t.at ? t.at * 1000 : Date.now(), partner: t.partner };
           if (v.do === "nothing") {
+            // No auction fits in a list older than the trade: one may have been put up since, so
+            // it stays due and is decided at a later read (this effect runs again after each).
+            const tradeAt = t.at ? t.at * 1000 : (rivenSeenAt.get(key) ?? Date.now());
+            if (!verdictKept(v, readAt, tradeAt)) {
+              const wait = `${key}|${item.name}`;
+              if (!rivenWaitLogged.has(wait)) logLine("info", "rivens", rivenLog(key, "no auction fits it in the auctions last read, which is older than the trade; decided at a later read."));
+              rivenWaitLogged.add(wait);
+              continue;
+            }
             recordRiven({ ...base, auctions: [], state: "none" }, session);
             continue;
           }

@@ -5,7 +5,7 @@ import "./support/runes";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { market } from "../src/lib/backend";
-import { auctionFits, heldLike, keepRivenSold, RIVEN_READS, rivenDecided, rivenTradesDue, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, unreadVerdict, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
+import { auctionFits, heldLike, keepRivenSold, RIVEN_READS, rivenDecided, rivenTradesDue, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
 import { parseMyAuctions, type MyAuction, type RivenMeta } from "../src/lib/core/rivens";
 import { markTrades, salesFromTrade, tradeKey, type TradeMarking } from "../src/lib/core/trades";
 import { indexItems, type MarketItem, type MyOrder } from "../src/lib/core/market";
@@ -284,6 +284,23 @@ test("a failed read of the auctions is tried again a bounded number of times, an
   // Other verdicts are as they were.
   const off = rivenVerdict({ ...f, autoTrades: false });
   assert.deepEqual(unreadVerdict(off, false), off);
+});
+
+test("no fitting auction is final only from a read made after the trade", () => {
+  const f = facts();
+  const tradeAt = AT * 1000;
+  // No auction fits: nothing to do, kept only when the list was read after the trade.
+  const none = rivenVerdict({ ...f, auctions: [] });
+  assert.equal(none.do, "nothing");
+  assert.equal(verdictKept(none, tradeAt + 1, tradeAt), true, "a read after the trade");
+  assert.equal(verdictKept(none, tradeAt, tradeAt), true, "a read at the trade's time");
+  assert.equal(verdictKept(none, tradeAt - 1, tradeAt), false, "an older list: it stays due");
+  assert.equal(verdictKept(none, null, tradeAt), false, "no read known");
+  // A telling is kept from any list, and a close made on an older list is a telling by then.
+  const told = unreadVerdict(rivenVerdict(f), false);
+  assert.equal(told.do, "tell");
+  assert.equal(verdictKept(told, tradeAt - 60_000, tradeAt), true);
+  assert.equal(verdictKept(rivenVerdict(f), tradeAt + 1, tradeAt), true);
 });
 
 test("case 6: the telling shows while the auction is open, and not once it is closed or put away", () => {
