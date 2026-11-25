@@ -24,6 +24,8 @@ export interface TradeSale {
   platinumEach: number;
   /** Your listing it sold from, if you had one. */
   order: MyOrder | null;
+  /** A riven (the game's `RIVEN RANK` tag): never a listing's; its auction is decided apart (core/rivenSold.ts). */
+  riven?: boolean;
 }
 
 /** The market's imprints and the inventory's imprint rows, for `imprintSaleName`. */
@@ -51,12 +53,13 @@ export function salesFromTrade(t: Trade, orders: MyOrder[], index: MarketIndex, 
     const imprint = /^\s*imprint of\s/i.test(split.name) ? imprintSale(split.name, imprintNaming(index, imprints)) : null;
     const name = imprint?.item ?? split.name;
     const { subtype } = split;
-    const it = findItem(index, name, null);
+    // A riven is no market item: never matched to a listing, whatever its name.
+    const it = x.riven ? null : findItem(index, name, null);
     // What one copy went for is known only when the trade was this item alone: it picks between
     // several listings of it at different prices (listingFor).
     const paidEach = folded.length === 1 ? t.platinum_received / x.count : null;
     const order = it && (!imprint || imprint.by === "inventory") ? listingFor(it, x.rank, subtype, orders, paidEach) : null;
-    return { name: it?.name ?? x.name, rank: x.rank, count: x.count, subtype, platinumEach: 0, order };
+    return { name: it?.name ?? x.name, rank: x.rank, count: x.count, subtype, platinumEach: 0, order, ...(x.riven ? { riven: true } : {}) };
   });
   const weights = sales.every((s) => s.order) ? sales.map((s) => s.order!.platinum * s.count) : sales.map((s) => s.count);
   const total = weights.reduce((a, b) => a + b, 0) || 1;
@@ -259,7 +262,7 @@ export async function markTrades(trades: Trade[], session: number | null, io: Tr
               ? { at, item: s.name, rank: s.rank, quantity: placed.left, platinum: s.platinumEach, trade: key }
               : tradeLineSale({ at, name: s.name, rank: s.rank, subtype: s.subtype, left: placed.left, platinumEach: s.platinumEach, key, order: null, marked: 0, now: io.now() });
             io.setSales([sale, ...io.sales()].slice(0, 2000));
-            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: "not listed" });
+            lines.push({ name: s.name, rank: s.rank, count: s.count, outcome: s.riven ? "riven" : "not listed" });
             if (s.order) toMark.push({ line: lines.length - 1, s, left: placed.left, at, logged: io.sales()[0] });
             else done++;
           }

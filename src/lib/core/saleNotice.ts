@@ -4,7 +4,7 @@
 import type { Trade, TradeItem } from "./types";
 
 /** What became of one item of a sale on warframe.market, when MyOrbiter marked sales from the game. */
-export type SaleOutcome = "marked" | "still listed" | "not listed" | "hand";
+export type SaleOutcome = "marked" | "still listed" | "not listed" | "hand" | "riven";
 
 /** One line of a sale: an item (a whole set when the trade was one), with what became of its listing. */
 export interface SoldLine extends TradeItem {
@@ -36,12 +36,14 @@ const outcomeLine = (o: SaleOutcome, many: boolean) =>
     "still listed": `Logged, but still listed on warframe.market: ${many ? "they" : "it"} couldn't be marked sold (see Orders).`,
     "not listed": `Logged; ${many ? "they weren't" : "it wasn't"} listed on warframe.market.`,
     hand: "Already in your sales log.",
+    riven: `Logged. A riven's auction on warframe.market is looked at on its own: if one fits, a notification says what became of it.`,
   })[o];
 const OUTCOME_WORD: Record<SaleOutcome, string> = {
   marked: "marked sold",
   "still listed": "still listed",
   "not listed": "not listed",
   hand: "logged by hand",
+  riven: "riven, its auction looked at on its own",
 };
 
 /**

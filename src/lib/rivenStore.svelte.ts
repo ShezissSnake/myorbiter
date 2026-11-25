@@ -337,6 +337,37 @@ class Rivens {
     await market.closeAuction(a.id);
     await this.loadMine();
   }
+  /**
+   * Reads your auctions now, for a decision that can't go by an older list (a riven sold in game):
+   * that read's own answer, or null if it failed. Kept as `mine` as any read is (`readMine`).
+   */
+  readNow(): Promise<MyAuction[] | null> {
+    return this.readMine(false);
+  }
+  /**
+   * Closes auction `id` for a riven sold in game, only if a read made now still has it open and
+   * `still` (core/rivenSold.ts, stillToClose) still finds it on that read. "closed": closed now,
+   * or found closed already by a read after a close that failed; "gone": not open any more, so
+   * nothing was sent; "changed": open but no longer the riven sold, nothing sent; "unread": the
+   * read failed, nothing sent. A close that fails and is still open after it throws its reason.
+   */
+  async closeIfStill(id: string, still: (auctions: MyAuction[]) => MyAuction | null): Promise<"closed" | "gone" | "changed" | "unread"> {
+    const list = await this.readMine(false);
+    if (!list) return "unread";
+    if (!list.some((a) => a.id === id && !a.closed)) return "gone";
+    const a = still(list);
+    if (!a || a.id !== id) return "changed";
+    try {
+      await market.closeAuction(id);
+    } catch (e) {
+      // No answer in time doesn't mean it wasn't closed: a read that no longer has it open says so.
+      const look = await this.readMine(false);
+      if (look && !look.some((x) => x.id === id && !x.closed)) return "closed";
+      throw e;
+    }
+    await this.loadMine();
+    return "closed";
+  }
 
   /** Stores a result; ones older than three times the cache life go, so hours of browsing don't pile up. */
   private keep(key: string, entry: { at: number; auctions: RivenAuction[] } | { at: number; error: string }) {
