@@ -25,7 +25,7 @@
   import Opening from "./ui/Opening.svelte";
   import { updates } from "./updates.svelte";
   import { ABOUT_FILES, ABOUT_LICENCE, ABOUT_UNOFFICIAL, ABOUT_WARRANTY } from "./core/about";
-  import { CHANNELS, CHANNEL_LABEL, REPO_URL, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import { CHANNELS, CHANNEL_LABEL, REPO_URL, followWords, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
   import TimingSetting from "./ui/TimingSetting.svelte";
   import { MAX_HIDE_MINUTES } from "./core/lastCopy";
@@ -363,6 +363,12 @@
     <Seg label="Channel" value={settings.updates.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
     <p class="hint">{CHANNELS.find((c) => c.v === settings.updates.channel)?.title}. Switching to a more stable channel never steps back by itself: if its build is older than this one, MyOrbiter offers it here and installs it only when you click.</p>
     {#if updates.unsettled}<p class="hint" data-field="settings.updates-unsettled">{updates.unsettled}</p>{/if}
+    {#if info && !updates.unsettled && followWords(info.version, settings.updates)}<p class="hint" data-field="settings.updates-follows">{followWords(info.version, settings.updates)}</p>{/if}
+    {#if updates.followable && settings.updates.picked}
+      <Switch name="settings.updates-follow" label="Follow the most stable build" bind:on={() => settings.updates.follows, (v) => (v ? updates.follow() : updates.unfollow())}>
+        MyOrbiter asks the channels, most stable first, and moves to the first whose build is this one or newer; from then on it moves by itself only to a more stable channel, once that one has this build or a newer one. Never to an older build. Choosing a channel above turns it off.
+      </Switch>
+    {/if}
     <div class="row">
       <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" disabled={!checks} sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={checks ? `${updates.unsettled ? "Ask the channels now which one to start on, and look for a newer build there" : `Look for a newer build on ${CHANNEL_LABEL[settings.updates.channel]} now`}. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.` : (info ? (installNote(info.install) ?? "") : "")} onclick={() => updates.checkNow()} />
       <button type="button" class="link out" title="Open this build's release page in your browser: what changed, and its downloads" aria-busy={links.isOpening(releasePage(info?.version ?? "0.1.0"))} onclick={() => openUrl(releasePage(info?.version ?? "0.1.0"))}><Opening url={releasePage(info?.version ?? "0.1.0")}>Release notes<Icon name="external" size={11} /></Opening></button>
@@ -372,8 +378,8 @@
       <div class="offer empty" data-field="settings.updates-empty" transition:reveal>
         <div class="offer-in">
           {#if empty.to}
-            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates; MyOrbiter doesn't switch by itself, and you can come back to {CHANNEL_LABEL[settings.updates.channel]} once it has a build.</p>
-            <div class="row"><button type="button" class="stamp" data-field="settings.updates-switch" title={`Get updates from ${CHANNEL_LABEL[empty.to.channel]} from now on: MyOrbiter checks it at once, and installs nothing without your click`} onclick={() => empty.to && updates.setChannel(empty.to.channel)}>Switch to {CHANNEL_LABEL[empty.to.channel]}</button></div>
+            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates: MyOrbiter then follows the most stable channel with a build, so it comes back to {CHANNEL_LABEL[settings.updates.channel]} by itself once {CHANNEL_LABEL[settings.updates.channel]} has this build or a newer one. A channel you choose above never moves by itself.</p>
+            <div class="row"><button type="button" class="stamp" data-field="settings.updates-switch" title={`Get updates from ${CHANNEL_LABEL[empty.to.channel]} from now on, following the most stable channel with a build: MyOrbiter checks it at once, and installs nothing without your click`} onclick={() => empty.to && updates.switchTo(empty.to.channel)}>Switch to {CHANNEL_LABEL[empty.to.channel]}</button></div>
           {:else}
             <p class="small">{empty.words}, and no other channel answered with one just now. MyOrbiter keeps looking every 6 hours.</p>
           {/if}

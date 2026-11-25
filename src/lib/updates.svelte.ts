@@ -157,7 +157,7 @@ export class Updates {
     return { channel: this.checked, version: r.version, notes: r.notes, older: r.state === "older" };
   }
 
-  /** The notice in the corner: a newer build this copy can install, unless put off with Later. */
+  /** The banner's newer build when this copy can install it (Update and restart), unless put off with Later. */
   get notice(): Offer | null {
     const o = this.offer;
     const u = this.get?.();
@@ -373,6 +373,21 @@ export class Updates {
     return unsettledWords(u.channel, this.outcome?.kind === "failed", settingsUnreadable());
   }
 
+  /**
+   * Whether this copy can follow the most stable build: a build that checks, with a build number
+   * (not a local build). What the Follow switch is shown for.
+   */
+  get followable(): boolean {
+    const i = this.info;
+    return !!i && settlesByAsking(i.version, installChecks(i.install));
+  }
+
+  /** Something to do about updates, put off with Later or not: the dot by the version. */
+  get waiting(): boolean {
+    const o = this.offer;
+    return (!!o && !o.older && !!this.info && installChecks(this.info.install)) || this.switchOffer != null;
+  }
+
   /** The empty channel's line in Settings, Updates, and the switch it offers; null otherwise. */
   get empty(): { words: string; to: { channel: Channel; version: string } | null } | null {
     const o = this.outcome;
@@ -480,7 +495,7 @@ export class Updates {
     return s && noticeShows(s.version, u.later) ? { kind: "switch", ...s } : null;
   }
 
-  /** Later: this version's notice goes; another version, newer or lower, shows (`noticeShows`). */
+  /** Later: this version's banner goes; another version, newer or lower, shows (`noticeShows`). */
   later() {
     const b = this.banner;
     const o = b?.kind === "update" ? b.offer : b?.kind === "switch" ? b : this.offer;
@@ -525,6 +540,12 @@ export class Updates {
 }
 
 export const updates = new Updates();
+
+/**
+ * The version's panel (UpdatesPanel): open from the version at the top of the sidebar, or from the
+ * banner's Details. One for the whole window.
+ */
+export const updatesPanel = $state({ open: false });
 
 /** `f` once the page is quiet (`whenIdle`), or after `ms` whatever happens: never held back for good. */
 function soonIdle(f: () => void, ms: number): () => void {
