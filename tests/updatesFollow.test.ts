@@ -8,7 +8,7 @@ import "./support/runes";
 import { test, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { updater, type UpdateCheck, type UpdateInfo } from "../src/lib/backend";
-import { channelWord, defaultUpdates, followOrder, followStep, followWhy, followWords, newInstallStep, newInstallUpdates, sanitizeUpdates, switchOffer, type Channel, type UpdateSettings } from "../src/lib/core/updates";
+import { channelWord, defaultUpdates, followOrder, moreStable, switchAfter, followStep, followWhy, followWords, newInstallStep, newInstallUpdates, sanitizeUpdates, switchOffer, type Channel, type UpdateSettings } from "../src/lib/core/updates";
 
 const { Updates } = await import("../src/lib/updates.svelte");
 
@@ -63,11 +63,26 @@ const bannerOf = (u: InstanceType<typeof Updates>) => u.banner;
 
 // ---- the rule, without the app
 
-test("following asks only the more stable channels, most stable first; Follow asks every channel", () => {
+test("following asks only the more stable channels, most stable first, the check after Follow included", () => {
   assert.deepEqual(followOrder("stable"), []);
   assert.deepEqual(followOrder("beta"), ["stable"]);
   assert.deepEqual(followOrder("experimental"), ["stable", "beta"]);
-  for (const c of ["stable", "beta", "experimental"] as const) assert.deepEqual(followOrder(c, true), ["stable", "beta", "experimental"]);
+  assert.equal(followOrder.length, 1, "no way to ask for the less stable channels");
+  assert.ok(moreStable("stable", "beta") && moreStable("beta", "experimental") && !moreStable("beta", "stable") && !moreStable("beta", "beta"));
+});
+
+test("Switch to's words promise a way back only towards a more stable channel", () => {
+  // Stable empty, Beta offered: following leads back up.
+  assert.match(switchAfter("stable", "beta", true), /^MyOrbiter still follows the most stable build: it moves by itself to a more stable channel, Stable included/);
+  assert.match(switchAfter("stable", "beta", false), /^Beta then stays until you choose again, or turn on Follow the most stable build: it moves by itself to a more stable channel, Stable included/);
+  // Experimental empty (no build for this system), Beta offered: following never goes back down.
+  for (const follows of [true, false]) {
+    const w = switchAfter("experimental", "beta", follows);
+    assert.match(w, /never moves to a less stable channel/, w);
+    assert.doesNotMatch(w, /comes back to Experimental by itself once|moves by itself to a more stable channel/, w);
+  }
+  // Settings' nearest may be a more stable channel with an older build: the same, no promise back.
+  assert.match(switchAfter("beta", "stable", true), /doesn't come back to Beta by itself/);
 });
 
 test("following moves only to a more stable channel whose build is the running one or newer", () => {
@@ -87,11 +102,8 @@ test("following moves only to a more stable channel whose build is the running o
   // Never a less stable channel by itself: nothing less stable is ever in the order.
   assert.equal(followStep(RUN, followOrder("stable"), {}), null, "Stable never moves by itself");
   for (const c of ["stable", "beta", "experimental"] as const) {
-    for (const to of followOrder(c)) assert.ok(followOrder("stable", true).indexOf(to) < followOrder("stable", true).indexOf(c), `${to} is more stable than ${c}`);
+    for (const to of followOrder(c)) assert.ok(moreStable(to, c), `${to} is more stable than ${c}`);
   }
-  // Follow asked for by the player: every channel, so a less stable one may be the answer.
-  assert.equal(followStep(RUN, followOrder("stable", true), { stable: "empty", beta: v(RUN) }), "beta");
-  assert.equal(followStep(RUN, followOrder("stable", true), { stable: "empty", beta: "empty", experimental: v("0.2.140") }), null, "nothing with this build or newer: stays");
   assert.equal(followWhy(RUN, "beta", "stable", v(RUN)), "from Beta to Stable, the most stable channel with this build or a newer one (Stable has this build (0.2.141))");
   assert.equal(followWhy(RUN, "beta", "stable", v("0.2.150")), "from Beta to Stable, the most stable channel with this build or a newer one (Stable has 0.2.150, newer than this build (0.2.141))");
 });
@@ -283,7 +295,7 @@ test("Later puts the switch away for that build; a newer one on the nearest chan
   assert.deepEqual(u.banner, { kind: "switch", from: "stable", to: "beta", version: "0.2.150" });
 });
 
-test("a pick by hand ends the following; Follow brings it back and asks every channel", async (t) => {
+test("a pick by hand ends the following; Follow brings it back, reading what a following check reads", async (t) => {
   const { u, settings, calls, answers } = setup(t, { channel: "beta", follows: true }, [EMPTY, current()]);
   await started(t, u, settings);
   u.setChannel("beta");
@@ -294,43 +306,98 @@ test("a pick by hand ends the following; Follow brings it back and asks every ch
   u.follow();
   await micro();
   assert.equal(settings.follows, true);
-  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)"], "every channel until one has this build");
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"], "the more stable channel, then its own, nothing less stable");
   assert.equal(settings.channel, "beta");
 });
 
-test("Follow from an empty Stable kept from before: Beta, the most stable channel with this build", async (t) => {
-  const { u, settings, calls, answers } = setup(t, { channel: "stable" }, [EMPTY, current()]);
+test("Follow on an empty Stable reads nothing less stable; Switch to, then following, brings it back to Stable", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "stable", picked: true, follows: false }, [EMPTY, current()]);
   await started(t, u, settings);
   calls.length = 0;
   answers.push(EMPTY, current());
   u.follow();
   await micro();
-  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)"]);
-  assert.equal(settings.channel, "beta");
+  assert.deepEqual(calls, ["stable", "beta"], "its own channel, then the nearest with a build for the offer, as on main");
+  assert.equal(settings.channel, "stable", "never to a less stable channel by itself");
   assert.equal(settings.follows, true);
+  assert.deepEqual(u.banner, { kind: "switch", from: "stable", to: "beta", version: RUN });
+  // The way on: Switch to Beta keeps it following.
+  answers.push(EMPTY, current());
+  u.switchTo("beta");
+  await micro();
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.follows, true, "Switch to keeps it following");
+  assert.deepEqual(calls.slice(2), ["stable (GitHub alone)", "beta"]);
+  // Stable gets this build: back there by itself.
+  calls.length = 0;
+  answers.push(current());
+  await u.checkNow();
+  assert.deepEqual(calls, ["stable (GitHub alone)"]);
+  assert.equal(settings.channel, "stable");
 });
 
-test("Follow with no channel counting, from the middle: its own channel is read again, last, for the build the app keeps", async (t) => {
+test("Follow with no more stable channel counting: its own channel is read last, for the build the app keeps", async (t) => {
   const { u, settings, calls, answers } = setup(t, { channel: "beta" }, [older("0.2.130")]);
   await started(t, u, settings);
   calls.length = 0;
-  answers.push(older("0.2.120"), older("0.2.130"), older("0.2.135"), older("0.2.130"));
+  answers.push(older("0.2.120"), older("0.2.130"));
   u.follow();
   await micro();
-  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)", "experimental (GitHub alone)", "beta"]);
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"]);
   assert.equal(settings.channel, "beta");
   assert.equal(u.offer?.channel, "beta");
 });
 
-test("Follow when no channel has this build or a newer one: the channel stays", async (t) => {
+test("Follow from Experimental when no more stable channel has this build or a newer one: the channel stays", async (t) => {
   const { u, settings, calls, answers } = setup(t, { channel: "experimental" }, [current("0.2.141")], "0.2.141");
   await started(t, u, settings);
   calls.length = 0;
   answers.push(older("0.2.120"), older("0.2.130"), current());
   u.follow();
   await micro();
-  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)", "experimental (GitHub alone)"]);
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)", "experimental"]);
   assert.equal(settings.channel, "experimental");
+});
+
+test("Follow turned on while an update downloads is kept: the first check after the install follows", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta" }, [newer("0.2.150")]);
+  await started(t, u, settings);
+  let fail!: (e: Error) => void;
+  updater.install = () => new Promise<void>((_, no) => (fail = no));
+  const installing = u.install();
+  await micro();
+  assert.equal(u.installJob.working, true);
+  calls.length = 0;
+  answers.push(newer("0.2.150"));
+  u.follow();
+  await micro();
+  assert.equal(settings.follows, true, "Follow stays on");
+  assert.deepEqual(calls, ["beta"], "no following read while the install runs");
+  fail(new Error("the download stopped"));
+  await installing.catch(() => {});
+  await micro();
+  calls.length = 0;
+  answers.push(current("0.2.150"));
+  await u.checkNow();
+  assert.deepEqual(calls, ["stable (GitHub alone)"], "the first check after it follows");
+  assert.equal(settings.channel, "stable");
+});
+
+test("Follow turned on while a check that didn't follow runs: that check is made again, following", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta" }, [newer("0.2.150")]);
+  await started(t, u, settings);
+  let beta!: (a: UpdateCheck) => void;
+  answers.push(new Promise<UpdateCheck>((r) => (beta = r)), current());
+  calls.length = 0;
+  const check = u.checkNow();
+  await micro();
+  u.follow();
+  await micro();
+  beta(newer("0.2.150"));
+  await check;
+  await micro();
+  assert.deepEqual(calls, ["beta", "stable (GitHub alone)"]);
+  assert.equal(settings.channel, "stable");
 });
 
 test("a pick by hand while the more stable channel is asked: the answer is dropped and the pick is asked", async (t) => {

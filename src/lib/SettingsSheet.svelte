@@ -25,7 +25,7 @@
   import Opening from "./ui/Opening.svelte";
   import { updates } from "./updates.svelte";
   import { ABOUT_FILES, ABOUT_LICENCE, ABOUT_UNOFFICIAL, ABOUT_WARRANTY } from "./core/about";
-  import { CHANNELS, CHANNEL_LABEL, REPO_URL, followWords, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
+  import { CHANNELS, CHANNEL_LABEL, REPO_URL, followWords, switchAfter, installChecks, installInstalls, installNote, noteLines, releasePage, versionLine } from "./core/updates";
   import RenderingSetting from "./ui/RenderingSetting.svelte";
   import TimingSetting from "./ui/TimingSetting.svelte";
   import { MAX_HIDE_MINUTES } from "./core/lastCopy";
@@ -366,7 +366,7 @@
     {#if info && !updates.unsettled && followWords(info.version, settings.updates)}<p class="hint" data-field="settings.updates-follows">{followWords(info.version, settings.updates)}</p>{/if}
     {#if updates.followable && settings.updates.picked}
       <Switch name="settings.updates-follow" label="Follow the most stable build" bind:on={() => settings.updates.follows, (v) => (v ? updates.follow() : updates.unfollow())}>
-        The most stable channel whose build is this one or newer. MyOrbiter moves by itself only to a more stable channel, never to an older build. Choosing a channel above turns it off.
+        MyOrbiter moves by itself only to a more stable channel, once that one has this build or a newer one, and never to an older build. Choosing a channel above turns it off.
       </Switch>
     {/if}
     <div class="row">
@@ -378,7 +378,7 @@
       <div class="offer empty" data-field="settings.updates-empty" transition:reveal>
         <div class="offer-in">
           {#if empty.to}
-            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates. {#if updates.follows}Following the most stable build, MyOrbiter comes back to {CHANNEL_LABEL[settings.updates.channel]} once it has this build or a newer one.{:else}{CHANNEL_LABEL[empty.to.channel]} then stays until you choose again, or turn on Follow the most stable build.{/if}</p>
+            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates. {switchAfter(settings.updates.channel, empty.to.channel, updates.follows)}.</p>
             <div class="row"><button type="button" class="stamp" data-field="settings.updates-switch" title={`Get updates from ${CHANNEL_LABEL[empty.to.channel]} from now on: MyOrbiter checks it at once, and installs nothing without your click`} onclick={() => empty.to && updates.switchTo(empty.to.channel)}>Switch to {CHANNEL_LABEL[empty.to.channel]}</button></div>
           {:else}
             <p class="small">{empty.words}, and no other channel answered with one just now. MyOrbiter keeps looking every 6 hours.</p>

@@ -95,8 +95,6 @@ export class Updates {
   private ticker: ReturnType<typeof setInterval> | undefined;
   private cancelStart: (() => void) | null = null;
   private running: Promise<string> | null = null;
-  /** Follow was asked for (`follow`): the next check asks every channel, most stable first. */
-  private followAll = false;
   private onVisible = () => {
     if (typeof document === "undefined" || document.visibilityState === "visible") this.due();
   };
@@ -211,12 +209,12 @@ export class Updates {
       const asking = { channel };
       const settling = !u.picked && settlesByAsking(this.info.version, true);
       // A channel that follows the most stable build (not one picked by hand): the more stable
-      // channels are asked first, and the install moves to the first whose build counts. Every
-      // channel when the player has just asked to follow (`follow`). Not while an update downloads
-      // or installs: the channel it restarts on stays the one it came from.
-      const following = !settling && u.picked && u.follows && settlesByAsking(this.info.version, true) && !this.installJob.working;
-      const all = following && this.followAll;
-      this.followAll = false;
+      // channels are asked first, and the install moves to the first whose build counts. Not while
+      // an update downloads or installs: the channel it restarts on stays the one it came from.
+      const following = !settling && this.followsNow(u);
+      // Follow turned on while a check that didn't follow ran (or an install ended meanwhile): that
+      // check is made again, following.
+      const followLate = () => !settling && !following && this.followsNow(this.get?.());
       let settled = false;
       let r: UpdateCheck;
       try {
@@ -227,7 +225,7 @@ export class Updates {
           channel = s;
           settled = true;
         } else if (following) {
-          const s = await this.followed(u, this.info.version, known, asking, all);
+          const s = await this.followed(u, this.info.version, known, asking);
           // A channel picked by hand meanwhile: what was heard is dropped, and that channel is asked.
           if (s == null) continue;
           channel = s;
@@ -237,8 +235,8 @@ export class Updates {
       } catch (e) {
         // A switch while it ran, or a pick while a new install was settling or a channel was
         // following: this failure was for what was shown before. Ask the channel chosen now.
-        // A Follow asked for while it ran: asked again, as Follow asks.
-        if (this.get?.().channel !== channel || (settling && !settled && this.get?.().picked) || (following && !this.get?.().follows) || this.followAll) continue;
+        // Follow turned on while it ran: asked again, following.
+        if (this.get?.().channel !== channel || (settling && !settled && this.get?.().picked) || (following && !this.get?.().follows) || followLate()) continue;
         const reason = plain(e);
         const at = Date.now();
         u.lastCheck = at;
@@ -247,7 +245,7 @@ export class Updates {
         if (e instanceof Late) logLine("warn", "updates", `${asking.channel} check: ${reason}`);
         throw new JobError("Couldn't check", reason);
       }
-      if (this.get?.().channel !== channel || this.followAll) continue;
+      if (this.get?.().channel !== channel || followLate()) continue;
       const at = Date.now();
       u.lastCheck = at;
       this.result = r;
@@ -332,10 +330,10 @@ export class Updates {
   }
 
   /**
-   * A following channel's check, before its own: the channels more stable than it (every channel
-   * with `all`, when the player has just asked to follow) are asked, most stable first, each from
-   * GitHub alone as a new install's are (`askFirst`), stopping at the first whose build is the
-   * running one or newer (`followStep`); the install moves there and says so in the log. The channel
+   * A following channel's check, before its own: the channels more stable than it are asked, most
+   * stable first, each from GitHub alone as a new install's are (`askFirst`), stopping at the first
+   * whose build is the running one or newer (`followStep`); the install moves there and says so in
+   * the log. The channel
    * to ask for the check; the one it was on when none counts. Null when the player picked a channel
    * by hand meanwhile (or switched): what was heard is dropped. A read that fails moves nothing: it
    * is logged, and the check goes on with the channel's own read as before (both addresses, the
@@ -343,18 +341,17 @@ export class Updates {
    *
    * The channel the check ends on is asked last, so the app's kept update (updates.rs `Pending`, one
    * for the last check) is that channel's: a move reuses its answer from `known` (it was the last
-   * read), and staying keeps its own answer only if that was the last read; otherwise it is read
-   * again, last.
+   * read), and staying reads its own channel again, after the more stable ones.
    */
-  private async followed(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }, all: boolean): Promise<Channel | null> {
+  private async followed(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }): Promise<Channel | null> {
     const from = u.channel;
-    const order = followOrder(from, all);
+    const order = followOrder(from);
     const answers: Partial<Record<Channel, ChannelAnswer>> = {};
     for (;;) {
       const step = followStep(version, order, answers);
       if (step == null || step === from) {
-        // Its own answer stands only if it was the last read (Follow, which asks it too, ending on it).
-        if (asking.channel !== from) delete known[from];
+        // Its own channel is read after these, last.
+        delete known[from];
         return from;
       }
       if (typeof step === "object") {
@@ -396,6 +393,14 @@ export class Updates {
   get follows(): boolean {
     const u = this.get?.();
     return !!u && u.picked && u.follows;
+  }
+
+  /**
+   * Whether a check now follows the most stable build: a channel MyOrbiter chose or the player
+   * asked to follow, on a build with a build number, and no update downloading or installing.
+   */
+  private followsNow(u: UpdateSettings | undefined): boolean {
+    return !!u && !!this.info && u.picked && u.follows && settlesByAsking(this.info.version, true) && !this.installJob.working;
   }
 
   /**
@@ -455,16 +460,18 @@ export class Updates {
 
   /**
    * Follow the most stable build, on the player's word (the way back after a pick by hand): the
-   * channel is no longer kept as picked, and a check asks every channel, most stable first, and
-   * moves to the first whose build is this one or newer (`followed` with `all`); if none has one,
-   * the channel stays. From then on it moves by itself only to a more stable channel.
+   * channel is no longer kept as picked, and a check at once reads what any following check reads,
+   * the more stable channels and then its own, and moves to the most stable whose build is this
+   * one or newer (`followed`). Never to a less stable channel: on a channel with no build, the
+   * switch it offers (`switchTo`) does the rest, and following then brings it back once the more
+   * stable channel has this build or a newer one. Turned on while an update downloads, it is kept,
+   * and the first check after the install follows.
    */
   follow() {
     const u = this.get?.();
     if (!u || !this.info || !settlesByAsking(this.info.version, installChecks(this.info.install))) return;
     u.picked = true;
     u.follows = true;
-    this.followAll = true;
     void this.checkNow();
   }
 
@@ -477,9 +484,10 @@ export class Updates {
   /**
    * An empty channel's switch: to `c`, the nearest channel whose build is this one or newer
    * (`switchOffer`). It keeps how the channel was kept: an install that follows the most stable
-   * build still follows (so it comes back to the more stable channel by itself once that one has
-   * this build or a newer one); a channel picked by hand, or kept from settings saved before, stays
-   * picked, and `c` stays until the player chooses again or turns Follow on. Asked at once.
+   * build still follows (so, when the empty channel is the more stable one, it comes back to it by
+   * itself once it has this build or a newer one); a channel picked by hand, or kept from settings
+   * saved before, stays picked, and `c` stays until the player chooses again or turns Follow on.
+   * Asked at once.
    */
   switchTo(c: Channel) {
     const u = this.get?.();

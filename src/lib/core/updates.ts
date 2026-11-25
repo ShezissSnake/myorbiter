@@ -247,12 +247,30 @@ export function newInstallWhy(running: string, channel: Channel, stable: Channel
 
 /**
  * The channels a following install asks before its own, most stable first: those more stable than
- * `current` (a check of an install that follows); with `all`, every channel (the player has just
- * asked to follow, so the most stable channel with a build may also be a less stable one than now).
+ * `current`, and nothing less stable, at every check that follows, the first after Follow is turned
+ * on included.
  */
-export function followOrder(current: Channel, all = false): Channel[] {
+export function followOrder(current: Channel): Channel[] {
   const order = CHANNELS.map((c) => c.v);
-  return all ? order : order.slice(0, order.indexOf(current));
+  return order.slice(0, order.indexOf(current));
+}
+
+/**
+ * What an empty channel's Switch to leaves behind, where it is offered (the banner, the version's
+ * panel, Settings): following, kept as it was, moves only to a more stable channel, so it leads
+ * back towards `from` only when `from` is the more stable of the two. No full stop.
+ */
+export function switchAfter(from: Channel, to: Channel, follows: boolean): string {
+  const [f, t] = [CHANNEL_LABEL[from], CHANNEL_LABEL[to]];
+  const up = `it moves by itself to a more stable channel, ${f} included, once that one has this build or a newer one`;
+  if (moreStable(from, to)) return follows ? `MyOrbiter still follows the most stable build: ${up}` : `${t} then stays until you choose again, or turn on Follow the most stable build: ${up}`;
+  return follows ? `MyOrbiter still follows the most stable build, which never moves to a less stable channel, so it doesn't come back to ${f} by itself` : `${t} then stays until you choose again; Follow the most stable build never moves to a less stable channel`;
+}
+
+/** Whether channel `a` is more stable than `b` (Stable, then Beta, then Experimental). */
+export function moreStable(a: Channel, b: Channel): boolean {
+  const order = CHANNELS.map((c) => c.v);
+  return order.indexOf(a) < order.indexOf(b);
 }
 
 /**
@@ -262,7 +280,7 @@ export function followOrder(current: Channel, all = false): Channel[] {
  * build. Null when none in `order` counts: the install stays where it is. An answer of null (the
  * app's "off") counts as none; a read that failed never gets here: the store logs it, and nothing
  * moves.
- * With `followOrder(current)` the result is always more stable than `current`, so following never
+ * The result is always more stable than the channel `followOrder` was given, so following never
  * moves to a less stable channel, and never to an older build, by itself.
  */
 export function followStep(running: string, order: readonly Channel[], answers: Partial<Record<Channel, ChannelAnswer>>): Channel | { ask: Channel } | null {
@@ -297,10 +315,10 @@ export function channelWord(version: string, u: UpdateSettings): string {
 export function followWords(version: string, u: UpdateSettings): string | null {
   if (buildNumber(version) == null || !u.picked) return null;
   if (!u.follows) return `${CHANNEL_LABEL[u.channel]} stays as chosen: MyOrbiter never switches it by itself.`;
-  if (u.channel === "stable") return "Following the most stable channel with a build: Stable, the most stable.";
+  if (u.channel === "stable") return "Following the most stable build: Stable is the most stable channel, so there is nothing to move to.";
   const up = followOrder(u.channel).map((c) => CHANNEL_LABEL[c]);
   const when = up.length === 1 ? `once ${up[0]} has` : "once one of them has";
-  return `Following the most stable channel with a build: MyOrbiter moves to ${up.join(" or ")} by itself ${when} this build or a newer one, never to a less stable channel or an older build.`;
+  return `Following the most stable build: MyOrbiter moves to ${up.join(" or ")} by itself ${when} this build or a newer one, never to a less stable channel or an older build.`;
 }
 
 /**

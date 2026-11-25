@@ -20,7 +20,7 @@ path beside each.
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
-| An update check | github.com, then gitlab.com if GitHub has no answer; an install that follows the most stable build also reads the more stable channels' file on github.com alone (every channel's, when you turn Follow on) | at start and every 6 hours, on the AppImage and the Windows installer |
+| An update check | github.com, then gitlab.com if GitHub has no answer; an install that follows the most stable build also reads the more stable channels' file on github.com alone, the check right after you turn Follow on included | at start and every 6 hours, on the AppImage and the Windows installer |
 | A bug report | github.com: the issue form opens with the app's version and your system in its address; the report itself only if you paste it in and submit | when you press Open on GitHub in Report a bug |
 
 ## Full mode: the game's memory
@@ -338,9 +338,12 @@ and the check goes on with its own channel's file as before (gitlab.com too, if 
 answer). An install on Stable, and one whose
 channel was picked, reads nothing more than before. A channel you pick never moves by itself. Follow
 the most stable build (in the panel the version at the top of the sidebar opens, and in Settings,
-Updates) turns following back on: its first check reads every channel's file the same way, most
-stable first (the less stable ones too, on that click), and moves to the first whose build is
-yours or newer. Switch to, offered when your channel has no build, changes the channel and nothing
+Updates) turns following back on: a check at once reads what any following check reads, the more
+stable channels' files and then its own channel's, nothing less stable, and moves to the most
+stable whose build is yours or newer. On a channel with no build, Follow alone leaves it there;
+Switch to the channel offered, and following brings it back to a more stable channel once that one
+has your build or a newer one. Turned on while an update downloads, Follow waits for the first
+check after it. Switch to, offered when your channel has no build, changes the channel and nothing
 else: an install that follows still follows, and one picked by hand stays picked.
 An install that has saved settings from before this keeps its channel, as one picked: it never
 moves by itself. One whose settings file turns out damaged, and

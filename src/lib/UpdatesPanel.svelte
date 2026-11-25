@@ -5,7 +5,7 @@
   // the page, never moving it; not modal. Esc, a click elsewhere or the window changing size closes
   // it. Settings, Updates has the same and the release notes.
   import { tick } from "svelte";
-  import { CHANNEL_LABEL, CHANNELS, channelWord, followWords, installChecks, installInstalls, installNote, noteLines, type Channel, type UpdateSettings } from "./core/updates";
+  import { CHANNEL_LABEL, CHANNELS, channelWord, followWords, installChecks, installInstalls, installNote, noteLines, switchAfter, type Channel, type UpdateSettings } from "./core/updates";
   import { updates, updatesPanel } from "./updates.svelte";
   import Seg from "./ui/Seg.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -80,7 +80,7 @@
       {#if updates.unsettled}<p class="hint">{updates.unsettled}</p>{:else if follow}<p class="hint" data-field="updates.follows">{follow}</p>{/if}
       {#if updates.followable && u.picked}
         <Switch name="updates.follow" label="Follow the most stable build" bind:on={() => u.follows, (v) => (v ? updates.follow() : updates.unfollow())}>
-          The most stable channel whose build is this one or newer. Choosing a channel by hand turns it off.
+          Moves by itself only to a more stable channel, once that one has this build or a newer one, and never to an older build. Choosing a channel by hand turns it off.
         </Switch>
       {/if}
       <div class="row">
@@ -102,7 +102,7 @@
       {:else if sw && !updates.checking}
         <div class="offer">
           <p>{CHANNEL_LABEL[sw.from]} has no build yet. {CHANNEL_LABEL[sw.to]} has <b class="mono">{sw.version}</b>.</p>
-          <button type="button" class="stamp gold" title={`Get updates from ${CHANNEL_LABEL[sw.to]} from now on${updates.follows ? `, still following the most stable build: back to ${CHANNEL_LABEL[sw.from]} by itself once it has this build or a newer one` : `; it stays until you choose again, or turn Follow on`}. Nothing installs without your click`} onclick={() => updates.switchTo(sw.to)}>Switch to {CHANNEL_LABEL[sw.to]}</button>
+          <button type="button" class="stamp gold" title={`Get updates from ${CHANNEL_LABEL[sw.to]} from now on. ${switchAfter(sw.from, sw.to, updates.follows)}. Nothing installs without your click`} onclick={() => updates.switchTo(sw.to)}>Switch to {CHANNEL_LABEL[sw.to]}</button>
         </div>
       {/if}
     {/if}
