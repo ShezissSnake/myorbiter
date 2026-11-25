@@ -310,7 +310,7 @@ test("a pick by hand ends the following; Follow brings it back, reading what a f
   assert.equal(settings.channel, "beta");
 });
 
-test("Follow on an empty Stable reads nothing less stable; Switch to, then following, brings it back to Stable", async (t) => {
+test("Follow on an empty Stable follows to nothing less stable (the empty channel's offer reads Beta, as on main); Switch to, then following, brings it back to Stable", async (t) => {
   const { u, settings, calls, answers } = setup(t, { channel: "stable", picked: true, follows: false }, [EMPTY, current()]);
   await started(t, u, settings);
   calls.length = 0;
@@ -588,5 +588,5 @@ test("a copy that doesn't check, and a local build: no banner, nothing asked, Fo
 test("the help's Updates page says a channel MyOrbiter chose follows the most stable build", async () => {
   const { readFileSync } = await import("node:fs");
   const help = readFileSync(new URL("../src/lib/help/settings.ts", import.meta.url), "utf8");
-  assert.match(help, /"An empty channel offers the nearest build; MyOrbiter's choice follows the most stable build\.",/);
+  assert.match(help, /"A channel MyOrbiter chose follows the most stable build; empty ones offer the nearest\.",/);
 });

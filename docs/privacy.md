@@ -339,11 +339,12 @@ answer). An install on Stable, and one whose
 channel was picked, reads nothing more than before. A channel you pick never moves by itself. Follow
 the most stable build (in the panel the version at the top of the sidebar opens, and in Settings,
 Updates) turns following back on: a check at once reads what any following check reads, the more
-stable channels' files and then its own channel's, nothing less stable, and moves to the most
-stable whose build is yours or newer. On a channel with no build, Follow alone leaves it there;
-Switch to the channel offered, and following brings it back to a more stable channel once that one
-has your build or a newer one. Turned on while an update downloads, Follow waits for the first
-check after it. Switch to, offered when your channel has no build, changes the channel and nothing
+stable channels' files and then its own channel's, and moves to the most stable whose build is
+yours or newer; to follow, it reads no less stable channel and never moves to one. On a channel
+with no build, that check also reads the nearest other channel's file for the offer to switch, as
+above, and Follow alone leaves the install where it is; after Switch to, following moves it to a
+more stable channel once one has your build or a newer one. Turned on while an update downloads,
+Follow waits for the first check after it. Switch to, offered when your channel has no build, changes the channel and nothing
 else: an install that follows still follows, and one picked by hand stays picked.
 An install that has saved settings from before this keeps its channel, as one picked: it never
 moves by itself. One whose settings file turns out damaged, and
