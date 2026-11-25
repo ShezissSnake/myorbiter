@@ -146,9 +146,18 @@ export interface UpdateSettings {
    * channels settles it (`newInstallStep`), once.
    */
   picked: boolean;
+  /**
+   * Whether `channel` follows the most stable build: true when MyOrbiter chose it (a new install's
+   * first check, `newInstallStep`), or when the player asked for that (`Updates.follow`, or an
+   * empty channel's switch). Such a channel moves by itself to a more stable one once that one's
+   * build is the running one or newer (`followStep`), never to a less stable one and never to an
+   * older build. False for a channel picked by hand, and for one kept from settings saved before
+   * this was recorded: those never move by themselves.
+   */
+  follows: boolean;
 }
 
-export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null, picked: true });
+export const defaultUpdates = (): UpdateSettings => ({ channel: "stable", later: "", lastCheck: null, from: null, picked: true, follows: false });
 
 /**
  * A new install's (no settings saved yet), and a start's whose settings file was damaged and moved
@@ -237,6 +246,74 @@ export function newInstallWhy(running: string, channel: Channel, stable: Channel
 }
 
 /**
+ * The channels a following install asks before its own, most stable first: those more stable than
+ * `current` (a check of an install that follows); with `all`, every channel (the player has just
+ * asked to follow, so the most stable channel with a build may also be a less stable one than now).
+ */
+export function followOrder(current: Channel, all = false): Channel[] {
+  const order = CHANNELS.map((c) => c.v);
+  return all ? order : order.slice(0, order.indexOf(current));
+}
+
+/**
+ * Following: from what the channels in `order` answered so far (missing: not asked yet), the
+ * channel to be on, or the next one to ask. The first channel in `order` whose build is the running
+ * one or newer (`buildCounts`) is the one, once every channel before it has answered without such a
+ * build. Null when none in `order` counts: the install stays where it is. An answer of null (the
+ * app's "off") counts as none; a read that failed never gets here: it throws, and nothing moves.
+ * With `followOrder(current)` the result is always more stable than `current`, so following never
+ * moves to a less stable channel, and never to an older build, by itself.
+ */
+export function followStep(running: string, order: readonly Channel[], answers: Partial<Record<Channel, ChannelAnswer>>): Channel | { ask: Channel } | null {
+  for (const c of order) {
+    if (!(c in answers)) return { ask: c };
+    if (buildCounts(answers[c], running)) return c;
+  }
+  return null;
+}
+
+/** Why a following install moved from `from` to `to`, for the log line that says so. */
+export function followWhy(running: string, from: Channel, to: Channel, answer: ChannelAnswer | undefined): string {
+  const v = answer && answer !== "empty" ? answer.version : null;
+  const has = !v ? "a build" : compareVersions(v, running) === 0 ? `this build (${v})` : `${v}, newer than this build (${running})`;
+  return `from ${CHANNEL_LABEL[from]} to ${CHANNEL_LABEL[to]}, the most stable channel with this build or a newer one (${CHANNEL_LABEL[to]} has ${has})`;
+}
+
+/**
+ * The channel as a word for the places outside Settings: its name once chosen, by hand or by
+ * MyOrbiter; "channel not chosen yet" while a new install hasn't settled (the one Settings shows
+ * meanwhile was never chosen); "local build" for a build made here.
+ */
+export function channelWord(version: string, u: UpdateSettings): string {
+  if (buildNumber(version) == null) return "local build";
+  return u.picked ? CHANNEL_LABEL[u.channel] : "channel not chosen yet";
+}
+
+/**
+ * How the channel is kept, in a sentence: following (and where it may go next), or picked by
+ * hand. Null for a local build, and while a new install hasn't settled (`unsettledWords` says that).
+ */
+export function followWords(version: string, u: UpdateSettings): string | null {
+  if (buildNumber(version) == null || !u.picked) return null;
+  if (!u.follows) return `${CHANNEL_LABEL[u.channel]} was picked by hand: MyOrbiter never switches it by itself.`;
+  if (u.channel === "stable") return "Following the most stable channel with a build: Stable, the most stable.";
+  const up = followOrder(u.channel).map((c) => CHANNEL_LABEL[c]);
+  const when = up.length === 1 ? `once ${up[0]} has` : "once one of them has";
+  return `Following the most stable channel with a build: MyOrbiter moves to ${up.join(" or ")} by itself ${when} this build or a newer one, never to a less stable channel or an older build.`;
+}
+
+/**
+ * An empty channel's way out, as said outside Settings: the nearest channel with a build, when that
+ * build is the running one or newer (switching to it is never a step back). Null otherwise: an
+ * empty channel whose nearest build is older is said in Settings alone, with its own switch.
+ */
+export function switchOffer(outcome: CheckOutcome | null, current: Channel, running: string): { from: Channel; to: Channel; version: string } | null {
+  if (!outcome || outcome.kind !== "empty" || outcome.channel !== current || !outcome.nearest) return null;
+  if (!buildCounts({ version: outcome.nearest.version }, running)) return null;
+  return { from: outcome.channel, to: outcome.nearest.channel, version: outcome.nearest.version };
+}
+
+/**
  * What Settings, Updates says while a new install hasn't settled its channel: which channel is
  * shown, and that MyOrbiter is still finding out. `failed`: its last try settled nothing, whether
  * no channel answered or every channel answered without this build or a newer one; the words are
@@ -264,6 +341,11 @@ export function sanitizeUpdates(raw: unknown): UpdateSettings {
     // (a start after a damaged settings file is one too; one whose file couldn't be read saves
     // nothing).
     picked: r.picked !== false,
+    // Only a channel recorded as chosen by MyOrbiter (or followed on the player's word) follows;
+    // settings saved before this was recorded don't say, so their channel counts as picked by hand.
+    // Read only once `picked`: an unsettled install follows once its first check settles it
+    // (`Updates.settle`), and a pick by hand meanwhile clears it.
+    follows: r.follows === true,
   };
 }
 

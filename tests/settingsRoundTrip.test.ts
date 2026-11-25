@@ -137,7 +137,7 @@ function full(now = Date.now()): Settings {
     buildsMaxAgeDays: 365,
     buildsFromNox: false,
     recordTimings: true,
-    updates: { channel: "experimental", later: "0.2.130", lastCheck: 1_700_000_000_000, from: { version: "0.2.120", channel: "stable" }, picked: false },
+    updates: { channel: "experimental", later: "0.2.130", lastCheck: 1_700_000_000_000, from: { version: "0.2.120", channel: "stable" }, picked: false, follows: true },
     movedAside: "settings.json.broken-1700000000",
   };
 }

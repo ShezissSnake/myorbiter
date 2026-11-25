@@ -1,7 +1,8 @@
-// Looking for and installing updates, for the whole app: Settings → Updates and the update notice
-// read this. A check runs once at start (after the first paint, once things are quiet, or after
-// START_WAIT at the latest), then whenever the last one is CHECK_EVERY old, on a channel switch,
-// and from Check now (docs/privacy.md, Updates). Nothing installs without a click.
+// Looking for and installing updates, for the whole app: Settings → Updates, the banner over every
+// page and the version in the sidebar read this. A check runs once at start (after the first paint,
+// once things are quiet, or after START_WAIT at the latest), then whenever the last one is
+// CHECK_EVERY old, on a channel switch, and from Check now (docs/privacy.md, Updates). Nothing
+// installs without a click.
 //
 // A new install (no settings saved yet) of a CI build that checks has no channel until its first
 // check hears back, and neither has a start whose settings file was damaged or couldn't be read: that check asks Stable, then Beta and Experimental if need be, and settles on
@@ -9,12 +10,19 @@
 // `newInstallStep`), each asked of GitHub alone (`firstOnly`). A check that failed never settles it:
 // see `buildCounts` for what an answer shows and what stays open.
 //
+// A channel MyOrbiter chose that way follows the most stable build (`follows`): each of its checks
+// first asks the more stable channels, of GitHub alone, and moves to the first whose build is this
+// one or newer (`followed`, core/updates.ts `followStep`): never to a less stable channel and never
+// to an older build by itself. A channel picked by hand, or kept from settings saved before this was
+// recorded, never moves by itself; Follow (`follow`) and an empty channel's switch (`switchTo`) set
+// it following again, on the player's click.
+//
 // Every check ends in one state, shown under Check now with its time (`checkLine`): a build on
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
 import { flushSettings, logLine, settingsMovedAside, settingsUnreadable, updater, type UpdateCheck, type UpdateInfo } from "./backend";
-import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
+import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, followOrder, followStep, followWhy, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, switchOffer, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
 import { afterPaint } from "./ui/soon";
@@ -41,6 +49,19 @@ export interface Offer {
 function plain(e: unknown): string {
   const s = (e instanceof Error ? e.message : String(e)).replace(/^Error:\s*/, "").trim() || "Couldn't check for updates";
   return s[0].toUpperCase() + s.slice(1);
+}
+
+/**
+ * One channel asked of GitHub alone (`firstOnly`), as a new install's settling and a following
+ * channel's check ask the channels: its 404 is "empty", anything else that isn't a build throws
+ * (updates.rs). The answer goes into `known`, so the check doesn't ask that channel twice; `asking`
+ * names the channel on its way, for the log line of a check the app never answered.
+ */
+async function askFirst(c: Channel, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }): Promise<ChannelAnswer> {
+  asking.channel = c;
+  const r = await limited(updater.check(c, true), CHECK_LIMIT);
+  known[c] = r;
+  return r.state === "current" || r.state === "newer" || r.state === "older" ? { version: r.version } : r.state === "empty" ? "empty" : null;
 }
 
 /** A check the app didn't answer in time (`limited`): the app never saw it end, so the page logs it. */
@@ -73,6 +94,8 @@ export class Updates {
   private ticker: ReturnType<typeof setInterval> | undefined;
   private cancelStart: (() => void) | null = null;
   private running: Promise<string> | null = null;
+  /** Follow was asked for (`follow`): the next check asks every channel, most stable first. */
+  private followAll = false;
   private onVisible = () => {
     if (typeof document === "undefined" || document.visibilityState === "visible") this.due();
   };
@@ -186,6 +209,12 @@ export class Updates {
       const known: Partial<Record<Channel, UpdateCheck>> = {};
       const asking = { channel };
       const settling = !u.picked && settlesByAsking(this.info.version, true);
+      // A channel that follows the most stable build (not one picked by hand): the more stable
+      // channels are asked first, and the install moves to the first whose build counts. Every
+      // channel when the player has just asked to follow (`follow`).
+      const following = !settling && u.picked && u.follows && settlesByAsking(this.info.version, true);
+      const all = following && this.followAll;
+      this.followAll = false;
       let settled = false;
       let r: UpdateCheck;
       try {
@@ -195,13 +224,19 @@ export class Updates {
           if (s == null) continue;
           channel = s;
           settled = true;
+        } else if (following) {
+          const s = await this.followed(u, this.info.version, known, asking, all);
+          // A channel picked by hand meanwhile: what was heard is dropped, and that channel is asked.
+          if (s == null) continue;
+          channel = s;
         }
         asking.channel = channel;
         r = known[channel] ?? (await limited(updater.check(channel), CHECK_LIMIT));
       } catch (e) {
-        // A switch while it ran, or a pick while a new install was settling: this failure was for
-        // what was shown before. Ask the channel chosen now.
-        if (this.get?.().channel !== channel || (settling && !settled && this.get?.().picked)) continue;
+        // A switch while it ran, or a pick while a new install was settling or a channel was
+        // following: this failure was for what was shown before. Ask the channel chosen now.
+        // A Follow asked for while it ran: asked again, as Follow asks.
+        if (this.get?.().channel !== channel || (settling && !settled && this.get?.().picked) || (following && !this.get?.().follows) || this.followAll) continue;
         const reason = plain(e);
         const at = Date.now();
         u.lastCheck = at;
@@ -210,7 +245,7 @@ export class Updates {
         if (e instanceof Late) logLine("warn", "updates", `${asking.channel} check: ${reason}`);
         throw new JobError("Couldn't check", reason);
       }
-      if (this.get?.().channel !== channel) continue;
+      if (this.get?.().channel !== channel || this.followAll) continue;
       const at = Date.now();
       u.lastCheck = at;
       this.result = r;
@@ -222,7 +257,7 @@ export class Updates {
       }
       if (r.state === "empty") {
         // Not a failure: said plainly, with the nearest channel that has a build, to switch to by
-        // a click. Nothing switches by itself.
+        // a click (`switchOffer`). Nothing switches to a less stable channel by itself.
         const nearest = await this.nearest(channel, known);
         if (this.get?.().channel !== channel) continue;
         this.outcome = { kind: "empty", channel, system: r.system, nearest, at };
@@ -266,13 +301,7 @@ export class Updates {
    * `known`, so the check that follows doesn't ask it twice; `asking` names the channel on its way.
    */
   private async settle(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }): Promise<Channel | null> {
-    const ask = async (c: Channel): Promise<ChannelAnswer> => {
-      asking.channel = c;
-      // GitHub alone: its 404 is "empty", anything else that isn't a build throws (updates.rs).
-      const r = await limited(updater.check(c, true), CHECK_LIMIT);
-      known[c] = r;
-      return r.state === "current" || r.state === "newer" || r.state === "older" ? { version: r.version } : r.state === "empty" ? "empty" : null;
-    };
+    const ask = (c: Channel) => askFirst(c, known, asking);
     const stable = await ask("stable");
     if (this.get?.().picked) return null;
     let beta: ChannelAnswer | undefined;
@@ -294,8 +323,43 @@ export class Updates {
     }
     u.channel = step;
     u.picked = true;
+    // Chosen by MyOrbiter, not by hand: it follows the most stable build from now on (`followed`).
+    u.follows = true;
     logLine("info", "updates", `${settledWho()}: on ${CHANNEL_LABEL[step]}, ${newInstallWhy(version, step, stable, beta, experimental)}`);
     return step;
+  }
+
+  /**
+   * A following channel's check, before its own: the channels more stable than it (every channel
+   * with `all`, when the player has just asked to follow) are asked, most stable first, each from
+   * GitHub alone as a new install's are (`askFirst`), stopping at the first whose build is the
+   * running one or newer (`followStep`); the install moves there and says so in the log. The channel
+   * to ask for the check; the one it was on when none counts. Null when the player picked a channel
+   * by hand meanwhile (or switched): what was heard is dropped. A read that fails throws: nothing
+   * moves, and the check fails, so no "up to date" is said for a check that didn't finish.
+   *
+   * The channel the check ends on is asked last, so the app's kept update (updates.rs `Pending`, one
+   * for the last check) is that channel's: a move reuses its answer from `known`.
+   */
+  private async followed(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }, all: boolean): Promise<Channel | null> {
+    const from = u.channel;
+    const order = followOrder(from, all);
+    const answers: Partial<Record<Channel, ChannelAnswer>> = {};
+    for (;;) {
+      const step = followStep(version, order, answers);
+      if (step == null) return from;
+      if (typeof step === "object") {
+        answers[step.ask] = await askFirst(step.ask, known, asking);
+        const now = this.get?.();
+        if (!now || !now.follows || now.channel !== from) return null;
+        continue;
+      }
+      if (step !== from) {
+        u.channel = step;
+        logLine("info", "updates", `following the most stable build: ${followWhy(version, from, step, answers[step])}`);
+      }
+      return step;
+    }
   }
 
   /**
@@ -333,6 +397,9 @@ export class Updates {
     // restart, which reads the file again.
     const unsettled = !u.picked;
     u.picked = true;
+    // Picked by hand: it never moves by itself again (until the player asks to follow, `follow`).
+    // Even the channel already shown: a click on it is a pick too.
+    u.follows = false;
     if (u.channel === c) {
       // A new install that picks the channel it shows: its updates are looked for at once, as the
       // unsettled line says (a settling under way drops its answers and asks this channel).
@@ -346,10 +413,77 @@ export class Updates {
     if (this.info && installChecks(this.info.install)) void this.checkNow();
   }
 
+  /**
+   * Follow the most stable build, on the player's word (the way back after a pick by hand): the
+   * channel is no longer kept as picked, and a check asks every channel, most stable first, and
+   * moves to the first whose build is this one or newer (`followed` with `all`); if none has one,
+   * the channel stays. From then on it moves by itself only to a more stable channel.
+   */
+  follow() {
+    const u = this.get?.();
+    if (!u || !this.info || !settlesByAsking(this.info.version, installChecks(this.info.install))) return;
+    u.picked = true;
+    u.follows = true;
+    this.followAll = true;
+    void this.checkNow();
+  }
+
+  /** Stop following: the channel shown now stays, as if picked by hand. */
+  unfollow() {
+    const u = this.get?.();
+    if (u) u.follows = false;
+  }
+
+  /**
+   * An empty channel's switch: to `c`, the nearest channel whose build is this one or newer
+   * (`switchOffer`), following the most stable build from there, so the install comes back to the
+   * more stable channel by itself once that one has this build or a newer one. Asked at once.
+   */
+  switchTo(c: Channel) {
+    const u = this.get?.();
+    if (!u) return;
+    u.picked = true;
+    u.follows = true;
+    if (u.channel !== c) {
+      u.channel = c;
+      this.result = null;
+      this.checked = null;
+      this.outcome = null;
+    }
+    if (this.info && installChecks(this.info.install)) void this.checkNow();
+  }
+
+  /**
+   * Outside Settings, an empty channel's way out: the nearest channel whose build is this one or
+   * newer, to switch to by a click (`switchTo`). Null otherwise, and while a check runs.
+   */
+  get switchOffer(): { from: Channel; to: Channel; version: string } | null {
+    const u = this.get?.();
+    if (!u || !this.info) return null;
+    return switchOffer(this.outcome, u.channel, this.info.version);
+  }
+
+  /**
+   * The banner over every page, one at a time: a newer build on the channel (with Update and
+   * restart when this copy can install it; `installs` false for an AppImage in a folder it can't
+   * write to, which is told why instead), or an empty channel's switch. Each one put off with Later
+   * stays away for that version alone. Nothing while a new install hasn't settled, after a check
+   * that failed with nothing on offer, or on a copy that doesn't check.
+   */
+  get banner(): { kind: "update"; offer: Offer; installs: boolean } | { kind: "switch"; from: Channel; to: Channel; version: string } | null {
+    const u = this.get?.();
+    const i = this.info;
+    if (!u || !i || !installChecks(i.install)) return null;
+    const o = this.offer;
+    if (o && !o.older) return noticeShows(o.version, u.later) ? { kind: "update", offer: o, installs: installInstalls(i.install) } : null;
+    const s = this.switchOffer;
+    return s && noticeShows(s.version, u.later) ? { kind: "switch", ...s } : null;
+  }
 
   /** Later: this version's notice goes; another version, newer or lower, shows (`noticeShows`). */
   later() {
-    const o = this.offer;
+    const b = this.banner;
+    const o = b?.kind === "update" ? b.offer : b?.kind === "switch" ? b : this.offer;
     const u = this.get?.();
     if (o && u) u.later = o.version;
   }

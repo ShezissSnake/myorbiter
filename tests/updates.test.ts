@@ -18,7 +18,7 @@ test("the channel setting: Stable unless one of the three channels was saved", (
 
 test("the rest of the update settings: versions, times and where a build came from", () => {
   const s = sanitizeUpdates({ channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" } });
-  assert.deepEqual(s, { channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" }, picked: true });
+  assert.deepEqual(s, { channel: "beta", later: "0.1.40", lastCheck: 1_700_000_000_000, from: { version: "0.1.39", channel: "experimental" }, picked: true, follows: false });
   assert.equal(sanitizeUpdates({ later: "soon" }).later, "");
   assert.equal(sanitizeUpdates({ later: "0.1" }).later, "");
   assert.equal(sanitizeUpdates({ lastCheck: -5 }).lastCheck, null);
