@@ -51,6 +51,7 @@
    * closed; a link to a section opens the tab it is on (`focus`).
    */
   let tab = $state<"general" | "notifications">("general");
+  let tabsEl = $state<HTMLElement>();
 
   // The panel is built before it's first opened and kept when closed: TennoScope's status, read
   // again every 15 s, reaches it only while it's open (opening shows the current one).
@@ -67,6 +68,8 @@
     tab = id === "notifications" ? "notifications" : "general";
     clearTimeout(focusTimer);
     focusTimer = setTimeout(() => {
+      // The Notifications tab is a whole tab: shown from its top, the tabs in view, nothing ringed.
+      if (id === "notifications") return tabsEl?.scrollIntoView({ block: "start", behavior: "smooth" });
       const el = document.getElementById(`settings-${id}`);
       if (!el) return;
       el.scrollIntoView({ block: "start", behavior: "smooth" });
@@ -182,7 +185,7 @@
 </script>
 
 <Sheet bind:open keep built title="Settings" kicker="MyOrbiter" help="settings">
-  <nav class="tabs" aria-label="Parts of Settings">
+  <nav class="tabs" aria-label="Parts of Settings" bind:this={tabsEl}>
     <Seg bind:value={tab} options={[{ v: "general", label: "General", title: "Platform, pages, TennoScope, trades, updates and the rest" }, { v: "notifications", label: "Notifications", title: "A switch for every kind of notification, and how they reach you" }]} />
   </nav>
   {#if tab === "notifications"}
