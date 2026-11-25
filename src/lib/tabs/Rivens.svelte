@@ -36,6 +36,7 @@
   import { arrive, calm, confirm, flip, leave, reveal } from "../motion";
   import Kind from "../ui/Kind.svelte";
   import Segments from "../ui/Segments.svelte";
+  import RivenSoldBand from "../ui/RivenSoldBand.svelte";
 
   // console: you play on a console or phone, where MyOrbiter can't read your rivens: the finder and
   // alerts only.
@@ -679,6 +680,8 @@
       <Stat extra label="Alerts" note="Rivens you're watching for">{settings.rivenWatch.length}</Stat>
     {/snippet}
   </PageHead>
+
+  {#if !console && mkt.linked}<RivenSoldBand bind:list={settings.market.rivenSold} />{/if}
 
   {#if choices.length}
     <section class="cycling" aria-label="Cycling now">

@@ -6,7 +6,8 @@
   import { invasionNeeds, invasionRares } from "./lib/core/invasions";
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
-  import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { REP_STRIP_WINDOW, offerTime, recentTrade, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { keepRivenSold, rivenDecided, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -134,7 +135,7 @@
   import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, cycleOverlay, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, parseRiven, rivenTables, rollChoice, searchFor, weaponSlug, type RivenMeta } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
@@ -1647,6 +1648,112 @@
       for (const t of due) void tellSale(t, key(t));
     });
   });
+  // A riven given in a trade (core/rivenSold.ts): with "Mark sales sold from the game" on, its
+  // auction on warframe.market is closed when MyOrbiter is sure which one it is; whenever an open
+  // auction fits it otherwise (the switch off, a swap, two that fit, another rank…), nothing is
+  // written and the player is told, with one click to close on Orders and Rivens. Only while
+  // signed in: otherwise the auctions aren't known and nothing is done. Each riven of a trade is
+  // decided once, recorded before anything is sent (settings.market.rivenSold, kept across
+  // restarts), so a log read again or a restart never closes twice.
+  $effect(() => {
+    const trades = mission?.trades ?? [];
+    const session = mission?.session_start ?? null;
+    const meta = rivens.meta;
+    if (!trades.length || !mkt.linked) return;
+    untrack(() => {
+      const due = trades.filter((t) => !rivenHandling.has(tradeKey(session, t)) && t.offered.some((x) => x.riven && !rivenDecided(settings.market.rivenSold, tradeKey(session, t), x)));
+      if (!due.length) return;
+      // warframe.market's weapon names, to tell which auctions fit: this effect runs again when they come.
+      if (!meta) return void rivens.loadMeta();
+      if (Date.now() < rivenReadAgainAt) return;
+      // Recent as the marking of sales takes it: a trade with no time only once it turns up after this run's first read of its session.
+      const firstRead = !rivenSessionsRead.has(session ?? "?");
+      rivenSessionsRead.add(session ?? "?");
+      for (const t of due) rivenHandling.add(tradeKey(session, t));
+      void decideRivens(due, session, meta, firstRead);
+    });
+  });
+  /** Trades whose rivens are being decided now: not started twice while the first is out. */
+  const rivenHandling = new Set<string>();
+  /** Game sessions whose trades the rivens' decision has read once (see recentTrade). */
+  const rivenSessionsRead = new Set<number | string>();
+  /** After a read of the auctions failed: not before this time again (unix ms). */
+  let rivenReadAgainAt = 0;
+  /** The last inventory read's rivens, by warframe.market's weapon and the riven's name, and when it was taken; null with none. */
+  function heldRivens(meta: RivenMeta): HeldRivens | null {
+    const raws = settings.game.rivens;
+    const m = model;
+    if (!raws || !m) return null;
+    const tables = rivenTables(m.catalogByUnique.values());
+    const held = raws.map((raw) => {
+      const r = parseRiven(m, tables, raw);
+      return r ? { weapon: weaponSlug(meta, r.weaponUnique, r.weapon), name: r.name || null } : { weapon: null, name: null };
+    });
+    return { rivens: held, at: m.observedAt ? +m.observedAt : null };
+  }
+  function recordRiven(r: RivenSold, session: number | null) {
+    settings.market.rivenSold = keepRivenSold(settings.market.rivenSold, r, session == null ? "?" : String(session));
+  }
+  /** Fixed words for a riven sale's log lines: the trade, then what became of its auction. */
+  const rivenLog = (key: string, what: string) => `A riven given in trade ${key}: ${what}`;
+  async function decideRivens(trades: NonNullable<MissionState["trades"]>, session: number | null, meta: RivenMeta, firstRead: boolean) {
+    try {
+      // The player's auctions as they are now: the decision never goes by an older list.
+      const auctions = await rivens.readNow();
+      if (!auctions) {
+        rivenReadAgainAt = Date.now() + 60_000;
+        logLine("warn", "rivens", `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was decided; tried again in a minute.`);
+        return;
+      }
+      const held = heldRivens(meta);
+      for (const t of trades) {
+        const key = tradeKey(session, t);
+        const recent = recentTrade(t, Date.now(), firstRead);
+        for (const item of t.offered) {
+          if (!item.riven || rivenDecided(settings.market.rivenSold, key, item)) continue;
+          const v = rivenVerdict({ trade: t, item, autoTrades: settings.market.autoTrades, linked: mkt.linked, recent, auctions, meta, held });
+          const base = { trade: key, riven: item.name, rank: item.rank, at: t.at ? t.at * 1000 : Date.now(), partner: t.partner };
+          if (v.do === "nothing") {
+            recordRiven({ ...base, auctions: [], state: "none" }, session);
+            continue;
+          }
+          if (v.do === "tell") {
+            recordRiven({ ...base, auctions: v.auctions.map((a) => a.id), state: "told", why: v.why }, session);
+            logLine("info", "rivens", rivenLog(key, `its auction left up, told (${v.why}).`));
+            const where = v.auctions.length > 1 ? "Close the right one on Orders." : "Close it in one click on Orders or Rivens.";
+            tell("sold", `${item.name}: sold in game, still up on warframe.market`, `You gave it to ${t.partner}. MyOrbiter didn't close ${v.auctions.length > 1 ? "an auction for it" : "its auction"}: ${v.why}. ${where}`, "market");
+            continue;
+          }
+          // Recorded before the close is sent: after a quit while it is out, it is told, never sent again.
+          const id = v.auction.id;
+          recordRiven({ ...base, auctions: [id], state: "closing" }, session);
+          try {
+            const r = await rivens.closeIfStill(id, (list) => stillToClose(meta, list, id, item.name, item.rank));
+            if (r === "closed" || r === "gone") {
+              settings.market.rivenSold = setRivenSold(settings.market.rivenSold, base, "closed");
+              logLine("info", "rivens", rivenLog(key, r === "closed" ? `its auction ${id} closed.` : `its auction ${id} was closed already; nothing sent.`));
+              if (r === "closed") tell("sold", `Auction closed: ${item.name}`, `You sold it in game to ${t.partner}, so MyOrbiter closed its auction on warframe.market (Mark sales sold from the game).`, "market");
+              continue;
+            }
+            const why = r === "changed" ? "the auction changed before it could be closed" : "your auctions couldn't be read again just before closing";
+            settings.market.rivenSold = setRivenSold(settings.market.rivenSold, base, "failed", why);
+            logLine("warn", "rivens", rivenLog(key, `its auction ${id} not closed, nothing sent (${why}).`));
+            tell("sold", `${item.name}: sold in game, still up on warframe.market`, `You gave it to ${t.partner}. MyOrbiter didn't close its auction: ${why}. Close it in one click on Orders or Rivens.`, "market");
+          } catch (e) {
+            const why = errorWords(e);
+            settings.market.rivenSold = setRivenSold(settings.market.rivenSold, base, "failed", why);
+            logLine("warn", "rivens", rivenLog(key, `closing its auction ${id} failed: ${why}`));
+            tell("sold", `Couldn't close the auction for ${item.name}`, `You sold it in game to ${t.partner}. ${why}. Close it in one click on Orders or Rivens.`, "market");
+          }
+        }
+      }
+    } catch (e) {
+      logLine("warn", "rivens", `A riven given in a trade hit an error: ${errorWords(e)}`);
+    } finally {
+      for (const t of trades) rivenHandling.delete(tradeKey(session, t));
+    }
+  }
+  const errorWords = (e: unknown) => String(e instanceof Error ? e.message : e).replace(/^Error:\s*/, "").replace(/[.\s]+$/, "").slice(0, 300);
   // Development only: window.__trade({ partner, offered, platinum_received }) adds a trade to the game
   // log as read, to see its notification without the game.
   if (import.meta.env.DEV && typeof window !== "undefined") {
