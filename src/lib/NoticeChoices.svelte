@@ -86,7 +86,7 @@
 </script>
 
 <div class="choices">
-  <p class="hint lead">What MyOrbiter tells you about. The kinds about your own listings and sales{console ? "" : ", whispers, the reward to take"} and what you set up to watch for start on; the rest start off: turn on the ones you want. What it tells you goes in Recent, under the envelope at the bottom of the sidebar.</p>
+  <p class="hint lead">What MyOrbiter tells you about. The kinds about your own listings{console ? ", messages on warframe.market" : " and sales, whispers, the reward to take"} and what you set up to watch for start on; the rest start off: turn on the ones you want. What it tells you goes in Recent, under the envelope at the bottom of the sidebar.</p>
   {#each groups as grp (grp.g)}
     <section class="grp">
       <header>

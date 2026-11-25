@@ -387,7 +387,7 @@ const NOTICES: Walkthrough = {
         part: `${C} section.how > .testrow, ${C} section.how > .discord`,
         marks: [
           { at: `${C} section.how .testrow button.stamp`, is: "n", n: 1, from: "corner" },
-          { at: `${C} section.how .discord input`, is: "n", n: 2, from: "bottom" },
+          { at: `${C} section.how .discord input`, is: "n", n: 2, from: "corner" },
         ],
       },
     },
