@@ -1,5 +1,5 @@
 <script lang="ts">
-  // A link couldn't open: a card in the bottom right corner (above an update's, when both are up),
+  // A link couldn't open: a card in the bottom right corner,
   // there until you dismiss it or a link opens. The reason is in the logs (Settings, Logs), which
   // its Logs button opens.
   import { arrive, leave } from "./motion";

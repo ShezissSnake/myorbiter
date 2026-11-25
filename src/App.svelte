@@ -120,7 +120,9 @@
   const loadSpares = once(() => import("./lib/tabs/Spares.svelte"));
   import Home from "./lib/tabs/Home.svelte";
   import WhatsNew from "./lib/WhatsNew.svelte";
-  import UpdateNotice from "./lib/UpdateNotice.svelte";
+  import UpdateBanner from "./lib/UpdateBanner.svelte";
+  import UpdatesChip from "./lib/UpdatesChip.svelte";
+  import UpdatesPanel from "./lib/UpdatesPanel.svelte";
   import LinkTrouble from "./lib/LinkTrouble.svelte";
   import { links, openUrl } from "./lib/links.svelte";
   import { updates } from "./lib/updates.svelte";
@@ -3274,8 +3276,9 @@
     <div class="railin" bind:this={railEl} onscroll={checkNav}>
     <div class="brand">
       <!-- The wordmark, the craft as its O; folded, the craft alone. Under it the running build (the
-           version the updater compares), small and muted, and your platinum with its picture. -->
-      {#if compact}<Wordmark glyph height={26} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><GameIcon name="platinum" size={16} even /><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row">{#if updates.info}<small class="brand-ver" title="This build of MyOrbiter">{updates.info.version}</small>{/if}{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><GameIcon name="platinum" size={16} even /></span>{/if}</span></span>{/if}
+           version the updater compares) and its channel, small and muted, a button that opens the
+           version's panel (UpdatesChip, UpdatesPanel), and your platinum with its picture. -->
+      {#if compact}<Wordmark glyph height={26} /><UpdatesChip compact data-card="version" settings={() => settings.updates} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={`${statusNow.plat.value} platinum, as of the last inventory read`}><GameIcon name="platinum" size={16} even /><b>{statusNow.plat.value}</b></span>{/if}{:else}<span class="brand-text"><Wordmark height={30} /><span class="brand-row"><UpdatesChip compact={false} data-card="version" settings={() => settings.updates} />{#if statusNow.plat && settings.game.platinum != null}<span class="brand-plat" title={statusNow.plat.title}><b>{statusNow.plat.value}</b><GameIcon name="platinum" size={16} even /></span>{/if}</span></span>{/if}
     </div>
     <!-- The fold arrow: one spot on screen in both widths (inside the folded bar's width, at the top),
          the same size and look, so two clicks without moving the pointer fold and unfold. -->
@@ -3375,6 +3378,9 @@
         <IconButton icon="close" tone="quiet" label="Dismiss" onclick={() => (settings.movedAside = null)} />
       </div></div></div>
     {/if}
+    <!-- Updates, over every page: a newer build on the channel, or an empty channel's switch
+         (UpdateBanner; one line, put off with Later). -->
+    <UpdateBanner />
     {#if !model && error && notYet}
       <!-- First start: nothing read yet. What TennoScope needs, step by step. -->
       <div class="page"><div class="page-inner"><div class="notice">
@@ -3560,8 +3566,9 @@
 {#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
-<!-- The bottom right corner: a link that couldn't open, above a newer build on offer. -->
-<div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /><UpdateNotice onsettings={() => goTo("settings#updates")} /></div>
+<!-- The bottom right corner: a link that couldn't open. A newer build shows over the page (UpdateBanner). -->
+<div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /></div>
+<UpdatesPanel settings={() => settings.updates} onsettings={() => goTo("settings#updates")} />
 {#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
 <!-- The help a part's "?" opens: over the content area, the sidebar left as it is. Over the dialogs
      and panels too, since their parts have a "?" of their own. -->
@@ -3642,7 +3649,6 @@
   .brand-text { flex: 1; display: grid; gap: 6px; min-width: 0; color: var(--platinum); }
   .brand-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
   /* One line, never wider than the space the name leaves: a long version ends in an ellipsis. */
-  .brand-ver { min-width: 0; font-family: var(--face-register); font-size: 11px; letter-spacing: .14em; line-height: 1.3; color: var(--platinum-deep); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Platinum: the one gold in the frame, always with its picture. */
   .brand-plat { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; flex: none; color: var(--gold); }
   .brand-plat b { font-family: var(--face-mark); font-weight: 700; font-size: 15px; line-height: 1; font-variant-numeric: tabular-nums; }

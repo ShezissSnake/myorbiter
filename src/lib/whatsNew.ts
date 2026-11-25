@@ -36,8 +36,10 @@ export const NEWS: NewsEntry[] = [
     id: 24,
     date: "2026-11-25",
     items: [
+      { title: "Updates on every page", icon: { line: "refresh" }, text: "A new build now shows in a line over every page, with Update and restart: it downloads, checks its signature and restarts into it, never without your click. Later hides it for that build, and a diamond by the version stays. Your channel has no build yet? The same line offers the channel that has yours. A click on the version, from any page, shows your channel, Check now and the channel to choose.", open: "home#version" },
       { title: "A riven sold in game", icon: { game: "riven" }, text: "Sold a riven for platinum in a trade while its auction is up on warframe.market? With Mark sales sold from the game on, MyOrbiter closes that auction itself when it is sure it's the one: a single auction fits, at the same rank, and you hold no other riven that could be it. Otherwise nothing is closed, and a notification and a line above your riven auctions on Orders say which riven and why, with Close auction in one click.", open: "market" },
       { title: "The same line on Rivens", icon: { page: "rivens" }, text: "While that auction is up, the line shows at the top of Rivens too. Close auction reads your auctions first and sends nothing if it is gone or no longer that riven; Keep it up puts the line away.", open: "rivens" },
+      { title: "The most stable channel with a build", icon: { line: "refresh" }, text: "A channel MyOrbiter chose for a new install now follows the most stable build: it moves to Beta or Stable by itself once that channel has your build or a newer one, never to a less stable channel or an older build. A channel picked by hand, or kept from before, stays; Follow the most stable build, by the version or in Settings, Updates, turns following on.", open: "home#version" },
     ],
   },
   {

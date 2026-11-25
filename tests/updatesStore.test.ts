@@ -679,10 +679,12 @@ test("a channel the player picks on a new install stays, even the one already sh
   assert.equal(settings.channel, "stable");
 });
 
-test("Settings, Updates says what an unsettled new install shows, and both channel controls go through setChannel", () => {
+test("Settings, Updates says what an unsettled new install shows, and both channel controls go through the store (a pick by setChannel, an empty channel's switch by switchTo)", () => {
   const sheet = readFileSync(new URL("../src/lib/SettingsSheet.svelte", import.meta.url), "utf8");
   assert.match(sheet, /\{#if updates\.unsettled\}<p class="hint"[^>]*>\{updates\.unsettled\}<\/p>\{\/if\}/);
   assert.match(sheet, /<Seg label="Channel"[^\n]*onchange=\{\(c\) => updates\.setChannel\(c\)\}/, "the channel buttons");
-  assert.match(sheet, /onclick=\{\(\) => empty\.to && updates\.setChannel\(empty\.to\.channel\)\}/, "an empty channel's Switch to");
+  // The empty channel's Switch to does what the banner's does (switchTo): it changes the channel
+  // and nothing else, so a channel that follows still follows and one picked stays picked.
+  assert.match(sheet, /onclick=\{\(\) => empty\.to && updates\.switchTo\(empty\.to\.channel\)\}/, "an empty channel's Switch to");
   assert.doesNotMatch(sheet, /settings\.updates\.channel = /, "no other place sets the channel");
 });

@@ -20,7 +20,7 @@ path beside each.
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
-| An update check | github.com, then gitlab.com if GitHub has no answer | at start and every 6 hours, on the AppImage and the Windows installer |
+| An update check | github.com, then gitlab.com if GitHub has no answer; an install that follows the most stable build also reads the more stable channels' file on github.com alone, the check right after you turn Follow on included | at start and every 6 hours, on the AppImage and the Windows installer |
 | A bug report | github.com: the issue form opens with the app's version and your system in its address; the report itself only if you paste it in and submit | when you press Open on GitHub in Report a bug |
 
 ## Full mode: the game's memory
@@ -316,7 +316,7 @@ channel's manifest, from its package registry on gitlab.com, with the updater's 
 (`tauri-plugin-updater/<version>`); the address names only the channel it asks (stable, beta or
 experimental), with no version, system or id. When the channel you picked has no build yet, the same
 check also reads the nearest other channel's `latest.json` (the next one if that one is empty too),
-the same way, so Settings can name a channel that has one; it switches nothing. A new install (no
+the same way, so MyOrbiter can name a channel that has one; that read switches nothing. A new install (no
 settings saved yet) has no channel, and is offered no update, until its first check hears back.
 That check reads github.com alone, never gitlab.com: Stable's `latest.json`, Beta's too if Stable
 has no build or an older one than yours, and Experimental's only if neither has yours or a newer
@@ -332,7 +332,26 @@ meanwhile stays, and its updates are looked for at once. That first read goes th
 own requests go about a proxy (below), not the updater's way: behind a proxy only the updater can
 use, it gets no answer, and such an install has a channel only once you pick one. A local build
 starts on Stable and a copy that doesn't check on Experimental, without reading anything for it.
-An install that has saved settings keeps its channel. One whose settings file turns out damaged, and
+A channel settled so follows the most stable build: each later check first reads the more stable
+channels' `latest.json` (Stable's, and Beta's too for an install on Experimental, most stable
+first, stopping at the first whose build is yours or newer), from github.com alone and the same way
+as that first check, then its own channel's as before, and moves to the most stable channel whose
+build is yours or newer. It never moves by itself to a less stable channel or to an older build,
+nor while an update downloads; a read of a more stable channel that gets no answer moves nothing,
+and the check goes on with its own channel's file as before (gitlab.com too, if github.com doesn't
+answer). An install on Stable, and one whose
+channel was picked, reads nothing more than before. A channel you pick never moves by itself. Follow
+the most stable build (in the panel the version at the top of the sidebar opens, and in Settings,
+Updates) turns following back on: a check at once reads what any following check reads, the more
+stable channels' files and then its own channel's, and moves to the most stable whose build is
+yours or newer; to follow, it reads no less stable channel and never moves to one. On a channel
+with no build, that check also reads the nearest other channel's file for the offer to switch, as
+above, and Follow alone leaves the install where it is; after Switch to, following moves it to a
+more stable channel once one has your build or a newer one. Turned on while an update downloads,
+Follow waits for the first check after it. Switch to, offered when your channel has no build, changes the channel and nothing
+else: an install that follows still follows, and one picked by hand stays picked.
+An install that has saved settings from before this keeps its channel, as one picked: it never
+moves by itself. One whose settings file turns out damaged, and
 is moved aside (below), can't read the channel saved in it, so it starts as a new install does: no
 channel until its first check hears back, then the most stable one with its build or a newer one.
 So does a start that can't read the settings file at all, with the same reads; it saves nothing
@@ -523,12 +542,13 @@ it asks for a sign-in). When none set is one it can use (`https://`, SOCKS, an a
 be read), or a `socks://`, `socks4://`, `socks4a://` or `socks5://` one comes before the first it
 can use, MyOrbiter sends nothing but its update check, which follows the rules of the next
 paragraph, and says why, on the page and in its log, rather than going around the proxy; the
-window's read of last week's riven trades isn't made then either, nor a new install's first read
-of each channel's file on github.com, which is one of MyOrbiter's own requests (Updates, above).
+window's read of last week's riven trades isn't made then either, nor the reads of a channel's
+file on github.com that settle or follow the channel (a new install's first check, and an install
+following the most stable build), which are MyOrbiter's own requests (Updates, above).
 `NO_PROXY` isn't read: none of MyOrbiter's own requests and connections skips the proxy.
 
 The update check and its download, and TennoScope's web requests, choose for themselves (all but
-a new install's first read of each channel's file on github.com, which goes MyOrbiter's way, by
+the reads of a channel's file on github.com that settle or follow the channel, which go MyOrbiter's way, by
 the paragraph above: no system proxy settings, `HTTP_PROXY` read, `NO_PROXY` not): they use
 `HTTPS_PROXY`, else (on Windows and macOS) the system's own proxy settings, else `ALL_PROXY`, and
 never `HTTP_PROXY`, their addresses all being https. They take an `https://` proxy too, skip the
