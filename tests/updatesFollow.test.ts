@@ -533,3 +533,9 @@ test("a copy that doesn't check, and a local build: no banner, nothing asked, Fo
     t.mock.timers.reset();
   }
 });
+
+test("the help's Updates page says a channel MyOrbiter chose follows the most stable build", async () => {
+  const { readFileSync } = await import("node:fs");
+  const help = readFileSync(new URL("../src/lib/help/settings.ts", import.meta.url), "utf8");
+  assert.match(help, /"An empty channel offers the nearest build; MyOrbiter's choice follows the most stable build\.",/);
+});
