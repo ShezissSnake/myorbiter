@@ -36,8 +36,8 @@ export const NEWS: NewsEntry[] = [
     id: 24,
     date: "2026-11-25",
     items: [
-      { title: "Updates on every page", icon: { line: "refresh" }, text: "A new build now shows in a line over every page, with Update and restart: it downloads, checks its signature and restarts into it, never without your click. Later hides it for that build, and a diamond by the version stays. Your channel has no build yet? The same line offers the channel that has yours. A click on the version, from any page, shows your channel, Check now and the channel to choose.", open: "settings#updates" },
-      { title: "The most stable channel with a build", icon: { line: "refresh" }, text: "A channel MyOrbiter chose for a new install now follows the most stable build: it moves to Beta or Stable by itself once that channel has your build or a newer one, never to a less stable channel or an older build. A channel picked by hand, or kept from before, stays; Follow the most stable build, by the version or in Settings, Updates, turns following on.", open: "settings#updates" },
+      { title: "Updates on every page", icon: { line: "refresh" }, text: "A new build now shows in a line over every page, with Update and restart: it downloads, checks its signature and restarts into it, never without your click. Later hides it for that build, and a diamond by the version stays. Your channel has no build yet? The same line offers the channel that has yours. A click on the version, from any page, shows your channel, Check now and the channel to choose.", open: "home#version" },
+      { title: "The most stable channel with a build", icon: { line: "refresh" }, text: "A channel MyOrbiter chose for a new install now follows the most stable build: it moves to Beta or Stable by itself once that channel has your build or a newer one, never to a less stable channel or an older build. A channel picked by hand, or kept from before, stays; Follow the most stable build, by the version or in Settings, Updates, turns following on.", open: "home#version" },
     ],
   },
   {

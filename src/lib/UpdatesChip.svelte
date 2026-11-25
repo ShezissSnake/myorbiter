@@ -7,14 +7,15 @@
   import { CHANNEL_LABEL, buildNumber, type UpdateSettings } from "./core/updates";
   import { updates, updatesPanel } from "./updates.svelte";
 
-  let { compact, settings }: { compact: boolean; settings: () => UpdateSettings } = $props();
+  // `data-card`: the sidebar spot What's New's Show me lights (App.svelte's `goTo`).
+  let { compact, settings, "data-card": card }: { compact: boolean; settings: () => UpdateSettings; "data-card"?: string } = $props();
   const info = $derived(updates.info);
   const ch = $derived(info && buildNumber(info.version) != null && settings().picked ? CHANNEL_LABEL[settings().channel] : null);
   const dot = $derived(updates.waiting);
 </script>
 
 {#if info}
-  <button type="button" id="updates-chip" class="chip" class:compact class:on={updatesPanel.open} data-field="updates.chip" aria-haspopup="dialog" aria-expanded={updatesPanel.open} aria-controls={updatesPanel.open ? "updates-panel" : undefined} title={`MyOrbiter ${info.version}${ch ? ` on ${ch}` : ""}${dot ? ": an update is waiting" : ""}. Your channel, Check now and what is on offer`} onclick={() => (updatesPanel.open = !updatesPanel.open)}>
+  <button type="button" id="updates-chip" data-card={card} class="chip" class:compact class:on={updatesPanel.open} data-field="updates.chip" aria-haspopup="dialog" aria-expanded={updatesPanel.open} aria-controls={updatesPanel.open ? "updates-panel" : undefined} title={`MyOrbiter ${info.version}${ch ? ` on ${ch}` : ""}${dot ? ": an update is waiting" : ""}. Your channel, Check now and what is on offer`} onclick={() => (updatesPanel.open = !updatesPanel.open)}>
     <span class="v">{info.version}</span>{#if dot}<i class="dot" aria-label="An update is waiting"></i>{/if}
   </button>
 {/if}
