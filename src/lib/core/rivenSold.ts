@@ -51,7 +51,7 @@ export interface RivenSaleFacts {
   linked: boolean;
   /** The trade is inside the window in which sales are marked (recentTrade). */
   recent: boolean;
-  /** The player's auctions: from a read made for this decision when it could end in a close (`mayClose`), otherwise the last read already made. */
+  /** The player's auctions, from a read made for this decision. */
   auctions: MyAuction[];
   meta: RivenMeta;
   /** The last inventory read; null when there is none. */
@@ -102,20 +102,19 @@ export function rivenVerdict(f: RivenSaleFacts): RivenVerdict {
 }
 
 /**
- * Whether a riven given in a trade could end in a close: case 1's conditions that need no auctions
- * (signed in, the switch on, a sale for platinum alone, inside the window, the trade's only riven).
- * Only then is a read of the player's auctions made for it. In every other case nothing is read
- * because of the trade: it is decided by the auctions already known (the last read the pages made
- * anyway), and never closed.
+ * Reads of the player's auctions made for one trade's rivens, at most: the first, then two more a
+ * minute apart while the read fails. After that the trade goes by the auctions already known and is
+ * never closed.
  */
-export function mayClose(f: Pick<RivenSaleFacts, "trade" | "item" | "autoTrades" | "linked" | "recent">): boolean {
-  if (!f.linked || !f.autoTrades || !f.item.riven || !f.trade.offered.includes(f.item)) return false;
-  if (!isSale(f.trade) || !f.recent) return false;
-  return f.trade.offered.filter((x) => x.riven).reduce((n, x) => n + x.count, 0) === 1;
-}
-
-/** Fresh reads of the auctions at most for one trade's riven: the first, then two more a minute apart after a failed one. */
 export const RIVEN_READS = 3;
+
+/**
+ * A verdict made by the auctions already known, after the reads for its trade ran out (`fresh`
+ * false): a close turns into a telling, since a close only goes by a read made for it just now.
+ */
+export function unreadVerdict(v: RivenVerdict, fresh: boolean): RivenVerdict {
+  return v.do === "close" && !fresh ? { do: "tell", auctions: [v.auction], why: "your auctions couldn't be read just now, so it wasn't closed" } : v;
+}
 
 /**
  * The trades with a riven given that isn't decided yet, by its trade's key (`key`: tradeKey with

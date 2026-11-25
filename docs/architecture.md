@@ -345,7 +345,7 @@ decides whether copies go up on warframe.market, at what price, and whether a sa
   trade the game log shows sold the riven for platinum alone: `core/rivenSold.ts` decides (one
   fitting auction, the same rank, nothing else held that could be it, a recent trade, once per
   trade, recorded before the close) and `rivenStore.closeIfStill` reads the auctions again and
-  closes only one still open and still fitting; anything short of that closes nothing and is told, by the auctions last read (`mayClose`: only a trade that could end in a close reads them).
+  closes only one still open and still fitting; anything short of that closes nothing and is told.
 - `src-tauri/src/market.rs` (the gate, the sign-in); `bridge.rs`, `companion.rs` (shared files, flags).
 
 The pattern: the rule is pure and in `core/`, the store asks it at one point and sends only on yes,

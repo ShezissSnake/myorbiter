@@ -198,11 +198,9 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
   is hidden, backing off to 10 minutes while warframe.market isn't answering, and after each
   change); your riven auctions (while Orders or Rivens is on screen, at most every 5 minutes, at
   once for another account or platform, a minute after a failed read; before putting one up, if
-  the last read is over 30 seconds old; with Mark sales sold from the game on, when the game's log
-  shows you sold a riven for platinum alone in the last half hour, its trade's only riven, to find
-  its auction (at most three tries, a minute apart), and again just before closing one, while a
-  riven given in any other trade is looked up in the auctions already read, with no read of its
-  own; and after each change); your chats (every minute);
+  the last read is over 30 seconds old; when the game's log shows you gave a riven in a trade,
+  whether or not Mark sales sold from the game is on, to see whether one of your auctions is that riven's, and
+  again just before closing one; and after each change); your chats (every minute);
   before giving +rep, that player's reviews, to see whether you already gave one; and, if you
   choose a status, a second connection held while MyOrbiter is open, which sends it again every 2
   minutes, puts it back if something else changes it, and switches "online in game" to online

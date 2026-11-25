@@ -5,7 +5,7 @@ import "./support/runes";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { market } from "../src/lib/backend";
-import { auctionFits, heldLike, keepRivenSold, mayClose, RIVEN_READS, rivenDecided, rivenTradesDue, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
+import { auctionFits, heldLike, keepRivenSold, RIVEN_READS, rivenDecided, rivenTradesDue, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, unreadVerdict, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
 import { parseMyAuctions, type MyAuction, type RivenMeta } from "../src/lib/core/rivens";
 import { markTrades, salesFromTrade, tradeKey, type TradeMarking } from "../src/lib/core/trades";
 import { indexItems, type MarketItem, type MyOrder } from "../src/lib/core/market";
@@ -270,27 +270,20 @@ test("case 5: the same log read again brings the same trade, decided once: one r
   assert.equal(rivenTradesDue(list, second, (t) => tradeKey(session + 60, t)).length, 1);
 });
 
-test("the auctions are read because of a trade only when it could end in a close", () => {
-  const f = facts();
-  assert.equal(mayClose(f), true);
-  // Every other case goes by the auctions already known, with no read of its own.
-  assert.equal(mayClose({ ...f, autoTrades: false }), false, "the switch off");
-  assert.equal(mayClose({ ...f, linked: false }), false, "not signed in");
-  assert.equal(mayClose({ ...f, recent: false }), false, "old, or made while MyOrbiter was shut");
-  const swap = trade({ received: [{ name: "Forma Blueprint", rank: null, count: 1 }] });
-  assert.equal(mayClose({ ...f, trade: swap, item: swap.offered[0] }), false, "a swap");
-  const gift = trade({ platinum_received: 0 });
-  assert.equal(mayClose({ ...f, trade: gift, item: gift.offered[0] }), false, "a gift");
-  const several = trade({ offered: [riven(), riven({ name: "Braton Visi-critatis" })] });
-  assert.equal(mayClose({ ...f, trade: several, item: several.offered[0] }), false, "several rivens");
-  const twice = trade({ offered: [riven({ count: 2 })] });
-  assert.equal(mayClose({ ...f, trade: twice, item: twice.offered[0] }), false, "two of one riven");
-  const bought = trade({ offered: [], received: [riven()], platinum_offered: 120, platinum_received: 0 });
-  assert.equal(mayClose({ ...f, trade: bought, item: bought.received[0] }), false, "a riven received");
-  // Whenever mayClose is false, no verdict is a close: the read it skips could never have led to one.
-  for (const g of [{ ...f, autoTrades: false }, { ...f, recent: false }, { ...f, trade: swap, item: swap.offered[0] }, { ...f, trade: several, item: several.offered[0] }]) assert.notEqual(rivenVerdict(g).do, "close");
-  // The read for one trade's riven is tried a bounded number of times.
+test("a failed read of the auctions is tried again a bounded number of times, and never closes after", () => {
+  // The read for one trade's rivens: the first, then two more a minute apart.
   assert.equal(RIVEN_READS, 3);
+  // Once the reads run out, the auctions already known are used and a close turns into a telling.
+  const f = facts();
+  const v = rivenVerdict(f);
+  assert.equal(v.do, "close");
+  assert.deepEqual(unreadVerdict(v, true), v, "on a read made just now it closes");
+  const told = unreadVerdict(v, false);
+  assert.equal(told.do, "tell");
+  if (told.do === "tell" && v.do === "close") assert.deepEqual(told.auctions, [v.auction]);
+  // Other verdicts are as they were.
+  const off = rivenVerdict({ ...f, autoTrades: false });
+  assert.deepEqual(unreadVerdict(off, false), off);
 });
 
 test("case 6: the telling shows while the auction is open, and not once it is closed or put away", () => {
