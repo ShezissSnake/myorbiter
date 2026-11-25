@@ -297,8 +297,10 @@ builds goes through `crate::request(method, url)` in `src-tauri/src/lib.rs`, whi
 `REDIRECTS_FOLLOWED`, and reads a JSON body up to `MAX_BODY` (`read_body`). The Rust test
 `no_request_is_built_around_the_user_agent` fails a request built any other way. Sockets go through
 `market::socket_request` and `presence::connect`. The update check and download are
-`tauri-plugin-updater`'s own requests; only a new install's check first reads the channel's file
-through `request` with the updater's User-Agent (`first_read` in `updates.rs`). A new host, request
+`tauri-plugin-updater`'s own requests; only the reads that settle or follow the channel (a new
+install's first check, and an install following the most stable build reading the more stable
+channels: `firstOnly` in `updater.check`) first read the channel's file through `request` with the
+updater's User-Agent (`first_read` in `updates.rs`). A new host, request
 or upload needs the maintainer's say first (CLAUDE.md) and a line in `docs/privacy.md`.
 
 | Host | Asked by |
@@ -381,7 +383,7 @@ what it holds is in `demo/README.md`. Browser writes to warframe.market are pret
 | Where a setting lives, or a new one | `Settings` in `src/lib/backend.ts`, `persist.svelte.ts` |
 | Settings and files on disk | `src-tauri/src/lib.rs`, `datamove.rs`; `docs/privacy.md` |
 | Notifications, the app's own log | `src/lib/notices.ts`, `src-tauri/src/desktop.rs`, `src-tauri/src/applog.rs` |
-| Updates | `src/lib/updates.svelte.ts`, `core/updates.ts`, `src-tauri/src/updates.rs` |
+| Updates | `src/lib/updates.svelte.ts`, `core/updates.ts`, `src-tauri/src/updates.rs`; the banner, the version and its panel: `UpdateBanner.svelte`, `UpdatesChip.svelte`, `UpdatesPanel.svelte` |
 | Opening a link | `src/lib/links.svelte.ts`, `core/links.ts`, `src-tauri/src/link.rs` |
 | The website | `site/`, `scripts/site.mjs` (reads `site/`, the root `README.md`, `public/game/` and app source: `Guide.svelte`, `whatsNew.ts`, `FullMode.svelte`, `pages.ts`, `help/index.ts`, `core/links.ts`, `ui/evened.ts`, icons; not `docs/`) |
 | Release builds | `.github/workflows/release.yml`, `ci/build.sh`, `docs/releases/README.md` |

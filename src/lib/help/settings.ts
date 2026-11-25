@@ -101,7 +101,7 @@ const SETTINGS_MAIN: Walkthrough = {
       lines: [
         "Channel: Stable is tested, Beta the next Stable early, Experimental every change and may break.",
         "Check now looks at once; MyOrbiter also looks at start and every 6 hours.",
-        "An empty channel says so, and offers the nearest with a build.",
+        "Empty channel? Switch to takes the nearest with a build, then follows.",
         "Release notes: this build's page. Nothing installs, or changes a chosen channel, without your click.",
       ],
       shot: {
