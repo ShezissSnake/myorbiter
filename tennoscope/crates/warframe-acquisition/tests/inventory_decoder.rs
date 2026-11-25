@@ -166,6 +166,129 @@ fn known_rank_forty_items_require_the_rank_forty_threshold() {
     );
 }
 
+const MOA_WEAPON: &str = "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ExampleMoaWeapon";
+const MOA_WEAPON_AS_PETS: &str =
+    "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetComponents/ExampleOtherWeapon";
+const HOUND_WEAPON: &str = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponEX";
+const HOUND_WEAPON_AS_PETS: &str = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponEY";
+const MOA_MODEL: &str = "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadExample";
+const HOUND_MODEL: &str = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadX";
+const PREDASITE: &str =
+    "/Lotus/Types/Friendly/Pets/CreaturePets/ExamplePredatorKubrowPetPowerSuit";
+const VULPAPHYLA: &str =
+    "/Lotus/Types/Friendly/Pets/CreaturePets/ExampleInfestedCatbrowPetPowerSuit";
+const KUBROW: &str = "/Lotus/Types/Game/KubrowPet/ExampleKubrowPetPowerSuit";
+const KAVAT: &str = "/Lotus/Types/Game/CatbrowPet/ExampleCatbrowPetPowerSuit";
+const SENTINEL: &str = "/Lotus/Types/Sentinels/SentinelPowersuits/ExamplePowerSuit";
+const SENTINEL_WEAPON: &str = "/Lotus/Types/Sentinels/SentinelWeapons/ExampleSentinelRifle";
+const ARCHWING: &str = "/Lotus/Powersuits/Archwing/ExampleJetPack/ExampleJetPack";
+const NECRAMECH: &str = "/Lotus/Powersuits/EntratiMech/ExampleMech";
+const KDRIVE: &str =
+    "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardExampleA";
+const ARCH_MELEE: &str = "/Lotus/Weapons/Tenno/Archwing/Melee/ExampleScythe/ExampleScythe";
+
+/// Made-up rows in the shapes WFCD gives each kind. A MOA's or hound's weapon is written both
+/// ways a catalogue could file it (a Primary or Melee "Companion Weapon", or with its companion
+/// under Pets): the rule must not lean on which.
+fn companion_mastery_catalog() -> CatalogIndex {
+    let rows = serde_json::json!([
+        {"uniqueName": MOA_WEAPON, "name": "Example Moa Gun", "type": "Companion Weapon", "category": "Primary", "masterable": true},
+        {"uniqueName": MOA_WEAPON_AS_PETS, "name": "Example Other Moa Gun", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": HOUND_WEAPON, "name": "Example Hound Blade", "type": "Companion Weapon", "category": "Melee", "masterable": true},
+        {"uniqueName": HOUND_WEAPON_AS_PETS, "name": "Example Other Hound Blade", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": MOA_MODEL, "name": "Example Moa", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": HOUND_MODEL, "name": "Example Hound", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": PREDASITE, "name": "Example Predasite", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": VULPAPHYLA, "name": "Example Vulpaphyla", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": KUBROW, "name": "Example Kubrow", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": KAVAT, "name": "Example Kavat", "type": "Pets", "category": "Pets", "masterable": true},
+        {"uniqueName": SENTINEL, "name": "Example Sentinel", "type": "Sentinel", "category": "Sentinels", "masterable": true},
+        {"uniqueName": SENTINEL_WEAPON, "name": "Example Sentinel Rifle", "type": "Companion Weapon", "category": "Primary", "masterable": true},
+        {"uniqueName": ARCHWING, "name": "Example Archwing", "type": "Archwing", "category": "Archwing", "masterable": true},
+        {"uniqueName": NECRAMECH, "name": "Voidrig", "type": "Necramech", "category": "Warframes", "masterable": true},
+        {"uniqueName": KDRIVE, "name": "Example Board", "type": "K-Drive Component", "category": "Misc", "masterable": true},
+        {"uniqueName": ARCH_MELEE, "name": "Example Scythe", "type": "Arch-Melee", "category": "Arch-Melee", "masterable": true}
+    ]);
+    CatalogIndex::from_wfcd_json(&serde_json::to_vec(&rows).unwrap()).unwrap()
+}
+
+/// Is `path` mastered when its only XP row reads `xp`?
+fn mastered_at(catalog: &CatalogIndex, path: &str, xp: u64) -> bool {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    payload["XPInfo"] = serde_json::json!([{"ItemType": path, "XP": xp}]);
+    InventoryJsonDecoder::with_catalog(catalog)
+        .decode(&serde_json::to_vec(&payload).unwrap())
+        .unwrap()
+        .entries()
+        .iter()
+        .find(|entry| entry.item.id.as_str() == path)
+        .unwrap_or_else(|| panic!("no entry for {path}"))
+        .mastered
+}
+
+fn category_of(catalog: &CatalogIndex, path: &str) -> Category {
+    let mut payload: serde_json::Value = serde_json::from_slice(&complete_payload()).unwrap();
+    payload["XPInfo"] = serde_json::json!([{"ItemType": path, "XP": 1}]);
+    InventoryJsonDecoder::with_catalog(catalog)
+        .decode(&serde_json::to_vec(&payload).unwrap())
+        .unwrap()
+        .entries()
+        .iter()
+        .find(|entry| entry.item.id.as_str() == path)
+        .unwrap()
+        .item
+        .category
+}
+
+/// A MOA's or hound's weapon ranks as a weapon: 500 x 30² = 450,000 at rank 30, as Helstrum,
+/// Vulcax, Tazicor, Akaten, Batoten and Lacerten do in the game. Stored with its companion, it
+/// was asked for a companion's 900,000, which no weapon reaches.
+#[test]
+fn a_moa_or_hound_weapon_is_mastered_at_a_weapons_rank_thirty() {
+    let catalog = companion_mastery_catalog();
+    for path in [MOA_WEAPON, MOA_WEAPON_AS_PETS, HOUND_WEAPON, HOUND_WEAPON_AS_PETS] {
+        assert!(mastered_at(&catalog, path, 450_000), "{path} at 450,000");
+        assert!(!mastered_at(&catalog, path, 449_999), "{path} at 449,999");
+    }
+}
+
+/// Only the curve moves: the weapon is still stored, and shown, with its companion.
+#[test]
+fn a_moa_or_hound_weapon_keeps_its_stored_category() {
+    let catalog = companion_mastery_catalog();
+    for path in [MOA_WEAPON, MOA_WEAPON_AS_PETS, HOUND_WEAPON, HOUND_WEAPON_AS_PETS] {
+        assert_eq!(category_of(&catalog, path), Category::Companion, "{path}");
+    }
+}
+
+/// Nothing comes out mastered below its own curve: every companion (the MOA's and the hound's
+/// model included, which sit beside their weapons), archwings and K-Drives need 1,000 x 30², a
+/// Necramech 1,000 x 40².
+#[test]
+fn companions_frames_and_vehicles_keep_their_own_thresholds() {
+    let catalog = companion_mastery_catalog();
+    for path in [
+        MOA_MODEL, HOUND_MODEL, PREDASITE, VULPAPHYLA, KUBROW, KAVAT, SENTINEL, ARCHWING, KDRIVE,
+    ] {
+        assert!(mastered_at(&catalog, path, 900_000), "{path} at 900,000");
+        assert!(!mastered_at(&catalog, path, 899_999), "{path} at 899,999");
+        assert!(!mastered_at(&catalog, path, 450_000), "{path} at 450,000");
+    }
+    assert!(mastered_at(&catalog, NECRAMECH, 1_600_000));
+    assert!(!mastered_at(&catalog, NECRAMECH, 1_599_999));
+}
+
+/// Sentinel weapons and arch-melee were weapons before and stay so.
+#[test]
+fn sentinel_weapons_and_arch_melee_keep_the_weapon_threshold() {
+    let catalog = companion_mastery_catalog();
+    for path in [SENTINEL_WEAPON, ARCH_MELEE] {
+        assert_eq!(category_of(&catalog, path), Category::Weapon, "{path}");
+        assert!(mastered_at(&catalog, path, 450_000), "{path} at 450,000");
+        assert!(!mastered_at(&catalog, path, 449_999), "{path} at 449,999");
+    }
+}
+
 #[test]
 fn incomplete_truncated_or_structurally_wrong_payload_is_rejected() {
     let decoder = InventoryJsonDecoder::default();
