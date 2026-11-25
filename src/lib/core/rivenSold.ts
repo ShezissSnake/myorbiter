@@ -51,7 +51,7 @@ export interface RivenSaleFacts {
   linked: boolean;
   /** The trade is inside the window in which sales are marked (recentTrade). */
   recent: boolean;
-  /** The player's auctions, from a read made for this decision. */
+  /** The player's auctions: from a read made for this decision when it could end in a close (`mayClose`), otherwise the last read already made. */
   auctions: MyAuction[];
   meta: RivenMeta;
   /** The last inventory read; null when there is none. */
@@ -99,6 +99,31 @@ export function rivenVerdict(f: RivenSaleFacts): RivenVerdict {
     if (!before) return tell("your inventory still holds a riven that may be it");
   }
   return { do: "close", auction: a };
+}
+
+/**
+ * Whether a riven given in a trade could end in a close: case 1's conditions that need no auctions
+ * (signed in, the switch on, a sale for platinum alone, inside the window, the trade's only riven).
+ * Only then is a read of the player's auctions made for it. In every other case nothing is read
+ * because of the trade: it is decided by the auctions already known (the last read the pages made
+ * anyway), and never closed.
+ */
+export function mayClose(f: Pick<RivenSaleFacts, "trade" | "item" | "autoTrades" | "linked" | "recent">): boolean {
+  if (!f.linked || !f.autoTrades || !f.item.riven || !f.trade.offered.includes(f.item)) return false;
+  if (!isSale(f.trade) || !f.recent) return false;
+  return f.trade.offered.filter((x) => x.riven).reduce((n, x) => n + x.count, 0) === 1;
+}
+
+/** Fresh reads of the auctions at most for one trade's riven: the first, then two more a minute apart after a failed one. */
+export const RIVEN_READS = 3;
+
+/**
+ * The trades with a riven given that isn't decided yet, by its trade's key (`key`: tradeKey with
+ * the log's own session start, the same on every read of the same log). A log read again, or read
+ * anew after a restart, brings the same keys, so a trade decided once is never due again.
+ */
+export function rivenTradesDue(list: RivenSold[], trades: Trade[], key: (t: Trade) => string): Trade[] {
+  return trades.filter((t) => t.offered.some((x) => x.riven && !rivenDecided(list, key(t), x)));
 }
 
 /** What became of a riven given in a trade, kept in the settings so a trade is decided once. */

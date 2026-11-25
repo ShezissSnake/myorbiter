@@ -5,9 +5,9 @@ import "./support/runes";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { market } from "../src/lib/backend";
-import { auctionFits, heldLike, keepRivenSold, rivenDecided, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
+import { auctionFits, heldLike, keepRivenSold, mayClose, RIVEN_READS, rivenDecided, rivenTradesDue, rivenSoldOf, rivenSoldShown, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSaleFacts, type RivenSold } from "../src/lib/core/rivenSold";
 import { parseMyAuctions, type MyAuction, type RivenMeta } from "../src/lib/core/rivens";
-import { markTrades, salesFromTrade, type TradeMarking } from "../src/lib/core/trades";
+import { markTrades, salesFromTrade, tradeKey, type TradeMarking } from "../src/lib/core/trades";
 import { indexItems, type MarketItem, type MyOrder } from "../src/lib/core/market";
 import { recentTrade, saleNotice } from "../src/lib/core/saleNotice";
 import type { Trade, TradeItem } from "../src/lib/core/types";
@@ -245,6 +245,52 @@ test("case 5: one trade decides once: a record for each riven, kept over a resta
   let many: RivenSold[] = [];
   for (let i = 0; i < 150; i++) many = keepRivenSold(many, { ...r, trade: `${i < 60 ? 1 : 2}|${i}` }, "1");
   assert.ok(many.some((x) => x.trade === "1|0"), "the running session's oldest is kept");
+});
+
+test("case 5: the same log read again brings the same trade, decided once: one record, so one notice", () => {
+  // Two reads of one log: equal trades, the log's own session start (ee_log.rs reads it from the
+  // log's clock line, the same on every read).
+  const session = 1_791_918_527;
+  const first = [trade()];
+  const second = JSON.parse(JSON.stringify(first)) as Trade[];
+  const key = (t: Trade) => tradeKey(session, t);
+  assert.equal(key(first[0]), key(second[0]));
+  assert.deepEqual(rivenTradesDue([], first, key).map(key), [key(first[0])]);
+  // Decided on the first read (the record is what the notice goes with), it isn't due on the second.
+  let list = keepRivenSold([], { trade: key(first[0]), riven: first[0].offered[0].name, rank: 0, at: AT * 1000, partner: "Buyer1", auctions: ["a1"], state: "told", why: "Mark sales sold from the game is off" }, String(session));
+  assert.deepEqual(rivenTradesDue(list, second, key), []);
+  // Recorded again for the same trade (a race), it replaces: still one record.
+  list = keepRivenSold(list, { ...list[0] }, String(session));
+  assert.equal(list.length, 1);
+  // A trade with a riven decided and another not: due for the other only.
+  const two = trade({ offered: [riven(), riven({ name: "Braton Visi-critatis" })] });
+  assert.equal(rivenTradesDue(list, [two], key).length, 1);
+  // Another session start is another trade: the demo's log, whose clock is moved up to each read,
+  // shows this; the game's log never does.
+  assert.equal(rivenTradesDue(list, second, (t) => tradeKey(session + 60, t)).length, 1);
+});
+
+test("the auctions are read because of a trade only when it could end in a close", () => {
+  const f = facts();
+  assert.equal(mayClose(f), true);
+  // Every other case goes by the auctions already known, with no read of its own.
+  assert.equal(mayClose({ ...f, autoTrades: false }), false, "the switch off");
+  assert.equal(mayClose({ ...f, linked: false }), false, "not signed in");
+  assert.equal(mayClose({ ...f, recent: false }), false, "old, or made while MyOrbiter was shut");
+  const swap = trade({ received: [{ name: "Forma Blueprint", rank: null, count: 1 }] });
+  assert.equal(mayClose({ ...f, trade: swap, item: swap.offered[0] }), false, "a swap");
+  const gift = trade({ platinum_received: 0 });
+  assert.equal(mayClose({ ...f, trade: gift, item: gift.offered[0] }), false, "a gift");
+  const several = trade({ offered: [riven(), riven({ name: "Braton Visi-critatis" })] });
+  assert.equal(mayClose({ ...f, trade: several, item: several.offered[0] }), false, "several rivens");
+  const twice = trade({ offered: [riven({ count: 2 })] });
+  assert.equal(mayClose({ ...f, trade: twice, item: twice.offered[0] }), false, "two of one riven");
+  const bought = trade({ offered: [], received: [riven()], platinum_offered: 120, platinum_received: 0 });
+  assert.equal(mayClose({ ...f, trade: bought, item: bought.received[0] }), false, "a riven received");
+  // Whenever mayClose is false, no verdict is a close: the read it skips could never have led to one.
+  for (const g of [{ ...f, autoTrades: false }, { ...f, recent: false }, { ...f, trade: swap, item: swap.offered[0] }, { ...f, trade: several, item: several.offered[0] }]) assert.notEqual(rivenVerdict(g).do, "close");
+  // The read for one trade's riven is tried a bounded number of times.
+  assert.equal(RIVEN_READS, 3);
 });
 
 test("case 6: the telling shows while the auction is open, and not once it is closed or put away", () => {

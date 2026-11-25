@@ -7,7 +7,7 @@
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
   import { REP_STRIP_WINDOW, offerTime, recentTrade, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
-  import { keepRivenSold, rivenDecided, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
+  import { keepRivenSold, mayClose, RIVEN_READS, rivenDecided, rivenTradesDue, rivenVerdict, setRivenSold, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -136,7 +136,7 @@
   import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
-  import { cycleKey, cycleOverlay, parseRiven, rivenTables, rollChoice, searchFor, weaponSlug, type RivenMeta } from "./lib/core/rivens";
+  import { cycleKey, cycleOverlay, parseRiven, rivenTables, rollChoice, searchFor, weaponSlug, type MyAuction, type RivenMeta } from "./lib/core/rivens";
   import { estimateRiven } from "./lib/core/rivenModel";
   import TennoscopeSheet from "./lib/TennoscopeSheet.svelte";
   import FullMode from "./lib/FullMode.svelte";
@@ -1655,31 +1655,43 @@
   // written and the player is told, with one click to close on Orders and Rivens. Only while
   // signed in: otherwise the auctions aren't known and nothing is done. Each riven of a trade is
   // decided once, recorded before anything is sent (settings.market.rivenSold, kept across
-  // restarts), so a log read again or a restart never closes twice.
+  // restarts), so a log read again or a restart never closes twice. The player's auctions are read
+  // because of a trade only when it could end in a close (mayClose: the switch on, a recent sale,
+  // its only riven); every other riven given is decided by the auctions already known, from the
+  // reads the pages make anyway, and waits for one when none was made yet.
   $effect(() => {
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
     const meta = rivens.meta;
-    // A minute after a failed read of the auctions, this runs again even with the log unchanged.
+    // A minute after a failed read of the auctions, this runs again even with the log unchanged;
+    // and after any read of the auctions, for rivens waiting on one.
     void rivenRetry;
+    void rivens.mineAt;
     if (!trades.length || !mkt.linked) return;
     untrack(() => {
-      const due = trades.filter((t) => !rivenHandling.has(tradeKey(session, t)) && t.offered.some((x) => x.riven && !rivenDecided(settings.market.rivenSold, tradeKey(session, t), x)));
+      // Recent as the marking of sales takes it: a trade with no time only if it turned up after
+      // this run's first read of its session. Fixed when a trade is first seen, so a later run
+      // doesn't make a trade that was already in the log recent.
+      const firstRead = !rivenSessionsRead.has(session ?? "?");
+      rivenSessionsRead.add(session ?? "?");
+      for (const t of trades) if (!rivenFirstSeen.has(tradeKey(session, t))) rivenFirstSeen.set(tradeKey(session, t), firstRead);
+      const due = rivenTradesDue(settings.market.rivenSold, trades, (t) => tradeKey(session, t)).filter((t) => !rivenHandling.has(tradeKey(session, t)));
       if (!due.length) return;
       // warframe.market's weapon names, to tell which auctions fit: this effect runs again when they come.
       if (!meta) return void rivens.loadMeta();
       if (Date.now() < rivenReadAgainAt) return;
-      // Recent as the marking of sales takes it: a trade with no time only once it turns up after this run's first read of its session.
-      const firstRead = !rivenSessionsRead.has(session ?? "?");
-      rivenSessionsRead.add(session ?? "?");
       for (const t of due) rivenHandling.add(tradeKey(session, t));
-      void decideRivens(due, session, meta, firstRead);
+      void decideRivens(due, session, meta);
     });
   });
   /** Trades whose rivens are being decided now: not started twice while the first is out. */
   const rivenHandling = new Set<string>();
-  /** Game sessions whose trades the rivens' decision has read once (see recentTrade). */
+  /** Game sessions whose trades the rivens' decision has seen (see recentTrade). */
   const rivenSessionsRead = new Set<number | string>();
+  /** Each trade's key, and whether it was first seen on its session's first read (then, with no time, it isn't recent). */
+  const rivenFirstSeen = new Map<string, boolean>();
+  /** Reads of the auctions made for each trade (at most RIVEN_READS). */
+  const rivenReads = new Map<string, number>();
   /** After a read of the auctions failed: not before this time again (unix ms). */
   let rivenReadAgainAt = 0;
   /** Counted up a minute after a failed read, to run the decision again. */
@@ -1701,26 +1713,46 @@
   }
   /** Fixed words for a riven sale's log lines: the trade, then what became of its auction. */
   const rivenLog = (key: string, what: string) => `A riven given in trade ${key}: ${what}`;
-  async function decideRivens(trades: NonNullable<MissionState["trades"]>, session: number | null, meta: RivenMeta, firstRead: boolean) {
+  async function decideRivens(trades: NonNullable<MissionState["trades"]>, session: number | null, meta: RivenMeta) {
     try {
-      // The player's auctions as they are now: the decision never goes by an older list.
-      const auctions = await rivens.readNow();
-      if (!auctions) {
-        rivenReadAgainAt = Date.now() + 60_000;
-        setTimeout(() => rivenRetry++, 60_500);
-        // Nothing was decided: the next try is still this session's first read, so a trade with no
-        // time that was already in the log doesn't turn recent.
-        if (firstRead) rivenSessionsRead.delete(session ?? "?");
-        logLine("warn", "rivens", `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was decided; tried again in a minute.`);
-        return;
+      const now = Date.now();
+      const keyOf = (t: (typeof trades)[number]) => tradeKey(session, t);
+      // A trade not seen before (it can't be: the effect marks each one) counts as already in the log.
+      const recentOf = (t: (typeof trades)[number]) => recentTrade(t, now, rivenFirstSeen.get(keyOf(t)) ?? true);
+      // The trades that could end in a close and have reads left: only for them are the auctions read now.
+      const readFor = trades.filter(
+        (t) =>
+          (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS &&
+          t.offered.some((x) => x.riven && !rivenDecided(settings.market.rivenSold, keyOf(t), x) && mayClose({ trade: t, item: x, autoTrades: settings.market.autoTrades, linked: mkt.linked, recent: recentOf(t) })),
+      );
+      let fresh: MyAuction[] | null = null;
+      if (readFor.length) {
+        for (const t of readFor) rivenReads.set(keyOf(t), (rivenReads.get(keyOf(t)) ?? 0) + 1);
+        // The player's auctions as they are now: a close never goes by an older list.
+        fresh = await rivens.readNow();
+        if (!fresh) {
+          const again = readFor.some((t) => (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS);
+          logLine("warn", "rivens", `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was closed; ${again ? "tried again in a minute" : `no more reads for it (${RIVEN_READS} failed): it goes by the auctions already known and isn't closed`}.`);
+          if (again) {
+            rivenReadAgainAt = Date.now() + 60_000;
+            setTimeout(() => rivenRetry++, 60_500);
+            return;
+          }
+        }
       }
+      // Otherwise the auctions already known: the last read the pages made. With none yet, the
+      // rivens wait for one (this effect runs again after each read).
+      const auctions = fresh ?? (rivens.mineAt != null ? rivens.mine : null);
+      if (!auctions) return;
       const held = heldRivens(meta);
       for (const t of trades) {
-        const key = tradeKey(session, t);
-        const recent = recentTrade(t, Date.now(), firstRead);
+        const key = keyOf(t);
+        const recent = recentOf(t);
         for (const item of t.offered) {
           if (!item.riven || rivenDecided(settings.market.rivenSold, key, item)) continue;
-          const v = rivenVerdict({ trade: t, item, autoTrades: settings.market.autoTrades, linked: mkt.linked, recent, auctions, meta, held });
+          let v = rivenVerdict({ trade: t, item, autoTrades: settings.market.autoTrades, linked: mkt.linked, recent, auctions, meta, held });
+          // A close only on a read made for it just now; by an older list it is told instead.
+          if (v.do === "close" && !fresh) v = { do: "tell", auctions: [v.auction], why: "your auctions couldn't be read just now, so it wasn't closed" };
           const base = { trade: key, riven: item.name, rank: item.rank, at: t.at ? t.at * 1000 : Date.now(), partner: t.partner };
           if (v.do === "nothing") {
             recordRiven({ ...base, auctions: [], state: "none" }, session);

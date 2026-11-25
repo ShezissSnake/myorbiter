@@ -730,6 +730,13 @@ and will receive from Buyer1\u{E000} the following:\n\
         both.observe("10.0 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:\rBraton Crita-hexacan (RIVEN RANK 0)\rBraton Crita-hexacan (RARE RANK 0)\rand will receive from Buyer the following:\rPlatinum x 150, leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)");
         both.observe("14.0 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, leftItem=/Menu/Confirm_Item_Ok)");
         assert_eq!(both.trades[0].offered.len(), 2);
+        // The same log read again (a restart reads it from the top) gives the same session start
+        // and the same trade uptime: the page's trade key (session start | uptime) doesn't change,
+        // so a riven decided once is never decided again.
+        let mut again = MissionState::default();
+        SALE.replace("Condition Overload (RARE RANK 0)", "Braton Crita-hexacan (RIVEN RANK 0)").lines().for_each(|l| again.observe(l));
+        assert_eq!((again.session_start, again.trades[0].uptime), (s.session_start, s.trades[0].uptime));
+        assert_eq!(s.session_start, Some(1_791_918_527));
     }
 
     /// Step 3 of the first start asks whether the player is signed in. Made-up logs, each the way
