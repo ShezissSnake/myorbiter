@@ -5,7 +5,7 @@
   // the page, never moving it; not modal. Esc, a click elsewhere or the window changing size closes
   // it. Settings, Updates has the same and the release notes.
   import { tick } from "svelte";
-  import { CHANNEL_LABEL, CHANNELS, channelWord, followWords, installChecks, installInstalls, installNote, noteLines, type UpdateSettings } from "./core/updates";
+  import { CHANNEL_LABEL, CHANNELS, channelWord, followWords, installChecks, installInstalls, installNote, noteLines, type Channel, type UpdateSettings } from "./core/updates";
   import { updates, updatesPanel } from "./updates.svelte";
   import Seg from "./ui/Seg.svelte";
   import Switch from "./ui/Switch.svelte";
@@ -75,7 +75,8 @@
     </div>
     {#if installNote(info.install)}<p class="hint">{installNote(info.install)}</p>{/if}
     {#if checks}
-      <Seg label="Channel" value={u.channel} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
+      <!-- A new install that hasn't settled shows no channel as chosen here (Settings shows the one it starts on). -->
+      <Seg label="Channel" value={u.picked ? u.channel : ("" as Channel)} options={CHANNELS.map((c) => ({ ...c }))} onchange={(c) => updates.setChannel(c)} />
       {#if updates.unsettled}<p class="hint">{updates.unsettled}</p>{:else if follow}<p class="hint" data-field="updates.follows">{follow}</p>{/if}
       {#if updates.followable && u.picked}
         <Switch name="updates.follow" label="Follow the most stable build" bind:on={() => u.follows, (v) => (v ? updates.follow() : updates.unfollow())}>

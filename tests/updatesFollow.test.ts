@@ -113,7 +113,7 @@ test("outside Settings, an unsettled channel is never named as chosen", () => {
   assert.equal(channelWord("0.1.0", fresh), "local build");
   assert.match(followWords(RUN, { ...fresh, channel: "beta", picked: true, follows: true }) ?? "", /moves to Stable by itself once Stable has this build or a newer one, never to a less stable channel or an older build/);
   assert.match(followWords(RUN, { ...fresh, channel: "experimental", picked: true, follows: true }) ?? "", /moves to Stable or Beta by itself once one of them has/);
-  assert.equal(followWords(RUN, { ...fresh, channel: "beta", picked: true, follows: false }), "Beta was picked by hand: MyOrbiter never switches it by itself.");
+  assert.equal(followWords(RUN, { ...fresh, channel: "beta", picked: true, follows: false }), "Beta stays as chosen: MyOrbiter never switches it by itself.");
 });
 
 test("an empty channel's switch is offered outside Settings only when it isn't a step back", () => {

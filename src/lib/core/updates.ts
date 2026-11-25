@@ -295,7 +295,7 @@ export function channelWord(version: string, u: UpdateSettings): string {
  */
 export function followWords(version: string, u: UpdateSettings): string | null {
   if (buildNumber(version) == null || !u.picked) return null;
-  if (!u.follows) return `${CHANNEL_LABEL[u.channel]} was picked by hand: MyOrbiter never switches it by itself.`;
+  if (!u.follows) return `${CHANNEL_LABEL[u.channel]} stays as chosen: MyOrbiter never switches it by itself.`;
   if (u.channel === "stable") return "Following the most stable channel with a build: Stable, the most stable.";
   const up = followOrder(u.channel).map((c) => CHANNEL_LABEL[c]);
   const when = up.length === 1 ? `once ${up[0]} has` : "once one of them has";
