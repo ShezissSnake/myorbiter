@@ -439,7 +439,7 @@ const ORDERS_AUTO: Walkthrough = {
     {
       title: "After a trade, and whispers",
       lines: [
-        "Mark sales sold: a trade in game marks its listing sold, and logs it.",
+        "Mark sales sold: game sales marked sold; riven auctions closed only if sure.",
         "Give +rep by itself: each partner gets +rep once, posted as you.",
         "Hide last copies: a whisper hides listings you have one copy of, for a while.",
         "Each is off unless you turn it on; Settings, Trades has the same switches.",

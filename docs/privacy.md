@@ -198,7 +198,9 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
   is hidden, backing off to 10 minutes while warframe.market isn't answering, and after each
   change); your riven auctions (while Orders or Rivens is on screen, at most every 5 minutes, at
   once for another account or platform, a minute after a failed read; before putting one up, if
-  the last read is over 30 seconds old; and after each change); your chats (every minute);
+  the last read is over 30 seconds old; when the game's log shows you gave a riven in a trade,
+  whether or not Mark sales sold from the game is on, to see whether one of your auctions is that riven's, and
+  again just before closing one; and after each change); your chats (every minute);
   before giving +rep, that player's reviews, to see whether you already gave one; and, if you
   choose a status, a second connection held while MyOrbiter is open, which sends it again every 2
   minutes, puts it back if something else changes it, and switches "online in game" to online
@@ -206,7 +208,9 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
 - **Changes** go out when you ask (list, change a price or quantity, hide or show, mark sold,
   remove one listing or all, reprice, post a buy order, apply a Sell spares plan, give +rep, put up,
   reprice or close a riven auction); when a trade in the game's log in the last half hour shows you
-  sold a listing (off unless you turn it on in Settings, Trades or on Orders); to give each player
+  sold a listing, or sold a riven whose auction it can tell apart from every other (the same
+  switch: off unless you turn it on in Settings, Trades or on Orders; otherwise you are told, and the
+  auction is closed only on your click); to give each player
   you trade with +rep with your message (off unless you turn it on); to hide your last copies while someone
   whispers you and show each again after the minutes you set, once an inventory read newer than the
   whisper still has the copy (if you turn it on); and with automatic
