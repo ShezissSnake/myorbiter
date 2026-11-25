@@ -741,3 +741,85 @@ fn amp_prisms_and_infested_chambers_are_masterable_though_wfcd_says_not() {
         assert!(!catalog.resolve(path).unwrap().masterable(), "{path}");
     }
 }
+
+fn forty_rank_fixture() -> Vec<u8> {
+    br#"[
+      {"uniqueName":"/Lotus/Weapons/Example/Pistols/ExampleDualCodaPistol","name":"Dual Coda Torxica","type":"Pistol","category":"Secondary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Pistols/ExampleCodaPistol","name":"Coda Example","type":"Pistol","category":"Secondary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/LongGuns/ExampleKuvaRifle","name":"Kuva Example","type":"Rifle","category":"Primary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/LongGuns/ExampleTenetRifle","name":"Tenet Example","type":"Rifle","category":"Primary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Melee/ExampleParacesis","name":"Paracesis","type":"Melee","category":"Melee","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Powersuits/Example/ExampleVoidrig","name":"Voidrig","type":"Necramech","category":"Warframes","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Powersuits/Example/ExampleBonewidow","name":"Bonewidow","type":"Necramech","category":"Warframes","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Melee/ExampleDualSwords","name":"Dual Example Swords","type":"Melee","category":"Melee","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Pistols/ExampleCodalike","name":"Codaxample","type":"Pistol","category":"Secondary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Pistols/ExampleBareDualCoda","name":"Dual Coda","type":"Pistol","category":"Secondary","masterable":true,"components":[]},
+      {"uniqueName":"/Lotus/Weapons/Example/Pistols/ExampleDualKuvaLike","name":"Dual Kuvaxample","type":"Pistol","category":"Secondary","masterable":true,"components":[]}
+    ]"#
+    .to_vec()
+}
+
+#[test]
+fn a_dual_coda_weapon_has_forty_ranks_as_the_coda_weapons_do() {
+    let catalog = CatalogIndex::from_wfcd_json(&forty_rank_fixture()).unwrap();
+    let dual_coda = catalog
+        .resolve("/Lotus/Weapons/Example/Pistols/ExampleDualCodaPistol")
+        .unwrap();
+    assert_eq!(dual_coda.category(), Some(Category::Weapon));
+    assert!(dual_coda.masterable());
+    assert_eq!(dual_coda.max_rank(), 40);
+
+    // Every name that had 40 ranks keeps them.
+    for path in [
+        "/Lotus/Weapons/Example/Pistols/ExampleCodaPistol",
+        "/Lotus/Weapons/Example/LongGuns/ExampleKuvaRifle",
+        "/Lotus/Weapons/Example/LongGuns/ExampleTenetRifle",
+        "/Lotus/Weapons/Example/Melee/ExampleParacesis",
+        "/Lotus/Powersuits/Example/ExampleVoidrig",
+        "/Lotus/Powersuits/Example/ExampleBonewidow",
+    ] {
+        assert_eq!(catalog.resolve(path).unwrap().max_rank(), 40, "{path}");
+    }
+    // A name that only resembles one, without the word and its space, stays at 30.
+    for path in [
+        "/Lotus/Weapons/Example/Melee/ExampleDualSwords",
+        "/Lotus/Weapons/Example/Pistols/ExampleCodalike",
+        "/Lotus/Weapons/Example/Pistols/ExampleBareDualCoda",
+        "/Lotus/Weapons/Example/Pistols/ExampleDualKuvaLike",
+    ] {
+        assert_eq!(catalog.resolve(path).unwrap().max_rank(), 30, "{path}");
+    }
+}
+
+#[test]
+fn a_dual_coda_weapon_counts_as_mastered_at_rank_forty_and_not_below() {
+    let catalog = CatalogIndex::from_wfcd_json(&forty_rank_fixture()).unwrap();
+    let path = "/Lotus/Weapons/Example/Pistols/ExampleDualCodaPistol";
+    let mastered_at = |xp: u64| {
+        let payload = format!(
+            r#"{{
+      "LastInventorySync":{{"$date":{{"$numberLong":"1753392000000"}}}},
+      "Suits":[],"LongGuns":[],"Pistols":[],"Melee":[],"Sentinels":[],"MiscItems":[],
+      "Recipes":[],"PendingRecipes":[],"SpaceSuits":[],"SpaceMelee":[],"SpaceGuns":[],
+      "SentinelWeapons":[],"KubrowPets":[],"OperatorAmps":[],"MechSuits":[],
+      "XPInfo":[{{"ItemType":"{path}","XP":{xp}}}]
+    }}"#
+        );
+        let snapshot = InventoryJsonDecoder::with_catalog(&catalog)
+            .decode(payload.as_bytes())
+            .unwrap();
+        let entry = snapshot
+            .entries()
+            .iter()
+            .find(|entry| entry.item.id.as_str() == path)
+            .unwrap();
+        assert_eq!(entry.item.name, "Dual Coda Torxica");
+        assert_eq!(entry.item.category, Category::Weapon);
+        entry.mastered
+    };
+
+    // A weapon's affinity for rank 30 (500 × 30²) and for rank 40 (500 × 40²).
+    assert!(!mastered_at(450_000));
+    assert!(!mastered_at(799_999));
+    assert!(mastered_at(800_000));
+}

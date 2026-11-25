@@ -664,6 +664,7 @@ fn catalog_max_rank(name: &str) -> u32 {
         || name.starts_with("Kuva ")
         || name.starts_with("Tenet ")
         || name.starts_with("Coda ")
+        || name.starts_with("Dual Coda ")
     {
         40
     } else {
