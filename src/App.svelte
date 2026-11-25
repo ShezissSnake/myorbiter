@@ -1656,8 +1656,9 @@
   // signed in: otherwise the auctions aren't known and nothing is done. Each riven of a trade is
   // decided once, recorded before anything is sent (settings.market.rivenSold, kept across
   // restarts), so a log read again or a restart never closes twice. The player's auctions are read
-  // for a riven given, at most RIVEN_READS times a minute apart while the read fails; after that it
-  // is decided by the auctions already known (the reads the pages make anyway) and never closed.
+  // for a riven given, at most RIVEN_READS times a minute apart while the read fails (counted in
+  // this run only); after that it is decided by the auctions already known (the reads the pages
+  // make anyway) and not closed.
   $effect(() => {
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
@@ -1727,7 +1728,7 @@
         fresh = await rivens.readNow();
         if (!fresh) {
           const again = readFor.some((t) => (rivenReads.get(keyOf(t)) ?? 0) < RIVEN_READS);
-          logLine("warn", "rivens", `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was decided; ${again ? "tried again in a minute" : `no more reads for it (${RIVEN_READS} failed): it goes by the auctions already known and isn't closed`}.`);
+          logLine("warn", "rivens", again ? `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was decided; tried again in a minute.` : `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), ${RIVEN_READS} times in a row: it goes by the auctions already known and isn't closed.`);
           if (again) {
             rivenReadAgainAt = Date.now() + 60_000;
             setTimeout(() => rivenRetry++, 60_500);

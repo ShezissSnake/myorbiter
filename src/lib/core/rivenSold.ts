@@ -103,8 +103,8 @@ export function rivenVerdict(f: RivenSaleFacts): RivenVerdict {
 
 /**
  * Reads of the player's auctions made for one trade's rivens, at most: the first, then two more a
- * minute apart while the read fails. After that the trade goes by the auctions already known and is
- * never closed.
+ * minute apart while the read fails, counted in one run of the app. After that the trade goes by the
+ * auctions already known and isn't closed.
  */
 export const RIVEN_READS = 3;
 
