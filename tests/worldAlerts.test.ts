@@ -10,7 +10,7 @@ import { inFissure } from "../src/lib/core/mission";
 import { cycleTimers, matchedFissures, ruleLabel, ruleMatches, sameRule, type FissureRule } from "../src/lib/core/timers";
 import { alertNeeds, type WorldAlert } from "../src/lib/core/worldNeeds";
 import { couldntRead, fissuresOutOfDate, liveCurrent, notInWorld, unreadParts, watchingAlertsNote, type WorldRead } from "../src/lib/core/worldAge";
-import { circuitNews, dealNews, wishlistNews } from "../src/lib/core/worldOnce";
+import { circuitNews, dealNews, tellOnce, wishlistNews } from "../src/lib/core/worldOnce";
 import type { Fissure, Live, MissionState } from "../src/lib/core/types";
 
 const T0 = Date.parse("2026-11-12T10:00:00Z");
@@ -339,4 +339,29 @@ test("App, Home and Watching go by these rules", () => {
   assert.match(side, /fissuresOutOfDate\(/);
   const board = readFileSync(new URL("../src/lib/ui/FissureBoard.svelte", import.meta.url), "utf8");
   assert.match(board, /fissuresOutOfDate\(/);
+});
+
+test("an alert or invasion is told once while its kind is on, and one seen while it was off is told once it is turned on", () => {
+  const seen = new Set<string>();
+  const firstTime = (k: string) => (seen.has(k) ? false : (seen.add(k), true));
+  const running = ["a1", "a2"];
+  // Off: nothing told, nothing marked.
+  assert.deepEqual(tellOnce(false, running, firstTime), []);
+  assert.equal(seen.size, 0);
+  // Turned on: the ones running are told, once.
+  assert.deepEqual(tellOnce(true, running, firstTime), ["a1", "a2"]);
+  assert.deepEqual(tellOnce(true, running, firstTime), [], "not again: at the next read, or after a restart (the marks are saved)");
+  assert.deepEqual(tellOnce(true, [...running, "a3"], firstTime), ["a3"], "a new one alone");
+  // Off again: a new one isn't marked, so it is told when the kind comes back on.
+  assert.deepEqual(tellOnce(false, ["a4"], firstTime), []);
+  assert.deepEqual(tellOnce(true, ["a4"], firstTime), ["a4"]);
+});
+
+test("the alerts' and invasions' notifications mark what they tell only while their kind is on", () => {
+  const app = readFileSync(new URL("../src/App.svelte", import.meta.url), "utf8");
+  assert.match(app, /tellOnce\(on\.mastery, mastery, \(a\) => firstTime\(`alert\|\$\{a\.key\}`\)\)/);
+  assert.match(app, /tellOnce\(on\.rare, rare, \(a\) => firstTime\(`alert\|\$\{a\.key\}`\)\)/);
+  assert.match(app, /tellOnce\(on, invasionRares\(invs\), \(n\) => firstTime\(`invasion\|\$\{n\.key\}`\)\)/);
+  assert.match(app, /const on = settings\.notify\.invasions;[\s\S]{0,200}tellOnce\(on, needs, \(n\) => !seen\.has\(n\.key\)\)/);
+  assert.equal((app.match(/firstTime\(`(?:alert|invasion)\|/g) ?? []).length, 3, "no other path marks an alert or invasion told");
 });

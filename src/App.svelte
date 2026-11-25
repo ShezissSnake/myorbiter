@@ -133,7 +133,7 @@
   import { NEWEST } from "./lib/whatsNew";
   import { whatsNewOnce } from "./lib/newsOnce.svelte";
   import { openEras, wishlistEras } from "./lib/core/wishlist";
-  import { circuitNews, dealNews, wishlistNews } from "./lib/core/worldOnce";
+  import { circuitNews, dealNews, tellOnce, wishlistNews } from "./lib/core/worldOnce";
   import { liveCurrent } from "./lib/core/worldAge";
   import { rivens } from "./lib/rivenStore.svelte";
   import { cycleKey, cycleOverlay, rivenTables, rollChoice, searchFor } from "./lib/core/rivens";
@@ -1210,27 +1210,30 @@
   }
   const names = (xs: string[], max = 4) => (xs.length > max ? `${xs.slice(0, max).join(", ")} and ${xs.length - max} more` : xs.join(", "));
 
-  // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward.
+  // Alerts: a reward toward something you haven't mastered, or a rare one. Once per alert and reward,
+  // and only while its kind is on (tellOnce): one running when the kind is turned on is told then.
   $effect(() => {
     const alerts = live.alerts;
     const m = onConsole ? null : bgModel;
+    const on = { mastery: settings.notify.alerts, rare: settings.notify.alertLoot };
     if (!alerts?.length || !settingsReady || (!m && !onConsole)) return;
     untrack(() => {
       const { mastery, rare } = alertNeeds(m, alerts);
-      const freshM = mastery.filter((a) => firstTime(`alert|${a.key}`));
-      const freshR = rare.filter((a) => firstTime(`alert|${a.key}`));
+      const freshM = tellOnce(on.mastery, mastery, (a) => firstTime(`alert|${a.key}`));
+      const freshR = tellOnce(on.rare, rare, (a) => firstTime(`alert|${a.key}`));
       const line = (a: (typeof mastery)[number]) => `${a.help ? describeHelp(a.reward, a.help) : a.reward}: ${a.mission} at ${a.node}, ${until(a.expiry)} left`;
       if (freshM.length) tell("alerts", freshM.length === 1 ? `Alert: ${freshM[0].reward}` : `${freshM.length} alerts with something to master`, freshM.map(line).join("\n"));
       if (freshR.length) tell("alertLoot", freshR.length === 1 ? `Alert: ${freshR[0].reward}` : `${freshR.length} alerts with rare rewards`, freshR.map(line).join("\n"));
     });
   });
   // Invasions paying a rare reward (a Catalyst or Reactor blueprint, Forma…): as alerts' rare
-  // rewards, once per invasion and reward. No inventory needed, so consoles get them too.
+  // rewards, once per invasion and reward, while that kind is on. No inventory needed, so consoles get them too.
   $effect(() => {
     const invs = live.invasions;
+    const on = settings.notify.alertLoot;
     if (!invs?.length || !settingsReady) return;
     untrack(() => {
-      const fresh = invasionRares(invs).filter((n) => firstTime(`invasion|${n.key}`));
+      const fresh = tellOnce(on, invasionRares(invs), (n) => firstTime(`invasion|${n.key}`));
       if (fresh.length) tell("alertLoot", fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with rare rewards`, fresh.map((n) => `${n.reward}: side with ${n.side} at ${n.node}`).join("\n"));
     });
   });
@@ -1339,21 +1342,21 @@
     lastStatusError = e;
   });
   // An invasion rewarding a part you need: one notification per invasion and part, remembered
-  // across restarts so the same invasion doesn't announce itself every time MyOrbiter opens.
+  // across restarts so the same invasion doesn't announce itself every time MyOrbiter opens. Only
+  // while the kind is on (tellOnce): one running when it is turned on is told then.
   const invasionsNeeded = $derived(bgModel && !onConsole ? invasionNeeds(bgModel, live.invasions) : []);
   $effect(() => {
     const needs = invasionsNeeded;
+    const on = settings.notify.invasions;
     if (!needs.length) return;
     untrack(() => {
       const seen = new Set(settings.notifiedInvasions);
-      const fresh = needs.filter((n) => !seen.has(n.key));
+      const fresh = tellOnce(on, needs, (n) => !seen.has(n.key));
       if (!fresh.length) return;
-      if (settings.notify.invasions) {
-        tell("invasions", 
-          fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
-          fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
-        );
-      }
+      tell("invasions",
+        fresh.length === 1 ? `Invasion: ${fresh[0].reward}` : `${fresh.length} invasions with parts you need`,
+        fresh.map((n) => `${n.reward} for ${n.item}: side with ${n.side} at ${n.node}`).join("\n"),
+      );
       settings.notifiedInvasions = [...fresh.map((n) => n.key), ...settings.notifiedInvasions].slice(0, 300);
     });
   });
