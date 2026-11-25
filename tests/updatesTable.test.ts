@@ -185,10 +185,14 @@ test("a new install's first start, today's channels: four reads of github.com, n
   await firstStart(t, u, settings);
   assert.equal(reads.length, 4);
   assert.equal(settings.channel, "experimental");
-  // Settled: the next check is main's, one read when GitHub has the manifest.
+  // Settled by itself, so it follows the most stable build: the next check first asks GitHub alone
+  // for the two more stable channels (a 404 each), then its own as main's check asks it, one read
+  // when GitHub has the manifest.
+  assert.equal(settings.follows, true);
   reads.length = 0;
   await u.checkNow();
-  assert.deepEqual(reads, ["experimental github"]);
+  assert.deepEqual(reads, ["stable github", "beta github", "experimental github"]);
+  assert.equal(settings.channel, "experimental");
 });
 
 test("a new install that picks the channel it shows gets its updates looked for at once", async (t) => {

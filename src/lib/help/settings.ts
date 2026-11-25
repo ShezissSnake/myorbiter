@@ -14,6 +14,8 @@ import { DEFAULT_HIDE_MINUTES, MAX_HIDE_MINUTES } from "../core/lastCopy";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
+/** Updates, from the channel to the empty channel's switch, runs taller than SIZE keeps clear of the sheet's header. */
+const TALL: [number, number] = [1280, 1280];
 
 const S = `.sheet[aria-label="Settings"]`;
 /** A Settings section, by its "?". */
@@ -99,14 +101,14 @@ const SETTINGS_MAIN: Walkthrough = {
     {
       title: "Updates, on your channel",
       lines: [
-        "Channel: Stable is tested, Beta the next Stable early, Experimental every change and may break.",
+        "Channel: Stable tested, Beta the next Stable early, Experimental every change, may break.",
         "Check now looks at once; MyOrbiter also looks at start and every 6 hours.",
-        "An empty channel says so, and offers the nearest with a build.",
+        "A channel MyOrbiter chose follows the most stable build; empty ones offer the nearest.",
         "Release notes: this build's page. Nothing installs, or changes a chosen channel, without your click.",
       ],
       shot: {
         open: "settings",
-        size: SIZE,
+        size: TALL,
         // Pictured with the demo's channels as a new channel has them (core/standIn.ts): Stable
         // and Beta empty, Experimental with this build.
         emptyChannel: true,

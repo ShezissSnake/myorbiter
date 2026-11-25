@@ -1497,13 +1497,15 @@ function demoStandIn(): StandIn | null {
 /**
  * Browser dev mode: a stand-in for the update feed, for an AppImage of 0.2.130, by the value of
  * EMPTY_CHANNEL_KEY in the demo browser's storage: "1", Stable and Beta with no build yet and
- * Experimental with this one (the help picture of an empty channel); "stable", every channel with
- * this build; "offline", no channel answers. Read at each check, so a change shows at the next.
+ * Experimental with this one (the help picture of an empty channel); "beta", Stable with no build
+ * yet and Beta and Experimental with this one; "stable", every channel with this build; "newer",
+ * every channel with 0.2.131, a build newer than this one (the update banner); "offline", no
+ * channel answers. Read at each check, so a change shows at the next.
  */
-const demoFeed = (): "1" | "stable" | "offline" | null => {
+const demoFeed = (): "1" | "beta" | "stable" | "newer" | "offline" | null => {
   try {
     const v = inTauri ? null : localStorage.getItem(EMPTY_CHANNEL_KEY);
-    return v === "1" || v === "stable" || v === "offline" ? v : null;
+    return v === "1" || v === "beta" || v === "stable" || v === "newer" || v === "offline" ? v : null;
   } catch {
     return null;
   }
@@ -1511,11 +1513,12 @@ const demoFeed = (): "1" | "stable" | "offline" | null => {
 const demoEmptyChannel = () => demoFeed() != null;
 const EMPTY_DEMO = {
   info: { version: "0.2.130", install: { how: "appImage", path: "/opt/MyOrbiter.AppImage" } } as UpdateInfo,
-  // `firstOnly`: a new install's check, which asks GitHub alone and words its failure so (updates.rs).
+  // `firstOnly`: a new install's check, or a following channel's read of a more stable one, which asks GitHub alone and words its failure so (updates.rs).
   check: (c: Channel, firstOnly = false): Promise<UpdateCheck> => {
     const feed = demoFeed();
     if (feed === "offline") return Promise.reject(new Error(firstOnly ? `Couldn't read the ${c[0].toUpperCase()}${c.slice(1)} channel's manifest on GitHub` : "Couldn't reach GitHub or GitLab"));
-    return Promise.resolve(feed === "stable" || c === "experimental" ? { state: "current", version: "0.2.130" } : { state: "empty", system: false });
+    if (feed === "newer") return Promise.resolve({ state: "newer", version: "0.2.131", notes: "Updates: seen on every page\nThe channel follows the most stable build", date: null });
+    return Promise.resolve(feed === "stable" || c === "experimental" || (feed === "beta" && c === "beta") ? { state: "current", version: "0.2.130" } : { state: "empty", system: false });
   },
 };
 
@@ -1549,7 +1552,7 @@ export type UpdateCheck =
  */
 export const updater = {
   info: (): Promise<UpdateInfo> => (inTauri ? invoke("updates_info") : Promise.resolve(demoEmptyChannel() ? EMPTY_DEMO.info : { version: "0.1.0", install: { how: "dev" } })),
-  /** `firstOnly`: a new install settling its channel asks the first address alone (updates.rs, `updates_check`); every other check sends what it always did. */
+  /** `firstOnly`: a new install settling its channel, and a following channel reading the more stable ones, ask the first address alone (updates.rs, `updates_check`); every other check sends what it always did. */
   check: (channel: Channel, firstOnly = false): Promise<UpdateCheck> => (inTauri ? invoke("updates_check", firstOnly ? { channel, firstOnly } : { channel }) : (demoEmptyChannel() ? EMPTY_DEMO.check(channel, firstOnly) : Promise.resolve({ state: "off" }))),
   /** Downloads and installs `version` from `channel`; `older` only for an explicit switch to an older build. */
   async install(channel: Channel, version: string, older: boolean, onProgress: (done: number, total: number | null) => void): Promise<void> {

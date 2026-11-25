@@ -137,7 +137,7 @@ function full(now = Date.now()): Settings {
     buildsMaxAgeDays: 365,
     buildsFromNox: false,
     recordTimings: true,
-    updates: { channel: "experimental", later: "0.2.130", lastCheck: 1_700_000_000_000, from: { version: "0.2.120", channel: "stable" }, picked: false },
+    updates: { channel: "experimental", later: "0.2.130", lastCheck: 1_700_000_000_000, from: { version: "0.2.120", channel: "stable" }, picked: true, follows: true },
     movedAside: "settings.json.broken-1700000000",
   };
 }
@@ -148,6 +148,13 @@ function full(now = Date.now()): Settings {
  * them under `spares`), the relic switch that is always on, and the rules' own version.
  */
 const FIXED = new Set(["schema", "simplified", "market.bulk", "market.minRelicPrice", "market.sellable.relicsWorthSelling", "market.spares.version"]);
+
+/**
+ * Fields the fixture leaves at their default so that it holds a pair the app writes: `updates`
+ * follows (true) only on a channel that is settled (`picked` true, the default). The other pair,
+ * a new install's unsettled `picked` false, round-trips in a test of its own below.
+ */
+const PAIRED = new Set(["updates.picked"]);
 
 const plain = (x: unknown): x is Record<string, unknown> => !!x && typeof x === "object" && !Array.isArray(x);
 /**
@@ -166,7 +173,7 @@ function uncovered(base: unknown, fix: unknown, path: string, out: string[], val
     }
     return;
   }
-  if (values && JSON.stringify(base) === JSON.stringify(fix)) out.push(`${path}: the default`);
+  if (values && !PAIRED.has(path) && JSON.stringify(base) === JSON.stringify(fix)) out.push(`${path}: the default`);
 }
 
 test("the fixture sets every field the settings have, each to something other than its default", async () => {
@@ -189,6 +196,14 @@ test("a full, valid settings file loads as itself, and saved and loaded again it
   await flushSettings();
   const again = await loadSettings();
   assert.deepEqual(json(again), json(file));
+});
+
+test("a new install's unsettled update settings load as themselves too", async () => {
+  const file = full();
+  file.updates = { ...file.updates, picked: false, follows: false };
+  stored.set("orbiter-settings", JSON.stringify(file));
+  const loaded = await loadSettings();
+  assert.deepEqual(json(loaded), json(file));
 });
 
 test("an older file with one switch for your listings' notices: off, the sold and repriced notices are off, the others as they were", async () => {
