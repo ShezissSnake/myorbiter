@@ -328,6 +328,8 @@ export interface TradeItem {
   name: string;
   rank: number | null;
   count: number;
+  /** A riven (the game's `(RIVEN RANK n)` tag): `name` is the weapon's name and the riven's ("Braton Crita-hexacan"). */
+  riven?: boolean;
 }
 
 export interface Trade {

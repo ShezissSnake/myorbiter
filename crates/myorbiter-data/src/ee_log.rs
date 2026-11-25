@@ -55,6 +55,14 @@ pub struct TradeItem {
     pub name: String,
     pub rank: Option<u32>,
     pub count: u32,
+    /// A riven: the game tags it `(RIVEN RANK <n>)` after the weapon's name and the riven's
+    /// (`Braton Crita-hexacan (RIVEN RANK 0)`). Left out of the JSON when false.
+    #[serde(skip_serializing_if = "is_false")]
+    pub riven: bool,
+}
+
+fn is_false(b: &bool) -> bool {
+    !*b
 }
 
 /// A private chat that opened this session.
@@ -345,7 +353,7 @@ fn parse_trade(uptime: f64, text: &str, session_start: Option<i64>) -> Trade {
             continue;
         }
         let side = if theirs { &mut t.received } else { &mut t.offered };
-        match side.iter_mut().find(|x| x.name == item.name && x.rank == item.rank) {
+        match side.iter_mut().find(|x| x.name == item.name && x.rank == item.rank && x.riven == item.riven) {
             Some(x) => x.count = x.count.saturating_add(item.count),
             None => side.push(item),
         }
@@ -366,7 +374,8 @@ fn rank_pips(line: &str) -> u32 {
 }
 
 /// `Condition Overload (RARE RANK 0)`, `Vitus Essence x 2`, `Platinum x 17`, `Axi A12 Relic`, and
-/// arcanes with their rank as pips.
+/// arcanes with their rank as pips, and rivens (`Braton Crita-hexacan (RIVEN RANK 0)`: the
+/// weapon's name and the riven's kept as one name, marked `riven`).
 fn parse_item(line: &str) -> Option<TradeItem> {
     let pips = rank_pips(line);
     let line = strip_glyphs(line);
@@ -378,14 +387,20 @@ fn parse_item(line: &str) -> Option<TradeItem> {
         Some((name, n)) => (name.trim(), n),
         _ => (line, 1),
     };
-    let (name, rank) = match body.rsplit_once(" (") {
+    let (name, rank, riven) = match body.rsplit_once(" (") {
         Some((name, tag)) if tag.ends_with(')') && tag.contains("RANK") => {
             let rank = tag.trim_end_matches(')').split_whitespace().find_map(|w| w.parse::<u32>().ok());
-            (name.trim(), rank)
+            let name = name.trim();
+            // A veiled riven (`Rifle Riven Mod`, `… (Veiled)`) is an item with a listing of its
+            // own, not one weapon's riven: it goes the way any listed item does, whatever its tag.
+            let veiled = name.ends_with("Riven Mod") || name.ends_with("(Veiled)");
+            // `RIVEN RANK 0`: the tag's own first word, never a word of the item's name.
+            let riven = !veiled && tag.split_whitespace().next() == Some("RIVEN");
+            (name, rank, riven)
         }
-        _ => (body, (pips > 0).then_some(pips)),
+        _ => (body, (pips > 0).then_some(pips), false),
     };
-    (!name.is_empty()).then(|| TradeItem { name: name.to_string(), rank, count: count.max(1) })
+    (!name.is_empty()).then(|| TradeItem { name: name.to_string(), rank, count: count.max(1), riven })
 }
 
 /// A count as the game writes it, thousands separated or not: "12", "1,500", "1.500", "1 500"
@@ -688,12 +703,48 @@ and will receive from Buyer1\u{E000} the following:\n\
         assert_eq!(s.trades.len(), 1);
         let t = &s.trades[0];
         assert_eq!(t.partner, "Buyer1");
-        assert_eq!(t.offered, vec![TradeItem { name: "Condition Overload".into(), rank: Some(0), count: 1 }]);
+        assert_eq!(t.offered, vec![TradeItem { name: "Condition Overload".into(), rank: Some(0), count: 1, riven: false }]);
         assert!(t.received.is_empty());
         assert_eq!(t.platinum_received, 17);
         assert_eq!(t.platinum_offered, 0);
         assert_eq!(t.uptime, 3127.384);
         assert_eq!(t.at, Some(1_791_918_527 + 3127));
+    }
+
+    /// A riven in a trade, as the game logs it: the weapon's name and the riven's, then
+    /// `(RIVEN RANK <n>)`. Made-up lines of that shape; a ranked one and a weapon of two words are
+    /// the same shape, not lines seen in a log. A mod's tag (`RARE RANK 0`) is no riven.
+    #[test]
+    fn a_riven_in_a_trade_is_known_as_one() {
+        let mut s = MissionState::default();
+        SALE.replace("Condition Overload (RARE RANK 0)", "Braton Crita-hexacan (RIVEN RANK 0)").lines().for_each(|l| s.observe(l));
+        assert_eq!(s.trades[0].offered, vec![TradeItem { name: "Braton Crita-hexacan".into(), rank: Some(0), count: 1, riven: true }]);
+        assert_eq!(parse_item("Kuva Bramma Visi-satitron (RIVEN RANK 8)"), Some(TradeItem { name: "Kuva Bramma Visi-satitron".into(), rank: Some(8), count: 1, riven: true }));
+        assert_eq!(parse_item("Condition Overload (RARE RANK 3)").map(|i| i.riven), Some(false));
+        // A name that merely holds the word is not one: only the tag's own first word counts.
+        assert_eq!(parse_item("Riven Sliver x 3").map(|i| i.riven), Some(false));
+        assert_eq!(parse_item("Rivenlike (RARE RANK 0)").map(|i| i.riven), Some(false));
+        // A veiled riven keeps main's path, an item with a listing, whichever way the game tags it.
+        assert_eq!(parse_item("Rifle Riven Mod (Veiled) (RIVEN RANK 0)"), Some(TradeItem { name: "Rifle Riven Mod (Veiled)".into(), rank: Some(0), count: 1, riven: false }));
+        assert_eq!(parse_item("Rifle Riven Mod (RIVEN RANK 0)").map(|i| (i.name, i.riven)), Some(("Rifle Riven Mod".into(), false)));
+        assert_eq!(parse_item("Kitgun Riven Mod (Veiled) (RARE RANK 0)").map(|i| i.riven), Some(false));
+        // The JSON carries the mark only for a riven, so the page's other items read as before.
+        let json = serde_json::to_string(&s.trades[0].offered[0]).unwrap();
+        assert!(json.contains("\"riven\":true"), "{json}");
+        let plain = serde_json::to_string(&TradeItem { name: "Vitus Essence".into(), rank: None, count: 2, riven: false }).unwrap();
+        assert!(!plain.contains("riven"), "{plain}");
+        // A riven and a mod of the same name and rank on one side stay two lines.
+        let mut both = MissionState::default();
+        both.observe("10.0 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:\rBraton Crita-hexacan (RIVEN RANK 0)\rBraton Crita-hexacan (RARE RANK 0)\rand will receive from Buyer the following:\rPlatinum x 150, leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)");
+        both.observe("14.0 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, leftItem=/Menu/Confirm_Item_Ok)");
+        assert_eq!(both.trades[0].offered.len(), 2);
+        // The same log read again (a restart reads it from the top) gives the same session start
+        // and the same trade uptime: the page's trade key (session start | uptime) doesn't change,
+        // so a riven decided once is never decided again.
+        let mut again = MissionState::default();
+        SALE.replace("Condition Overload (RARE RANK 0)", "Braton Crita-hexacan (RIVEN RANK 0)").lines().for_each(|l| again.observe(l));
+        assert_eq!((again.session_start, again.trades[0].uptime), (s.session_start, s.trades[0].uptime));
+        assert_eq!(s.session_start, Some(1_791_918_527));
     }
 
     /// Step 3 of the first start asks whether the player is signed in. Made-up logs, each the way
@@ -880,20 +931,20 @@ and will receive from Buyer1\u{E000} the following:\n\
         s.observe("14.0 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, leftItem=/Menu/Confirm_Item_Ok)");
         let t = &s.trades[0];
         assert_eq!(t.offered.len(), 2);
-        assert_eq!(t.offered[0], TradeItem { name: "Arcane Energize".into(), rank: Some(5), count: 1 });
-        assert_eq!(t.offered[1], TradeItem { name: "Vitus Essence".into(), rank: None, count: 2 });
+        assert_eq!(t.offered[0], TradeItem { name: "Arcane Energize".into(), rank: Some(5), count: 1, riven: false });
+        assert_eq!(t.offered[1], TradeItem { name: "Vitus Essence".into(), rank: None, count: 2, riven: false });
         assert_eq!(t.platinum_received, 150);
         // An arcane shows its rank as pips after the name.
         let mut s2 = MissionState::default();
         s2.observe("31.0 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:\r\rPrimary Crux \u{E0B9}\u{E0B9}\u{E0B9}\u{E0B9}\u{E0B9}\r\r\rand will receive from Buyer2\u{E000} the following:\r\rPlatinum x 27, title= leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)");
         s2.observe("35.0 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, title= leftItem=/Menu/Confirm_Item_Ok)");
-        assert_eq!(s2.trades[0].offered, vec![TradeItem { name: "Primary Crux".into(), rank: Some(5), count: 1 }]);
+        assert_eq!(s2.trades[0].offered, vec![TradeItem { name: "Primary Crux".into(), rank: Some(5), count: 1, riven: false }]);
         assert_eq!(s2.trades[0].platinum_received, 27);
         // Other arcanes use another pip glyph: a maxed Secondary Surge.
         let mut s3 = MissionState::default();
         s3.observe("8731.262 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to accept this trade? You are offering:\r\rSecondary Surge \u{E08D}\u{E08D}\u{E08D}\u{E08D}\u{E08D}\r\r\rand will receive from Buyer3\u{E000} the following:\r\rPlatinum x 14, title= leftItem=/Menu/Confirm_Item_Ok, rightItem=/Menu/Confirm_Item_Cancel)");
         s3.observe("8735.807 Script [Info]: Dialog.lua: Dialog::CreateOk(description=The trade was successful!, title= leftItem=/Menu/Confirm_Item_Ok)");
-        assert_eq!(s3.trades[0].offered, vec![TradeItem { name: "Secondary Surge".into(), rank: Some(5), count: 1 }]);
+        assert_eq!(s3.trades[0].offered, vec![TradeItem { name: "Secondary Surge".into(), rank: Some(5), count: 1, riven: false }]);
         // Other dialogs aren't trades.
         let mut s = MissionState::default();
         s.observe("20.0 Script [Info]: Dialog.lua: Dialog::CreateOkCancel(description=Are you sure you want to cycle Burston Sati-critades for 3.500?, leftItem=/Menu/Confirm_Item_Yes, rightItem=/Menu/Confirm_Item_No)");

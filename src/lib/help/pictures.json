@@ -423,13 +423,13 @@
     "hash": "63120ee854ba2e1c",
     "w": 787,
     "h": 423,
-    "bytes": 56602
+    "bytes": 56324
   },
   "orders-automatic-2.webp": {
     "hash": "7ce2d28dff7c5fe1",
     "w": 769,
-    "h": 244,
-    "bytes": 26316
+    "h": 263,
+    "bytes": 28412
   },
   "parts-1.webp": {
     "hash": "c9365feb7026c3d7",
@@ -644,14 +644,14 @@
   "settings-trades-1.webp": {
     "hash": "b72f282aa7501dbe",
     "w": 575,
-    "h": 327,
-    "bytes": 40994
+    "h": 365,
+    "bytes": 52854
   },
   "settings-trades-2.webp": {
     "hash": "693ec2edc21438a9",
     "w": 575,
     "h": 408,
-    "bytes": 55844
+    "bytes": 58216
   },
   "settings-trades-3.webp": {
     "hash": "6d6f3a9c1dfc0448",
@@ -764,14 +764,14 @@
   "whats-new-1.webp": {
     "hash": "b804b6e3e2bd85af",
     "w": 989,
-    "h": 328,
-    "bytes": 28186
+    "h": 348,
+    "bytes": 29908
   },
   "whats-new-2.webp": {
     "hash": "0a9c2b96b81ab502",
     "w": 989,
-    "h": 328,
-    "bytes": 46446
+    "h": 348,
+    "bytes": 49586
   },
   "wishlist-1.webp": {
     "hash": "725b62f623f1ed4a",

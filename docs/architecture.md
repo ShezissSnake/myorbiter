@@ -143,6 +143,8 @@ flowchart LR
   trade["a trade in EE.log"] --> mark["core/trades: markTrades, called by App.svelte"]
   mark --> mkt
   mkt -->|"sold: market_close"| api
+  trade --> rsold["core/rivenSold: a riven given, called by App.svelte"]
+  rsold -->|"rivenStore.closeIfStill: market_close_auction"| api
 ```
 
 Rests on: `src/lib/marketStore.svelte.ts` (`allowed`, `guardContext`, `sold`), `core/listGuard.ts`,
@@ -151,7 +153,9 @@ Rests on: `src/lib/marketStore.svelte.ts` (`allowed`, `guardContext`, `sold`), `
 `src-tauri/src/market.rs`, `presence.rs`, `feed.rs`. Reads and writes share
 one gate in `market.rs`; the sockets use `market::socket_request` and `presence::connect`. A trade
 that the game log shows marks its listing sold and logs the sale (`autoTrades`, off unless the
-player turns it on).
+player turns it on); a riven given in one is looked at on its own (`core/rivenSold.ts`, in
+`App.svelte`): its auction is closed through `rivenStore.closeIfStill` when sure, and otherwise
+the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens).
 
 ### 2.3 Inside the window: settings, model, pages
 
@@ -337,9 +341,13 @@ decides whether copies go up on warframe.market, at what price, and whether a sa
   `core/lastCopy.ts` (hiding listings); `core/trades.ts`, `core/sameSale.ts`, `core/soldMarks.ts`
   (marking and logging sales).
 - The store that sends: `marketStore.svelte.ts` (`allowed` before each listing); only it calls
-  `market.create`, `update`, `remove` and `close`. Riven auctions are put up, repriced and closed by
+  `market.create`, `update`, `remove` and `close`. Riven auctions are put up and repriced by
   hand only, in `rivenStore.svelte.ts`, with its own check against a second auction of the same
-  riven; they do not call `guardListing`.
+  riven; they do not call `guardListing`. They are closed by hand, or, with `autoTrades` on, after a
+  trade the game log shows sold the riven for platinum alone: `core/rivenSold.ts` decides (one
+  fitting auction, the same rank, nothing else held that could be it, a recent trade, once per
+  trade, recorded before the close) and `rivenStore.closeIfStill` reads the auctions again and
+  closes only one still open and still fitting; anything short of that closes nothing and is told.
 - `src-tauri/src/market.rs` (the gate, the sign-in); `bridge.rs`, `companion.rs` (shared files, flags).
 
 The pattern: the rule is pure and in `core/`, the store asks it at one point and sends only on yes,

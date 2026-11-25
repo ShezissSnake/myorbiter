@@ -65,6 +65,7 @@ function full(now = Date.now()): Settings {
       autoTrades: true,
       tradesSeen: ["t1"],
       tradesTold: ["t1"],
+      rivenSold: [{ trade: "t1", riven: "Braton Crita-hexacan", rank: 0, at: 1_700_000_000_000, partner: "Tenno_Alpha", auctions: ["a1"], state: "told", why: "Mark sales sold from the game is off" }],
       trades: [{ key: "t1", at: 1_700_000_000_000, partner: "Tenno_Alpha", offered: [{ name: "Example Alpha", rank: 0, count: 1 }], received: [], platOut: 0, platIn: 20 }],
       buyAlerts: [{ name: "Example Bravo", rank: null, subtype: null, maxPrice: 15, at: 1_700_000_000_000 }],
       rep: { "Tenno_Alpha": "given", "Tenno_Bravo": "skipped" },

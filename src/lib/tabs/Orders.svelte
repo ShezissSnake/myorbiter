@@ -26,6 +26,7 @@
   import { aboveCrack, relicCrackFor } from "../core/spares";
   import { mkt } from "../marketStore.svelte";
   import HelpMark from "../ui/HelpMark.svelte";
+  import RivenSoldBand from "../ui/RivenSoldBand.svelte";
   import PageHead from "../ui/PageHead.svelte";
   import Vessel from "../ui/Vessel.svelte";
   import Named from "../ui/Named.svelte";
@@ -1263,6 +1264,7 @@
       <!-- Riven auctions: warframe.market keeps them apart from listings, and they aren't repriced automatically. -->
       <section class="buys" aria-label="Your riven auctions">
         <div class="hmark"><h2 class="register yours">Your riven auctions</h2><HelpMark part="orders.auctions" /></div>
+        <RivenSoldBand bind:list={settings.rivenSold} />
         <ul>
           {#each auctions as a (a.id)}
             {@const w = weaponOf(a)}
