@@ -486,6 +486,57 @@ test("an update that starts downloading while Stable is read: nothing moves, and
   assert.deepEqual(calls, ["stable (GitHub alone)", "beta"], "its own channel is read last, so the app keeps its update");
 });
 
+test("Update and restart clicked while a check runs waits for it, then installs the build still on offer", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta", follows: true }, [EMPTY, newer("0.2.150")]);
+  await started(t, u, settings);
+  const installed: string[] = [];
+  updater.install = async (c: Channel, v: string) => {
+    installed.push(`${c} ${v}`);
+    await new Promise<void>(() => {});
+  };
+  let stable!: (a: UpdateCheck) => void;
+  answers.push(new Promise<UpdateCheck>((r) => (stable = r)), newer("0.2.150"));
+  calls.length = 0;
+  const check = u.checkNow();
+  await micro();
+  void u.install();
+  await micro();
+  assert.deepEqual(installed, [], "nothing downloads while the check runs");
+  stable(EMPTY);
+  await check;
+  await micro();
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"], "the install's own channel read last");
+  assert.deepEqual(installed, ["beta 0.2.150"], "still on offer: installed");
+  assert.equal(settings.channel, "beta");
+});
+
+test("Update and restart clicked while a check runs stops when that check no longer offers the build", async (t) => {
+  const { u, settings, answers } = setup(t, { channel: "beta" }, [newer("0.2.150")]);
+  await started(t, u, settings);
+  const installed: string[] = [];
+  updater.install = async (c: Channel, v: string) => void installed.push(`${c} ${v}`);
+  let beta!: (a: UpdateCheck) => void;
+  answers.push(new Promise<UpdateCheck>((r) => (beta = r)));
+  const check = u.checkNow();
+  await micro();
+  const installing = u.install();
+  await micro();
+  beta(newer("0.2.151"));
+  await check;
+  assert.equal(await installing, false, "the click ends without installing");
+  assert.equal(u.installJob.state, "failed");
+  assert.match(u.installJob.error ?? "", /no longer offers 0\.2\.150/);
+  assert.deepEqual(installed, [], "nothing installed that wasn't on offer");
+  assert.equal(u.offer?.version, "0.2.151", "the new build is offered for its own click");
+  assert.equal(settings.from, null);
+});
+
+test("the version's panel names the more stable channels only where there are some", async () => {
+  const { readFileSync } = await import("node:fs");
+  const panel = readFileSync(new URL("../src/lib/UpdatesPanel.svelte", import.meta.url), "utf8");
+  assert.match(panel, /u\.follows && u\.channel !== "stable" \? ", and on the more stable channels/);
+});
+
 test("Settings, Updates offers nothing after a failed check either", async () => {
   const { readFileSync } = await import("node:fs");
   const sheet = readFileSync(new URL("../src/lib/SettingsSheet.svelte", import.meta.url), "utf8");

@@ -549,6 +549,17 @@ export class Updates {
     const u = this.get?.();
     if (!o || !u) return Promise.resolve(false);
     return this.installJob.run(async (job) => {
+      // A check under way may change what is on offer, and the app keeps the update of the last
+      // check only: the click waits for that check (which, with this install under way, moves no
+      // channel and reads the install's own last), then installs only the build still on offer.
+      if (this.running) {
+        job.phase = "Checking";
+        await this.running.catch(() => {});
+        const now = this.offer;
+        if (this.outcome?.kind === "failed" || !now || now.channel !== o.channel || now.version !== o.version || now.older !== o.older) {
+          throw new JobError("Not installed", `the check that just ran no longer offers ${o.version} on ${CHANNEL_LABEL[o.channel]}: see what is on offer now`);
+        }
+      }
       job.phase = "Downloading";
       // Saved before installing: on Windows the installer closes MyOrbiter itself.
       const before = u.from;
