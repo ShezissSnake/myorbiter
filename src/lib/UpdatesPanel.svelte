@@ -87,7 +87,7 @@
         <ProgressButton job={updates.checkJob} busy={updates.checking} label="Check now" sizer={["Up to date · 0.1.9999", "Experimental has 0.1.9999", "Couldn't check"]} title={`Look for a newer build on ${CHANNEL_LABEL[u.channel]} now${u.picked && u.follows ? ", and on the more stable channels" : ""}. MyOrbiter also looks when it starts and every 6 hours; nothing installs without your click.`} onclick={() => updates.checkNow()} />
       </div>
       <p class="hint" class:err={updates.outcome?.kind === "failed" && !updates.checking}>{updates.status(now)}</p>
-      {#if offer && !updates.checking}
+      {#if offer && !updates.checking && updates.outcome?.kind !== "failed"}
         <div class="offer">
           {#if offer.older}
             <p>{CHANNEL_LABEL[offer.channel]}'s build is <b class="mono">{offer.version}</b>, older than this one. Switching installs it: a step back, so only when you click.</p>

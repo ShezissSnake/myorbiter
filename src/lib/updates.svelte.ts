@@ -14,8 +14,9 @@
 // first asks the more stable channels, of GitHub alone, and moves to the first whose build is this
 // one or newer (`followed`, core/updates.ts `followStep`): never to a less stable channel and never
 // to an older build by itself. A channel picked by hand, or kept from settings saved before this was
-// recorded, never moves by itself; Follow (`follow`) and an empty channel's switch (`switchTo`) set
-// it following again, on the player's click.
+// recorded, never moves by itself; Follow (`follow`) sets it following again, on the player's click.
+// An empty channel's switch (`switchTo`) changes the channel and nothing else. A more stable
+// channel that can't be read moves nothing, and the check goes on with the channel's own read.
 //
 // Every check ends in one state, shown under Check now with its time (`checkLine`): a build on
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,

@@ -683,8 +683,8 @@ test("Settings, Updates says what an unsettled new install shows, and both chann
   const sheet = readFileSync(new URL("../src/lib/SettingsSheet.svelte", import.meta.url), "utf8");
   assert.match(sheet, /\{#if updates\.unsettled\}<p class="hint"[^>]*>\{updates\.unsettled\}<\/p>\{\/if\}/);
   assert.match(sheet, /<Seg label="Channel"[^\n]*onchange=\{\(c\) => updates\.setChannel\(c\)\}/, "the channel buttons");
-  // The empty channel's Switch to does what the banner's does: it switches and follows the most
-  // stable build from there, so the install comes back to the empty channel once it has a build.
+  // The empty channel's Switch to does what the banner's does (switchTo): it changes the channel
+  // and nothing else, so a channel that follows still follows and one picked stays picked.
   assert.match(sheet, /onclick=\{\(\) => empty\.to && updates\.switchTo\(empty\.to\.channel\)\}/, "an empty channel's Switch to");
   assert.doesNotMatch(sheet, /settings\.updates\.channel = /, "no other place sets the channel");
 });
