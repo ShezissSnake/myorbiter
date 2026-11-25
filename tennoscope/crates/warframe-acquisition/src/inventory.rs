@@ -815,7 +815,7 @@ impl InventoryJsonDecoder<'_> {
             if entry.masterable
                 && entry
                     .max_rank
-                    .and_then(|rank| mastery_threshold(entry.category, rank))
+                    .and_then(|rank| mastery_threshold(affinity_class(entry.category, &path), rank))
                     .is_some_and(|threshold| xp.xp >= threshold)
             {
                 entry.mastered = true;
@@ -1304,6 +1304,25 @@ fn category_from_path(path: &str) -> Category {
         Category::Companion
     } else {
         Category::Resource
+    }
+}
+
+/// The category whose affinity curve an item ranks on. A MOA's weapon
+/// (`/Pets/MoaPets/MoaPetComponents/…Weapon`, such as Helstrum) and a hound's
+/// (`/Pets/ZanukaPets/ZanukaPetMeleeWeapon…`, such as Akaten) sit with their companion and are
+/// stored as Companion, but the game ranks them as weapons: 500 affinity per rank squared, not
+/// the companion's 1,000. Only the curve changes here; the stored category does not. The MOA's
+/// and the hound's own model (`…/MoaPetParts/MoaPetHead…`, `…/ZanukaPetParts/ZanukaPetPartHead…`)
+/// and every other companion keep the companion's curve.
+fn affinity_class(category: Category, path: &str) -> Category {
+    let name = path.rsplit('/').next().unwrap_or_default();
+    let companion_weapon = (path.contains("/Pets/MoaPets/MoaPetComponents/")
+        && name.ends_with("Weapon"))
+        || (path.contains("/Pets/ZanukaPets/") && name.starts_with("ZanukaPetMeleeWeapon"));
+    if category == Category::Companion && companion_weapon {
+        Category::Weapon
+    } else {
+        category
     }
 }
 
