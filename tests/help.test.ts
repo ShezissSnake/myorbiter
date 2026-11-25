@@ -196,7 +196,7 @@ test("the dialog keeps the focus inside, closes on the shade and on a page chang
 test("what the app says of pop-ups inside MyOrbiter names the one held over its page: the reward to take over Current fissure", () => {
   const lines = walkthroughById.notices.pages.flatMap((p) => p.lines);
   assert.ok(lines.includes("Pop-ups inside MyOrbiter: by the sidebar, but not the reward over Current fissure."), "help, Notifications: When they pop up");
-  const sheet = read("src/lib/NoticesSheet.svelte");
+  const sheet = read("src/lib/NoticeChoices.svelte");
   assert.ok(sheet.includes("Which reward to take doesn't while Current fissure is on screen with nothing over it: that page marks the card itself."), "Notifications: Pop-ups inside MyOrbiter");
   assert.ok(sheet.includes("except which reward to take (not over Current fissure, which marks the card itself)"), "Notifications: Quiet while I'm in a fissure");
   assert.ok(read("src/lib/tabs/Guide.svelte").includes("they pop up in its corner (which reward to take doesn't while Current fissure is on screen with nothing over it: that page marks the card itself)"), "the Guide's Notifications");

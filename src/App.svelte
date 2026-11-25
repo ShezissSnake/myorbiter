@@ -1016,10 +1016,8 @@
     return () => clearTimeout(t);
   });
   let showNotices = $state(false);
-  /** What the bell's panel opens on: what's new, or (from Settings) the switches. */
-  let noticesView = $state<"recent" | "choose">("recent");
-  function openNotices(view: "recent" | "choose" = "recent") {
-    noticesView = view;
+  /** The bell's panel: what MyOrbiter told you lately. Which kinds it tells you about are in Settings. */
+  function openNotices() {
     showNotices = true;
     toasts.dropMore();
   }
@@ -1030,7 +1028,7 @@
   function openNotice(id: string) {
     toasts.dismiss(id);
     // The test one: where the real ones are kept.
-    if (id.startsWith("test-")) return openNotices("recent");
+    if (id.startsWith("test-")) return openNotices();
     const n = settings.game.notices.find((x) => x.id === id);
     if (!n) return;
     settings.game.notices = settings.game.notices.map((x) => (x.id === id ? { ...x, read: true } : x));
@@ -3137,7 +3135,7 @@
       <ProgressButton bind:this={syncButton} class="tool sync" stamp={false} picture="refresh-timer" size={20} aside job={syncJob} busy={loading && !bundle} spin label="Sync" working={syncJob.phase ?? "Reading…"} failLabel={syncJob.short ?? "Not synced"} idleWord={syncIdleWord(syncEnd, !!error, !!bundle, syncFullModeOff)} sizer={["Waiting…", "Up to date", "Not synced", SYNC_FULL_MODE_OFF]}
         title={`${syncStep ? `${syncStep}…\n\n` : ""}${onConsole ? "Reload your warframe.market listings, the fissures and Baro" : syncMode ? "Sync: ask TennoScope to read your inventory from the game now, and wait for the new read" : "Sync: reload TennoScope's last saved read and the live fissures. With Warframe running and TennoScope in Full mode, it asks TennoScope for a fresh read from the game instead"} (Ctrl+R)`}
         onclick={refreshAll} />
-      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you, and what it tells you about` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you, and what it tells you about"} onclick={() => openNotices("recent")}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
+      <button class="tool bell" data-card="notices" class:paused={pausedNow} aria-label={unread ? `Notifications, ${unread} new` : "Notifications"} aria-expanded={showNotices} title={pausedNow ? `Notifications (paused${unread ? `, ${unread} new` : ""}): what MyOrbiter told you lately` : unread ? `Notifications: ${unread} new` : "Notifications: what MyOrbiter told you lately"} onclick={() => openNotices()}><span class="ti"><GameIcon name="mail" size={20} even /></span><span class="lbl">Notifications</span>{#if unread}<span class="count count-tag">{unread > 99 ? "99+" : unread}</span>{/if}</button>
       {#if compact}
         <MoreMenu items={moreItems} {compact} />
       {:else}
@@ -3364,13 +3362,13 @@
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}
-{#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
-<Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
+{#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:settings open_={openNotice} onchoose={() => { showNotices = false; goTo("settings#notifications"); }} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
+<Toasts open={openNotice} all={() => openNotices()} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
 <!-- The bottom right corner: a link that couldn't open. A newer build shows over the page (UpdateBanner). -->
 <div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /></div>
 <UpdatesPanel settings={() => settings.updates} onsettings={() => goTo("settings#updates")} />
-{#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
+{#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} test={testNotice} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
 <!-- The help a part's "?" opens: over the content area, the sidebar left as it is. Over the dialogs
      and panels too, since their parts have a "?" of their own. -->
 <HelpDialog go={(t: string) => goTo(t)} />

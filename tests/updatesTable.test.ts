@@ -207,9 +207,9 @@ test("a new install that picks the channel it shows gets its updates looked for 
   assert.deepEqual(asked, [["stable", false]], "the pick's own check, at once, as main's");
 });
 
-test("the help line reads one way: nothing installs or changes a chosen channel without a click", async () => {
+test("the help line reads one way: nothing installs or changes a channel you picked without a click", async () => {
   const { readFileSync } = await import("node:fs");
   const help = readFileSync(new URL("../src/lib/help/settings.ts", import.meta.url), "utf8");
-  assert.match(help, /"Release notes: this build's page\. Nothing installs, or changes a chosen channel, without your click\.",/);
+  assert.match(help, /"Release notes: this build's page\. Nothing installs, or changes a channel you picked, without your click\.",/);
   assert.doesNotMatch(help, /unasked/);
 });
