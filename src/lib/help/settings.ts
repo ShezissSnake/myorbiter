@@ -14,6 +14,8 @@ import { DEFAULT_HIDE_MINUTES, MAX_HIDE_MINUTES } from "../core/lastCopy";
 
 /** Every picture here at one size: the panels run the window's full height, and a taller window keeps a section whole. */
 const SIZE: [number, number] = [1280, 1080];
+/** Updates, from the channel to the empty channel's switch, runs taller than SIZE keeps clear of the sheet's header. */
+const TALL: [number, number] = [1280, 1280];
 
 const S = `.sheet[aria-label="Settings"]`;
 /** A Settings section, by its "?". */
@@ -106,7 +108,7 @@ const SETTINGS_MAIN: Walkthrough = {
       ],
       shot: {
         open: "settings",
-        size: SIZE,
+        size: TALL,
         // Pictured with the demo's channels as a new channel has them (core/standIn.ts): Stable
         // and Beta empty, Experimental with this build.
         emptyChannel: true,

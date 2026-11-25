@@ -366,7 +366,7 @@
     {#if info && !updates.unsettled && followWords(info.version, settings.updates)}<p class="hint" data-field="settings.updates-follows">{followWords(info.version, settings.updates)}</p>{/if}
     {#if updates.followable && settings.updates.picked}
       <Switch name="settings.updates-follow" label="Follow the most stable build" bind:on={() => settings.updates.follows, (v) => (v ? updates.follow() : updates.unfollow())}>
-        MyOrbiter asks the channels, most stable first, and moves to the first whose build is this one or newer; from then on it moves by itself only to a more stable channel, once that one has this build or a newer one. Never to an older build. Choosing a channel above turns it off.
+        The most stable channel whose build is this one or newer. MyOrbiter moves by itself only to a more stable channel, never to an older build. Choosing a channel above turns it off.
       </Switch>
     {/if}
     <div class="row">
@@ -378,7 +378,7 @@
       <div class="offer empty" data-field="settings.updates-empty" transition:reveal>
         <div class="offer-in">
           {#if empty.to}
-            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates. {#if updates.follows}MyOrbiter still follows the most stable build, so it comes back to {CHANNEL_LABEL[settings.updates.channel]} by itself once {CHANNEL_LABEL[settings.updates.channel]} has this build or a newer one.{:else}{CHANNEL_LABEL[empty.to.channel]} then stays until you choose again; with Follow the most stable build on, MyOrbiter comes back to {CHANNEL_LABEL[settings.updates.channel]} by itself once it has this build or a newer one.{/if}</p>
+            <p class="small">{empty.words}. The nearest channel with one is {CHANNEL_LABEL[empty.to.channel]}, at <b class="mono">{empty.to.version}</b>. Switch to it to get updates. {#if updates.follows}Following the most stable build, MyOrbiter comes back to {CHANNEL_LABEL[settings.updates.channel]} once it has this build or a newer one.{:else}{CHANNEL_LABEL[empty.to.channel]} then stays until you choose again, or turn on Follow the most stable build.{/if}</p>
             <div class="row"><button type="button" class="stamp" data-field="settings.updates-switch" title={`Get updates from ${CHANNEL_LABEL[empty.to.channel]} from now on: MyOrbiter checks it at once, and installs nothing without your click`} onclick={() => empty.to && updates.switchTo(empty.to.channel)}>Switch to {CHANNEL_LABEL[empty.to.channel]}</button></div>
           {:else}
             <p class="small">{empty.words}, and no other channel answered with one just now. MyOrbiter keeps looking every 6 hours.</p>
