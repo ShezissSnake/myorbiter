@@ -211,8 +211,9 @@ export class Updates {
       const settling = !u.picked && settlesByAsking(this.info.version, true);
       // A channel that follows the most stable build (not one picked by hand): the more stable
       // channels are asked first, and the install moves to the first whose build counts. Every
-      // channel when the player has just asked to follow (`follow`).
-      const following = !settling && u.picked && u.follows && settlesByAsking(this.info.version, true);
+      // channel when the player has just asked to follow (`follow`). Not while an update downloads
+      // or installs: the channel it restarts on stays the one it came from.
+      const following = !settling && u.picked && u.follows && settlesByAsking(this.info.version, true) && !this.installJob.working;
       const all = following && this.followAll;
       this.followAll = false;
       let settled = false;
@@ -335,11 +336,14 @@ export class Updates {
    * GitHub alone as a new install's are (`askFirst`), stopping at the first whose build is the
    * running one or newer (`followStep`); the install moves there and says so in the log. The channel
    * to ask for the check; the one it was on when none counts. Null when the player picked a channel
-   * by hand meanwhile (or switched): what was heard is dropped. A read that fails throws: nothing
-   * moves, and the check fails, so no "up to date" is said for a check that didn't finish.
+   * by hand meanwhile (or switched): what was heard is dropped. A read that fails moves nothing: it
+   * is logged, and the check goes on with the channel's own read as before (both addresses, the
+   * updater's own way), so a following install is never worse off than one that doesn't follow.
    *
    * The channel the check ends on is asked last, so the app's kept update (updates.rs `Pending`, one
-   * for the last check) is that channel's: a move reuses its answer from `known`.
+   * for the last check) is that channel's: a move reuses its answer from `known` (it was the last
+   * read), and staying keeps its own answer only if that was the last read; otherwise it is read
+   * again, last.
    */
   private async followed(u: UpdateSettings, version: string, known: Partial<Record<Channel, UpdateCheck>>, asking: { channel: Channel }, all: boolean): Promise<Channel | null> {
     const from = u.channel;
@@ -347,17 +351,29 @@ export class Updates {
     const answers: Partial<Record<Channel, ChannelAnswer>> = {};
     for (;;) {
       const step = followStep(version, order, answers);
-      if (step == null) return from;
+      if (step == null || step === from) {
+        // Its own answer stands only if it was the last read (Follow, which asks it too, ending on it).
+        if (asking.channel !== from) delete known[from];
+        return from;
+      }
       if (typeof step === "object") {
-        answers[step.ask] = await askFirst(step.ask, known, asking);
+        let failed: { e: unknown } | null = null;
+        try {
+          answers[step.ask] = await askFirst(step.ask, known, asking);
+        } catch (e) {
+          failed = { e };
+        }
         const now = this.get?.();
         if (!now || !now.follows || now.channel !== from) return null;
+        if (failed) {
+          logLine("warn", "updates", `following the most stable build: ${CHANNEL_LABEL[step.ask]} couldn't be read (${plain(failed.e)}), so ${CHANNEL_LABEL[from]} stays this time`);
+          delete known[from];
+          return from;
+        }
         continue;
       }
-      if (step !== from) {
-        u.channel = step;
-        logLine("info", "updates", `following the most stable build: ${followWhy(version, from, step, answers[step])}`);
-      }
+      u.channel = step;
+      logLine("info", "updates", `following the most stable build: ${followWhy(version, from, step, answers[step])}`);
       return step;
     }
   }
@@ -373,6 +389,12 @@ export class Updates {
     return unsettledWords(u.channel, this.outcome?.kind === "failed", settingsUnreadable());
   }
 
+  /** The channel follows the most stable build (settled by MyOrbiter, or Follow turned on). */
+  get follows(): boolean {
+    const u = this.get?.();
+    return !!u && u.picked && u.follows;
+  }
+
   /**
    * Whether this copy can follow the most stable build: a build that checks, with a build number
    * (not a local build). What the Follow switch is shown for.
@@ -385,6 +407,7 @@ export class Updates {
   /** Something to do about updates, put off with Later or not: the dot by the version. */
   get waiting(): boolean {
     const o = this.offer;
+    if (this.outcome?.kind === "failed") return false;
     return (!!o && !o.older && !!this.info && installChecks(this.info.install)) || this.switchOffer != null;
   }
 
@@ -451,14 +474,15 @@ export class Updates {
 
   /**
    * An empty channel's switch: to `c`, the nearest channel whose build is this one or newer
-   * (`switchOffer`), following the most stable build from there, so the install comes back to the
-   * more stable channel by itself once that one has this build or a newer one. Asked at once.
+   * (`switchOffer`). It keeps how the channel was kept: an install that follows the most stable
+   * build still follows (so it comes back to the more stable channel by itself once that one has
+   * this build or a newer one); a channel picked by hand, or kept from settings saved before, stays
+   * picked, and `c` stays until the player chooses again or turns Follow on. Asked at once.
    */
   switchTo(c: Channel) {
     const u = this.get?.();
     if (!u) return;
     u.picked = true;
-    u.follows = true;
     if (u.channel !== c) {
       u.channel = c;
       this.result = null;
@@ -470,7 +494,7 @@ export class Updates {
 
   /**
    * Outside Settings, an empty channel's way out: the nearest channel whose build is this one or
-   * newer, to switch to by a click (`switchTo`). Null otherwise, and while a check runs.
+   * newer, to switch to by a click (`switchTo`). Null otherwise.
    */
   get switchOffer(): { from: Channel; to: Channel; version: string } | null {
     const u = this.get?.();
@@ -488,7 +512,9 @@ export class Updates {
   get banner(): { kind: "update"; offer: Offer; installs: boolean } | { kind: "switch"; from: Channel; to: Channel; version: string } | null {
     const u = this.get?.();
     const i = this.info;
-    if (!u || !i || !installChecks(i.install)) return null;
+    // A check that failed: what an earlier one offered may be gone (and the app no longer keeps it),
+    // so nothing is shown until a check finishes.
+    if (!u || !i || !installChecks(i.install) || this.outcome?.kind === "failed") return null;
     const o = this.offer;
     if (o && !o.older) return noticeShows(o.version, u.later) ? { kind: "update", offer: o, installs: installInstalls(i.install) } : null;
     const s = this.switchOffer;

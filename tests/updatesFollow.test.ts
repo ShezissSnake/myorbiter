@@ -239,18 +239,36 @@ test("settings kept from before on an empty Stable: not moved, and offered the s
   assert.deepEqual(calls, ["stable", "beta"], "its own check, then the nearest channel, as on main");
   assert.equal(settings.channel, "stable", "never switched by itself");
   assert.deepEqual(u.banner, { kind: "switch", from: "stable", to: "beta", version: RUN });
-  // The click: Beta, following from there.
-  answers.push(EMPTY, current());
+  // The click: Beta, picked as Stable was (it doesn't start following).
+  answers.push(current());
   u.switchTo("beta");
   await micro();
   assert.equal(settings.channel, "beta");
-  assert.equal(settings.follows, true);
-  assert.deepEqual(calls.slice(2), ["stable (GitHub alone)", "beta"]);
+  assert.equal(settings.follows, false, "a channel kept from before stays picked after Switch to");
+  assert.deepEqual(calls.slice(2), ["beta"]);
   assert.equal(u.banner, null);
-  // Stable gets this build: the next check moves there by itself.
+  // Stable gets this build: Beta stays, as it was switched to, until the player chooses again.
   answers.push(current());
   await u.checkNow();
-  assert.equal(settings.channel, "stable");
+  assert.deepEqual(calls.slice(3), ["beta"], "the more stable channels aren't asked");
+  assert.equal(settings.channel, "beta");
+});
+
+test("a following channel left empty: Switch to keeps it following, and it comes back by itself", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta", follows: true }, [EMPTY, EMPTY, current()]);
+  await started(t, u, settings);
+  assert.deepEqual(u.banner, { kind: "switch", from: "beta", to: "experimental", version: RUN });
+  answers.push(EMPTY, EMPTY, current());
+  u.switchTo("experimental");
+  await micro();
+  assert.equal(settings.channel, "experimental");
+  assert.equal(settings.follows, true);
+  // Beta gets this build: the next check moves back there by itself.
+  calls.length = 0;
+  answers.push(EMPTY, current());
+  await u.checkNow();
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)"]);
+  assert.equal(settings.channel, "beta");
 });
 
 test("Later puts the switch away for that build; a newer one on the nearest channel shows it again", async (t) => {
@@ -292,6 +310,18 @@ test("Follow from an empty Stable kept from before: Beta, the most stable channe
   assert.equal(settings.follows, true);
 });
 
+test("Follow with no channel counting, from the middle: its own channel is read again, last, for the build the app keeps", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta" }, [older("0.2.130")]);
+  await started(t, u, settings);
+  calls.length = 0;
+  answers.push(older("0.2.120"), older("0.2.130"), older("0.2.135"), older("0.2.130"));
+  u.follow();
+  await micro();
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta (GitHub alone)", "experimental (GitHub alone)", "beta"]);
+  assert.equal(settings.channel, "beta");
+  assert.equal(u.offer?.channel, "beta");
+});
+
 test("Follow when no channel has this build or a newer one: the channel stays", async (t) => {
   const { u, settings, calls, answers } = setup(t, { channel: "experimental" }, [current("0.2.141")], "0.2.141");
   await started(t, u, settings);
@@ -318,16 +348,54 @@ test("a pick by hand while the more stable channel is asked: the answer is dropp
 
 // ---- case 9: a check that failed
 
-test("a more stable channel that can't be read: nothing moves, the check fails, no up to date and no banner", async (t) => {
-  const { u, settings, calls } = setup(t, { channel: "beta", follows: true }, [OFFLINE()]);
+test("a more stable channel that can't be read: nothing moves, and the check goes on with its own channel as before", async (t) => {
+  const { u, settings, calls } = setup(t, { channel: "beta", follows: true }, [OFFLINE(), newer("0.2.150")]);
   await started(t, u, settings);
-  assert.deepEqual(calls, ["stable (GitHub alone)"], "Beta not asked: the check didn't finish");
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"], "Beta read as before, both addresses, last");
+  assert.equal(settings.channel, "beta");
+  assert.equal(settings.follows, true, "still following: the next check asks Stable again");
+  assert.deepEqual(u.offer, { channel: "beta", version: "0.2.150", notes: "Sales chart\nRiven sold", older: false });
+  assert.equal(bannerOf(u)?.kind, "update");
+});
+
+test("a check that failed: no up to date, no banner, and the next is 6 hours on", async (t) => {
+  const { u, settings, calls } = setup(t, { channel: "beta", follows: true }, [OFFLINE(), new Error("Couldn't reach GitHub or GitLab")]);
+  await started(t, u, settings);
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"]);
   assert.equal(settings.channel, "beta");
   assert.equal(u.outcome?.kind, "failed");
   assert.doesNotMatch(u.status(Date.now()), /Up to date/);
   assert.equal(u.banner, null);
   assert.equal(u.switchOffer, null);
+  assert.equal(u.waiting, false);
   assert.equal(settings.lastCheck, Date.now(), "Last checked moves on: the next is 6 hours on");
+});
+
+test("a failed check after a newer build was offered takes the banner away until a check finishes", async (t) => {
+  const { u, settings, answers } = setup(t, { channel: "beta" }, [newer("0.2.150")]);
+  await started(t, u, settings);
+  assert.equal(u.banner?.kind, "update");
+  answers.push(new Error("Couldn't reach GitHub or GitLab"));
+  await u.checkNow();
+  assert.equal(u.banner, null, "the app may no longer keep that build: nothing is offered as if it did");
+  assert.equal(u.waiting, false);
+  answers.push(newer("0.2.150"));
+  await u.checkNow();
+  assert.equal(bannerOf(u)?.kind, "update");
+});
+
+test("no following move while an update downloads: the channel it restarts on stays", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta", follows: true }, [EMPTY, newer("0.2.150")]);
+  await started(t, u, settings);
+  updater.install = () => new Promise<void>(() => {});
+  void u.install();
+  await micro();
+  assert.equal(u.installJob.working, true);
+  calls.length = 0;
+  answers.push(newer("0.2.150"));
+  await u.checkNow();
+  assert.deepEqual(calls, ["beta"], "Stable isn't asked while the install runs");
+  assert.equal(settings.channel, "beta");
 });
 
 test("a failed check after an empty channel's switch was offered takes the offer away", async (t) => {

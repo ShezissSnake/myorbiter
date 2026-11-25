@@ -20,7 +20,7 @@ path beside each.
 | Item data, drop tables, world state, pictures | WFCD (`api.warframestat.us`, `drops.warframestat.us`, `cdn.warframestat.us`, `raw.githubusercontent.com`), Digital Extremes, relics.run, warframe.market | at start, on timers, and as pages need them (below) |
 | Builds | Nox's Frame | when you open an item or a build on Builds (on unless you turn it off) |
 | The notifications you pick | your Discord webhook | only if you set one |
-| An update check | github.com, then gitlab.com if GitHub has no answer; an install that follows the most stable build also reads the more stable channels' file on github.com | at start and every 6 hours, on the AppImage and the Windows installer |
+| An update check | github.com, then gitlab.com if GitHub has no answer; an install that follows the most stable build also reads the more stable channels' file on github.com alone (every channel's, when you turn Follow on) | at start and every 6 hours, on the AppImage and the Windows installer |
 | A bug report | github.com: the issue form opens with the app's version and your system in its address; the report itself only if you paste it in and submit | when you press Open on GitHub in Report a bug |
 
 ## Full mode: the game's memory
@@ -333,12 +333,15 @@ channels' `latest.json` (Stable's, and Beta's too for an install on Experimental
 first, stopping at the first whose build is yours or newer), from github.com alone and the same way
 as that first check, then its own channel's as before, and moves to the most stable channel whose
 build is yours or newer. It never moves by itself to a less stable channel or to an older build,
-and a read that gets no answer fails that check: nothing moves. An install on Stable, and one whose
+nor while an update downloads; a read of a more stable channel that gets no answer moves nothing,
+and the check goes on with its own channel's file as before (gitlab.com too, if github.com doesn't
+answer). An install on Stable, and one whose
 channel was picked, reads nothing more than before. A channel you pick never moves by itself. Follow
 the most stable build (in the panel the version at the top of the sidebar opens, and in Settings,
 Updates) turns following back on: its first check reads every channel's file the same way, most
-stable first, and moves to the first whose build is yours or newer. Switch to, offered when your
-channel has no build, follows from the channel it switches to.
+stable first (the less stable ones too, on that click), and moves to the first whose build is
+yours or newer. Switch to, offered when your channel has no build, changes the channel and nothing
+else: an install that follows still follows, and one picked by hand stays picked.
 An install that has saved settings from before this keeps its channel, as one picked: it never
 moves by itself. One whose settings file turns out damaged, and
 is moved aside (below), can't read the channel saved in it, so it starts as a new install does: no

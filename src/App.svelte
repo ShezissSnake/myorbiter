@@ -3364,7 +3364,7 @@
 {#if wanted.notices}{#await loadNoticesSheet(lazyTry)}{#if showNotices}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: NoticesSheet }}<NoticesSheet bind:open={showNotices} bind:view={noticesView} bind:settings console={onConsole} open_={openNotice} test={testNotice} acts={noticeActs} />{:catch}{#if showNotices}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}
 <Toasts open={openNotice} all={() => openNotices("recent")} left={compact ? "5.2rem" : "15.3rem"} acts={noticeActs} />
 <WhatsNew bind:open={showNews} seen={settings.newsSeen} ondone={() => (settings.newsSeen = NEWEST)} go={(t: string) => goTo(t)} />
-<!-- The bottom right corner: a link that couldn't open, above a newer build on offer. -->
+<!-- The bottom right corner: a link that couldn't open. A newer build shows over the page (UpdateBanner). -->
 <div class="corner"><LinkTrouble onlogs={() => goTo("settings#logs")} /></div>
 <UpdatesPanel settings={() => settings.updates} onsettings={() => goTo("settings#updates")} />
 {#if wanted.settings}{#await loadSettingsSheet(lazyTry)}{#if showSettings}<p class="sheetload register" role="status">Loading…</p>{/if}{:then { default: SettingsSheet }}<SettingsSheet bind:open={showSettings} bind:focus={settingsFocus} bind:settings {rivenKeyError} ongo={(t) => goTo(t)} onnotices={() => openNotices("choose")} {defaultDir} eeFound={mission?.path ?? null} onpaths={() => { reload(); pollMission(); ts.check(true); }} />{:catch}{#if showSettings}<p class="sheetload register" role="status">This didn\'t load. <button class="link" onclick={() => lazyTry++}>Try again</button></p>{/if}{/await}{/if}

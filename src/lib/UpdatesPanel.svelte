@@ -102,7 +102,7 @@
       {:else if sw && !updates.checking}
         <div class="offer">
           <p>{CHANNEL_LABEL[sw.from]} has no build yet. {CHANNEL_LABEL[sw.to]} has <b class="mono">{sw.version}</b>.</p>
-          <button type="button" class="stamp gold" title={`Get updates from ${CHANNEL_LABEL[sw.to]} from now on, following the most stable channel with a build; nothing installs without your click`} onclick={() => updates.switchTo(sw.to)}>Switch to {CHANNEL_LABEL[sw.to]}</button>
+          <button type="button" class="stamp gold" title={`Get updates from ${CHANNEL_LABEL[sw.to]} from now on${updates.follows ? `, still following the most stable build: back to ${CHANNEL_LABEL[sw.from]} by itself once it has this build or a newer one` : `; it stays until you choose again, or turn Follow on`}. Nothing installs without your click`} onclick={() => updates.switchTo(sw.to)}>Switch to {CHANNEL_LABEL[sw.to]}</button>
         </div>
       {/if}
     {/if}

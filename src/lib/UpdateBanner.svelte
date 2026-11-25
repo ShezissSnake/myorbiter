@@ -5,7 +5,8 @@
   //   it once its signature checks out and restarts MyOrbiter into it. Nothing installs without
   //   that click. A copy that can't replace its own file is told why instead, with no button.
   // - your channel has no build while another has this build or a newer one: Switch to it, in one
-  //   click, and from there MyOrbiter follows the most stable channel with a build.
+  //   click. A channel that follows the most stable build still does (it comes back by itself); a
+  //   channel picked by hand, or kept from before, stays picked on the one switched to.
   // Later puts that build away (the line goes, and comes back for any other build); the version at
   // the top of the sidebar still has it, and so has Settings, Updates. Details opens that version's
   // panel.
@@ -31,7 +32,7 @@
       {/if}
     {:else}
       <span class="msg"><b>{CHANNEL_LABEL[b.from]} has no build yet</b>, so no update reaches this copy. {CHANNEL_LABEL[b.to]} has {b.version}{compareVersions(b.version, running) === 0 ? ", this build" : ""}.</span>
-      <button type="button" class="stamp gold" data-field="updates.banner-switch" title={`Get updates from ${CHANNEL_LABEL[b.to]} from now on. MyOrbiter then follows the most stable channel with a build: it moves back to ${CHANNEL_LABEL[b.from]} by itself once ${CHANNEL_LABEL[b.from]} has this build or a newer one. Nothing installs without your click`} onclick={() => updates.switchTo(b.to)}>Switch to {CHANNEL_LABEL[b.to]}</button>
+      <button type="button" class="stamp gold" data-field="updates.banner-switch" title={`Get updates from ${CHANNEL_LABEL[b.to]} from now on. ${updates.follows ? `MyOrbiter still follows the most stable build: it moves back to ${CHANNEL_LABEL[b.from]} by itself once ${CHANNEL_LABEL[b.from]} has this build or a newer one` : `${CHANNEL_LABEL[b.to]} then stays until you choose again (Follow the most stable build, by the version, brings you back to ${CHANNEL_LABEL[b.from]} by itself once it has a build)`}. Nothing installs without your click`} onclick={() => updates.switchTo(b.to)}>Switch to {CHANNEL_LABEL[b.to]}</button>
     {/if}
     <span class="more">
       <button type="button" class="link" title="Your version and channel, Check now, and the channel to choose" onclick={() => (updatesPanel.open = true)}>Details</button>
