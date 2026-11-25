@@ -366,8 +366,10 @@ export class Updates {
         }
         const now = this.get?.();
         if (!now || !now.follows || now.channel !== from) return null;
-        if (failed) {
-          logLine("warn", "updates", `following the most stable build: ${CHANNEL_LABEL[step.ask]} couldn't be read (${plain(failed.e)}), so ${CHANNEL_LABEL[from]} stays this time`);
+        // An update that began downloading meanwhile restarts on the channel it came from: nothing
+        // moves, and that channel is read again, last.
+        if (failed || this.installJob.working) {
+          if (failed) logLine("warn", "updates", `following the most stable build: ${CHANNEL_LABEL[step.ask]} couldn't be read (${plain(failed.e)}), so ${CHANNEL_LABEL[from]} stays this time`);
           delete known[from];
           return from;
         }
@@ -429,8 +431,7 @@ export class Updates {
   setChannel(c: Channel) {
     const u = this.get?.();
     if (!u) return;
-    // The player's own choice, from the channel buttons or an empty channel's Switch to: it
-    // settles a new install for good, even on the channel already shown, and an answer the
+    // The player's own choice, from the channel buttons: it settles a new install for good, even on the channel already shown, and an answer the
     // settling was waiting for is dropped (`settle`). Saved with the settings, so a later start
     // never asks again; when they couldn't be read at start nothing is saved, so it lasts until a
     // restart, which reads the file again.

@@ -148,8 +148,8 @@ export interface UpdateSettings {
   picked: boolean;
   /**
    * Whether `channel` follows the most stable build: true when MyOrbiter chose it (a new install's
-   * first check, `newInstallStep`), or when the player asked for that (`Updates.follow`, or an
-   * empty channel's switch). Such a channel moves by itself to a more stable one once that one's
+   * first check, `newInstallStep`), or when the player asked for that (`Updates.follow`). An empty
+   * channel's switch (`Updates.switchTo`) leaves it as it was. Such a channel moves by itself to a more stable one once that one's
    * build is the running one or newer (`followStep`), never to a less stable one and never to an
    * older build. False for a channel picked by hand, and for one kept from settings saved before
    * this was recorded: those never move by themselves.
@@ -260,7 +260,8 @@ export function followOrder(current: Channel, all = false): Channel[] {
  * channel to be on, or the next one to ask. The first channel in `order` whose build is the running
  * one or newer (`buildCounts`) is the one, once every channel before it has answered without such a
  * build. Null when none in `order` counts: the install stays where it is. An answer of null (the
- * app's "off") counts as none; a read that failed never gets here: it throws, and nothing moves.
+ * app's "off") counts as none; a read that failed never gets here: the store logs it, and nothing
+ * moves.
  * With `followOrder(current)` the result is always more stable than `current`, so following never
  * moves to a less stable channel, and never to an older build, by itself.
  */

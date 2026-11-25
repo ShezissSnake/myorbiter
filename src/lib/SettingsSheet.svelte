@@ -386,7 +386,7 @@
         </div>
       </div>
     {/if}
-    {#if offer}
+    {#if offer && updates.outcome?.kind !== "failed"}
       <div class="offer" transition:reveal>
         <div class="offer-in">
           {#if offer.older}

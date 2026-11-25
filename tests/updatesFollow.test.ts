@@ -398,6 +398,33 @@ test("no following move while an update downloads: the channel it restarts on st
   assert.equal(settings.channel, "beta");
 });
 
+test("an update that starts downloading while Stable is read: nothing moves, and Beta is read last", async (t) => {
+  const { u, settings, calls, answers } = setup(t, { channel: "beta", follows: true }, [EMPTY, newer("0.2.150")]);
+  await started(t, u, settings);
+  assert.equal(u.offer?.version, "0.2.150");
+  updater.install = () => new Promise<void>(() => {});
+  let stable!: (a: UpdateCheck) => void;
+  answers.push(new Promise<UpdateCheck>((r) => (stable = r)), newer("0.2.150"));
+  calls.length = 0;
+  const check = u.checkNow();
+  await micro();
+  assert.deepEqual(calls, ["stable (GitHub alone)"]);
+  void u.install();
+  await micro();
+  assert.equal(u.installJob.working, true);
+  stable(newer("0.2.150"));
+  await check;
+  assert.equal(settings.channel, "beta", "the channel it restarts on stays the one it came from");
+  assert.equal(settings.follows, true);
+  assert.deepEqual(calls, ["stable (GitHub alone)", "beta"], "its own channel is read last, so the app keeps its update");
+});
+
+test("Settings, Updates offers nothing after a failed check either", async () => {
+  const { readFileSync } = await import("node:fs");
+  const sheet = readFileSync(new URL("../src/lib/SettingsSheet.svelte", import.meta.url), "utf8");
+  assert.match(sheet, /\{#if offer && updates\.outcome\?\.kind !== "failed"\}/);
+});
+
 test("a failed check after an empty channel's switch was offered takes the offer away", async (t) => {
   const { u, settings, answers } = setup(t, { channel: "stable" }, [EMPTY, current()]);
   await started(t, u, settings);
