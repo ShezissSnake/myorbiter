@@ -226,6 +226,11 @@ export interface Settings {
   /** The What's new entry last seen (its date); "" for none yet. */
   newsSeen: string;
   /**
+   * Set once the kinds in NOTIFY_OFF were switched off for these settings (or they started with
+   * them off): from then on the switches are as the player leaves them (`quietOnce`).
+   */
+  notifyQuiet: 1;
+  /**
    * Which tidy-ups of the sidebar have been applied (1: Planner, Market and Stats out by default,
    * Oct 2026; 2: the four sections of Nov 2026, so an order saved for the old ones is let go).
    */
@@ -447,7 +452,30 @@ export interface NotifySettings {
   /** The Duviri Circuit's weekly picks include something for you. */
   circuit: boolean;
 }
-export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, setDone: true, repriced: true, tennoscope: true, invasions: true, foundry: true, whispers: true, deals: true, fissures: true, rivens: true, cycle: true, wishlist: true, siteChat: true, alerts: true, alertLoot: true, baro: true, varzia: true, circuit: true });
+/**
+ * The kinds that start on: something went wrong (listings, sign-in, TennoScope), someone is waiting
+ * for you (a sale, a whisper, a message on the website), the reward screen, and the watches you set
+ * up yourself (fissure alerts, riven alerts, a riven you're cycling).
+ */
+export const NOTIFY_ON = ["market", "sold", "tennoscope", "reward", "whispers", "siteChat", "fissures", "rivens", "cycle"] as const satisfies readonly (keyof NotifySettings)[];
+/**
+ * The kinds that start off: what MyOrbiter noticed for you, turned on one by one in Settings,
+ * Notifications. Settings saved before this list get these switched off once (`quietOnce`).
+ */
+export const NOTIFY_OFF = ["deals", "repriced", "setDone", "foundry", "wishlist", "invasions", "alerts", "alertLoot", "baro", "varzia", "circuit"] as const satisfies readonly (keyof NotifySettings)[];
+export const defaultNotify = (): NotifySettings => ({ reward: true, market: true, sold: true, setDone: false, repriced: false, tennoscope: true, invasions: false, foundry: false, whispers: true, deals: false, fissures: true, rivens: true, cycle: true, wishlist: false, siteChat: true, alerts: false, alertLoot: false, baro: false, varzia: false, circuit: false });
+/**
+ * The switches as loaded, with NOTIFY_OFF switched off once for settings saved before it (no
+ * `notifyQuiet` in them): only switched off, never on, and only that once. Settings that carry
+ * `notifyQuiet` at all, whatever its value, had it done, so a kind turned on afterwards stays on.
+ * No settings object (a new install, a damaged file): the defaults, which have them off already.
+ */
+export function quietOnce(notify: NotifySettings, raw: object | null): NotifySettings {
+  if (!raw || Object.hasOwn(raw, "notifyQuiet")) return notify;
+  const next = { ...notify };
+  for (const k of NOTIFY_OFF) next[k] = false;
+  return next;
+}
 
 /** How notifications reach you, whatever they're about. */
 export interface NotifyOptions {
@@ -576,6 +604,7 @@ export const defaultSettings = (): Settings => ({
   notifyOptions: defaultNotifyOptions(),
   pagesHidden: ["planner", "browse", "stats"],
   newsSeen: NEWEST,
+  notifyQuiet: 1,
   simplified: 2,
   details: false,
   chores: {},
@@ -1194,7 +1223,9 @@ export async function loadSettings(): Promise<Settings> {
     overlay: { reward: switchOf(raw?.overlay, "reward", base.overlay.reward), kiosk: switchOf(raw?.overlay, "kiosk", base.overlay.kiosk), riven: switchOf(raw?.overlay, "riven", base.overlay.riven), rivenKey: typeof raw?.overlay?.rivenKey === "string" ? raw.overlay.rivenKey.slice(0, 40) : "", show: flagsOf(raw?.overlay?.show, base.overlay.show) },
     tennoscope: flagsOf(raw?.tennoscope, base.tennoscope),
     // "Your listings" was one switch before it was split: off stays off for all three.
-    notify: flagsOf(raw?.notify, { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}) }),
+    // Settings from before the quieter defaults: the kinds that now start off are switched off, once.
+    notify: quietOnce(flagsOf(raw?.notify, { ...base.notify, ...(raw?.notify?.market === false ? { sold: false, repriced: false } : {}) }), raw),
+    notifyQuiet: 1,
     notifyOptions: {
       paused: raw?.notifyOptions?.paused === true,
       pausedUntil: typeof raw?.notifyOptions?.pausedUntil === "number" ? raw.notifyOptions.pausedUntil : null,
