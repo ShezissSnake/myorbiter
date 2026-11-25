@@ -5,16 +5,16 @@
 
 import { SYNC_READS_NOW } from "./fullModeOff";
 
-/** `autoTrades`: a sale read from the game's log closes or lowers the listing it sold from. */
+/** `autoTrades`: a sale read from the game's log closes or lowers the listing it sold from, or closes a sold riven's auction when sure (core/rivenSold.ts). */
 export const AUTO_TRADES_LINE =
-  "Off unless you turn it on. On: when a trade in game shows you gave items for platinum, MyOrbiter marks the listing it sold from sold on warframe.market (recorded on your profile there) and logs the sale.";
+  "Off unless you turn it on. On: when a trade in game shows you gave items for platinum, MyOrbiter marks the listing it sold from sold on warframe.market (recorded on your profile there) and logs the sale. A riven sold so has its auction closed, only when exactly one of your auctions and its rank fit and nothing else you hold could be it; otherwise nothing is closed and you are told, with one click to close it.";
 
 /** `autoRep`: +rep is a review on the partner's warframe.market profile, posted as you. */
 export const AUTO_REP_LINE =
   "Off unless you turn it on. On: each player you trade with in game gets +rep on warframe.market, a review on their profile with your +rep message, posted as you, once per player. Off: a +rep button shows after each trade instead.";
 
 /** The two lines above, short enough for Orders' automatic panel (the full lines are the switches' tooltips). */
-export const AUTO_TRADES_SHORT = "Off unless you turn it on. A sale in game marks its listing sold on warframe.market and logs it.";
+export const AUTO_TRADES_SHORT = "Off unless you turn it on. A sale in game marks its listing sold on warframe.market and logs it; a riven's auction is closed only when sure.";
 export const AUTO_REP_SHORT = "Off unless you turn it on. Each partner gets +rep on warframe.market once, posted as you.";
 
 /** `lastCopy.optIn`: listings with one copy hidden on warframe.market while someone whispers you. */

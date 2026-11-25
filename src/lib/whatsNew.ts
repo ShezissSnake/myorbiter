@@ -33,6 +33,14 @@ export interface NewsEntry {
 
 export const NEWS: NewsEntry[] = [
   {
+    id: 24,
+    date: "2026-11-25",
+    items: [
+      { title: "A riven sold in game", icon: { game: "riven" }, text: "Sold a riven for platinum in a trade while its auction is up on warframe.market? With Mark sales sold from the game on, MyOrbiter closes that auction itself when it is sure it's the one: a single auction fits, at the same rank, and you hold no other riven that could be it. Otherwise nothing is closed, and a notification and a line above your riven auctions on Orders say which riven and why, with Close auction in one click.", open: "market" },
+      { title: "The same line on Rivens", icon: { page: "rivens" }, text: "While that auction is up, the line shows at the top of Rivens too. Close auction reads your auctions first and sends nothing if it is gone or no longer that riven; Keep it up puts the line away.", open: "rivens" },
+    ],
+  },
+  {
     id: 23,
     date: "2026-11-09",
     items: [

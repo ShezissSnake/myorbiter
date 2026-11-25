@@ -250,7 +250,7 @@ const SETTINGS_TRADES: Walkthrough = {
       lines: [
         "+rep message: what goes with +rep on a trade partner's warframe.market profile.",
         "Give +rep by itself (off to start): each trade partner gets it once, posted as you.",
-        "Mark sales sold from the game (off to start): marks the listing sold, logs the sale.",
+        "Mark sales sold from the game (off to start): marks sales sold, riven auctions when sure.",
         "With +rep by itself off, a +rep button shows after a trade instead.",
       ],
       shot: {
