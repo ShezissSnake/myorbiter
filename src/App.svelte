@@ -1660,6 +1660,8 @@
     const trades = mission?.trades ?? [];
     const session = mission?.session_start ?? null;
     const meta = rivens.meta;
+    // A minute after a failed read of the auctions, this runs again even with the log unchanged.
+    void rivenRetry;
     if (!trades.length || !mkt.linked) return;
     untrack(() => {
       const due = trades.filter((t) => !rivenHandling.has(tradeKey(session, t)) && t.offered.some((x) => x.riven && !rivenDecided(settings.market.rivenSold, tradeKey(session, t), x)));
@@ -1680,6 +1682,8 @@
   const rivenSessionsRead = new Set<number | string>();
   /** After a read of the auctions failed: not before this time again (unix ms). */
   let rivenReadAgainAt = 0;
+  /** Counted up a minute after a failed read, to run the decision again. */
+  let rivenRetry = $state(0);
   /** The last inventory read's rivens, by warframe.market's weapon and the riven's name, and when it was taken; null with none. */
   function heldRivens(meta: RivenMeta): HeldRivens | null {
     const raws = settings.game.rivens;
@@ -1703,6 +1707,10 @@
       const auctions = await rivens.readNow();
       if (!auctions) {
         rivenReadAgainAt = Date.now() + 60_000;
+        setTimeout(() => rivenRetry++, 60_500);
+        // Nothing was decided: the next try is still this session's first read, so a trade with no
+        // time that was already in the log doesn't turn recent.
+        if (firstRead) rivenSessionsRead.delete(session ?? "?");
         logLine("warn", "rivens", `A riven given in a trade: your auctions couldn't be read (${rivens.mineError ?? "no answer"}), so nothing was decided; tried again in a minute.`);
         return;
       }
