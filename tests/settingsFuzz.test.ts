@@ -18,7 +18,7 @@ import { noxItems } from "../src/lib/core/builds/noxsframe";
 import { parseOverframeFile } from "../src/lib/core/builds/overframeList";
 import { buildModel } from "../src/lib/core/model";
 import { salesCsv, tradesCsv } from "../src/lib/core/exportCsv";
-import { salesByDay } from "../src/lib/core/salesDays";
+import { salesByDay, salesChart } from "../src/lib/core/salesDays";
 import { foundryBuilds } from "../src/lib/core/foundry";
 import { dropTotals, laterClaims, recordRead } from "../src/lib/core/drops";
 import { dealNews } from "../src/lib/core/worldOnce";
@@ -186,7 +186,7 @@ test("settings files: loading anything never throws, never turns on automatic re
     const fine = (n: unknown) => typeof n === "number" && Number.isFinite(n);
     assert.ok(m.sales.every((x) => x && fine(x.at) && typeof x.item === "string" && x.item && Number.isInteger(x.quantity) && x.quantity >= 1 && fine(x.platinum) && x.platinum >= 0 && (x.rank === null || Number.isInteger(x.rank)) && (x.median === undefined || fine(x.median))), `sales: ${ctx}`);
     assert.ok(m.trades.every((t) => t && fine(t.at) && typeof t.key === "string" && typeof t.partner === "string" && fine(t.platIn) && fine(t.platOut) && [t.offered, t.received].every((xs) => Array.isArray(xs) && xs.every((x) => x && typeof x.name === "string" && Number.isInteger(x.count) && x.count >= 1))), `trades: ${ctx}`);
-    assert.doesNotThrow(() => (salesCsv(m.sales), tradesCsv(m.trades), salesByDay(m.sales, Date.now(), 30)), `the logs: ${ctx}`);
+    assert.doesNotThrow(() => (salesCsv(m.sales), tradesCsv(m.trades), salesByDay(m.sales, Date.now(), 30), salesChart(m.sales, Date.now(), "7"), salesChart(m.sales, Date.now(), "30"), salesChart(m.sales, Date.now(), "all")), `the logs: ${ctx}`);
     // The saved game state's lists: whole entries only (core/savedGame.ts).
     const g = s.game;
     const objs = (xs: unknown) => Array.isArray(xs) && xs.every((x) => x && typeof x === "object" && !Array.isArray(x));
