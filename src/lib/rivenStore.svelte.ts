@@ -44,33 +44,49 @@ class Rivens {
 
   /**
    * warframe.market's riven lists (weapons and stats), signed out: read once and kept for the run;
-   * a read already out is shared, and one that failed is made again at the next call. Asked for by
-   * Orders, Rivens and Builds, a riven cycle shown, and a riven trade due while they are missing
-   * (`loadMetaForTrades`).
+   * a read already out is shared, and one that failed is made again at the next call (the Rust
+   * side answers from its copy while that is under a day old). Lists with no weapons are a failed
+   * read, not kept: they would fit no auction. Asked for by Orders, Rivens and Builds, a riven
+   * cycle shown, and a riven trade due while they are missing (`loadMetaForTrades`, `forPage`
+   * false). A failure is shown on the pages (`metaError`) only when a page asked for that read, or
+   * shared it; the reason of the last failure, whoever asked, is `metaFailure`.
    */
-  async loadMeta(): Promise<RivenMeta | null> {
+  async loadMeta(forPage = true): Promise<RivenMeta | null> {
     if (this.meta) return this.meta;
-    this.loading ??= market
-      .rivenMeta()
-      .then((m) => {
-        this.meta = m;
-        this.metaError = null;
-        return m;
-      })
-      .catch((e) => {
-        this.metaError = String(e).replace(/^Error:\s*/, "");
-        this.loading = null;
-        return null;
-      });
+    if (!this.loading) {
+      this.pageWaits = false;
+      this.loading = market
+        .rivenMeta()
+        .then((m) => {
+          if (!rivenListsUsable(m)) throw new Error("warframe.market's riven list came back with no weapon MyOrbiter can read");
+          this.meta = m;
+          this.metaError = null;
+          this.metaFailure = null;
+          return m;
+        })
+        .catch((e) => {
+          const why = String(e).replace(/^Error:\s*/, "");
+          this.metaFailure = why;
+          if (this.pageWaits) this.metaError = why;
+          this.loading = null;
+          return null;
+        });
+    }
+    if (forPage) this.pageWaits = true;
     return this.loading;
   }
+  /** Whether a page asked for, or shared, the read of the lists that is out. */
+  private pageWaits = false;
+  /** Why the last read of the lists failed, whoever asked for it; null after one that worked. */
+  metaFailure: string | null = null;
 
   /** The tries at the lists made for riven trades in this run (core/rivenLists.ts). */
   private tradeTries = new RivenListsTries();
   /**
    * The lists for riven trades that are due while they are missing (`keys`: the trades' keys,
-   * core/rivenLists.ts): the pages' own read (`loadMeta`, which shares a read already out and keeps
-   * what it gets), when a try may go now. `try`: its number for these trades, out of
+   * core/rivenLists.ts): the pages' own read (`loadMeta`, which shares a read already out), when a
+   * try may go now; each try is a read of its own, since lists that fail are not kept. A failure
+   * isn't shown on the pages (`forPage` false). `try`: its number for these trades, out of
    * RIVEN_LISTS_TRIES; `done`: the lists if usable ones came, and whether any of these trades has a
    * try left. Null when the lists are here already, or no try may go now: one is out, the gap
    * after a failed one isn't over, or every one of these trades has had its tries.
@@ -79,7 +95,7 @@ class Rivens {
     if (rivenListsUsable(this.meta)) return null;
     const n = this.tradeTries.take(keys, now);
     if (n == null) return null;
-    const done = this.loadMeta().then((m) => {
+    const done = this.loadMeta(false).then((m) => {
       const ok = rivenListsUsable(m);
       this.tradeTries.done(ok, Date.now());
       return { meta: ok ? m : null, again: !ok && this.tradeTries.left(keys) };

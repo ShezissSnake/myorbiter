@@ -2,8 +2,8 @@
 // trade (core/rivenSold.ts). Telling which of the player's auctions fits that riven goes by
 // warframe.market's weapon names, so a riven trade that is due while the lists are missing asks for
 // them itself, with the read the pages make (`rivens.loadMeta`: signed out, the copy kept a day),
-// instead of waiting for Orders, Rivens or Builds to be opened. A few tries at most, spaced; after
-// that it waits for a page, as before. Nothing here decides a riven: that stays rivenSold.ts's.
+// instead of waiting for a page to read them. A few tries at most, spaced; after that it waits for
+// a page or a riven cycle, as before. Nothing here decides a riven: that stays rivenSold.ts's.
 import type { RivenMeta } from "./rivens";
 import type { Trade } from "./types";
 import { rivenTradesDue, type RivenSold } from "./rivenSold";
@@ -15,9 +15,11 @@ import { rivenTradesDue, type RivenSold } from "./rivenSold";
  */
 export const RIVEN_LISTS_TRIES = 3;
 /**
- * After a try that failed, how long until the next (ms), counted from when it failed. A try is two
- * reads (weapons, then stats) through warframe.market's queue in market.rs; a minute apart is the
- * pace the Rivens page tries again at while it is open, so a trade never asks faster than a page.
+ * After a try that failed, how long until the next (ms), counted from when it failed. A try is one
+ * read of the lists: answered from the copy kept while it is under a day old, otherwise two
+ * requests (weapons, then stats) through warframe.market's queue in market.rs, whose own waits and
+ * time limits set how long it takes. A minute apart is the pace the Rivens page tries again at
+ * while it is open, so a trade never asks faster than a page.
  */
 export const RIVEN_LISTS_GAP_MS = 60_000;
 

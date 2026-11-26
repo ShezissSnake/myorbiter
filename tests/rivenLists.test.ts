@@ -24,7 +24,8 @@ beforeEach(() => {
   globalThis.fetch = noNetwork;
   rivens.meta = null;
   rivens.metaError = null;
-  Object.assign(rivens as unknown as object, { loading: null, tradeTries: new RivenListsTries() });
+  rivens.metaFailure = null;
+  Object.assign(rivens as unknown as object, { loading: null, pageWaits: false, tradeTries: new RivenListsTries() });
 });
 
 const meta: RivenMeta = {
@@ -131,6 +132,7 @@ test("lists that can't be had: three tries a minute apart per trade, never read 
     now += RIVEN_LISTS_GAP_MS;
   }
   assert.equal(calls.n, RIVEN_LISTS_TRIES);
+  assert.equal(rivens.metaError, null, "the pages show nothing of the trade's reads");
   // No tries left for that trade: nothing more is asked, however long it waits.
   assert.equal(rivens.loadMetaForTrades(k, now + 3600_000), null);
   assert.equal(calls.n, RIVEN_LISTS_TRIES);
@@ -163,31 +165,69 @@ test("another riven trade later gets tries of its own; one try serves every trad
   assert.equal(tries.take([b], now + RIVEN_LISTS_GAP_MS), 3);
 });
 
-test("an empty weapon list counts as missing, so it can't read as no auction fits", async () => {
+test("an empty weapon list counts as missing: not kept, each try reads again, never read as no auction fits", async () => {
   assert.equal(rivenListsUsable(null), false);
   assert.equal(rivenListsUsable({ weapons: [], attributes: [] }), false);
   assert.equal(rivenListsUsable(meta), true);
   assert.equal(step({ meta: { weapons: [], attributes: [] } }).do, "lists");
-  listsRead(async () => ({ weapons: [], attributes: [] }));
-  const asked = rivens.loadMetaForTrades([key(trade())]);
-  const { meta: got, again } = await asked!.done;
-  assert.equal(got, null);
-  assert.equal(again, true);
+  const calls = listsRead(async () => ({ weapons: [], attributes: [] }));
+  const k = [key(trade())];
+  let now = Date.now();
+  for (let n = 1; n <= RIVEN_LISTS_TRIES; n++) {
+    const asked = rivens.loadMetaForTrades(k, now);
+    assert.equal(asked?.try, n);
+    const { meta: got, again } = await asked!.done;
+    assert.equal(got, null);
+    assert.equal(again, n < RIVEN_LISTS_TRIES);
+    // Not kept: a try counted is a read made, not one answered by what was kept.
+    assert.equal(rivens.meta, null);
+    assert.equal(calls.n, n);
+    assert.match(rivens.metaFailure ?? "", /no weapon/);
+    now = Date.now() + RIVEN_LISTS_GAP_MS;
+  }
+  assert.equal(rivens.loadMetaForTrades(k, now + 3600_000), null);
+  assert.equal(calls.n, RIVEN_LISTS_TRIES);
+  assert.equal(step({ meta: rivens.meta }).do, "lists");
 });
 
-test("the wait for the lists stays well inside the half hour a close needs", () => {
-  // The longest the tries can hold a trade: each try's two reads (30 s each at most in market.rs,
-  // queue waits aside) and the gaps between them.
-  const longest = RIVEN_LISTS_TRIES * 2 * 30_000 + (RIVEN_LISTS_TRIES - 1) * RIVEN_LISTS_GAP_MS;
-  assert.ok(longest <= 5 * 60_000);
-  // A trade made while MyOrbiter ran, seen at once: as recent after that wait as at once, so the
-  // verdict is the same (rivenRecent is taken when it is decided).
+test("a trade's failed read isn't shown on the pages; a read a page asked for or shared is", async () => {
+  listsRead(async () => {
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  });
+  // The trade's own read: its reason is kept for the log, the pages show nothing of it.
+  await rivens.loadMetaForTrades([key(trade())])!.done;
+  assert.equal(rivens.metaError, null);
+  assert.match(rivens.metaFailure ?? "", /timed out/);
+  // A page's read: shown.
+  assert.equal(await rivens.loadMeta(), null);
+  assert.match(rivens.metaError ?? "", /timed out/);
+  // A page that shares a trade's read that fails: shown too, it waited on it.
+  Object.assign(rivens as unknown as object, { tradeTries: new RivenListsTries() });
+  rivens.metaError = null;
+  const forTrade = rivens.loadMetaForTrades([key(trade())]);
+  const page = rivens.loadMeta();
+  await forTrade!.done;
+  assert.equal(await page, null);
+  assert.match(rivens.metaError ?? "", /timed out/);
+  // A read that works clears both.
+  market.rivenMeta = async () => meta;
+  await rivens.loadMeta();
+  assert.equal(rivens.metaError, null);
+  assert.equal(rivens.metaFailure, null);
+});
+
+test("the half hour a close needs is counted from the trade, whenever the lists come", () => {
+  // The gaps between the tries add two minutes; each try's own time is warframe.market's queue's
+  // (its waits after a 429 and its time limits in market.rs), not bounded here.
+  assert.equal((RIVEN_LISTS_TRIES - 1) * RIVEN_LISTS_GAP_MS, 120_000);
+  // A trade made while MyOrbiter ran, seen at once, is as recent a few minutes later as at once
+  // (rivenRecent is taken when it is decided)...
   const sessionRead = AT * 1000 - 600_000;
   const seen = { at: AT * 1000, firstRead: false };
   assert.equal(rivenRecent(trade(), AT * 1000 + 1000, seen, sessionRead), true);
-  assert.equal(rivenRecent(trade(), AT * 1000 + 1000 + longest, seen, sessionRead), true);
-  // The rules as they are: decided past the half hour, the same trade is only told. Only a trade
-  // that becomes due late (signing in long after it) can be near that edge.
+  assert.equal(rivenRecent(trade(), AT * 1000 + 1000 + 10 * 60_000, seen, sessionRead), true);
+  // ...and, by the rules as they are, decided past the half hour it is only told, however late
+  // the lists came: the wait can only make a close a telling near that edge, as a page's did.
   assert.equal(rivenRecent(trade(), AT * 1000 + TELL_WINDOW, seen, sessionRead), false);
 });
 
