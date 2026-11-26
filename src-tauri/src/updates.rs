@@ -91,7 +91,8 @@ fn check_urls(channel: Channel) -> Vec<String> {
 }
 
 /// The addresses one check asks: all of `check_urls`, or with `first_only` the first alone (a new
-/// install settling its channel, `updates_check`): the same address, never another.
+/// install settling its channel, or a following install reading a more stable one,
+/// `updates_check`): the same address, never another.
 fn ask_urls(channel: Channel, first_only: bool) -> Vec<String> {
     let mut urls = check_urls(channel);
     if first_only {
@@ -147,8 +148,8 @@ fn first_says(answer: Result<ureq::Response, ureq::Error>) -> FirstSays {
 }
 
 /// The read of the first address `first_says` takes: through the app's one HTTP client (its
-/// proxy rule, no redirect followed), within `limit`. MyOrbiter's own request, it goes under the
-/// updater's name (`UPDATER_AGENT`) so that an update check sends no MyOrbiter version: the one
+/// proxy rule, no redirect followed), within `limit`. The read of a `first_only` check, a new
+/// install's or a following install's. MyOrbiter's own request, it goes under the updater's name (`UPDATER_AGENT`) so that an update check sends no MyOrbiter version: the one
 /// request MyOrbiter makes under another program's name.
 fn first_read(url: &str, limit: Duration) -> ureq::Request {
     crate::request("GET", url).set("User-Agent", UPDATER_AGENT).timeout(limit)
@@ -572,12 +573,13 @@ pub async fn updates_info(app: AppHandle) -> Result<Info, String> {
 /// comparator lets older ones through), so the page can offer a downgrade explicitly; whether one
 /// installs is decided again at the click (`updates_install`).
 ///
-/// `first_only`, for a new install settling its channel (the page's `settle`), asks the first
+/// `first_only`, for a new install settling its channel (the page's `settle`) and for a following
+/// install reading the more stable channels (the page's `followOrder`), asks the first
 /// address alone and tells its three answers apart: first one read of it that follows no redirect
 /// (`first_says`); a 404 is GitHub's own "no build" (`Check::Empty`, and nothing else is read); a
 /// file there is then read by the plugin from that address alone, and any failure of that read is
 /// a failure; anything else is a failure. So GitLab's frozen copy never answers for a new install,
-/// and an unreachable gitlab.com never stops one. Without it (every other check) the check is as
+/// and an unreachable gitlab.com never stops one (or a following install's read). Without it (every other check) the check is as
 /// it always was: both addresses, through the plugin alone.
 #[tauri::command]
 pub async fn updates_check(app: AppHandle, pending: State<'_, Pending>, channel: Channel, first_only: Option<bool>) -> Result<Check, String> {
@@ -598,7 +600,7 @@ async fn check(app: &AppHandle, pending: &Pending, channel: Channel, first_only:
             "The update address is invalid".to_string()
         })?;
     let started = Instant::now();
-    // A new install's check: what the first address itself says, before the plugin reads anything.
+    // A `first_only` check (a new install's, or a following install's read of a more stable channel): what the first address itself says, before the plugin reads anything.
     let mut limit = CHECK_TIMEOUT;
     if first_only {
         let url = urls[0].to_string();
