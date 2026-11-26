@@ -37,7 +37,7 @@ export const NEWS: NewsEntry[] = [
     date: "2026-11-26",
     items: [
       { title: "A riven trade loads the lists itself", icon: { game: "riven" }, text: "A riven you gave in a trade is now looked at even when you didn't open Orders, Rivens or Builds in that run: signed in to warframe.market, MyOrbiter loads warframe.market's riven names itself to tell which auction fits, whether or not Mark sales sold from the game is on. The auction is still closed only when MyOrbiter is sure it's the one and that switch is on; otherwise, when an auction fits it, a notification and the line above your riven auctions on Orders say which riven and why.", open: "market" },
-      { title: "If the names won't load", icon: { line: "list" }, text: "When warframe.market's riven names can't be loaded, MyOrbiter tries up to three times for a trade in a run, a minute apart, then waits until a page or a riven cycle loads them. Nothing is decided or closed meanwhile, and the log says what happened.", open: "settings#logs" },
+      { title: "If the names won't load", icon: { line: "list" }, text: "When warframe.market's riven names can't be loaded, MyOrbiter tries up to three times for a trade in a run, a minute apart, then waits until a page or a riven cycle loads them. Nothing is decided or closed meanwhile, and the log says what happened.", open: "rivens" },
     ],
   },
   {
