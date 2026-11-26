@@ -7,7 +7,8 @@
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
   import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
-  import { keepRivenSold, RIVEN_READS, rivenDecided, rivenRecent, rivenTradesDue, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
+  import { keepRivenSold, RIVEN_READS, rivenDecided, rivenRecent, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
+  import { RIVEN_LISTS_GAP_MS, RIVEN_LISTS_TRIES, rivenTradeStep } from "./lib/core/rivenLists";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
   import { foundryBuilds } from "./lib/core/foundry";
   import { matchedFissures, pricesBehind } from "./lib/core/timers";
@@ -1691,18 +1692,38 @@
         rivenFirstSeen.set(tradeKey(session, t), firstRead);
         rivenSeenAt.set(tradeKey(session, t), Date.now());
       }
-      if (!trades.length || !linked) return;
-      const due = rivenTradesDue(settings.market.rivenSold, trades, (t) => tradeKey(session, t)).filter((t) => !rivenHandling.has(tradeKey(session, t)));
-      if (!due.length) return;
-      // warframe.market's weapon names, to tell which auctions fit. A trade doesn't ask for them:
-      // they come when Orders, Rivens or Builds is opened or a riven cycle is shown, and this
-      // effect runs again then.
-      if (!meta) return;
+      // Signed in, with a riven given that isn't decided yet (core/rivenLists.ts).
+      const step = rivenTradeStep({ trades, linked, sold: settings.market.rivenSold, key: (t) => tradeKey(session, t), busy: (k) => rivenHandling.has(k), meta });
+      if (step.do === "nothing") return;
+      // warframe.market's weapon names, to tell which auctions fit: while they are missing they
+      // are asked for here, as the pages ask, a few tries at most; when they come, this effect runs
+      // again. After the tries they come when a page reads them (Orders, opened or drawn by the
+      // warm-up; Rivens; Builds with a weapon open) or a riven cycle is shown, and this effect runs
+      // again then. Nothing is decided without them.
+      if (step.do === "lists") return void askRivenLists(step.due.map((t) => tradeKey(session, t)));
       if (Date.now() < rivenReadAgainAt) return;
-      for (const t of due) rivenHandling.add(tradeKey(session, t));
-      void decideRivens(due, session, meta);
+      for (const t of step.due) rivenHandling.add(tradeKey(session, t));
+      void decideRivens(step.due, session, step.meta);
     });
   });
+  /**
+   * Asks for warframe.market's riven lists for riven trades `keys` (rivens.loadMetaForTrades): at
+   * most RIVEN_LISTS_TRIES tries per trade in this run, RIVEN_LISTS_GAP_MS after a failed one.
+   * Lists that come set `rivens.meta`, which runs the effect above again. After every failure the
+   * effect runs again once the gap is over, even when these trades have no try left: a riven trade
+   * that turned up meanwhile gets its own then, without waiting for the log to change.
+   */
+  function askRivenLists(keys: string[]) {
+    const asked = rivens.loadMetaForTrades(keys);
+    if (!asked) return;
+    logLine("info", "rivens", `A riven given in a trade: warframe.market's riven lists aren't loaded, so they are read (MyOrbiter's copy while it is under a day old, otherwise warframe.market) to tell which auction fits (try ${asked.try} of ${RIVEN_LISTS_TRIES}).`);
+    void asked.done.then(({ meta, again }) => {
+      if (meta) return;
+      const why = rivens.metaFailure ?? "no answer";
+      logLine("warn", "rivens", again ? `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), so nothing was decided; tried again in a minute.` : `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), ${RIVEN_LISTS_TRIES} times: it waits until a page or a riven cycle loads them.`);
+      setTimeout(() => rivenRetry++, RIVEN_LISTS_GAP_MS + 500);
+    });
+  }
   /** Trades whose rivens are being decided now: not started twice while the first is out. */
   const rivenHandling = new Set<string>();
   /** Game sessions whose log the rivens' decision has read, and when it first did (unix ms; see rivenRecent). */
