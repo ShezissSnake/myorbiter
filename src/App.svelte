@@ -1697,8 +1697,9 @@
       if (step.do === "nothing") return;
       // warframe.market's weapon names, to tell which auctions fit: while they are missing they
       // are asked for here, as the pages ask, a few tries at most; when they come, this effect runs
-      // again. After the tries they come when Orders, Rivens or Builds is opened or a riven cycle
-      // is shown, and this effect runs again then. Nothing is decided without them.
+      // again. After the tries they come when a page reads them (Orders, opened or drawn by the
+      // warm-up; Rivens; Builds with a weapon open) or a riven cycle is shown, and this effect runs
+      // again then. Nothing is decided without them.
       if (step.do === "lists") return void askRivenLists(step.due.map((t) => tradeKey(session, t)));
       if (Date.now() < rivenReadAgainAt) return;
       for (const t of step.due) rivenHandling.add(tradeKey(session, t));
@@ -1708,18 +1709,19 @@
   /**
    * Asks for warframe.market's riven lists for riven trades `keys` (rivens.loadMetaForTrades): at
    * most RIVEN_LISTS_TRIES tries per trade in this run, RIVEN_LISTS_GAP_MS after a failed one.
-   * Lists that come set `rivens.meta`, which runs the effect above again; after a failure, the
-   * effect runs again once the gap is over.
+   * Lists that come set `rivens.meta`, which runs the effect above again. After every failure the
+   * effect runs again once the gap is over, even when these trades have no try left: a riven trade
+   * that turned up meanwhile gets its own then, without waiting for the log to change.
    */
   function askRivenLists(keys: string[]) {
     const asked = rivens.loadMetaForTrades(keys);
     if (!asked) return;
-    logLine("info", "rivens", `A riven given in a trade: warframe.market's riven lists aren't loaded, so they are asked for to tell which auction fits (try ${asked.try} of ${RIVEN_LISTS_TRIES}).`);
+    logLine("info", "rivens", `A riven given in a trade: warframe.market's riven lists aren't loaded, so they are read (MyOrbiter's copy while it is under a day old, otherwise warframe.market) to tell which auction fits (try ${asked.try} of ${RIVEN_LISTS_TRIES}).`);
     void asked.done.then(({ meta, again }) => {
       if (meta) return;
-      const why = rivens.metaError ?? "no weapons in them";
-      logLine("warn", "rivens", again ? `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), so nothing was decided; tried again in a minute.` : `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), ${RIVEN_LISTS_TRIES} times: it waits until Orders, Rivens or Builds loads them.`);
-      if (again) setTimeout(() => rivenRetry++, RIVEN_LISTS_GAP_MS + 500);
+      const why = rivens.metaFailure ?? "no answer";
+      logLine("warn", "rivens", again ? `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), so nothing was decided; tried again in a minute.` : `A riven given in a trade: warframe.market's riven lists couldn't be loaded (${why}), ${RIVEN_LISTS_TRIES} times: it waits until a page or a riven cycle loads them.`);
+      setTimeout(() => rivenRetry++, RIVEN_LISTS_GAP_MS + 500);
     });
   }
   /** Trades whose rivens are being decided now: not started twice while the first is out. */
