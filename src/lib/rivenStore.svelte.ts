@@ -1,9 +1,11 @@
-// warframe.market's riven data: weapon and stat names (cached for a day on the Rust side) and
-// riven auctions, cached a few minutes per search so opening a card twice doesn't refetch.
+// warframe.market's riven data: weapon and stat names (cached for a day on the Rust side; also
+// asked for by a riven trade that needs them, core/rivenLists.ts) and riven auctions, cached a few
+// minutes per search so opening a card twice doesn't refetch.
 import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
 import { waitWords } from "./core/marketWait";
 import { mayAskFromWindow } from "./proxy.svelte";
+import { RivenListsTries, rivenListsUsable } from "./core/rivenLists";
 import { packListed, packPrices, startingFor, isAuctionOf, mayBeAuctionOf, sameRiven, myAuctionsList, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
@@ -40,6 +42,12 @@ class Rivens {
     this.waitDone = setTimeout(() => (this.searchWait = null), Math.max(0, until - Date.now()) + 500);
   }
 
+  /**
+   * warframe.market's riven lists (weapons and stats), signed out: read once and kept for the run;
+   * a read already out is shared, and one that failed is made again at the next call. Asked for by
+   * Orders, Rivens and Builds, a riven cycle shown, and a riven trade due while they are missing
+   * (`loadMetaForTrades`).
+   */
   async loadMeta(): Promise<RivenMeta | null> {
     if (this.meta) return this.meta;
     this.loading ??= market
@@ -55,6 +63,28 @@ class Rivens {
         return null;
       });
     return this.loading;
+  }
+
+  /** The tries at the lists made for riven trades in this run (core/rivenLists.ts). */
+  private tradeTries = new RivenListsTries();
+  /**
+   * The lists for riven trades that are due while they are missing (`keys`: the trades' keys,
+   * core/rivenLists.ts): the pages' own read (`loadMeta`, which shares a read already out and keeps
+   * what it gets), when a try may go now. `try`: its number for these trades, out of
+   * RIVEN_LISTS_TRIES; `done`: the lists if usable ones came, and whether any of these trades has a
+   * try left. Null when the lists are here already, or no try may go now: one is out, the gap
+   * after a failed one isn't over, or every one of these trades has had its tries.
+   */
+  loadMetaForTrades(keys: string[], now = Date.now()): { try: number; done: Promise<{ meta: RivenMeta | null; again: boolean }> } | null {
+    if (rivenListsUsable(this.meta)) return null;
+    const n = this.tradeTries.take(keys, now);
+    if (n == null) return null;
+    const done = this.loadMeta().then((m) => {
+      const ok = rivenListsUsable(m);
+      this.tradeTries.done(ok, Date.now());
+      return { meta: ok ? m : null, again: !ok && this.tradeTries.left(keys) };
+    });
+    return { try: n, done };
   }
 
   static key(weapon: string, positive: string[], negative: string | null) {
