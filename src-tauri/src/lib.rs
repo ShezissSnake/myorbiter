@@ -231,8 +231,8 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// sockets go (`presence::route`: the proxy set in the environment at startup, NO_PROXY unread);
 /// tests, which only talk to this machine, go straight. Only `request` uses it, so no request
 /// leaves without the User-Agent: MyOrbiter's, or, for a new install's first read of a channel's
-/// file or a following install's read of a more stable channel's, the updater's in its place (updates.rs, `first_read`), so an update check sends no
-/// MyOrbiter version.
+/// file or a following install's read of a more stable channel's, the updater's in its place
+/// (updates.rs, `first_read`), so an update check sends no MyOrbiter version.
 ///
 /// Redirects are followed only where `REDIRECTS_FOLLOWED` names them: following any other would
 /// send the request (and its User-Agent) to whatever host the answer names. A redirect not
@@ -352,7 +352,8 @@ fn host_of(url: &str) -> &str {
 
 /// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`. One caller
 /// sets the updater's in its place: a first read of a channel's file, a new install's or a
-/// following install's (updates.rs, `first_read`), so that an update check sends no MyOrbiter version.
+/// following install's (updates.rs, `first_read`), so that an update check sends no MyOrbiter
+/// version.
 pub(crate) fn request(method: &str, url: &str) -> ureq::Request {
     http_agent().request(method, url).set("User-Agent", &user_agent())
 }
@@ -2494,8 +2495,9 @@ mod tests {
                     at("\"user-agent\"", 1);
                     at("warframe.market", 0);
                 }
-                // A new install's read of the first update address goes through `request` and names
-                // itself as the updater plugin does (`first_read`), once.
+                // A new install's or a following install's read of the first update address goes
+                // through `request` and names itself as the updater plugin does (`first_read`),
+                // once.
                 "updates.rs" => {
                     at("http_agent()", 0);
                     at("into_client_request", 0);
