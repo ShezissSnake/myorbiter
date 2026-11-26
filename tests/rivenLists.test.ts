@@ -25,7 +25,7 @@ beforeEach(() => {
   rivens.meta = null;
   rivens.metaError = null;
   rivens.metaFailure = null;
-  Object.assign(rivens as unknown as object, { loading: null, pageWaits: false, tradeTries: new RivenListsTries() });
+  Object.assign(rivens as unknown as object, { loading: null, pageReadOut: false, tradeTries: new RivenListsTries() });
 });
 
 const meta: RivenMeta = {
@@ -190,30 +190,67 @@ test("an empty weapon list counts as missing: not kept, each try reads again, ne
   assert.equal(step({ meta: rivens.meta }).do, "lists");
 });
 
-test("a trade's failed read isn't shown on the pages; a read a page asked for or shared is", async () => {
-  listsRead(async () => {
-    throw new Error("Couldn't reach warframe.market (timed out)");
-  });
-  // The trade's own read: its reason is kept for the log, the pages show nothing of it.
-  await rivens.loadMetaForTrades([key(trade())])!.done;
+test("the pages read, keep and show the lists as they always have; they only gain usable lists a trade's read brought", async () => {
+  const empty: RivenMeta = { weapons: [], attributes: [] };
+  // A page's read that comes back with no weapon is kept for the run: no failure shown, no read again.
+  let answer: () => Promise<RivenMeta> = async () => empty;
+  const calls = listsRead(() => answer());
+  assert.deepEqual(await rivens.loadMeta(), empty);
+  assert.deepEqual(rivens.meta, empty);
   assert.equal(rivens.metaError, null);
-  assert.match(rivens.metaFailure ?? "", /timed out/);
-  // A page's read: shown.
+  assert.deepEqual(await rivens.loadMeta(), empty);
+  assert.equal(calls.n, 1);
+  // A trade's try with those lists kept makes a read of its own, never answered from what the page
+  // kept, and leaves the page's lists and words as they were.
+  const tried = await rivens.loadMetaForTrades([key(trade())])!.done;
+  assert.equal(tried.meta, null);
+  assert.equal(calls.n, 2);
+  assert.deepEqual(rivens.meta, empty);
+  assert.equal(rivens.metaError, null);
+
+  // A page's read that fails shows its failure, and the next page call reads again.
+  rivens.meta = null;
+  Object.assign(rivens as unknown as object, { loading: null, tradeTries: new RivenListsTries() });
+  answer = async () => {
+    throw new Error("Couldn't reach warframe.market (timed out)");
+  };
   assert.equal(await rivens.loadMeta(), null);
   assert.match(rivens.metaError ?? "", /timed out/);
-  // A page that shares a trade's read that fails: shown too, it waited on it.
-  Object.assign(rivens as unknown as object, { tradeTries: new RivenListsTries() });
-  rivens.metaError = null;
-  const forTrade = rivens.loadMetaForTrades([key(trade())]);
-  const page = rivens.loadMeta();
-  await forTrade!.done;
-  assert.equal(await page, null);
-  assert.match(rivens.metaError ?? "", /timed out/);
-  // A read that works clears both.
-  market.rivenMeta = async () => meta;
+  const before = calls.n;
   await rivens.loadMeta();
+  assert.equal(calls.n, before + 1);
+
+  // A trade's read that fails, or comes back with no weapon, changes nothing a page shows or keeps.
+  rivens.metaError = "an earlier page read's reason";
+  await rivens.loadMetaForTrades([key(trade())])!.done;
+  assert.equal(rivens.metaError, "an earlier page read's reason");
+  assert.equal(rivens.meta, null);
+  assert.match(rivens.metaFailure ?? "", /timed out/);
+  answer = async () => empty;
+  await rivens.loadMetaForTrades([key(trade({ uptime: 4000.5 }))], Date.now() + RIVEN_LISTS_GAP_MS)!.done;
+  assert.equal(rivens.meta, null, "a trade's lists with no weapon aren't kept for the pages");
+  assert.equal(rivens.metaError, "an earlier page read's reason");
+
+  // A page call while a trade's read is out sends its own read, as it would without the trade.
+  const release: ((m: RivenMeta) => void)[] = [];
+  answer = () => new Promise<RivenMeta>((r) => release.push(r));
+  const n0 = calls.n;
+  const forTrade = rivens.loadMetaForTrades([key(trade({ uptime: 5000.5 }))], Date.now() + 3 * RIVEN_LISTS_GAP_MS);
+  const page = rivens.loadMeta();
+  assert.equal(calls.n, n0 + 2);
+  for (const r of release) r(meta);
+  await forTrade!.done;
+  await page;
+
+  // Usable lists a trade's read brought are what a page gains: kept, no read of its own.
+  rivens.meta = null;
+  Object.assign(rivens as unknown as object, { loading: null, tradeTries: new RivenListsTries() });
+  answer = async () => meta;
+  assert.deepEqual((await rivens.loadMetaForTrades([key(trade())])!.done).meta, meta);
+  const n1 = calls.n;
+  assert.deepEqual(await rivens.loadMeta(), meta);
+  assert.equal(calls.n, n1);
   assert.equal(rivens.metaError, null);
-  assert.equal(rivens.metaFailure, null);
 });
 
 test("the half hour a close needs is counted from the trade, whenever the lists come", () => {
