@@ -172,12 +172,13 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
 `Language: en`) and signing in with an email and password (none of them).
 
 - **Read without signing in:**
-  - the item list and the riven lists (weapons and stats), when MyOrbiter starts or a page needs
-    them, the riven lists also when a riven cycle is shown, and, signed in, when the game's log
-    shows you gave a riven in a trade not looked at yet while they aren't loaded (whether or not
-    Mark sales sold from the game is on, to tell which of your auctions is that riven's; at most
-    three tries a minute apart for each trade, each time MyOrbiter runs); each only if the copy
-    kept is more than a day old;
+  - the item list, when MyOrbiter starts or a page needs it; the riven lists (weapons and stats),
+    when a page needs them (Orders, also drawn in the background shortly after start once you are
+    signed in and your inventory is read; Rivens; Builds with a weapon open), when a riven cycle is
+    shown, and, signed in, when the game's log shows you gave a riven in a trade not decided yet
+    while they aren't loaded (whether or not Mark sales sold from the game is on, to tell which of
+    your auctions is that riven's; at most three tries for each trade each time MyOrbiter runs,
+    the next a minute after one fails); each only if the copy kept is more than a day old;
   - order books: when you open an item, price or list something, post a buy order, plan Sell spares
     or reprice; every 10 minutes on PC, once your inventory is read, for cheap buys (up to 20 things
     you're missing, plus one per price alert you set), while the Cheap parts and arcanes
