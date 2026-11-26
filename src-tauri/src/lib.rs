@@ -29,7 +29,8 @@ use tauri::{Emitter, Manager};
 const WORLDSTATE: &str = "https://api.warframestat.us/pc";
 /// MyOrbiter's home: named in `user_agent()`, so the sites it reads know where to find out more
 /// (Nox's Frame is told MyOrbiter's name its own way, noxsframe.rs; a new install's first read of
-/// a channel's file goes under the updater's name, updates.rs `first_read`).
+/// a channel's file, and a following install's read of the more stable channels' files, go under
+/// the updater's name, updates.rs `first_read`).
 pub(crate) const REPO_URL: &str = "https://github.com/ShezissSnake/myorbiter";
 
 /// The version this build carries, set once at start from Tauri's package info. A release build
@@ -48,8 +49,9 @@ pub(crate) fn version() -> &'static str {
 /// Who's asking, and where to find out more: `MyOrbiter/<version> (+<REPO_URL>)`, on MyOrbiter's
 /// requests (warframe.market's rules ask for exactly this). Nox's Frame's carry MyOrbiter's name
 /// in a form of its own (noxsframe.rs); the one request under another program's name is a new
-/// install's first read of a channel's file, under the updater's, so that an update check sends
-/// no MyOrbiter version (updates.rs, `first_read`).
+/// install's first read of a channel's file, or a following install's read of a more stable
+/// channel's, under the updater's, so that an update check sends no MyOrbiter version
+/// (updates.rs, `first_read`).
 pub(crate) fn user_agent() -> String {
     user_agent_for(version())
 }
@@ -229,8 +231,8 @@ fn data_stamp(dir: Option<String>) -> Result<u64, String> {
 /// sockets go (`presence::route`: the proxy set in the environment at startup, NO_PROXY unread);
 /// tests, which only talk to this machine, go straight. Only `request` uses it, so no request
 /// leaves without the User-Agent: MyOrbiter's, or, for a new install's first read of a channel's
-/// file, the updater's in its place (updates.rs, `first_read`), so an update check sends no
-/// MyOrbiter version.
+/// file or a following install's read of a more stable channel's, the updater's in its place
+/// (updates.rs, `first_read`), so an update check sends no MyOrbiter version.
 ///
 /// Redirects are followed only where `REDIRECTS_FOLLOWED` names them: following any other would
 /// send the request (and its User-Agent) to whatever host the answer names. A redirect not
@@ -349,8 +351,9 @@ fn host_of(url: &str) -> &str {
 }
 
 /// Every HTTP request MyOrbiter makes starts here, already carrying `user_agent()`. One caller
-/// sets the updater's in its place: a new install's first read of a channel's file (updates.rs,
-/// `first_read`), so that an update check sends no MyOrbiter version.
+/// sets the updater's in its place: a first read of a channel's file, a new install's or a
+/// following install's (updates.rs, `first_read`), so that an update check sends no MyOrbiter
+/// version.
 pub(crate) fn request(method: &str, url: &str) -> ureq::Request {
     http_agent().request(method, url).set("User-Agent", &user_agent())
 }
@@ -2492,8 +2495,9 @@ mod tests {
                     at("\"user-agent\"", 1);
                     at("warframe.market", 0);
                 }
-                // A new install's read of the first update address goes through `request` and names
-                // itself as the updater plugin does (`first_read`), once.
+                // A new install's or a following install's read of the first update address goes
+                // through `request` and names itself as the updater plugin does (`first_read`),
+                // once.
                 "updates.rs" => {
                     at("http_agent()", 0);
                     at("into_client_request", 0);
