@@ -1,8 +1,8 @@
 // warframe.market's public riven lists (weapon and stat names, `rivens.meta`) for a riven given in a
 // trade (core/rivenSold.ts). Telling which of the player's auctions fits that riven goes by
 // warframe.market's weapon names, so a riven trade that is due while the lists are missing asks for
-// them itself, with the read the pages make (`rivens.loadMeta`: signed out, the copy kept a day),
-// instead of waiting for a page to read them. A few tries at most, spaced; after that it waits for
+// them itself (`rivens.loadMetaForTrades`: through the call the pages' read makes, signed out, the
+// copy kept a day; a page's read that is out is shared), instead of waiting for a page to read them. A few tries at most, spaced; after that it waits for
 // a page or a riven cycle, as before. Nothing here decides a riven: that stays rivenSold.ts's.
 import type { RivenMeta } from "./rivens";
 import type { Trade } from "./types";

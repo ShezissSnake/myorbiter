@@ -78,7 +78,7 @@ class Rivens {
   /**
    * One read of the lists for riven trades: a page's read that is out, shared, or else one of its
    * own through the same call. It answers only usable lists (with weapons), never what is kept, and
-   * keeps usable lists for the pages when they have none; a failure, or lists with no weapon, are
+   * keeps usable lists for the pages when they have no usable ones; a failure, or lists with no weapon, are
    * not kept and not shown on the pages, only told by `metaFailure`.
    */
   private async readForTrades(): Promise<RivenMeta | null> {

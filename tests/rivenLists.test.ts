@@ -63,7 +63,7 @@ test("a riven trade due while the lists are missing asks for them once, and is t
   const { meta: got, again } = await asked.done;
   assert.deepEqual(got, meta);
   assert.equal(again, false);
-  assert.equal(calls.n, 1, "the pages' own read, once");
+  assert.equal(calls.n, 1, "one read, through the pages' call");
   // The lists kept: the trade's next step decides, and asks for nothing more.
   const next = step({ meta: rivens.meta });
   assert.equal(next.do, "decide");
@@ -123,13 +123,14 @@ test("lists that can't be had: three tries a minute apart per trade, never read 
     assert.equal(asked.try, n);
     // While it is out, no second one goes.
     assert.equal(rivens.loadMetaForTrades(k, now), null);
+    // It fails no sooner than now: the gap runs from then at the earliest.
+    const sent = Date.now();
     const { meta: got, again } = await asked.done;
     assert.equal(got, null);
     assert.equal(again, n < RIVEN_LISTS_TRIES);
-    now = Date.now();
     // Not before the gap is over.
-    assert.equal(rivens.loadMetaForTrades(k, now + RIVEN_LISTS_GAP_MS - 1), null);
-    now += RIVEN_LISTS_GAP_MS;
+    assert.equal(rivens.loadMetaForTrades(k, sent + RIVEN_LISTS_GAP_MS - 1), null);
+    now = Date.now() + RIVEN_LISTS_GAP_MS;
   }
   assert.equal(calls.n, RIVEN_LISTS_TRIES);
   assert.equal(rivens.metaError, null, "the pages show nothing of the trade's reads");
@@ -207,6 +208,15 @@ test("the pages read, keep and show the lists as they always have; they only gai
   assert.equal(calls.n, 2);
   assert.deepEqual(rivens.meta, empty);
   assert.equal(rivens.metaError, null);
+  // Usable lists a later try brings replace them: the trade is decided, and the pages have them
+  // with no read of their own.
+  answer = async () => meta;
+  assert.deepEqual((await rivens.loadMetaForTrades([key(trade())], Date.now() + RIVEN_LISTS_GAP_MS)!.done).meta, meta);
+  assert.deepEqual(rivens.meta, meta);
+  assert.equal(step({ meta: rivens.meta }).do, "decide");
+  const n2 = calls.n;
+  assert.deepEqual(await rivens.loadMeta(), meta);
+  assert.equal(calls.n, n2);
 
   // A page's read that fails shows its failure, and the next page call reads again.
   rivens.meta = null;
@@ -238,9 +248,13 @@ test("the pages read, keep and show the lists as they always have; they only gai
   const forTrade = rivens.loadMetaForTrades([key(trade({ uptime: 5000.5 }))], Date.now() + 3 * RIVEN_LISTS_GAP_MS);
   const page = rivens.loadMeta();
   assert.equal(calls.n, n0 + 2);
-  for (const r of release) r(meta);
-  await forTrade!.done;
-  await page;
+  // The trade's read brings usable lists first; the page's, coming back later with no weapon,
+  // doesn't replace them.
+  release[0](meta);
+  assert.deepEqual((await forTrade!.done).meta, meta);
+  release[1](empty);
+  assert.deepEqual(await page, meta);
+  assert.deepEqual(rivens.meta, meta);
 
   // Usable lists a trade's read brought are what a page gains: kept, no read of its own.
   rivens.meta = null;
