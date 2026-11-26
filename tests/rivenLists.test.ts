@@ -77,11 +77,11 @@ test("a riven trade due while the lists are missing asks for them once, and is t
   // A read the pages already have out is shared, not made twice.
   rivens.meta = null;
   Object.assign(rivens as unknown as object, { loading: null, tradeTries: new RivenListsTries() });
-  let answer: (m: RivenMeta) => void = () => {};
-  const slow = listsRead(() => new Promise<RivenMeta>((r) => (answer = r)));
+  const answers: ((m: RivenMeta) => void)[] = [];
+  const slow = listsRead(() => new Promise<RivenMeta>((r) => answers.push(r)));
   const page = rivens.loadMeta();
   const forTrade = rivens.loadMetaForTrades([key(trade())]);
-  answer(meta);
+  for (const r of answers) r(meta);
   await page;
   assert.deepEqual((await forTrade!.done).meta, meta);
   assert.equal(slow.n, 1);
