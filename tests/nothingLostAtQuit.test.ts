@@ -28,6 +28,10 @@ const UNREADABLE = "warframe.market answered with something MyOrbiter couldn't r
 
 /** Settings saved as App.svelte saves them, into a stand-in for the browser's storage. */
 async function saved() {
+  // A test that failed part-way may have left a leaving under way: the next starts once it's over,
+  // so one test's leaving never carries another's clicks.
+  for (let i = 0; leaving() && i < 300; i++) await later(10);
+  assert.equal(leaving(), false, "no leaving left from an earlier test");
   const stored: Record<string, string> = {};
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => stored[k] ?? null, setItem: (k: string, v: string) => (stored[k] = v) };
   const settings = proxy(defaultSettings()) as Settings;
@@ -232,26 +236,21 @@ test("Reload the window makes every waiting Undo removal first, as quitting does
 
 test("a Sold clicked while MyOrbiter is already leaving is sent at once, and its sale saved before it goes", async () => {
   const { settings, stop, file } = await saved();
-  const late = unanswered();
-  // The first Sold is never answered, so leaving waits; the second answers at once.
-  const { waits, sent } = orders(settings, (id) => (id === "listing-1" ? late.close() : answers(10)()));
+  // The first Sold is answered 120 ms into leaving; the second, clicked at 60 ms, 150 ms after its
+  // click: only another round of leaving waits for it.
+  const { waits, sent } = orders(settings, (id) => (id === "listing-1" ? answers(120)() : answers(150)()));
   waits.hold("listing-1", 1, 1);
   try {
-    const going = beforeLeaving(300);
+    const going = beforeLeaving(400);
     await later(60);
     assert.equal(leaving(), true);
     waits.hold("listing-2", 1, 1);
     assert.deepEqual(sent, [["listing-1", 1], ["listing-2", 1]], "sent at the click, not 4 s later");
     await going;
     const f = file();
-    assert.equal(f.market.sales.length, 1, "its sale saved before the app went");
-    assert.deepEqual(
-      soldOutOf(f.market.soldOut).map((r) => r.id),
-      ["listing-1"],
-      "only the unanswered one is left to tell",
-    );
+    assert.equal(f.market.sales.length, 2, "both sales saved before the app went");
+    assert.deepEqual(f.market.soldOut, [], "both answered: nothing left to tell");
   } finally {
-    await late.end();
     waits.flush();
     stop();
   }
@@ -425,11 +424,15 @@ test("the step before an update's restart makes what waits, and is never held pa
   // A save that hangs: the restart goes ahead at the cap.
   const hang = hangingSave();
   const t0 = Date.now();
-  await beforeRestart(hang.save);
-  const took = Date.now() - t0;
-  assert.ok(took < LEAVE_CAP + 300, `held ${took} ms`);
-  hang.release();
-  await later(5);
+  try {
+    const went = await Promise.race([beforeRestart(hang.save).then(() => "went"), later(LEAVE_CAP + 800).then(() => "held")]);
+    assert.equal(went, "went", "the restart goes ahead");
+    const took = Date.now() - t0;
+    assert.ok(took < LEAVE_CAP + 300, `held ${took} ms`);
+  } finally {
+    hang.release();
+    await later(5);
+  }
   // A save that fails: the step ends, and the restart goes ahead.
   await assert.doesNotReject(beforeRestart(() => Promise.reject(new Error("Example disk full"))));
 });
