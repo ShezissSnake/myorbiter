@@ -158,10 +158,14 @@ player turns it on); a riven given in one is looked at on its own (`core/rivenSo
 the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens). A Sold clicked on Orders waits
 4 s with Undo (`soldWait.svelte.ts`); quitting, the window's X, Reload the window and Update and
 restart send a waiting one first and wait a moment for warframe.market's answer (`beforeLeaving`
-and `beforeRestart` in `backend.ts`; a Sold or Undo removal clicked while leaving is made at once,
+and `beforeUpdating` in `backend.ts`; a Sold or Undo removal clicked while leaving is made at once,
 `madeWhileLeaving`), and a send still unanswered when the window goes, or failed while it goes,
 leaves a record in the settings (`core/soldOut.ts`) that the next start tells in words that say
-no more than is known (`soldFailure`), with when it was sent, sending nothing again.
+no more than is known (`soldFailure`), with when it was sent, sending nothing again. Update and
+restart makes what waits at the click before the install begins, on every system, and what was
+clicked since before the restart; a Sold clicked during the download is not made when the Windows
+installer closes MyOrbiter first, in the last seconds. When the window stays after all (the
+download goes on, or the restart failed: `stayed`), a failure kept is let go, its row showing it.
 
 ### 2.3 Inside the window: settings, model, pages
 
