@@ -16,6 +16,7 @@ import type { BuyAlert } from "./core/deals";
 import { normalizeRule, type FissureRule } from "./core/timers";
 import type { RivenAuction, RivenMeta, RivenRaw, RivenSnap } from "./core/rivens";
 import { rivenSoldOf, type RivenSold } from "./core/rivenSold";
+import { soldOutOf, type SoldOut } from "./core/soldOut";
 import type { ImprintRaw } from "./core/imprints";
 import { salesOf, tradesOf } from "./core/saleLog";
 import { gameStateOf, gearOf, noticesOf, relicRunsOf, rivenWatchOf, rivensOf, valueHistoryOf } from "./core/savedGame";
@@ -123,6 +124,11 @@ export interface MarketSettings {
    * click to close, put away, or none fitted. Newest first.
    */
   rivenSold: RivenSold[];
+  /**
+   * Sold clicks from Orders being sent to warframe.market, until it answers (core/soldOut.ts). One
+   * found at load was out when MyOrbiter went: App.svelte tells the player once and clears it.
+   */
+  soldOut?: SoldOut[];
   /** Every trade from the game log, newest first. */
   trades: TradeLogEntry[];
   /** Price alerts: tell me when someone lists one of these at or under my price (Cheap buys). */
@@ -156,7 +162,7 @@ function presenceBackOf(v: unknown): { p: Presence; until: number } | null {
   return o && typeof o === "object" && (o.p === "invisible" || o.p === "online" || o.p === "ingame") && typeof o.until === "number" && Number.isFinite(o.until) ? { p: o.p, until: o.until } : null;
 }
 
-export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: false, tradesSeen: [], tradesTold: [], rivenSold: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: false, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
+export const defaultMarketSettings = (): MarketSettings => ({ platform: "pc", auto: false, autoCheck: false, every: 5, minShare: 0.5, floors: {}, paused: {}, approved: {}, changes: {}, presence: null, minPrice: 10, minByCategory: defaultMinByCategory(), minRelicPrice: 3, relicPrices: {}, spares: defaultSparesRules(), bulk: defaultBulkRules(), sellable: defaultSellChoices(), sales: [], autoTrades: false, tradesSeen: [], tradesTold: [], rivenSold: [], soldOut: [], trades: [], buyAlerts: [], rep: {}, repText: ":)", autoRep: false, lastCopy: { optIn: false, minutes: DEFAULT_HIDE_MINUTES, hidden: [] } });
 
 export interface AdviceSettings {
   platPerDucat: number;
@@ -1222,7 +1228,7 @@ export async function loadSettings(): Promise<Settings> {
     // Sell spares' choices: version 2, or the old switches (and the old relic setting) migrated.
     // Save prime parts for sets keeps anything but a real false as on: on, it keeps parts out of
     // what Sell spares offers, so a damaged value never offers more for sale.
-    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], rivenSold: rivenSoldOf(raw?.market?.rivenSold), trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: platformOf(raw?.market?.platform), autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: relicPricesOf(raw?.market?.relicPrices), repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
+    market: { ...base.market, ...(raw?.market ?? {}), spares: sparesSettingsOf(raw?.market), bulk: undefined, sellable: { veiledRivens: raw?.market?.sellable?.veiledRivens === true, relicsWorthSelling: true, saveForSets: raw?.market?.sellable?.saveForSets !== false }, sales: salesOf(raw?.market?.sales), tradesSeen: Array.isArray(raw?.market?.tradesSeen) ? raw.market.tradesSeen : [], tradesTold: Array.isArray(raw?.market?.tradesTold) ? raw.market.tradesTold.filter((k: unknown): k is string => typeof k === "string") : [], rivenSold: rivenSoldOf(raw?.market?.rivenSold), soldOut: soldOutOf(raw?.market?.soldOut), trades: tradesOf(raw?.market?.trades), buyAlerts: Array.isArray(raw?.market?.buyAlerts) ? raw.market.buyAlerts.filter((a: unknown): a is BuyAlert => !!a && typeof (a as BuyAlert).name === "string" && typeof (a as BuyAlert).maxPrice === "number") : [], rep: raw?.market?.rep && typeof raw.market.rep === "object" ? Object.fromEntries(Object.entries(raw.market.rep).filter(([, v]) => v === "given" || v === "skipped")) : {}, platform: platformOf(raw?.market?.platform), autoCheck: typeof raw?.market?.autoCheck === "boolean" ? raw.market.autoCheck : raw?.market?.auto === true, relicPrices: relicPricesOf(raw?.market?.relicPrices), repText: typeof raw?.market?.repText === "string" && raw.market.repText.trim() && raw.market.repText !== "Smooth trade, thanks!" ? raw.market.repText : ":)", lastCopy: { optIn: raw?.market?.lastCopy?.optIn === true, minutes: hideMinutesOf(raw?.market?.lastCopy?.minutes), hidden: Array.isArray(raw?.market?.lastCopy?.hidden) ? raw.market.lastCopy.hidden.filter((h: unknown): h is HiddenForWhisper => !!h && typeof (h as HiddenForWhisper).id === "string" && typeof (h as HiddenForWhisper).at === "number") : [] } , presenceBack: presenceBackOf(raw?.market?.presenceBack), ordersSort: ordersSortOf(raw?.market?.ordersSort), approved: approvedOf(raw?.market?.approved), ...marketSafetyOf(raw?.market, base.market) },
     advice: adviceOf(raw?.advice, base.advice),
     // `forma` came later: settings saved before it get the default (3p).
     pick: pickOf(raw?.pick, base.pick),
@@ -1721,31 +1727,165 @@ export async function notify(summary: string, body: string, id?: string, actions
   }
 }
 
-/** What is made before quitting: removals still inside their five-second Undo (undo.svelte.ts). */
-const beforeQuit = new Set<() => void>();
-/** Runs `f` when MyOrbiter quits, before the settings are saved; the returned function stops that. */
-export function whenQuitting(f: () => void): () => void {
+/**
+ * What is made before MyOrbiter quits, its window reloads or an update restarts it: removals still
+ * inside their five-second Undo (undo.svelte.ts), and Sold clicks on Orders still inside their
+ * wait or being sent (soldWait.svelte.ts). A function may return a promise: a sale being sent,
+ * waited for.
+ */
+const beforeQuit = new Set<() => void | Promise<unknown>>();
+/** Runs `f` when MyOrbiter quits or reloads, before the settings are saved; the returned function stops that. */
+export function whenQuitting(f: () => void | Promise<unknown>): () => void {
   beforeQuit.add(f);
   return () => void beforeQuit.delete(f);
 }
 
-/** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
-export async function quit() {
+/**
+ * How long leaving waits for a sale being sent to warframe.market. The window's X gives the page
+ * 2 s before the app quits anyway (`QUIT_GRACE` in src-tauri/src/lib.rs): this and the saves
+ * around it fit inside that. A sale not answered by then is told at the next start, from the
+ * record Orders saved before the wait (core/soldOut.ts).
+ */
+export const LEAVE_WAIT = 1200;
+/**
+ * The most a second quit (Ctrl+Q, then the window's X) or an update's install or restart is held by leaving,
+ * counted from when leaving began: the wait, and room for the saves around it. Still inside the
+ * X's 2 s. The first quit or reload waits for its own save, as it always did.
+ */
+export const LEAVE_CAP = LEAVE_WAIT + 500;
+const aTurn = () => new Promise((r) => setTimeout(r, 0));
+/** `p`, or nothing after `ms`, whichever comes first. */
+function heldAtMost(p: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<void>((r) => (timer = setTimeout(r, Math.max(0, ms))))]).finally(() => clearTimeout(timer));
+}
+let leavingNow: Promise<void> | null = null;
+/** When the leaving under way stops holding a second quit or a restart (its start, plus the cap). */
+let leaveEnds = 0;
+/** Something was clicked while leaving (madeWhileLeaving): leaving takes it in. */
+let lateWork = false;
+/** The window stays after all (stayed), until the next leaving begins. */
+let stayedOn = false;
+const onStay = new Set<() => void>();
+/**
+ * What quitting and Reload the window do before the page goes: everything waiting is made, a sale
+ * being sent is waited for until `wait` ms after the start, and the settings are saved. A second
+ * call while one runs (Ctrl+Q, then the window's X) joins the first, so the first's wait isn't cut
+ * short, and is held no longer than the first's cap, even by a save that hangs. `save`: how the
+ * settings are saved (flushSettings; a test gives one that hangs or fails).
+ */
+export function beforeLeaving(wait = LEAVE_WAIT, save: () => Promise<void> = flushSettings): Promise<void> {
+  // A quit joining a leaving still held (a save that hangs) after the window stayed: leaving again.
+  stayedOn = false;
+  if (leavingNow) return heldAtMost(leavingNow, leaveEnds - Date.now());
+  leaveEnds = Date.now() + wait + (LEAVE_CAP - LEAVE_WAIT);
+  const p = leave(wait, save).finally(() => {
+    if (leavingNow === p) leavingNow = null;
+  });
+  return (leavingNow = p);
+}
+/** Resolves once the leaving under way, if any, has ended, whatever became of it (the tests start each after the last one's). */
+export const leavingOver = (): Promise<void> => (leavingNow ? leavingNow.then(() => {}, () => {}) : Promise.resolve());
+/** MyOrbiter is quitting, reloading or restarting: a Sold that fails now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
+export const leaving = () => leavingNow != null && !stayedOn;
+/**
+ * A Sold or an Undo removal clicked while MyOrbiter is already leaving: true then, and the caller
+ * makes it at once rather than after its wait, which would outlast the window; leaving takes it in
+ * (another round of what waits, and another save). False otherwise, and nothing changes.
+ */
+export function madeWhileLeaving(): boolean {
+  if (!leaving()) return false;
+  lateWork = true;
+  return true;
+}
+/** Runs `f` when the window stays after a leaving step after all (stayed); the returned function stops that. */
+export function whenStaying(f: () => void): () => void {
+  onStay.add(f);
+  return () => void onStay.delete(f);
+}
+/**
+ * The window stays after all: an update stopped (no longer on offer, the save before the install,
+ * the install or the restart failed). From here on nothing counts as leaving, until a quit, and a
+ * failure kept for the next start, which its row shows, is let go (whenStaying).
+ */
+export function stayed() {
+  stayedOn = true;
+  for (const f of [...onStay]) {
+    try {
+      f();
+    } catch (e) {
+      console.error("letting go of what was kept for the next start failed", e);
+    }
+  }
+}
+/**
+ * Update and restart, before the install begins (on Windows the installer closes MyOrbiter
+ * itself) and again before the restart: what waits is made as quitting does, held no longer than
+ * the cap, and the update goes ahead whatever becomes of this step.
+ */
+export function beforeUpdating(save: () => Promise<void> = flushSettings): Promise<void> {
+  let p: Promise<void>;
+  try {
+    p = beforeLeaving(LEAVE_WAIT, save);
+  } catch (e) {
+    p = Promise.reject(e);
+  }
+  return heldAtMost(
+    p.catch((e) => console.error("making what waits before the update failed", e)),
+    leaveEnds - Date.now(),
+  );
+}
+/** The functions set with whenQuitting, run: the sends they hand back, each caught. */
+function runHooks(): Promise<unknown>[] {
+  const out: Promise<unknown>[] = [];
+  for (const f of [...beforeQuit]) {
+    try {
+      const r = f();
+      if (r) out.push(r.catch((e) => console.error("a sale being sent failed at quit", e)));
+    } catch (e) {
+      console.error("a waiting removal failed at quit", e);
+    }
+  }
+  return out;
+}
+async function leave(wait: number, save: () => Promise<void>) {
+  const until = Date.now() + wait;
+  lateWork = false;
   // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
   // made, and the page's save effects are given a turn to take it (persist.svelte.ts). One that
-  // fails is logged and stops neither the others, the save nor the quit.
-  if (beforeQuit.size) {
-    for (const f of [...beforeQuit]) {
-      try {
-        f();
-      } catch (e) {
-        console.error("a waiting removal failed at quit", e);
-      }
+  // fails is logged and stops neither the others, the save nor the quit. A Sold or a removal
+  // clicked meanwhile is made at once (madeWhileLeaving), and taken in by another round while
+  // the wait lasts.
+  for (let round = 0; beforeQuit.size && round < 3; round++) {
+    const out = runHooks();
+    // What the round itself sent isn't late.
+    lateWork = false;
+    await aTurn();
+    if (out.length) {
+      // The record of each sale being sent is saved before the wait: if the app goes before the
+      // answer (the window's X quits 2 s on), the next start finds it and tells the player.
+      await save();
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([Promise.all(out), new Promise((r) => (timer = setTimeout(r, Math.max(0, until - Date.now()))))]);
+      clearTimeout(timer);
+      // The answers' changes (the sale logged, its record taken away) reach the save.
+      await aTurn();
     }
-    await new Promise((r) => setTimeout(r, 0));
+    if (!lateWork || Date.now() >= until) break;
   }
   // A change from the last 300 ms would otherwise be lost.
-  await flushSettings();
+  await save();
+  // Something clicked during that save: its change (a record, a removal) is saved too.
+  if (lateWork) {
+    lateWork = false;
+    await aTurn();
+    await save();
+  }
+}
+
+/** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */
+export async function quit() {
+  await beforeLeaving();
   if (inTauri) await invoke("quit");
 }
 
