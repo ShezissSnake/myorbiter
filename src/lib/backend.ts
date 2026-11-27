@@ -1801,9 +1801,9 @@ export function whenStaying(f: () => void): () => void {
   return () => void onStay.delete(f);
 }
 /**
- * The window stays after all: the update's step before installing is over (the download goes on
- * with the window open), or the restart failed. From here on nothing counts as leaving, and a
- * failure kept for the next start, which its row shows, is let go (whenStaying).
+ * The window stays after all: an update stopped (no longer on offer, its install or its restart
+ * failed). From here on nothing counts as leaving, and a failure kept for the next start, which
+ * its row shows, is let go (whenStaying).
  */
 export function stayed() {
   stayedOn = true;

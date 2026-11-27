@@ -523,17 +523,84 @@ test("the step before the install never holds the install past the cap, even for
   }
 });
 
-test("a Sold failing in the step before the install is said on its row, not kept for the next start: the window stays", async () => {
+test("a Sold failing in the step before the install is kept while the update goes on, and let go when the install fails: its row shows it", async () => {
+  for (const installs of [true, false]) {
+    const { settings, stop, file } = await saved();
+    const { waits, sent } = orders(settings, fails(REFUSED, 5));
+    let kept: unknown = null;
+    try {
+      const done = await updateAndRestart(
+        async () => {
+          // During the download: on Windows the installer may close MyOrbiter, so it is kept.
+          flush();
+          await flushSettings();
+          kept = file().market.soldOut[0]?.answer;
+          if (!installs) throw new Error("Example download failure");
+        },
+        async () => {},
+        (u) => {
+          waits.hold("listing-1", 1, 1);
+          return u.install();
+        },
+      );
+      assert.deepEqual(sent, [["listing-1", 1]]);
+      assert.equal(kept, "refused", "kept while the update goes on");
+      assert.equal(done, installs);
+      flush();
+      await flushSettings();
+      if (installs) assert.equal(file().market.soldOut[0]?.answer, "refused", "the update went on: told at the next start");
+      else assert.deepEqual(file().market.soldOut, [], "the install failed and the window stays: not told again");
+      assert.equal(leaving(), false);
+    } finally {
+      stop();
+    }
+  }
+});
+
+test("an update no longer on offer once the check under way ends: the window stays, and a Sold failing before it isn't told again", async () => {
   const { settings, stop, file } = await saved();
   const { waits, sent } = orders(settings, fails(REFUSED, 5));
-  let kept: unknown = null;
+  let installed = false;
+  try {
+    const done = await updateAndRestart(
+      async () => void (installed = true),
+      async () => {},
+      async (u) => {
+        // Check now, still running at the click, ends with another build on offer.
+        updater.check = () => later(60).then((): UpdateCheck => ({ state: "newer", version: "0.2.151", notes: null, date: null }));
+        const checking = u.checkNow();
+        await later(5);
+        waits.hold("listing-1", 1, 1);
+        const r = await u.install();
+        await checking;
+        return r;
+      },
+    );
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    assert.equal(installed, false, "not installed");
+    assert.equal(done, false);
+    flush();
+    await flushSettings();
+    assert.deepEqual(file().market.soldOut, [], "its row shows it: not told again");
+  } finally {
+    stop();
+  }
+});
+
+test("a Try again that marks the listing sold during the download lets go of the failure kept for it", async () => {
+  const { settings, stop, file } = await saved();
+  let calls = 0;
+  const { waits, sent } = orders(settings, (_id) => later(5).then(() => (++calls === 1 ? REFUSED : (true as const))), 10);
+  let after: unknown = null;
   try {
     await updateAndRestart(
       async () => {
-        // During the download: the failure's row shows it; nothing is kept for the next start.
+        // The first Sold failed in the step before the install; Try again, during the download, is marked sold.
+        waits.hold("listing-1", 1, 1);
+        await later(60);
         flush();
         await flushSettings();
-        kept = file().market.soldOut;
+        after = file().market.soldOut;
       },
       async () => {},
       (u) => {
@@ -541,11 +608,17 @@ test("a Sold failing in the step before the install is said on its row, not kept
         return u.install();
       },
     );
-    assert.deepEqual(sent, [["listing-1", 1]]);
-    assert.deepEqual(kept, []);
+    assert.deepEqual(sent, [["listing-1", 1], ["listing-1", 1]]);
+    assert.deepEqual(after, [], "marked sold since: nothing to tell at the next start");
   } finally {
+    waits.flush();
     stop();
   }
+  // Only that listing's: a failure kept for another listing stays.
+  const other: SoldOut = { key: "b|1", id: "b", item: "Example Prime Set", rank: null, quantity: 1, platinum: 20, at: 1, answer: "refused", why: REFUSED };
+  const mine: SoldOut = { ...other, key: "a|1", id: "a" };
+  const again: SoldOut = { key: "a|2", id: "a", item: "Example Prime Set", rank: null, quantity: 1, platinum: 20, at: 2 };
+  assert.deepEqual(soldAnswered([again, mine, other], "a|2", { ok: true, why: "", leaving: false }), [other]);
 });
 
 test("a restart that fails: a Sold failing in the restart's step, shown on its row, isn't told again at the next start", async () => {
@@ -668,8 +741,11 @@ test("a network error or an unreadable answer while the app leaves is told as ma
   }
   // An answer that came but couldn't be read is never said not to have come.
   const unread = soldOutNotice({ ...(await failedWhileLeaving(UNREADABLE)) });
-  assert.match(unread.body, /warframe\.market answered, but MyOrbiter couldn't read the answer/);
-  assert.doesNotMatch(unread.body, /didn't come/);
+  assert.match(unread.body, /warframe\.market answered, but MyOrbiter couldn't read the answer \(expected value at line 1\)\. It may/);
+  assert.doesNotMatch(unread.body, /didn't come|answered with something/);
+  // An answer that didn't come, or not in full (a body cut off part-way is said as unreachable too).
+  const lost = soldOutNotice({ ...(await failedWhileLeaving(UNREACHABLE)) });
+  assert.match(lost.body, /warframe\.market's answer didn't come through, or not in full \(warframe\.market is unreachable: Network Error: Example reset\)\. It may/);
 });
 
 test("a server or gateway error while the app leaves is told as maybe, in no words of a refusal, and as an answer that came", async () => {
@@ -677,7 +753,7 @@ test("a server or gateway error while the app leaves is told as maybe, in no wor
   assert.equal(r.answer, "unclear");
   const words = soldOutNotice(r);
   assert.equal(words.title, "Example Prime Set: maybe not marked sold");
-  assert.match(words.body, /warframe\.market answered with a server error \(504\), which doesn't say whether it was made\. It may or may not have gone through/);
+  assert.match(words.body, /warframe\.market answered with a server error \(504\), which doesn't say whether the sale was marked\. It may or may not have gone through/);
   assert.doesNotMatch(words.line, /refus|reject|didn't come/);
   assert.doesNotMatch(words.body, /not marked sold/);
 });

@@ -9,8 +9,8 @@
 //   (`soldFailure`): warframe.market answered with a refusal; it wasn't sent; the listing was
 //   already gone; or the answer didn't come or couldn't be read, which says no more than "maybe".
 // The player is told once at the next start, with when the Sold was sent, and nothing is sent
-// again by itself. If the window stays after all (an update's step before installing, a restart
-// that failed), a failure kept is let go (`soldStayed`): its row shows it.
+// again by itself. If the window stays after all (an update that stopped, its install or its
+// restart failed), a failure kept is let go (`soldStayed`): its row shows it.
 import { deferredUntil } from "./marketWait";
 
 export interface SoldOut {
@@ -96,15 +96,21 @@ export const withSoldOut = (list: SoldOut[], r: SoldOut): SoldOut[] => [r, ...li
  * failure while MyOrbiter stays is said on its row, with Try again: no record.
  */
 export function soldAnswered(list: SoldOut[], key: string, answer: { ok: boolean; why: string; leaving: boolean }): SoldOut[] {
-  if (answer.ok || !answer.leaving) return list.filter((x) => x.key !== key);
+  if (answer.ok) {
+    // Marked sold: a failure kept earlier for the same listing (a Try again since, the window
+    // still open) is no longer worth telling.
+    const id = list.find((x) => x.key === key)?.id;
+    return list.filter((x) => x.key !== key && !(x.answer && x.id === id));
+  }
+  if (!answer.leaving) return list.filter((x) => x.key !== key);
   const why = answer.why.trim().slice(0, 300);
   return list.map((x) => (x.key === key ? { ...x, answer: why ? soldFailure(why) : "unclear", ...(why ? { why } : {}) } : x));
 }
 
 /**
- * The list once the window stays after all (backend.ts › stayed: the update's step before
- * installing, or a restart that failed): a failure kept while MyOrbiter was leaving is on its row,
- * with Try again, so it isn't told again at the next start. A send still out keeps its record.
+ * The list once the window stays after all (backend.ts › stayed: an update that stopped, its
+ * install or its restart failed): a failure kept while MyOrbiter was leaving is on its row, with
+ * Try again, so it isn't told again at the next start. A send still out keeps its record.
  */
 export const soldStayed = (list: SoldOut[]): SoldOut[] => list.filter((x) => !x.answer);
 
@@ -145,15 +151,17 @@ export function soldOutNotice(r: SoldOut, now = Date.now()): { title: string; bo
     // error is said without the words of a refusal.
     const w = (r.why ?? "").replace(/^Error:\s*/, "").trim();
     const server = /^warframe\.market rejected the request: (5\d\d)\b/.exec(w);
+    const unread = /^warframe\.market answered with something MyOrbiter couldn't read\b:?\s*(.*)$/s.exec(w);
+    const detail = unread ? unread[1].replace(/[.\s]+$/, "") : "";
     const how =
       r.answer !== "unclear"
         ? `${marking}, before warframe.market answered.`
         : server
-          ? `${marking}, and warframe.market answered with a server error (${server[1]}), which doesn't say whether it was made.`
-          : /^warframe\.market answered with something MyOrbiter couldn't read\b/.test(w)
-            ? `${marking}, and warframe.market answered, but MyOrbiter couldn't read the answer${why ? ` (${why})` : ""}.`
+          ? `${marking}, and warframe.market answered with a server error (${server[1]}), which doesn't say whether the sale was marked.`
+          : unread
+            ? `${marking}, and warframe.market answered, but MyOrbiter couldn't read the answer${detail ? ` (${detail})` : ""}.`
             : /^warframe\.market is unreachable\b/.test(w)
-              ? `${marking}, and warframe.market's answer didn't come through (${why}).`
+              ? `${marking}, and warframe.market's answer didn't come through, or not in full (${why}).`
               : `${marking}, and what warframe.market made of it isn't known${why ? ` (${why})` : ""}.`;
     body = `${how} It may or may not have gone through. ${log} Nothing was sent again: look at the listing on Orders before marking it sold again.`;
   }

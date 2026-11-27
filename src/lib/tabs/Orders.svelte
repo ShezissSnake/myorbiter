@@ -684,7 +684,7 @@
    * moment for the answer (soldWait.svelte.ts › track). `trade`: "That sale", whose trade logged
    * the sale already.
    */
-  // The window stays after all (an update's step before installing, a restart that failed): a
+  // The window stays after all (an update that stopped: no longer on offer, its install or its restart failed): a
   // failure kept for the next start is on its row, with Try again, and isn't told again.
   onDestroy(whenStaying(() => (settings.soldOut = soldStayed(settings.soldOut ?? []))));
   function soldOut(o: MyOrder, n: number, failed: (reason: string) => void, trade = false) {

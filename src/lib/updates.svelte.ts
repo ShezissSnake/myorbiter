@@ -553,10 +553,9 @@ export class Updates {
     return this.installJob.run(async (job) => {
       // What waits at the click (a Sold, an Undo removal) is made first, on every system: on
       // Windows the installer closes MyOrbiter itself, before the restart's own step. Held no
-      // longer than the cap; the update goes ahead whatever becomes of it, and the window stays
-      // open meanwhile (stayed), so a failure now is said on its row.
+      // longer than the cap; the update goes ahead whatever becomes of it. Where the update stops
+      // and the window stays (stayed), a failure kept for the next start is let go: its row shows it.
       await beforeUpdating();
-      stayed();
       // A check under way may change what is on offer, and the app keeps the update of the last
       // check only: the click waits for that check (which, with this install under way, moves no
       // channel and reads the install's own last), then installs only the build still on offer.
@@ -565,6 +564,7 @@ export class Updates {
         await this.running.catch(() => {});
         const now = this.offer;
         if (this.outcome?.kind === "failed" || !now || now.channel !== o.channel || now.version !== o.version || now.older !== o.older) {
+          stayed();
           throw new JobError("Not installed", `the check that just ran no longer offers ${o.version} on ${CHANNEL_LABEL[o.channel]}: see what is on offer now`);
         }
       }
@@ -581,6 +581,7 @@ export class Updates {
           job.phase = total ? `Downloading ${Math.floor((100 * done) / total)}%` : "Downloading";
         });
       } catch (e) {
+        stayed();
         u.from = before;
         const reason = String(e).replace(/^Error:\s*/, "");
         logLine("warn", "updates", `installing ${o.version} failed: ${reason}`);
@@ -594,7 +595,7 @@ export class Updates {
       try {
         await updater.restart();
       } catch (e) {
-        // The window stays: a failure kept for the next start is on its row already.
+        // The window stays: a failure kept for the next start is on its row.
         stayed();
         throw e;
       }

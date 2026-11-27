@@ -164,8 +164,9 @@ leaves a record in the settings (`core/soldOut.ts`) that the next start tells in
 no more than is known (`soldFailure`), with when it was sent, sending nothing again. Update and
 restart makes what waits at the click before the install begins, on every system, and what was
 clicked since before the restart; a Sold clicked during the download is not made when the Windows
-installer closes MyOrbiter first, in the last seconds. When the window stays after all (the
-download goes on, or the restart failed: `stayed`), a failure kept is let go, its row showing it.
+installer closes MyOrbiter first, in the last seconds. When the update stops and the window stays
+(no longer on offer, the install or the restart failed: `stayed`), a failure kept is let go, its
+row showing it; so is one for a listing a later Sold marked sold.
 
 ### 2.3 Inside the window: settings, model, pages
 
