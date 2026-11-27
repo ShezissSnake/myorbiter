@@ -57,15 +57,17 @@ const unreadable: [string, unknown][] = [
   ["one count null", { at: T, counts: { "Lato Vandal Barrel": 2, "Lato Vandal Receiver": null }, windows: [EARLIER] }],
   ["one count below zero", { at: T, counts: { "Lato Vandal Barrel": 2, "Lato Vandal Receiver": -5 }, windows: [EARLIER] }],
   ["one count a fraction", { at: T, counts: { "Lato Vandal Barrel": 2, "Lato Vandal Receiver": 0.5 }, windows: [EARLIER] }],
-  ["one foundry count odd", { at: T, counts: { "Lato Vandal Barrel": 1, "Lato Vandal Receiver": 1 }, windows: [EARLIER], building: { "Lato Vandal Barrel": 1, "Lato Vandal Receiver": "x" } }],
-  ["the foundry counts not an object", { at: T, counts: { "Lato Vandal Barrel": 2, "Lato Vandal Receiver": 1 }, windows: [EARLIER], building: 5 }],
+  // A Barrel in the foundry at the last read, claimed since: read with its foundry count lost,
+  // the claimed copy would be a drop.
+  ["one foundry count odd", { at: T, counts: { "Lato Vandal Barrel": 1, "Lato Vandal Receiver": 1 }, windows: [EARLIER], building: { "Lato Vandal Barrel": "1" } }],
+  ["the foundry counts not an object", { at: T, counts: { "Lato Vandal Barrel": 1, "Lato Vandal Receiver": 1 }, windows: [EARLIER], building: 5 }],
 ];
 for (const [what, drops] of unreadable) {
   test(`drops log read back with ${what}: a new baseline, no held copy logged as a drop, the drops already logged kept`, async () => {
     const r = await throughTwoReads(drops);
-    assert.equal(r.loaded.at, 0, "the log starts again");
-    assert.deepEqual(r.loaded.windows, [EARLIER], "the drops logged before stay");
     assert.equal(r.firstGains, null, "the read after loading logs no drop");
+    assert.deepEqual(r.loaded.windows, [EARLIER], "the drops logged before stay");
+    assert.equal(r.loaded.at, 0, "the log starts again");
     assert.deepEqual(r.first.counts, { "Lato Vandal Barrel": 2, "Lato Vandal Receiver": 1 }, "it is the baseline");
     assert.deepEqual(r.secondGains, { "Lato Vandal Barrel": 1 }, "the read after that counts as usual");
     // What the pages and Save for sets read: the earlier drop and the new one, no held Receiver.
@@ -77,7 +79,7 @@ for (const [what, drops] of unreadable) {
 
 test("drops log read back with no drops logged and counts unreadable: the next read is the first, nothing counted", async () => {
   const r = await throughTwoReads({ at: T, counts: { "Lato Vandal Receiver": "x" }, windows: [] });
-  assert.deepEqual({ loaded: r.loaded, first: r.firstGains }, { loaded: emptyDropLog(), first: null });
+  assert.deepEqual({ first: r.firstGains, loaded: r.loaded }, { first: null, loaded: emptyDropLog() });
   assert.deepEqual([...recentDrops(r.first, [], T + DAY)], []);
 });
 

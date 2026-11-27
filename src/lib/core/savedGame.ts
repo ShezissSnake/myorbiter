@@ -1,6 +1,7 @@
 // Parts of the saved game state read back whole (loadSettings): an entry a damaged or hand-edited
 // settings file turned into something else is left out, so the page that draws it (Stats, Rivens,
-// Inventory, the notification bell) still opens. A good entry comes back as it was saved.
+// Inventory, the notification bell) still opens. A good entry comes back as it was saved. The drops
+// log's counts are the exception: read whole, or the log starts again (dropLogOf).
 import type { RivenWatch, ValuePoint } from "../backend";
 import { outcomeOf, type Notice } from "../notices";
 import type { RelicRun } from "./relicRuns";
@@ -74,8 +75,8 @@ const rivenHistoryOf = (raw: unknown): Record<string, RivenSnap[]> =>
 /**
  * The rest of the saved game state that is read as it was saved: TennoScope's last figures, the
  * Foundry's ready times, the lists of what was already told, the chats seen, the sets being saved
- * for and the drops log. An entry of the wrong kind is left out and the rest kept; a figure that
- * isn't a number reads as not known.
+ * for and the drops log. An entry of the wrong kind is left out and the rest kept (but for the
+ * drops log's counts: dropLogOf); a figure that isn't a number reads as not known.
  */
 export function gameStateOf(raw: unknown) {
   const g = obj(raw) ? raw : {};
