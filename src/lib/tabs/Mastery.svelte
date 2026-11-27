@@ -7,7 +7,7 @@
   import { info } from "../hover.svelte";
   import type { Model } from "../core/model";
   import { masteryRows, type MasteryRow } from "../core/views";
-  import { switchCounts, viewRows } from "./masteryList";
+  import { missingChip, switchCounts, viewRows } from "./masteryList";
   import { METHOD_LABEL, rankLabel, rankThreshold } from "../core/acquire";
   import { readyTag } from "../core/buildPlan";
   import Effort from "../ui/Effort.svelte";
@@ -189,7 +189,7 @@
 {#snippet howCell(r: MasteryRow)}
   <span class="how" title={r.acq.how}>
     {#if r.isPrime && r.missingParts.length}
-      {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
+      {@const worst = missingChip(r.missingParts)}
       <Avail v={worst} />
     {/if}
     {r.acq.difficulty === 0 ? (r.step ? r.acq.how : stageOf(r).stage === "level" ? "You have it: level it to max rank." : stageTag(r)) : r.acq.how}
@@ -208,7 +208,7 @@
       <!-- One tone per state, as on Foundry and Wishlist: teal filled for one you have (level it), gold outline for a step to take, plain for waiting. -->
       {#if r.status === "level"}<span class="tag" class:mastery={stageOf(r).stage === "level" || !!r.step} class:ok={stageOf(r).stage === "claim" && !r.step} title={r.step ? r.acq.how : undefined}>{stageTag(r)}</span>{:else if r.status === "gild" || r.status === "assemble"}<span class="tag ok" title={r.acq.how}>{r.stepTag}</span>{:else if r.revive}<span class="tag ok" title={r.acq.how}>Captured · revive it</span>{:else if r.status === "build"}{@const t = readyTag({ tier: r.buildTier === "parts" ? null : r.buildTier, short: r.buildNames }, "card", r.buildShort)}<span class="tag {t.tone}" title={t.title}>{t.label}</span>{/if}
       {#if r.isPrime && r.missingParts.length}
-        {@const worst = r.missingParts.some((p) => p.availability === "vaulted") ? "vaulted" : r.missingParts.some((p) => p.availability === "resurgence") ? "resurgence" : "farmable"}
+        {@const worst = missingChip(r.missingParts)}
         <Avail v={worst} />
       {/if}
       <span class="grow"></span>

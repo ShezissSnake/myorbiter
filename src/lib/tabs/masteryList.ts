@@ -27,3 +27,13 @@ export function switchCounts(m: Model, all: MasteryRow[], fits: (r: MasteryRow) 
     unavailable: view === "plat" ? platMastery(m, unavailable).length : unavailable.length,
   };
 }
+
+/**
+ * The vault chip for a prime's missing parts: the worst of them, Vaulted before Resurgence. A part
+ * no relic in the drop tables gives reads No relic, never Farmable, though the lists count it as
+ * farmable.
+ */
+export function missingChip(parts: { availability: string }[]): "vaulted" | "resurgence" | "unknown" | "farmable" {
+  const has = (a: string) => parts.some((p) => p.availability === a);
+  return has("vaulted") ? "vaulted" : has("resurgence") ? "resurgence" : has("unknown") ? "unknown" : "farmable";
+}
