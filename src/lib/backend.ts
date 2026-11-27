@@ -1756,6 +1756,8 @@ let leavingNow: Promise<void> | null = null;
 export function beforeLeaving(wait = LEAVE_WAIT): Promise<void> {
   return (leavingNow ??= leave(wait).finally(() => (leavingNow = null)));
 }
+/** MyOrbiter is quitting or reloading: a refusal now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
+export const leaving = () => leavingNow != null;
 async function leave(wait: number) {
   // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
   // made, and the page's save effects are given a turn to take it (persist.svelte.ts). One that

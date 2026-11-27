@@ -6,8 +6,8 @@
 import { effectRoot, flush } from "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { beforeLeaving, defaultSettings, flushSettings, LEAVE_WAIT, loadSettings, quit, type Settings } from "../src/lib/backend";
-import { soldOutNotice, soldOutOf, withoutSoldOut, withSoldOut } from "../src/lib/core/soldOut";
+import { beforeLeaving, defaultSettings, leaving, flushSettings, LEAVE_WAIT, loadSettings, quit, type Settings } from "../src/lib/backend";
+import { soldAnswered, soldOutNotice, soldOutOf, withSoldOut } from "../src/lib/core/soldOut";
 
 const { SoldWaits } = await import("../src/lib/soldWait.svelte");
 const { UndoSlots } = await import("../src/lib/undo.svelte");
@@ -41,7 +41,7 @@ function orders(settings: Settings, close: (id: string, n: number) => Promise<bo
     const key = `${id}|${++k}`;
     settings.market.soldOut = withSoldOut(settings.market.soldOut ?? [], { key, id, item: "Example Prime Set", rank: null, quantity: n, platinum: 45, at: Date.now() });
     sent.push([id, n]);
-    const p = close(id, n).finally(() => (settings.market.soldOut = withoutSoldOut(settings.market.soldOut ?? [], key)));
+    const p = close(id, n).then((ok) => ((settings.market.soldOut = soldAnswered(settings.market.soldOut ?? [], key, { ok, why: ok ? "" : "Example refusal", leaving: leaving() })), ok));
     waits.track(p);
     if (await p) settings.market.sales = [{ at: Date.now(), item: "Example Prime Set", rank: null, quantity: n, platinum: 45 }, ...settings.market.sales];
   }, ms);
@@ -143,6 +143,41 @@ test("quit, with no wait given, ends within its cap when warframe.market doesn't
   }
 });
 
+test("a Sold warframe.market refuses while the app leaves is kept with its reason, and told as not marked sold", async () => {
+  const { settings, stop, file } = await saved();
+  // Offline, a sign-in expired, a server error: a quick refusal, inside the wait.
+  const { waits, sent } = orders(settings, () => later(20).then(() => false));
+  waits.hold("listing-1", 1, 1);
+  try {
+    await quit();
+    assert.deepEqual(sent, [["listing-1", 1]], "sent once, not again");
+    const f = file();
+    assert.equal(f.market.sales.length, 0, "no sale logged");
+    const [r] = soldOutOf(f.market.soldOut);
+    assert.equal(r?.why, "Example refusal", "kept, with why");
+    const words = soldOutNotice(r);
+    assert.equal(words.title, "Example Prime Set: not marked sold");
+    assert.match(words.body, /Example refusal\. No sale was logged\. Nothing was sent again/);
+  } finally {
+    stop();
+  }
+});
+
+test("a refusal while the app stays open leaves no record: its row says so, with Try again", async () => {
+  const { settings, stop, file } = await saved();
+  const { waits, sent } = orders(settings, () => later(5).then(() => false), 10);
+  waits.hold("listing-1", 1, 1);
+  try {
+    await later(60);
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    flush();
+    await flushSettings();
+    assert.deepEqual(file().market.soldOut, []);
+  } finally {
+    stop();
+  }
+});
+
 test("an Undo clicked before quitting or reloading still sends nothing", async () => {
   const { settings, stop, file } = await saved();
   const { waits, sent } = orders(settings, answers(5));
@@ -239,4 +274,10 @@ test("a saved record is read back only when whole", () => {
   assert.deepEqual(soldOutOf([{ ...r, quantity: 0 }, { ...r, item: "" }, { ...r, at: "x" }, null, 3]), []);
   assert.deepEqual(soldOutOf([{ ...r, rank: "x" }]), [{ ...r, rank: null }]);
   assert.equal(soldOutNotice(r).title, "Example Prime Set R3: maybe not marked sold");
+  assert.match(soldOutNotice(r).body, /No sale was logged/);
+  // "That sale" for a trade: the trade logged the sale, so the notice doesn't say none was.
+  const t = { ...r, trade: true as const, why: "Example refusal" };
+  assert.deepEqual(soldOutOf([t, { ...r, key: "b", trade: "yes", why: 3 }]), [t, { ...r, key: "b" }]);
+  assert.match(soldOutNotice(t).body, /The trade from the game logged its sale already/);
+  assert.doesNotMatch(soldOutNotice(t).body, /No sale was logged/);
 });

@@ -10,7 +10,7 @@
   import { until } from "../core/traders";
   import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
-  import { MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
+  import { leaving, MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
   import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
@@ -50,7 +50,7 @@
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
   import { copiesToSend, markTradeSale, soldAfterUnmarked, soldAnswers, soldQuestion, type SoldListing } from "../core/soldMarks";
-  import { withoutSoldOut, withSoldOut } from "../core/soldOut";
+  import { soldAnswered, withSoldOut } from "../core/soldOut";
   import { SoldWaits } from "../soldWait.svelte";
   import { SvelteSet } from "svelte/reactivity";
 
@@ -678,15 +678,34 @@
   /**
    * `mkt.sold`, with a record in the settings while it's out (core/soldOut.ts), taken away as
    * warframe.market answers: MyOrbiter gone before the answer (quit, the window closed, a reload)
-   * leaves the record, and the next start tells the player. Leaving waits a moment for it
-   * (soldWait.svelte.ts › track).
+   * leaves the record, and the next start tells the player. A refusal while MyOrbiter is leaving
+   * is kept too, with its reason: the row that would say so goes with the window. Leaving waits a
+   * moment for the answer (soldWait.svelte.ts › track). `trade`: "That sale", whose trade logged
+   * the sale already.
    */
-  function soldOut(o: MyOrder, n: number, failed: (reason: string) => void) {
+  function soldOut(o: MyOrder, n: number, failed: (reason: string) => void, trade = false) {
     const cur = mkt.orders.find((x) => x.id === o.id) ?? o;
     const at = Date.now();
     const key = `${o.id}|${at}|${++soldOuts}`;
-    settings.soldOut = withSoldOut(settings.soldOut ?? [], { key, id: o.id, item: mkt.item(o.itemId)?.name ?? "A listing", rank: cur.rank, quantity: Math.max(1, Math.min(n, cur.quantity)), platinum: cur.platinum, at });
-    const p = mkt.sold(o, n, { failed }).finally(() => (settings.soldOut = withoutSoldOut(settings.soldOut ?? [], key)));
+    settings.soldOut = withSoldOut(settings.soldOut ?? [], { key, id: o.id, item: mkt.item(o.itemId)?.name ?? "A listing", rank: cur.rank, quantity: Math.max(1, Math.min(n, cur.quantity)), platinum: cur.platinum, at, ...(trade ? { trade: true as const } : {}) });
+    let why = "";
+    const p = mkt
+      .sold(o, n, {
+        failed: (r) => {
+          why = r;
+          failed(r);
+        },
+      })
+      .then(
+        (sale) => {
+          settings.soldOut = soldAnswered(settings.soldOut ?? [], key, { ok: !!sale, why, leaving: leaving() });
+          return sale;
+        },
+        (e: unknown) => {
+          settings.soldOut = soldAnswered(settings.soldOut ?? [], key, { ok: false, why: String(e).replace(/^Error:\s*/, ""), leaving: leaving() });
+          throw e;
+        },
+      );
     soldWaits.track(p);
     return p;
   }
@@ -727,7 +746,7 @@
         setSales: (sales) => (settings.sales = sales),
         out: thatOut,
         now: Date.now,
-        close: (n, failed) => soldOut(o, n, failed),
+        close: (n, failed) => soldOut(o, n, failed, true),
         phase: (w) => (rowBusy.get(o.id).phase = w),
       }),
     );

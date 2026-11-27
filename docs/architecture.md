@@ -158,8 +158,8 @@ player turns it on); a riven given in one is looked at on its own (`core/rivenSo
 the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens). A Sold clicked on Orders waits
 4 s with Undo (`soldWait.svelte.ts`); quitting, the window's X and Reload the window send a waiting
 one first and wait a moment for warframe.market's answer (`beforeLeaving` in `backend.ts`), and a
-send still unanswered when the window goes leaves a record in the settings (`core/soldOut.ts`) that
-the next start tells, sending nothing again.
+send still unanswered when the window goes, or refused while it goes, leaves a record in the settings
+(`core/soldOut.ts`) that the next start tells, sending nothing again.
 
 ### 2.3 Inside the window: settings, model, pages
 

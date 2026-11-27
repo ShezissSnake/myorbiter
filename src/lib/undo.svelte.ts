@@ -11,7 +11,7 @@ export class UndoSlots {
   /** The keys waiting, so a page can draw their collapsed line instead of the thing. */
   held = $state<Record<string, true>>({});
   private waiting = new Map<string, { timer: ReturnType<typeof setTimeout>; commit: () => void }>();
-  /** While something waits: quitting makes it first (backend.ts › quit). */
+  /** While something waits: quitting and Reload the window make it first (backend.ts › beforeLeaving). */
   private quitting: (() => void) | null = null;
 
   constructor(private ms = UNDO_MS) {}
