@@ -179,7 +179,11 @@ platform (`Platform`), `Crossplay: true` and `Language: en`, except the item and
     decided yet while they aren't loaded (whether or not Mark sales sold from the game is on, to
     tell which of your auctions is that riven's; at most three tries for each trade each time
     MyOrbiter runs, the next a minute after one fails); each only if the copy kept is more than a
-    day old;
+    day old. After a read of them fails, no page or riven cycle asks again until a wait is over: a
+    minute at first, doubling after each failure in a row, to 10 minutes at the most, until a
+    read works. That is the least time between two reads, not the time they come at: the next
+    read goes when a page next asks after the wait, so it can be later (Try now on Rivens asks
+    at once; a trade's tries keep their own pace, above);
   - order books: when you open an item, price or list something, post a buy order, plan Sell spares
     or reprice; every 10 minutes on PC, once your inventory is read, for cheap buys (up to 20 things
     you're missing, plus one per price alert you set), while the Cheap parts and arcanes

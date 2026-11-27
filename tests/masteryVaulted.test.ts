@@ -11,7 +11,7 @@ import type { Bundle, CatalogItem, InventoryRow, Live, RelicEntry } from "../src
 import type { Model } from "../src/lib/core/model";
 import type { MasteryRow } from "../src/lib/core/views";
 import { platMastery } from "../src/lib/core/platMastery";
-import { switchCounts, viewRows, type MasteryView } from "../src/lib/tabs/masteryList";
+import { missingChip, switchCounts, viewRows, type MasteryView } from "../src/lib/tabs/masteryList";
 
 const inv = (item_id: string, name: string, category: string, quantity: number, extra: Partial<InventoryRow> = {}): InventoryRow => ({
   item_id, name, category, quantity, mastered: false, image_name: null, rank: null, max_rank: null, ...extra,
@@ -202,4 +202,41 @@ test("the demo account: both switches' counts are exact in both views, with and 
   assertCountsExact(m, () => true);
   assertCountsExact(m, (r) => r.isPrime);
   assertCountsExact(m, (r) => !r.isPrime);
+});
+
+// A part no relic in the drop tables gives still counts as farmable (the list is unchanged), but the
+// card never says it drops from relics still in the tables and the chip reads No relic, not Farmable.
+function rowWithRelics(inventory: InventoryRow[], rs: RelicEntry[]) {
+  const m = buildModel({ observed_at: 1, inventory, catalog: [example], relics: rs, prices: { prices: { "Example Prime Blueprint": 20, "Example Prime Blade": 10, "Example Prime Handle": 15 } } } as unknown as Bundle, noLive);
+  return masteryRows(m).find((r) => r.unique === EX)!;
+}
+
+test("no relic in the tables for any missing part: the card says so, the chip reads No relic, and it stays listed", () => {
+  const all = rowWithRelics([], []);
+  assert.ok(listed(all), all.acq.how);
+  assert.match(all.acq.how, /^No relic in the drop tables has any of the 3 missing parts\. Or buy the 4 parts/);
+  assert.doesNotMatch(all.acq.how, /still in the drop tables/);
+  assert.equal(missingChip(all.missingParts), "unknown");
+  const one = rowWithRelics([part("Blueprint"), part("Blade", 2)], [relic("Axi E1", "Blueprint", false), relic("Axi E2", "Blade", false)]);
+  assert.ok(listed(one), one.acq.how);
+  assert.match(one.acq.how, /^No relic in the drop tables has the missing part\./);
+  assert.equal(missingChip(one.missingParts), "unknown");
+});
+
+test("some missing parts vaulted or from the tables, others from no relic: the card names the ones with no relic", () => {
+  const vaulted = rowWithRelics([], [relic("Axi E1", "Blueprint", true)]);
+  assert.match(vaulted.acq.how, /^1 of 3 missing parts vaulted: only from relics you'd have to trade for\. 2 of 3 have no relic in the drop tables\./);
+  assert.equal(missingChip(vaulted.missingParts), "vaulted");
+  const farm = rowWithRelics([], [relic("Axi E1", "Blueprint", false)]);
+  assert.ok(listed(farm), farm.acq.how);
+  assert.match(farm.acq.how, /^1 of 3 missing parts from relics still in the drop tables\. 2 of 3 have no relic in the drop tables\./);
+  assert.equal(missingChip(farm.missingParts), "unknown");
+});
+
+test("every missing part from a relic in the tables: the card and the chip read as before", () => {
+  const row = rowWithRelics([], relics({ Blueprint: false, Blade: false, Handle: false }));
+  assert.equal(row.acq.how, "3 missing parts from relics still in the drop tables. Or buy the 4 parts for about 55p.");
+  assert.equal(missingChip(row.missingParts), "farmable");
+  const owned = rowWithRelics([heldRelic("Axi E1")], relics({ Blueprint: false, Blade: false, Handle: false }));
+  assert.match(owned.acq.how, /^3 missing parts from relics still in the drop tables; you own relics for 1 of 3\./);
 });

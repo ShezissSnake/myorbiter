@@ -5,7 +5,8 @@ import { market, onSearchWait, saved as disk } from "./backend";
 import type { RivenModel } from "./core/rivenModel";
 import { waitWords } from "./core/marketWait";
 import { mayAskFromWindow } from "./proxy.svelte";
-import { RivenListsTries, rivenListsUsable } from "./core/rivenLists";
+import { RivenListsTries, RivenListsWait, rivenListsUsable } from "./core/rivenLists";
+import { untrack } from "svelte";
 import { packListed, packPrices, startingFor, isAuctionOf, mayBeAuctionOf, sameRiven, myAuctionsList, parseMyAuctions, parseWeeklyRivens, readSavedPrices, tradeUrl, withSaved, type AuctionItem, type MyAuction, type RivenAuction, type RivenMeta, type RivenTrade, type SavedRivenPrices } from "./core/rivens";
 
 const TTL = 10 * 60_000;
@@ -44,32 +45,48 @@ class Rivens {
 
   /**
    * warframe.market's riven lists (weapons and stats), signed out, for the pages: read once and
-   * kept for the run, whatever came back; a read already out is shared, and one that failed is
-   * shown (`metaError`) and made again at the next call (the Rust side answers from its copy while
-   * that is under a day old). Asked for by Orders, Rivens and Builds, and a riven cycle shown.
-   * Usable lists a riven trade's read brought (`loadMetaForTrades`) are kept here too.
+   * kept for the run, whatever came back; a read already out is shared. One that failed is shown
+   * (`metaError`), and the next is sent only once the wait after it is over (core/rivenLists.ts,
+   * RivenListsWait: a minute, growing to ten while the failures go on); a call inside the wait
+   * sends nothing and gets what a failed read gives (null, `metaError` set). `now`: the player
+   * asked to try again (Rivens' Try now), so the wait is skipped. The Rust side answers from its
+   * copy while that is under a day old. Asked for by Orders, Rivens and Builds, and a riven cycle
+   * shown. Usable lists a riven trade's read brought (`loadMetaForTrades`) are kept here too.
    */
-  async loadMeta(): Promise<RivenMeta | null> {
+  async loadMeta(now = false): Promise<RivenMeta | null> {
     if (this.meta) return this.meta;
-    if (!this.loading) {
-      this.pageReadOut = true;
-      this.loading = market
-        .rivenMeta()
-        .then((m) => {
-          this.pageReadOut = false;
-          if (!rivenListsUsable(this.meta)) this.meta = m;
-          this.metaError = null;
-          return this.meta;
-        })
-        .catch((e) => {
-          this.pageReadOut = false;
-          this.metaError = String(e).replace(/^Error:\s*/, "");
-          this.loading = null;
-          return null;
-        });
+    if (this.loading) return this.loading;
+    if (!now && this.listsWait.holds(this.clock())) {
+      // A wait a riven trade's failed read started shows on the pages only once a page asks.
+      untrack(() => {
+        if (this.metaError == null) this.metaError = this.listsWait.reason ?? "no answer";
+      });
+      return null;
     }
+    this.pageReadOut = true;
+    this.loading = market
+      .rivenMeta()
+      .then((m) => {
+        this.pageReadOut = false;
+        this.listsWait.worked();
+        if (!rivenListsUsable(this.meta)) this.meta = m;
+        this.metaError = null;
+        return this.meta;
+      })
+      .catch((e) => {
+        this.pageReadOut = false;
+        const why = String(e).replace(/^Error:\s*/, "");
+        this.listsWait.failed(why, this.clock());
+        this.metaError = why;
+        this.loading = null;
+        return null;
+      });
     return this.loading;
   }
+  /** The wait after a failed read of the lists, kept for every page's call (core/rivenLists.ts). */
+  private listsWait = new RivenListsWait();
+  /** The time the wait goes by (unix ms); replaced in tests. */
+  clock = () => Date.now();
   /** Whether a page's read of the lists (`loading`) is out. */
   private pageReadOut = false;
   /** Why the last read of the lists for riven trades brought no usable lists; null after one that did. */
@@ -79,7 +96,9 @@ class Rivens {
    * One read of the lists for riven trades: a page's read that is out, shared, or else one of its
    * own through the same call. It answers only usable lists (with weapons), never what is kept, and
    * keeps usable lists for the pages when they have no usable ones; a failure, or lists with no weapon, are
-   * not kept and not shown on the pages, only told by `metaFailure`.
+   * not kept and not shown on the pages, only told by `metaFailure`. Its own read is not held by the
+   * pages' wait (the trade keeps its own tries), but its failure starts or grows that wait, and its
+   * answer ends it.
    */
   private async readForTrades(): Promise<RivenMeta | null> {
     const fail = (why: string) => {
@@ -93,18 +112,23 @@ class Rivens {
       this.metaFailure = null;
       return m;
     }
+    let m: RivenMeta;
     try {
-      const m = await market.rivenMeta();
-      if (!rivenListsUsable(m)) return fail(noWeapon);
-      if (!rivenListsUsable(this.meta)) {
-        this.meta = m;
-        this.metaError = null;
-      }
-      this.metaFailure = null;
-      return m;
+      m = await market.rivenMeta();
     } catch (e) {
-      return fail(String(e).replace(/^Error:\s*/, ""));
+      // Counted in the pages' wait, without showing on them (`metaError` is left as it is).
+      const why = String(e).replace(/^Error:\s*/, "");
+      this.listsWait.failed(why, this.clock());
+      return fail(why);
     }
+    this.listsWait.worked();
+    if (!rivenListsUsable(m)) return fail(noWeapon);
+    if (!rivenListsUsable(this.meta)) {
+      this.meta = m;
+      this.metaError = null;
+    }
+    this.metaFailure = null;
+    return m;
   }
 
   /** The tries at the lists made for riven trades in this run (core/rivenLists.ts). */
