@@ -7,6 +7,7 @@
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
   import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { soldOutNotice } from "./lib/core/soldOut";
   import { keepRivenSold, RIVEN_READS, rivenDecided, rivenRecent, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
   import { RIVEN_LISTS_GAP_MS, RIVEN_LISTS_TRIES, rivenTradeStep } from "./lib/core/rivenLists";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
@@ -599,6 +600,24 @@
     if (!words) return;
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
     void popUp(settings.game.notices[0], "market", { keepOut: true });
+  }
+  /**
+   * A Sold from Orders that MyOrbiter last went without seeing through (quit, the window closed, a
+   * reload, an update's restart, a crash): no answer yet, or a failure while it was leaving
+   * (core/soldOut.ts). Said once for each, under Listing problems, whatever that kind's switch (as
+   * tellSwitchedOff), and in the log in the same words; nothing is sent again by itself. Then the
+   * records go.
+   */
+  function tellSoldOut() {
+    const out = settings.market.soldOut ?? [];
+    if (!out.length) return;
+    for (const r of [...out].reverse()) {
+      const { title, body, line } = soldOutNotice(r);
+      logLine("warn", "market", line);
+      settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", title, body });
+      void popUp(settings.game.notices[0], "market", { keepOut: true });
+    }
+    settings.market.soldOut = [];
   }
   /** This start began with the first start's question: a new install's first run. */
   let firstStartRun = false;
@@ -1513,6 +1532,12 @@
     }
     settings.market.rep = rep;
   }
+  /**
+   * A +rep button's record of its give, bound to its trade's key when the button takes it (at the
+   * click): the give is recorded for the trade clicked, whatever the offer has become by the time
+   * warframe.market answers (its window over, a newer trade in its place).
+   */
+  const givenFor = (key: string) => () => markRep(key, "given");
 
   // Whole sets sold in one trade before MyOrbiter logged them as sets: one sale per part becomes one
   // set sale. Runs when the data loads; does nothing once they're folded.
@@ -2967,6 +2992,7 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
+      tellSoldOut();
       // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
       // here, rather than at the first notification, which may come while they're away. None saved
       // in settings read whole: the confirmed address's file an older MyOrbiter left is removed
@@ -3504,7 +3530,7 @@
       {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
-          <RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={() => markRep(repDue.t.key, "given")} />
+          <RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={givenFor(repDue.t.key)} />
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
         </div></div></div>
       {/if}
@@ -3581,7 +3607,7 @@
 {#snippet noticeActs(n: Notice)}
   {@const r = repShown(n)}
   {#if r}
-    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} open={(now) => repShown(n, now)?.given === false} ongiven={() => markRep(r.key, "given")} />
+    <RepButton partner={r.partner} text={settings.market.repText} named given={r.given} open={(now) => repShown(n, now)?.given === false} ongiven={givenFor(r.key)} />
     {#if !r.given}<button class="link quiet" title="No +rep for this trade (the reminder at the top goes too)" onclick={() => markRep(r.key, "skipped")}>Not now</button>{/if}
   {/if}
 {/snippet}

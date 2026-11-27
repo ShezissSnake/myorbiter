@@ -34,6 +34,7 @@ import { ducatRefusal, guardListing, inventoryTrust, listingTag, minimumRefusal,
 import { AUTO_FLOOR_SHARE, approvedForOf, approvedGoneOf, cutTooFar, goneAfter, goneOf, sameEntries, settleApprovals, unattendedMove, whoseRead, type Approval, type ApprovedFor, type UpListing, type WithApprovedFor } from "./core/approved";
 import { DRIFT, cooldown, drifted, every, noteChange } from "./core/drift";
 import { forget } from "./core/lastCopy";
+import { NO_LONGER_LISTED } from "./core/soldOut";
 
 export interface Draft {
   itemId: string;
@@ -1364,7 +1365,7 @@ class MarketStore {
     // several items, a Sold click on Orders) may have lowered or closed it already.
     const cur = this.orders.find((x) => x.id === o.id);
     if (!cur) {
-      const why = "it's no longer listed (already sold or removed)";
+      const why = NO_LONGER_LISTED;
       this.note(`${name}: not marked sold again: ${why}`, "info", quiet);
       failed?.(why);
       return null;

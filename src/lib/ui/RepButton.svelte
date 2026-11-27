@@ -11,8 +11,10 @@
   // label: the button's words ("+rep" where the partner is named beside it). named: "+rep Bob", on a
   // notification; the name keeps its case (warframe.market names are case-sensitive), unlike the
   // register-type button around it.
-  // open: whether the offer is still open at a time (its window); asked with the time of the click
-  // itself, so a click after the window ended gives nothing.
+  // open: whether the offer is still open at a time (its window); asked at the click, and again with
+  // the time the give leaves, so a click after the window ended gives nothing.
+  // ongiven: records the give; taken at the click, so a parent hands it bound to its trade's key
+  // (a closure that reads the offer when called would read it after warframe.market answered).
   let { partner, text, given = false, ongiven, label = "+rep", named = false, open = () => true }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string; named?: boolean; open?: (now: number) => boolean } = $props();
 
   let busy = $state(false);
@@ -20,7 +22,15 @@
   let reported = $state(false);
   const known = $derived(mkt.users[partner.toLowerCase()]);
 
-  async function give() {
+  // A click: the give is the clicked offer's. Its window is asked now, and the partner, the words and
+  // the record are taken now, since the offer can change while the give is on its way (its window
+  // ends, a newer trade lands, and the strip keeps this button for it). giveAs's parameters stand
+  // for the props from here on.
+  function give() {
+    if (!open(Date.now())) return; // its window is over: nothing given
+    void giveAs(partner, text, open, ongiven);
+  }
+  async function giveAs(partner: string, text: string, open: (now: number) => boolean, done: (() => void) | undefined) {
     busy = true;
     error = null;
     try {
@@ -30,7 +40,7 @@
       // Its window ended: nothing given (the offer goes on the page's next tick).
       if (r === undefined) return;
       if (r === "reported") reported = true;
-      else ongiven?.();
+      else done?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
