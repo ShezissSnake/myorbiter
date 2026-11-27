@@ -295,6 +295,7 @@ more than one page shares and that is not a setting is a store, a class or objec
 | Long lists | Drawn in slices, the rows in sight first | `src/lib/progress.svelte.ts`, `core/progress.ts` |
 | A sync | `holdBackground` holds the rest until its read is on screen | `src/App.svelte`, `pane.svelte.ts` |
 | warframe.market | One gate: `MIN_GAP` 400 ms, `SLOW_GAP` 1.5 s for 90 s after a 429, `Retry-After` honoured, 10 contract requests and 120 writes a minute | `src-tauri/src/market.rs` |
+| warframe.market's riven lists | Kept for the run once read; after a failed read no page asks again for a minute, doubling to 10 minutes while the failures go on (`RivenListsWait`; Rivens' Try now skips it); a riven trade's own tries, three a minute apart (`RivenListsTries`) | `src/lib/rivenStore.svelte.ts`, `core/rivenLists.ts` |
 | Automatic repricing | Per listing: a dead band, at most one change an hour and six a day; never under `AUTO_FLOOR_SHARE` (0.7) of the approved price | `src/lib/core/drift.ts`, `core/approved.ts` |
 | Nox's Frame | `Spacer`, 3 s apart, a 15 min cool-off, a week's cache | `src-tauri/src/noxsframe.rs` |
 | Cached reads | Relic tables 12 h, recipes 7 days, market items 1 day; riven auctions a few minutes per search | `relicdata.rs`, `recipes.rs`, `market.rs`, `src/lib/rivenStore.svelte.ts` |
