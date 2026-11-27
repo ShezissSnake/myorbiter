@@ -674,6 +674,14 @@ async function lineShows(p, size, view) {
   wentWrongLooked++;
   if (await p.locator('[data-banner="frame-failed"]').count()) wentWrong.push({ size: `${size.w}×${size.h}`, view });
 }
+/** Lists the views that showed the line, once: at the end of the run, or where it stopped on an error. */
+let wentWrongTold = false;
+function tellWentWrong() {
+  if (wentWrongTold) return;
+  wentWrongTold = true;
+  for (const f of wentWrong) console.log(`WENT WRONG ${f.size} ${f.view}: the window shows its line that something went wrong`);
+  console.log(`${wentWrong.length} views showing the line that something went wrong, ${wentWrongLooked} looked at`);
+}
 /** Pictures drawn out of their own shape, and how many pictures were looked at. */
 const stretched = [];
 let picturesChecked = 0;
@@ -902,9 +910,9 @@ async function sortCheck(size) {
   if (restless) {
     sortFindings.push(`Orders didn't come to rest in 30 s before the first sort (${restless}), not checked`);
     for (const p of pages) {
-    await lineShows(p, size, p === calm ? "Orders, sorted with reduced motion" : "Orders, sorted");
-    await p.close();
-  }
+      await lineShows(p, size, p === calm ? "Orders, sorted with reduced motion" : "Orders, sorted");
+      await p.close();
+    }
     return;
   }
   const picture = (p) => p.locator(".pane.shown table.orders").screenshot();
@@ -1164,10 +1172,11 @@ async function footItem(p, name) {
  *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
  *  same whichever section is in view). */
 async function walk(size, lookAt, { settingsOnce = false, widePictures = true } = {}) {
-  // Each view looked at is also read for the window's line that something went wrong.
+  // Each view looked at is also read for the window's line that something went wrong, once its
+  // look is done: what the look itself raised is read too, the last view of each page's included.
   const look = async (p, size, view) => {
-    await lineShows(p, size, view);
     await lookAt(p, size, view);
+    await lineShows(p, size, view);
   };
   const p = await open(size);
   const labels = await p.locator("button.nav").evaluateAll((els) => els.map((e) => e.querySelector(".lbl")?.textContent?.trim() ?? ""));
@@ -1405,8 +1414,7 @@ try {
   for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
   // The window's line that something went wrong: an error outside a page, which a page error above may say more of.
-  for (const f of wentWrong) console.log(`WENT WRONG ${f.size} ${f.view}: the window shows its line that something went wrong`);
-  console.log(`${wentWrong.length} views showing the line that something went wrong, ${wentWrongLooked} looked at`);
+  tellWentWrong();
   if (keys) {
     for (const f of sortFindings) console.log(`SORT ${f}`);
     console.log(`${sortFindings.length} sort findings, ${sortsTried} sorts on Orders tried both ways of motion`);
@@ -1420,6 +1428,7 @@ try {
   if (wentWrong.length) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
+  if (wentWrong.length) tellWentWrong();
   process.exitCode = 2;
 } finally {
   await browser?.close();
