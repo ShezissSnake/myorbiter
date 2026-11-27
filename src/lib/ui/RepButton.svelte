@@ -13,6 +13,8 @@
   // register-type button around it.
   // open: whether the offer is still open at a time (its window); asked with the time of the click
   // itself, so a click after the window ended gives nothing.
+  // ongiven: records the give; taken at the click, so a parent hands it bound to its trade's key
+  // (a closure that reads the offer when called would read it after warframe.market answered).
   let { partner, text, given = false, ongiven, label = "+rep", named = false, open = () => true }: { partner: string; text: string; given?: boolean; ongiven?: () => void; label?: string; named?: boolean; open?: (now: number) => boolean } = $props();
 
   let busy = $state(false);
@@ -21,6 +23,9 @@
   const known = $derived(mkt.users[partner.toLowerCase()]);
 
   async function give() {
+    // The record of the give, as it was at the click: the offer can change while warframe.market
+    // answers (its window ends, a newer trade lands), and the give is the clicked trade's.
+    const done = ongiven;
     busy = true;
     error = null;
     try {
@@ -30,7 +35,7 @@
       // Its window ended: nothing given (the offer goes on the page's next tick).
       if (r === undefined) return;
       if (r === "reported") reported = true;
-      else ongiven?.();
+      else done?.();
     } catch (e) {
       error = e instanceof Error ? e.message : String(e);
     } finally {
