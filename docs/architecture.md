@@ -155,7 +155,11 @@ one gate in `market.rs`; the sockets use `market::socket_request` and `presence:
 that the game log shows marks its listing sold and logs the sale (`autoTrades`, off unless the
 player turns it on); a riven given in one is looked at on its own (`core/rivenSold.ts`, in
 `App.svelte`): its auction is closed through `rivenStore.closeIfStill` when sure, and otherwise
-the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens).
+the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens). A Sold clicked on Orders waits
+4 s with Undo (`soldWait.svelte.ts`); quitting, the window's X and Reload the window send a waiting
+one first and wait a moment for warframe.market's answer (`beforeLeaving` in `backend.ts`), and a
+send still unanswered when the window goes leaves a record in the settings (`core/soldOut.ts`) that
+the next start tells, sending nothing again.
 
 ### 2.3 Inside the window: settings, model, pages
 

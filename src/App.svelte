@@ -7,6 +7,7 @@
   import { foldSetSales, markTrades, repCandidates, salesFromTrade, seenAtOnce, tradeKey, tradesToMark } from "./lib/core/trades";
   import { oneAtATime } from "./lib/core/oneAtATime";
   import { REP_STRIP_WINDOW, offerTime, repDeadlines, repOffered, repStripOpen, saleNotice, salesToTell, type SoldLine } from "./lib/core/saleNotice";
+  import { soldOutNotice } from "./lib/core/soldOut";
   import { keepRivenSold, RIVEN_READS, rivenDecided, rivenRecent, rivenVerdict, setRivenSold, unreadVerdict, verdictKept, stillToClose, type HeldRivens, type RivenSold } from "./lib/core/rivenSold";
   import { RIVEN_LISTS_GAP_MS, RIVEN_LISTS_TRIES, rivenTradeStep } from "./lib/core/rivenLists";
   import { cutChars, discordMessage } from "./lib/core/untrusted";
@@ -599,6 +600,23 @@
     if (!words) return;
     settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
     void popUp(settings.game.notices[0], "market", { keepOut: true });
+  }
+  /**
+   * A Sold from Orders that was being sent when MyOrbiter last went (quit, the window closed, a
+   * reload, a crash) before warframe.market answered: it may or may not have gone through, and no
+   * sale was logged (core/soldOut.ts). Said once for each, under Listing problems, whatever that
+   * kind's switch (as tellSwitchedOff); nothing is sent again by itself. Then the records go.
+   */
+  function tellSoldOut() {
+    const out = settings.market.soldOut ?? [];
+    if (!out.length) return;
+    for (const r of [...out].reverse()) {
+      const words = soldOutNotice(r);
+      logLine("warn", "market", `${words.title}: MyOrbiter went before warframe.market answered the Sold sent at ${new Date(r.at).toISOString()}; nothing sent again.`);
+      settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
+      void popUp(settings.game.notices[0], "market", { keepOut: true });
+    }
+    settings.market.soldOut = [];
   }
   /** This start began with the first start's question: a new install's first run. */
   let firstStartRun = false;
@@ -2967,6 +2985,7 @@
       if (stopped) return;
       settings.tab = migrateTab(settings.startPage !== "last" ? settings.startPage : settings.tab);
       settingsReady = true;
+      tellSoldOut();
       // A Discord address saved before MyOrbiter asked about them: asked now, while the player is
       // here, rather than at the first notification, which may come while they're away. None saved
       // in settings read whole: the confirmed address's file an older MyOrbiter left is removed
