@@ -757,7 +757,7 @@
   <section class="finder">
     <div class="hmark"><h2 class="register lead">Find a riven</h2><HelpMark part="rivens.finder" /></div>
     {#if !meta}
-      <p class="dim small">{#if rivens.metaError && proxy.problem}{proxy.problem}{:else if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter waits at least a minute before trying again, and longer after each failure in a row (at least 10 minutes once they go on). <button class="link" onclick={() => void rivens.loadMeta(true)}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
+      <p class="dim small">{#if rivens.metaError && proxy.problem}{proxy.problem}{:else if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter waits at least a minute before trying again, then longer after each failure in a row, up to about 10 minutes. <button class="link" onclick={() => void rivens.loadMeta(true)}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
