@@ -1,6 +1,7 @@
 // Parts of the saved game state read back whole (loadSettings): an entry a damaged or hand-edited
 // settings file turned into something else is left out, so the page that draws it (Stats, Rivens,
-// Inventory, the notification bell) still opens. A good entry comes back as it was saved.
+// Inventory, the notification bell) still opens. A good entry comes back as it was saved. The drops
+// log's counts are the exception: read whole, or the log starts again (dropLogOf).
 import type { RivenWatch, ValuePoint } from "../backend";
 import { outcomeOf, type Notice } from "../notices";
 import type { RelicRun } from "./relicRuns";
@@ -41,17 +42,28 @@ const texts = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((x): 
 const record = <T,>(raw: unknown, ok: (v: unknown) => boolean): Record<string, T> => (obj(raw) ? (Object.fromEntries(Object.entries(raw).filter(([, v]) => ok(v))) as Record<string, T>) : {});
 const numOrNull = (x: unknown) => (fine(x) ? x : null);
 
-/** The drops log (core/drops.ts): a time to count from, else a new log; inside it, odd entries left out. */
+/** A count the drops log holds of a part: a whole number, none below zero. */
+const tally = (n: unknown): n is number => fine(n) && Number.isInteger(n) && n >= 0;
+/** Counts read whole: an object whose every entry is a tally; null for anything else. */
+const tallies = (raw: unknown): Record<string, number> | null => (obj(raw) && Object.values(raw).every(tally) ? (raw as Record<string, number>) : null);
+
+/**
+ * The drops log (core/drops.ts): a time to count from, else a new log. Its counts (what was held
+ * of each part, and what was being built) are read whole or not at all: with one entry missing,
+ * the next read would take every copy of that part as a drop. Counts that cannot be read whole
+ * make the log a new baseline (at 0, the next read sets the counts and logs no drop); the drops
+ * already logged stay. Inside the rest, odd entries are left out.
+ */
 export function dropLogOf(raw: unknown): DropLog {
   if (!obj(raw) || !fine(raw.at)) return { at: 0, counts: {}, windows: [] };
-  const out: DropLog = {
-    at: raw.at,
-    counts: record<number>(raw.counts, fine),
-    windows: keep<DropWindow>(raw.windows, (w) => fine(w.from) && fine(w.at) && obj(w.gains)).map((w) => ({ ...w, gains: record<number>(w.gains, fine) })),
-  };
+  const windows = keep<DropWindow>(raw.windows, (w) => fine(w.from) && fine(w.at) && obj(w.gains)).map((w) => ({ ...w, gains: record<number>(w.gains, fine) }));
+  const counts = tallies(raw.counts);
+  const building = raw.building === undefined ? undefined : tallies(raw.building);
+  if (!counts || building === null) return { at: 0, counts: {}, windows };
+  const out: DropLog = { at: raw.at, counts: { ...counts }, windows };
   if (fine(raw.lowAt)) out.lowAt = raw.lowAt;
   if (Array.isArray(raw.gone)) out.gone = texts(raw.gone);
-  if (obj(raw.building)) out.building = record<number>(raw.building, fine);
+  if (building) out.building = { ...building };
   if (fine(raw.tracks)) out.tracks = raw.tracks;
   return out;
 }
@@ -63,8 +75,8 @@ const rivenHistoryOf = (raw: unknown): Record<string, RivenSnap[]> =>
 /**
  * The rest of the saved game state that is read as it was saved: TennoScope's last figures, the
  * Foundry's ready times, the lists of what was already told, the chats seen, the sets being saved
- * for and the drops log. An entry of the wrong kind is left out and the rest kept; a figure that
- * isn't a number reads as not known.
+ * for and the drops log. An entry of the wrong kind is left out and the rest kept (but for the
+ * drops log's counts: dropLogOf); a figure that isn't a number reads as not known.
  */
 export function gameStateOf(raw: unknown) {
   const g = obj(raw) ? raw : {};
