@@ -198,7 +198,8 @@ test("holding more parts of a dual-pistol prime never makes it look harder", () 
 test("a dual-pistol prime short a relic part and the pistols says both", () => {
   const d = dual();
   const r = akbronco([d.blueprint], d.catalog);
-  assert.match(r.acq.how, /^1 missing part from relics/);
+  // No relic in these tables drops the Link: the card says so, never "from relics".
+  assert.match(r.acq.how, /^No relic in the drop tables has the missing part\./);
   assert.match(r.acq.how, /also built from 2× Bronco Prime \(you have none\)/);
 });
 

@@ -395,6 +395,10 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
   const covered = missing.filter((p) => p.sources.some((s) => s.owned > 0)).length;
   const copies = missing.reduce((n, p) => n + (p.need ?? 1), 0);
   const buy = ctx.buyFor != null ? ` Or buy the ${copies === 1 ? "part" : `${copies} parts`} for about ${ctx.buyFor}p.` : "";
+  // A part no relic in the drop tables gives ("unknown"): still counted as farmable, never said to
+  // drop from relics still in the tables.
+  const noRelic = missing.filter((p) => p.availability === "unknown").length;
+  const noRelicNote = noRelic ? ` ${noRelic} of ${missing.length} ${noRelic === 1 ? "has" : "have"} no relic in the drop tables.` : "";
   if (vaulted.length) {
     // Farmable only if every missing part is: from the drop tables, Varzia or a relic in hand.
     const farmable = missing.every((p) => p.availability !== "vaulted" || p.sources.some((s) => s.owned > 0));
@@ -402,17 +406,21 @@ function primeAcquisition(m: Model, item: CatalogItem, ctx: AcquireContext): Acq
       ...base,
       method: "relics",
       difficulty: covered === missing.length ? 3 : 4,
-      how: `${vaulted.length === missing.length ? "Vaulted" : `${vaulted.length} of ${missing.length} missing parts vaulted`}: ${covered ? `your relics cover ${covered} of ${missing.length}` : "only from relics you'd have to trade for"}.${buy}${also}`,
+      how: `${vaulted.length === missing.length ? "Vaulted" : `${vaulted.length} of ${missing.length} missing parts vaulted`}: ${covered ? `your relics cover ${covered} of ${missing.length}` : "only from relics you'd have to trade for"}.${noRelicNote}${buy}${also}`,
       available: farmable,
       ...(farmable ? {} : { tradeOnly: true }),
     };
   }
+  const fromRelics =
+    noRelic && noRelic === missing.length
+      ? `No relic in the drop tables has ${missing.length === 1 ? "the missing part" : `any of the ${missing.length} missing parts`}.`
+      : `${noRelic ? `${missing.length - noRelic} of ${missing.length} missing parts` : `${missing.length} missing part${missing.length === 1 ? "" : "s"}`} from ${resurgence.length ? "relics, some only from Varzia" : "relics still in the drop tables"}${covered ? `; you own relics for ${covered === missing.length ? "all of them" : `${covered} of ${missing.length}`}` : ""}.${noRelicNote}`;
   return {
     ...base,
     method: "relics",
     // Never easier than the one with every relic part in hand and the weapons missing (3).
     difficulty: Math.max(lacking.length ? 3 : 0, covered === missing.length ? 2 : 3),
-    how: `${missing.length} missing part${missing.length === 1 ? "" : "s"} from ${resurgence.length ? "relics, some only from Varzia" : "relics still in the drop tables"}${covered ? `; you own relics for ${covered === missing.length ? "all of them" : `${covered} of ${missing.length}`}` : ""}.${buy}${also}`,
+    how: `${fromRelics}${buy}${also}`,
     available: true,
   };
 }
