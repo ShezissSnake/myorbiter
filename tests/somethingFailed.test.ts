@@ -1,5 +1,7 @@
 // Only the pages are inside an error boundary: a promise that fails outside them (in the frame
 // around the pages) is said in one line, once a session, with a reload and Report a bug (App.svelte).
+// An error thrown outside a promise: somethingFailedThrown.test.ts (browser) and
+// somethingFailedDesktop.test.ts.
 import "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
