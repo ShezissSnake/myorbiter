@@ -1,6 +1,7 @@
 <script lang="ts">
-  // Vault state as a struck cartouche. Shape and word together, never colour alone.
-  let { v }: { v: string } = $props();
+  // Vault state as a struck cartouche. Shape and word together, never colour alone. `own` replaces
+  // the state's tip where the mark stands for several parts (Mastery's chip on a prime).
+  let { v, tip: own }: { v: string; tip?: string } = $props();
   const label: Record<string, string> = { farmable: "Farmable", vaulted: "Vaulted", resurgence: "Resurgence", unknown: "No relic" };
   const tip: Record<string, string> = {
     farmable: "At least one relic that drops it is in the current drop tables",
@@ -10,7 +11,7 @@
   };
 </script>
 
-<span class="cart {v}" title={tip[v]}>{label[v] ?? v}</span>
+<span class="cart {v}" title={own ?? tip[v]}>{label[v] ?? v}</span>
 
 <style>
   .cart {
