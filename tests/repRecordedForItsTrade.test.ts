@@ -80,6 +80,7 @@ let sent: { user: string[]; myReview: string[]; giveRep: string[] };
 let answer: () => void;
 beforeEach(() => {
   sent = { user: [], myReview: [], giveRep: [] };
+  answer = () => {};
   market.user = (async (name: string) => (sent.user.push(name), null)) as never;
   market.myReview = (async (name: string) => (sent.myReview.push(name), 0)) as never;
   market.giveRep = ((name: string) => new Promise<void>((r) => (sent.giveRep.push(name), (answer = r)))) as never;
@@ -87,7 +88,11 @@ beforeEach(() => {
   mkt.users = { alpha: user("Alpha"), bravo: user("Bravo") };
   mock.timers.enable({ apis: ["Date"], now: START });
 });
-afterEach(() => {
+afterEach(async () => {
+  // A give still waiting (a test that failed before its answer) ends here, so the next test's give
+  // isn't joined to it (mkt.giveRep joins a give already going to the same player).
+  answer();
+  await settle();
   mock.timers.reset();
   Object.assign(market, real);
 });
@@ -175,6 +180,34 @@ test("the strip: a newer trade lands while the give is on its way, its partner n
   mkt.users = { ...mkt.users, charlie: user("Charlie") };
   flush();
   assert.match(p.buttons("strip")[0]?.getAttribute("title") ?? "", /^Give Charlie \+rep/);
+  p.close();
+});
+
+test("the strip: a newer trade lands between the click and the give leaving: the +rep goes to the partner clicked", async () => {
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  // The newer trade lands in the same moment as the click, before the button's first await resumes.
+  p.buttons("strip")[0].click();
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  await settle();
+  assert.deepEqual(sent.giveRep, ["Alpha"], "to the partner clicked, not the newer one");
+  await answered();
+  assert.deepEqual(p.page.settings.market.rep, { t1: "given" });
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
+  assert.match(p.buttons("strip")[0]?.getAttribute("title") ?? "", /^Give Bravo \+rep/, "the newer trade still offered");
+  p.close();
+});
+
+test("the strip: a click after the clicked offer's end is refused, though a newer trade lands before the give would leave", async () => {
+  // The page's clock is a tick behind: the strip still shows the trade whose time is over.
+  const p = open([trade("t1", "Alpha", START - REP_STRIP_WINDOW + 1_000)]);
+  mock.timers.setTime(START + 2_000);
+  p.buttons("strip")[0].click();
+  p.page.settings.market.trades = [trade("t2", "Bravo", START + 2_000), ...p.page.settings.market.trades];
+  flush();
+  await settle();
+  assert.deepEqual(sent, { user: [], myReview: [], giveRep: [] }, "nothing sent, to either partner");
+  assert.deepEqual(p.page.settings.market.rep, {});
   p.close();
 });
 
