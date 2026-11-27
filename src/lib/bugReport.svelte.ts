@@ -1,7 +1,7 @@
 // Report a bug: whether its dialog is open, so any help corner can open it (Settings, the Guide,
 // the sidebar, Shift+F1) and App.svelte draws it once (ui/BugReport.svelte). And the line that
 // offers it when something outside a page failed (applog.ts).
-import { flushSettings } from "./backend";
+import { beforeLeaving } from "./backend";
 import { whenSomethingFails } from "./applog";
 
 class BugReportStore {
@@ -20,9 +20,13 @@ class BugReportStore {
     this.told = true;
     this.failed = true;
   }
-  /** The line's way on: the window starts again, with what's waiting to be saved saved first. */
+  /**
+   * The line's way on: the window starts again. What quitting makes first is made first here too
+   * (backend.ts › beforeLeaving): a removal inside its Undo, a Sold waiting on Orders or being
+   * sent, then the save.
+   */
   async reload() {
-    await flushSettings().catch(() => {});
+    await beforeLeaving().catch(() => {});
     location.reload();
   }
 }

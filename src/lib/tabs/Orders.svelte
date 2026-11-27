@@ -10,7 +10,7 @@
   import { until } from "../core/traders";
   import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
-  import { MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
+  import { leaving, MAX_SAVED_PRICE, whenStaying, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
   import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
@@ -50,6 +50,8 @@
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
   import { copiesToSend, markTradeSale, soldAfterUnmarked, soldAnswers, soldQuestion, type SoldListing } from "../core/soldMarks";
+  import { soldAnswered, soldStayed, withSoldOut } from "../core/soldOut";
+  import { SoldWaits } from "../soldWait.svelte";
   import { SvelteSet } from "svelte/reactivity";
 
   // console: you play on a console or phone, so MyOrbiter can't see what you hold. New listing then
@@ -630,12 +632,9 @@
     refocus(from, () => row?.querySelector<HTMLElement>("[data-remove]"));
   }
   // Sold waits a few seconds, with Undo, before it's sent: marking sold on warframe.market goes on
-  // your profile and lowers or closes the listing, which a slip of the mouse shouldn't do.
-  const SOLD_WAIT = 4000;
-  let pendingSold = $state<Record<string, number>>({});
-  const soldTimers = new Map<string, ReturnType<typeof setTimeout>>();
-  /** Each listing's quantity when you clicked Sold. */
-  const soldFrom = new Map<string, number>();
+  // your profile and lowers or closes the listing, which a slip of the mouse shouldn't do. Quitting,
+  // the window's X and Reload the window send what waits first (soldWait.svelte.ts).
+  const soldWaits = new SoldWaits((id, n, from) => commitSale(id, n, from));
   /** focusIt, on the one button of a question that is to take the focus. */
   const focusIf = (node: HTMLButtonElement, on: boolean) => {
     if (on) focusIt(node);
@@ -662,28 +661,57 @@
       askSold = { id: o.id, n, marked: q.marked, unmarked: u && { count: u.count, partner: u.partner, trades: u.trades, guess: u.guess } };
       return;
     }
-    clearTimeout(soldTimers.get(o.id));
-    pendingSold = { ...pendingSold, [o.id]: n };
-    soldFrom.set(o.id, o.quantity);
-    soldTimers.set(o.id, setTimeout(() => void commitSale(o.id), SOLD_WAIT));
+    soldWaits.hold(o.id, n, o.quantity);
   }
-  function undoSale(id: string) {
-    clearTimeout(soldTimers.get(id));
-    soldTimers.delete(id);
-    const { [id]: _, ...rest } = pendingSold;
-    pendingSold = rest;
-  }
-  async function commitSale(id: string) {
-    const n = pendingSold[id];
-    undoSale(id);
+  /** `n` sold of listing `id`, which had `from` copies at the click: its wait is up, or MyOrbiter is leaving. */
+  async function commitSale(id: string, n: number, from: number | undefined) {
     const o = mkt.orders.find((x) => x.id === id);
-    if (!o || !n) return;
+    if (!o) return;
     // The game's trade log got there first while Undo was showing: it already marked copies sold
     // (the listing shrank since you clicked) and recorded the sale. Only what's left is yours.
-    const send = copiesToSend(n, soldFrom.get(id) ?? o.quantity, o.quantity);
-    soldFrom.delete(id);
+    const send = copiesToSend(n, from ?? o.quantity, o.quantity);
     if (send < 1) return;
     await sendSale(o, send);
+  }
+  /** Sends told apart in their records (core/soldOut.ts). */
+  let soldOuts = 0;
+  /**
+   * `mkt.sold`, with a record in the settings while it's out (core/soldOut.ts), taken away as
+   * warframe.market answers: MyOrbiter gone before the answer (quit, the window closed, a reload)
+   * leaves the record, and the next start tells the player. A failure while MyOrbiter is leaving
+   * is kept too, with what is known of it (core/soldOut.ts › soldFailure: refused, not sent, the
+   * listing already gone, or unclear): the row that would say so goes with the window. Leaving waits a
+   * moment for the answer (soldWait.svelte.ts › track). `trade`: "That sale", whose trade logged
+   * the sale already.
+   */
+  // The window stays after all (an update that stopped: no longer on offer, its install or its restart failed): a
+  // failure kept for the next start is on its row, with Try again, and isn't told again.
+  onDestroy(whenStaying(() => (settings.soldOut = soldStayed(settings.soldOut ?? []))));
+  function soldOut(o: MyOrder, n: number, failed: (reason: string) => void, trade = false) {
+    const cur = mkt.orders.find((x) => x.id === o.id) ?? o;
+    const at = Date.now();
+    const key = `${o.id}|${at}|${++soldOuts}`;
+    settings.soldOut = withSoldOut(settings.soldOut ?? [], { key, id: o.id, item: mkt.item(o.itemId)?.name ?? "A listing", rank: cur.rank, quantity: Math.max(1, Math.min(n, cur.quantity)), platinum: cur.platinum, at, ...(trade ? { trade: true as const } : {}) });
+    let why = "";
+    const p = mkt
+      .sold(o, n, {
+        failed: (r) => {
+          why = r;
+          failed(r);
+        },
+      })
+      .then(
+        (sale) => {
+          settings.soldOut = soldAnswered(settings.soldOut ?? [], key, { ok: !!sale, why, leaving: leaving() });
+          return sale;
+        },
+        (e: unknown) => {
+          settings.soldOut = soldAnswered(settings.soldOut ?? [], key, { ok: false, why: String(e).replace(/^Error:\s*/, ""), leaving: leaving() });
+          throw e;
+        },
+      );
+    soldWaits.track(p);
+    return p;
   }
   /**
    * Sends a sale (after the undo wait, or Try again). A listing sold out leaves the table at once:
@@ -698,7 +726,7 @@
     keptPlans.set(o.id, plans.get(o.id));
     return rowAct(o.id, { working: `Sending ${n} sold…`, done: `Sold ${n}`, fail: "Couldn't mark sold" }, async () => {
       let why = "";
-      const sale = await mkt.sold(o, n, { failed: (r) => (why = r) });
+      const sale = await soldOut(o, n, (r) => (why = r));
       if (!sale) throw new Error(why || "warframe.market didn't take it");
       settings.sales = [sale, ...settings.sales].slice(0, 2000);
     });
@@ -722,7 +750,7 @@
         setSales: (sales) => (settings.sales = sales),
         out: thatOut,
         now: Date.now,
-        close: (n, failed) => mkt.sold(o, n, { failed }),
+        close: (n, failed) => soldOut(o, n, failed, true),
         phase: (w) => (rowBusy.get(o.id).phase = w),
       }),
     );
@@ -754,10 +782,10 @@
   });
   /** The table's rows: your listings, and any ghost, in its place. */
   const rows = $derived(sortedOrders);
-  // Leaving the page (or quitting) doesn't lose a sale that was waiting.
-  $effect(() => () => {
-    for (const id of soldTimers.keys()) void commitSale(id);
-  });
+  // The page going away (a page once opened stays until MyOrbiter quits) sends a sale that was
+  // waiting. Quitting, the window's X and Reload the window don't take pages away: they send it
+  // through the hook soldWaits sets while one waits or is out (backend.ts › beforeLeaving).
+  $effect(() => () => soldWaits.flush());
   const fmt = (t: number) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
   /** The listing whose price history is open under its row. */
   let charted = $state<string | null>(null);
@@ -1124,10 +1152,10 @@
               <!-- Three fixed places, the same on every row: sold one, sold several, remove. A
                    confirm takes over the same places, its safe choice where the click just was. -->
               <span class="acts">
-                {#if pendingSold[o.id]}
+                {#if soldWaits.pending[o.id]}
                   <span class="pendrow">
-                    <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {pendingSold[o.id]}<i aria-hidden="true"></i></span>
-                    <button type="button" class="link undo" aria-label="Undo the sale: {nm}" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => acts?.querySelector<HTMLElement>("[data-remove]")); undoSale(o.id); }}>Undo</button>
+                    <span class="register pending" title="Sent to warframe.market in a moment: marked sold, the listing lowered, the sale logged">Sold {soldWaits.pending[o.id]}<i aria-hidden="true"></i></span>
+                    <button type="button" class="link undo" aria-label="Undo the sale: {nm}" title="Undo: nothing is sent" onclick={(e) => { const acts = e.currentTarget.closest(".acts"); refocus(e.currentTarget, () => acts?.querySelector<HTMLElement>("[data-remove]")); soldWaits.undo(o.id); }}>Undo</button>
                   </span>
                 {:else if selling?.id === o.id}
                   {@const n = selling.n}
