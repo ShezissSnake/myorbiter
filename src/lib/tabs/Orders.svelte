@@ -678,8 +678,9 @@
   /**
    * `mkt.sold`, with a record in the settings while it's out (core/soldOut.ts), taken away as
    * warframe.market answers: MyOrbiter gone before the answer (quit, the window closed, a reload)
-   * leaves the record, and the next start tells the player. A refusal while MyOrbiter is leaving
-   * is kept too, with its reason: the row that would say so goes with the window. Leaving waits a
+   * leaves the record, and the next start tells the player. A failure while MyOrbiter is leaving
+   * is kept too, with what is known of it (core/soldOut.ts › soldFailure: refused, not sent, the
+   * listing already gone, or unclear): the row that would say so goes with the window. Leaving waits a
    * moment for the answer (soldWait.svelte.ts › track). `trade`: "That sale", whose trade logged
    * the sale already.
    */

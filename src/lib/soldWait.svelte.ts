@@ -6,7 +6,8 @@
 // window take no page away first: so while a Sold waits or is being sent, a hook is set with
 // backend.ts (whenQuitting) that sends what waits at once and hands leaving the sends that are out,
 // which it waits for a moment (beforeLeaving). With nothing waiting and nothing out, no hook is set.
-import { whenQuitting } from "./backend";
+// A Sold clicked while MyOrbiter is already leaving is sent at once (madeWhileLeaving).
+import { madeWhileLeaving, whenQuitting } from "./backend";
 
 /** How long a Sold waits before it's sent. */
 export const SOLD_WAIT = 4000;
@@ -38,6 +39,8 @@ export class SoldWaits {
     this.from.set(id, quantity);
     this.timers.set(id, setTimeout(() => this.commit(id), this.ms));
     this.quitting ??= whenQuitting(() => this.leave());
+    // Clicked while MyOrbiter is already leaving: the wait would outlast the window, so it's sent now.
+    if (madeWhileLeaving()) this.commit(id);
   }
 
   /** Undo: nothing is sent. */
@@ -65,6 +68,9 @@ export class SoldWaits {
     if (!p) return;
     this.out.add(p);
     this.quitting ??= whenQuitting(() => this.leave());
+    // A send that starts while MyOrbiter is leaving (a Try again, That sale, a Sold clicked then):
+    // leaving takes it in, its record saved and its answer waited for while the wait lasts.
+    madeWhileLeaving();
     const end = () => {
       this.out.delete(p);
       this.done();

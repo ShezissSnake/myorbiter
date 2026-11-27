@@ -156,10 +156,12 @@ that the game log shows marks its listing sold and logs the sale (`autoTrades`, 
 player turns it on); a riven given in one is looked at on its own (`core/rivenSold.ts`, in
 `App.svelte`): its auction is closed through `rivenStore.closeIfStill` when sure, and otherwise
 the player is told (`ui/RivenSoldBand.svelte` on Orders and Rivens). A Sold clicked on Orders waits
-4 s with Undo (`soldWait.svelte.ts`); quitting, the window's X and Reload the window send a waiting
-one first and wait a moment for warframe.market's answer (`beforeLeaving` in `backend.ts`), and a
-send still unanswered when the window goes, or refused while it goes, leaves a record in the settings
-(`core/soldOut.ts`) that the next start tells, sending nothing again.
+4 s with Undo (`soldWait.svelte.ts`); quitting, the window's X, Reload the window and Update and
+restart send a waiting one first and wait a moment for warframe.market's answer (`beforeLeaving`
+and `beforeRestart` in `backend.ts`; a Sold or Undo removal clicked while leaving is made at once,
+`madeWhileLeaving`), and a send still unanswered when the window goes, or failed while it goes,
+leaves a record in the settings (`core/soldOut.ts`) that the next start tells in words that say
+no more than is known (`soldFailure`), with when it was sent, sending nothing again.
 
 ### 2.3 Inside the window: settings, model, pages
 

@@ -1728,9 +1728,10 @@ export async function notify(summary: string, body: string, id?: string, actions
 }
 
 /**
- * What is made before MyOrbiter quits or its window reloads: removals still inside their
- * five-second Undo (undo.svelte.ts), and Sold clicks on Orders still inside their wait or being
- * sent (soldWait.svelte.ts). A function may return a promise: a sale being sent, waited for.
+ * What is made before MyOrbiter quits, its window reloads or an update restarts it: removals still
+ * inside their five-second Undo (undo.svelte.ts), and Sold clicks on Orders still inside their
+ * wait or being sent (soldWait.svelte.ts). A function may return a promise: a sale being sent,
+ * waited for.
  */
 const beforeQuit = new Set<() => void | Promise<unknown>>();
 /** Runs `f` when MyOrbiter quits or reloads, before the settings are saved; the returned function stops that. */
@@ -1746,46 +1747,112 @@ export function whenQuitting(f: () => void | Promise<unknown>): () => void {
  * record Orders saved before the wait (core/soldOut.ts).
  */
 export const LEAVE_WAIT = 1200;
+/**
+ * The most a second quit (Ctrl+Q, then the window's X) or an update's restart is held by leaving,
+ * counted from when leaving began: the wait, and room for the saves around it. Still inside the
+ * X's 2 s. The first quit or reload waits for its own save, as it always did.
+ */
+export const LEAVE_CAP = LEAVE_WAIT + 500;
 const aTurn = () => new Promise((r) => setTimeout(r, 0));
+/** `p`, or nothing after `ms`, whichever comes first. */
+function heldAtMost(p: Promise<void>, ms: number): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  return Promise.race([p, new Promise<void>((r) => (timer = setTimeout(r, Math.max(0, ms))))]).finally(() => clearTimeout(timer));
+}
 let leavingNow: Promise<void> | null = null;
+/** When the leaving under way stops holding a second quit or a restart (its start, plus the cap). */
+let leaveEnds = 0;
+/** Something was clicked while leaving (madeWhileLeaving): leaving takes it in. */
+let lateWork = false;
 /**
  * What quitting and Reload the window do before the page goes: everything waiting is made, a sale
- * being sent is waited for up to `wait` ms, and the settings are saved. A second call while one
- * runs (Ctrl+Q, then the window's X) waits for the first rather than cutting its wait short.
+ * being sent is waited for until `wait` ms after the start, and the settings are saved. A second
+ * call while one runs (Ctrl+Q, then the window's X) joins the first, so the first's wait isn't cut
+ * short, and is held no longer than the first's cap, even by a save that hangs. `save`: how the
+ * settings are saved (flushSettings; a test gives one that hangs or fails).
  */
-export function beforeLeaving(wait = LEAVE_WAIT): Promise<void> {
-  return (leavingNow ??= leave(wait).finally(() => (leavingNow = null)));
+export function beforeLeaving(wait = LEAVE_WAIT, save: () => Promise<void> = flushSettings): Promise<void> {
+  if (leavingNow) return heldAtMost(leavingNow, leaveEnds - Date.now());
+  leaveEnds = Date.now() + wait + (LEAVE_CAP - LEAVE_WAIT);
+  const p = leave(wait, save).finally(() => {
+    if (leavingNow === p) leavingNow = null;
+  });
+  return (leavingNow = p);
 }
-/** MyOrbiter is quitting or reloading: a refusal now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
+/** MyOrbiter is quitting, reloading or restarting: a Sold that fails now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
 export const leaving = () => leavingNow != null;
-async function leave(wait: number) {
+/**
+ * A Sold or an Undo removal clicked while MyOrbiter is already leaving: true then, and the caller
+ * makes it at once rather than after its wait, which would outlast the window; leaving takes it in
+ * (another round of what waits, and another save). False otherwise, and nothing changes.
+ */
+export function madeWhileLeaving(): boolean {
+  if (!leavingNow) return false;
+  lateWork = true;
+  return true;
+}
+/**
+ * Update and restart: what waits is made as quitting does, but the restart is held no longer than
+ * the cap, and goes ahead whatever becomes of this step.
+ */
+export function beforeRestart(save: () => Promise<void> = flushSettings): Promise<void> {
+  let p: Promise<void>;
+  try {
+    p = beforeLeaving(LEAVE_WAIT, save);
+  } catch (e) {
+    p = Promise.reject(e);
+  }
+  return heldAtMost(
+    p.catch((e) => console.error("making what waits before the restart failed", e)),
+    leaveEnds - Date.now(),
+  );
+}
+/** The functions set with whenQuitting, run: the sends they hand back, each caught. */
+function runHooks(): Promise<unknown>[] {
+  const out: Promise<unknown>[] = [];
+  for (const f of [...beforeQuit]) {
+    try {
+      const r = f();
+      if (r) out.push(r.catch((e) => console.error("a sale being sent failed at quit", e)));
+    } catch (e) {
+      console.error("a waiting removal failed at quit", e);
+    }
+  }
+  return out;
+}
+async function leave(wait: number, save: () => Promise<void>) {
+  const until = Date.now() + wait;
+  lateWork = false;
   // Something removed and then Ctrl+Q within the Undo's five seconds stays removed: the change is
   // made, and the page's save effects are given a turn to take it (persist.svelte.ts). One that
-  // fails is logged and stops neither the others, the save nor the quit.
-  if (beforeQuit.size) {
-    const out: Promise<unknown>[] = [];
-    for (const f of [...beforeQuit]) {
-      try {
-        const r = f();
-        if (r) out.push(r.catch((e) => console.error("a sale being sent failed at quit", e)));
-      } catch (e) {
-        console.error("a waiting removal failed at quit", e);
-      }
-    }
+  // fails is logged and stops neither the others, the save nor the quit. A Sold or a removal
+  // clicked meanwhile is made at once (madeWhileLeaving), and taken in by another round while
+  // the wait lasts.
+  for (let round = 0; beforeQuit.size && round < 3; round++) {
+    const out = runHooks();
+    // What the round itself sent isn't late.
+    lateWork = false;
     await aTurn();
     if (out.length) {
       // The record of each sale being sent is saved before the wait: if the app goes before the
       // answer (the window's X quits 2 s on), the next start finds it and tells the player.
-      await flushSettings();
+      await save();
       let timer: ReturnType<typeof setTimeout> | undefined;
-      await Promise.race([Promise.all(out), new Promise((r) => (timer = setTimeout(r, wait)))]);
+      await Promise.race([Promise.all(out), new Promise((r) => (timer = setTimeout(r, Math.max(0, until - Date.now()))))]);
       clearTimeout(timer);
       // The answers' changes (the sale logged, its record taken away) reach the save.
       await aTurn();
     }
+    if (!lateWork || Date.now() >= until) break;
   }
   // A change from the last 300 ms would otherwise be lost.
-  await flushSettings();
+  await save();
+  // Something clicked during that save: its change (a record, a removal) is saved too.
+  if (lateWork) {
+    lateWork = false;
+    await aTurn();
+    await save();
+  }
 }
 
 /** Quit MyOrbiter (Ctrl+Q, or the window's X), closing the TennoScope it started. */

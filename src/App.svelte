@@ -602,18 +602,19 @@
     void popUp(settings.game.notices[0], "market", { keepOut: true });
   }
   /**
-   * A Sold from Orders that was being sent when MyOrbiter last went (quit, the window closed, a
-   * reload, a crash) before warframe.market answered: it may or may not have gone through, and no
-   * sale was logged (core/soldOut.ts). Said once for each, under Listing problems, whatever that
-   * kind's switch (as tellSwitchedOff); nothing is sent again by itself. Then the records go.
+   * A Sold from Orders that MyOrbiter last went without seeing through (quit, the window closed, a
+   * reload, an update's restart, a crash): no answer yet, or a failure while it was leaving
+   * (core/soldOut.ts). Said once for each, under Listing problems, whatever that kind's switch (as
+   * tellSwitchedOff), and in the log in the same words; nothing is sent again by itself. Then the
+   * records go.
    */
   function tellSoldOut() {
     const out = settings.market.soldOut ?? [];
     if (!out.length) return;
     for (const r of [...out].reverse()) {
-      const words = soldOutNotice(r);
-      logLine("warn", "market", `${words.title}: MyOrbiter went before warframe.market answered the Sold sent at ${new Date(r.at).toISOString()}; nothing sent again.`);
-      settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", ...words });
+      const { title, body, line } = soldOutNotice(r);
+      logLine("warn", "market", line);
+      settings.game.notices = logNotice(settings.game.notices, { at: Date.now(), kind: "market", title, body });
       void popUp(settings.game.notices[0], "market", { keepOut: true });
     }
     settings.market.soldOut = [];

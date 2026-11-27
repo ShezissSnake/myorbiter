@@ -1,11 +1,16 @@
 // A Sold from Orders while it is being sent to warframe.market. Orders writes a record in the
-// settings as the send goes out and takes it away when warframe.market answers, in the same step
-// as the sale goes into the sales log. Two kinds of record are left for the next start:
-// - one still out when MyOrbiter went (quit, the window closed, a reload, a crash): the sale may or
-//   may not have gone through;
-// - one warframe.market refused while MyOrbiter was leaving (`why`): the row that would have said
-//   so, with Try again, is gone with the window.
-// The player is told once at the next start, and nothing is sent again by itself.
+// settings as the send goes out and takes it away when warframe.market answers, in the same turn
+// as the sale goes into the sales log (no save can come between them). Two kinds of record are
+// left for the next start:
+// - one still out when MyOrbiter went (quit, the window closed, a reload, an update's restart, a
+//   crash): the sale may or may not have gone through;
+// - one that failed while MyOrbiter was leaving (`answer`, `why`): the row that would have said
+//   so, with Try again, is gone with the window. What is said depends on what is known
+//   (`soldFailure`): warframe.market answered with a refusal; it wasn't sent; the listing was
+//   already gone; or the answer didn't come or couldn't be read, which says no more than "maybe".
+// The player is told once at the next start, with when the Sold was sent, and nothing is sent
+// again by itself.
+import { deferredUntil } from "./marketWait";
 
 export interface SoldOut {
   /** Tells this send from another of the same listing (a Try again). */
@@ -22,8 +27,39 @@ export interface SoldOut {
   at: number;
   /** "That sale" for a trade from the game: the trade logged the sale already. */
   trade?: true;
-  /** warframe.market refused it while MyOrbiter was leaving: why. */
+  /** What became of it while MyOrbiter was leaving (soldFailure); none: no answer yet. */
+  answer?: SoldFailure;
+  /** The reason that came with it, as said. */
   why?: string;
+}
+
+/**
+ * What a Sold's failure says is known:
+ * - "refused": warframe.market answered no (an HTTP error status, or its refusal of the sign-in);
+ * - "unsent": MyOrbiter didn't send it, or warframe.market had asked to wait (not signed in, the
+ *   sign-in couldn't be kept, a wait asked for, an id or count MyOrbiter itself turned down);
+ * - "gone": nothing was sent, the listing was already gone from your listings (marketStore's sold);
+ * - "unclear": anything else (unreachable, an answer that couldn't be read, words not known
+ *   here): it may or may not have gone through.
+ */
+export type SoldFailure = "refused" | "unsent" | "gone" | "unclear";
+const FAILURES: SoldFailure[] = ["refused", "unsent", "gone", "unclear"];
+
+/** marketStore's reason when the listing is gone before anything was sent. */
+export const NO_LONGER_LISTED = "it's no longer listed (already sold or removed)";
+
+/**
+ * The kind of a failure from its words: the Rust side's MarketError reaches the page as text
+ * (src-tauri/src/market.rs, `Display`). Only words known to come from an answer say "refused";
+ * anything not known says no more than "unclear".
+ */
+export function soldFailure(why: string): SoldFailure {
+  const w = why.replace(/^Error:\s*/, "").trim();
+  if (w === NO_LONGER_LISTED) return "gone";
+  // Rejected after an answer carries its HTTP status first; the ones without are MyOrbiter's own checks, before sending.
+  if (/^warframe\.market rejected the request: \d{3}\b/.test(w) || /^warframe\.market refused the sign-in\b/.test(w)) return "refused";
+  if (/^warframe\.market rejected the request: /.test(w) || /^warframe\.market asked us to wait until \d/.test(w) || /^Not signed in to warframe\.market\b/.test(w) || /^couldn't keep the warframe\.market sign-in\b/.test(w)) return "unsent";
+  return "unclear";
 }
 
 /** Records kept at the most: one per send out at a time, so a handful at most in practice. */
@@ -40,7 +76,9 @@ export function soldOutOf(raw: unknown): SoldOut[] {
     if (!fine(x.quantity) || !Number.isInteger(x.quantity) || x.quantity < 1 || !fine(x.platinum) || x.platinum < 0 || !fine(x.at)) continue;
     const rank = fine(x.rank) ? x.rank : null;
     const why = typeof x.why === "string" && x.why.trim() ? x.why.slice(0, 300) : undefined;
-    out.push({ key: x.key.slice(0, 100), id: x.id.slice(0, 100), item: x.item.slice(0, 200), rank, quantity: x.quantity, platinum: x.platinum, at: x.at, ...(x.trade === true ? { trade: true as const } : {}), ...(why ? { why } : {}) });
+    // A reason without a known kind says no more than "unclear".
+    const answer = FAILURES.includes(x.answer as SoldFailure) ? x.answer : why ? "unclear" : undefined;
+    out.push({ key: x.key.slice(0, 100), id: x.id.slice(0, 100), item: x.item.slice(0, 200), rank, quantity: x.quantity, platinum: x.platinum, at: x.at, ...(x.trade === true ? { trade: true as const } : {}), ...(answer ? { answer } : {}), ...(why ? { why } : {}) });
     if (out.length >= SOLD_OUT_MAX) break;
   }
   return out;
@@ -50,27 +88,50 @@ export function soldOutOf(raw: unknown): SoldOut[] {
 export const withSoldOut = (list: SoldOut[], r: SoldOut): SoldOut[] => [r, ...list.filter((x) => x.key !== r.key)].slice(0, SOLD_OUT_MAX);
 
 /**
- * The list once that send is answered: its record taken away, or, when warframe.market refused it
- * while MyOrbiter was leaving (`leaving`), kept with the reason for the next start.
+ * The list once that send is answered: its record taken away, or, when it failed while MyOrbiter
+ * was leaving (`leaving`), kept with what is known of it (soldFailure) for the next start. A
+ * failure while MyOrbiter stays is said on its row, with Try again: no record.
  */
 export function soldAnswered(list: SoldOut[], key: string, answer: { ok: boolean; why: string; leaving: boolean }): SoldOut[] {
   if (answer.ok || !answer.leaving) return list.filter((x) => x.key !== key);
-  return list.map((x) => (x.key === key ? { ...x, why: (answer.why || "warframe.market didn't take it").slice(0, 300) } : x));
+  const why = answer.why.trim().slice(0, 300);
+  return list.map((x) => (x.key === key ? { ...x, answer: why ? soldFailure(why) : "unclear", ...(why ? { why } : {}) } : x));
 }
 
-/** What the player is told at the next start about a send MyOrbiter didn't see through. */
-export function soldOutNotice(r: SoldOut): { title: string; body: string } {
+/** When the Sold was sent, for a record told maybe days later: "at 14:05" today, "on Tue 24 Nov at 14:05" another day. */
+export function sentWhen(at: number, now = Date.now()): string {
+  const d = new Date(at);
+  const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+  return d.toDateString() === new Date(now).toDateString() ? `at ${time}` : `on ${d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" })} at ${time}`;
+}
+
+/**
+ * What the player is told at the next start about a send MyOrbiter didn't see through, and the
+ * log line, which says the same. Never more than is known: "not marked sold" only when it is
+ * known not to have gone through, "warframe.market refused" only when it answered so.
+ */
+export function soldOutNotice(r: SoldOut, now = Date.now()): { title: string; body: string; line: string } {
   const name = `${r.item}${r.rank != null ? ` R${r.rank}` : ""}`;
   const what = `${r.quantity} sold on warframe.market (${r.platinum}p each)`;
+  const when = sentWhen(r.at, now);
   const log = r.trade ? "The trade from the game logged its sale already." : "No sale was logged.";
-  if (r.why) {
-    return {
-      title: `${name}: not marked sold`,
-      body: `warframe.market refused to mark ${what} while MyOrbiter was closing: ${r.why.replace(/[.\s]+$/, "")}. ${log} Nothing was sent again: if it sold, mark it sold on Orders.`,
-    };
+  // A wait asked for is said as the clock shows it ("until 14:05"), not as the Rust side's milliseconds.
+  const until = r.why ? deferredUntil(r.why) : null;
+  const why = (r.why ?? "").replace(/\b\d{12,14}\b/, (m) => (until != null && Number(m) === until ? new Date(until).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" }) : m)).replace(/[.\s]+$/, "");
+  let title: string, body: string;
+  if (r.answer === "refused") {
+    title = `${name}: not marked sold`;
+    body = `warframe.market refused to mark ${what}, sent ${when} while MyOrbiter was closing: ${why}. ${log} Nothing was sent again: if it sold, mark it sold on Orders.`;
+  } else if (r.answer === "unsent") {
+    title = `${name}: not marked sold`;
+    body = `The Sold of ${r.quantity} on warframe.market (${r.platinum}p each) ${when}, while MyOrbiter was closing, didn't go through: ${why}. ${log} Nothing was sent again: if it sold, mark it sold on Orders.`;
+  } else if (r.answer === "gone") {
+    title = `${name}: nothing sent`;
+    body = `The Sold of ${r.quantity} (${r.platinum}p each) ${when}, while MyOrbiter was closing, wasn't sent: the listing was already gone from your listings (sold or removed). ${log} Nothing was sent again: look at the listing on Orders and at Sales.`;
+  } else {
+    title = `${name}: maybe not marked sold`;
+    const how = r.answer === "unclear" ? `MyOrbiter closed while it was marking ${what}, sent ${when}, and warframe.market's answer didn't come through${why ? ` (${why})` : ""}.` : `MyOrbiter closed while it was marking ${what}, sent ${when}, before warframe.market answered.`;
+    body = `${how} It may or may not have gone through. ${log} Nothing was sent again: look at the listing on Orders before marking it sold again.`;
   }
-  return {
-    title: `${name}: maybe not marked sold`,
-    body: `MyOrbiter closed while it was marking ${what}, before warframe.market answered. It may or may not have gone through. ${log} Nothing was sent again: look at the listing on Orders before marking it sold again.`,
-  };
+  return { title, body, line: `${title}: ${body}` };
 }
