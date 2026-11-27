@@ -10,7 +10,12 @@
 // --check takes no pictures and writes nothing: it opens every page's picture as it would, runs its
 // steps, and lists every part or mark whose selector matches nothing (and every part that runs past
 // the window), then exits 1 if there was any. A step that matches nothing stops that picture's
-// check there, so it is the one miss listed for that picture.
+// check there, so it is the one miss listed for that picture. A picture whose check missed on a
+// wait that ran out (a click, a part or a mark not there in time, or its window not opening) is
+// checked again before its misses count, up to TRIES times in all: the second time in the same
+// window, the third in a fresh one. A busy machine can be slow enough to run a wait out once; a
+// part that isn't on the page misses every time. The run lists the pictures that needed another
+// try, and the misses each try saw.
 //
 // Item pictures come from the picture cache, and the cache's guard refuses the rest it is shown
 // off this machine (scripts/picture-cache.mjs says what it is shown, and what it leaves to the
@@ -30,6 +35,10 @@ import { guard, hidePaths } from "./picture-cache.mjs";
 const MAX_W = 1200;
 const MAX_BYTES = 60 * 1024;
 const PAD = 16;
+const TRIES = 3;
+
+/** A miss a slow page can cause: a part or mark not found in time. One found by its place, or a part past the window, is the same on every try. */
+const waitedOut = (miss) => /^no (part|mark target) at /.test(miss);
 
 /** Takes the pictures (all, or one walk-through's with `id`) and rewrites the manifest; with `check`, only looks for every selector. */
 export async function takeHelp(browser, url, root, work, id = null, check = false) {
@@ -50,6 +59,7 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   };
 
   const misses = [];
+  const again = [];
   // One window per walk-through and size, so nothing one walk-through opened or picked is left
   // over in another's pictures; a start-up dialog gets a window of its own, opened as that start is.
   let p = null;
@@ -57,21 +67,42 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   for (const x of todo) {
     const [w, h] = x.shot.size ?? [1280, 800];
     const want = `${x.wt.id} ${w}x${h}${x.shot.startup ? ` ${x.shot.startup}` : ""}${x.shot.emptyChannel ? " empty" : ""}`;
+    const where = `${x.wt.id}, page ${x.i + 1}`;
+    if (check) {
+      // Each try's misses: [text, whether a wait ran out].
+      let found = [];
+      let tries = 0;
+      while (tries < TRIES) {
+        tries++;
+        found = [];
+        try {
+          // A fresh window when the walk-through or size changes, for a start-up dialog, and from the third try on.
+          if (!p || want !== size || x.shot.startup || tries > 2) {
+            await p?.close().catch(() => {});
+            p = null;
+            p = await openApp(browser, url, w, h, x.shot);
+            size = want;
+          }
+          await reach(p, x.shot, where);
+          for (const miss of await missing(p, x.shot)) found.push([`${where}: ${miss}`, waitedOut(miss)]);
+        } catch (e) {
+          // reach and openApp throw when a click, a field, a page or the window wasn't there in time
+          // (Playwright's own timeouts too, which don't name the picture).
+          const m = hidePaths(e instanceof Error ? e.message : String(e));
+          found.push([m.startsWith(`${where}:`) ? m : `${where}: ${m}`, true]);
+        }
+        if (!found.some(([, waited]) => waited)) break;
+        if (tries < TRIES) console.log(`${where}: try ${tries} of ${TRIES} missed (${found.map(([m]) => m).join("; ")}); trying again`);
+      }
+      for (const [m] of found) misses.push(m);
+      if (tries > 1) again.push(`${where}: ${tries} tries, ${found.length ? `${found.length} misses on the last` : "clean on the last"}`);
+      console.log(`checked ${where}`);
+      continue;
+    }
     if (want !== size || x.shot.startup) {
       await p?.close();
       p = await openApp(browser, url, w, h, x.shot);
       size = want;
-    }
-    const where = `${x.wt.id}, page ${x.i + 1}`;
-    if (check) {
-      try {
-        await reach(p, x.shot, where);
-        for (const miss of await missing(p, x.shot)) misses.push(`${where}: ${miss}`);
-      } catch (e) {
-        misses.push(hidePaths(e.message));
-      }
-      console.log(`checked ${where}`);
-      continue;
     }
     await reach(p, x.shot, where);
     const clip = await mark(p, x.shot, where);
@@ -88,8 +119,9 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   }
   await p?.close();
   if (check) {
+    for (const a of again) console.log(`AGAIN ${a}`);
     for (const m of misses) console.log(`MISSING ${m}`);
-    console.log(`${todo.length} pictures checked, ${misses.length} misses (a selector that matches nothing, or finds a switch or field by its place)`);
+    console.log(`${todo.length} pictures checked, ${misses.length} misses (a selector that matches nothing, or finds a switch or field by its place), ${again.length} pictures tried more than once`);
     if (misses.length) process.exitCode = 1;
     return;
   }
