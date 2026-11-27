@@ -139,7 +139,9 @@ export function recordRead(log: DropLog, counts: Record<string, number>, at: num
     if (Object.keys(building).length) out.building = building;
     return out;
   };
-  if (!log.at) return sum > 0 ? withBuilding({ at, counts, windows: [] }) : null;
+  // A new log, or one whose counts could not be read back (savedGame.ts): this read is the
+  // baseline; drops logged before it stay.
+  if (!log.at) return sum > 0 ? withBuilding({ at, counts, windows: log.windows }) : null;
   // A read older than the last one (the computer's clock was set back): the new baseline, and the
   // reads after it count from it. A log that counted some parts another way: those take this read
   // as their baseline, and the rest count as usual.
