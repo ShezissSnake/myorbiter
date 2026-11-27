@@ -6,7 +6,7 @@ import "./support/runes";
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { market } from "../src/lib/backend";
-import { RIVEN_LISTS_GAP_MS, RIVEN_LISTS_TRIES, RivenListsTries, rivenListsUsable, rivenTradeStep } from "../src/lib/core/rivenLists";
+import { RIVEN_LISTS_GAP_MS, RIVEN_LISTS_TRIES, RIVEN_LISTS_WAIT_MAX_MS, RivenListsTries, RivenListsWait, rivenListsUsable, rivenTradeStep } from "../src/lib/core/rivenLists";
 import { rivenRecent, rivenVerdict, type RivenSold } from "../src/lib/core/rivenSold";
 import { TELL_WINDOW } from "../src/lib/core/saleNotice";
 import { tradeKey } from "../src/lib/core/trades";
@@ -25,7 +25,8 @@ beforeEach(() => {
   rivens.meta = null;
   rivens.metaError = null;
   rivens.metaFailure = null;
-  Object.assign(rivens as unknown as object, { loading: null, pageReadOut: false, tradeTries: new RivenListsTries() });
+  Object.assign(rivens as unknown as object, { loading: null, pageReadOut: false, tradeTries: new RivenListsTries(), listsWait: new RivenListsWait() });
+  rivens.clock = () => Date.now();
 });
 
 const meta: RivenMeta = {
@@ -139,8 +140,9 @@ test("lists that can't be had: three tries a minute apart per trade, never read 
   assert.equal(calls.n, RIVEN_LISTS_TRIES);
   // And the trade is never decided without them: it stays "lists", never "nothing" or "decide".
   assert.equal(step({ meta: rivens.meta }).do, "lists");
-  // A page that loads them later lets it be decided then.
+  // A page that loads them later (once the wait the failed tries left is over) lets it be decided then.
   market.rivenMeta = async () => meta;
+  rivens.clock = () => Date.now() + RIVEN_LISTS_WAIT_MAX_MS;
   await rivens.loadMeta();
   assert.equal(step({ meta: rivens.meta }).do, "decide");
 });
@@ -218,7 +220,8 @@ test("the pages read, keep and show the lists as they always have; they only gai
   assert.deepEqual(await rivens.loadMeta(), meta);
   assert.equal(calls.n, n2);
 
-  // A page's read that fails shows its failure, and the next page call reads again.
+  // A page's read that fails shows its failure, and a page call reads again once the wait after it
+  // is over (tests/rivenListsWait.test.ts), not before.
   rivens.meta = null;
   Object.assign(rivens as unknown as object, { loading: null, tradeTries: new RivenListsTries() });
   answer = async () => {
@@ -228,7 +231,11 @@ test("the pages read, keep and show the lists as they always have; they only gai
   assert.match(rivens.metaError ?? "", /timed out/);
   const before = calls.n;
   await rivens.loadMeta();
+  assert.equal(calls.n, before, "inside the wait: nothing sent");
+  rivens.clock = () => Date.now() + RIVEN_LISTS_WAIT_MAX_MS;
+  await rivens.loadMeta();
   assert.equal(calls.n, before + 1);
+  rivens.clock = () => Date.now();
 
   // A trade's read that fails, or comes back with no weapon, changes nothing a page shows or keeps.
   rivens.metaError = "an earlier page read's reason";

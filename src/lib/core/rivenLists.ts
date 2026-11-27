@@ -7,6 +7,7 @@
 import type { RivenMeta } from "./rivens";
 import type { Trade } from "./types";
 import { rivenTradesDue, type RivenSold } from "./rivenSold";
+import { backoff } from "./upkeep";
 
 /**
  * Tries at the lists for one trade, at most: the first, then two more while they fail, counted in
@@ -18,10 +19,49 @@ export const RIVEN_LISTS_TRIES = 3;
  * After a try that failed, how long until the next (ms), counted from when it failed. A try is one
  * read of the lists: answered from the copy kept while it is under a day old, otherwise two
  * requests (weapons, then stats) through warframe.market's queue in market.rs, whose own waits and
- * time limits set how long it takes. A minute apart is the pace the Rivens page tries again at
- * while it is open, so a trade never asks faster than a page.
+ * time limits set how long it takes. A minute apart is the pages' first wait after a failed read
+ * (RivenListsWait); the pages' longer waits after more failures don't hold a trade's tries, which
+ * RIVEN_LISTS_TRIES bounds instead.
  */
 export const RIVEN_LISTS_GAP_MS = 60_000;
+
+/** After a failed read of the lists, how long the pages' next read waits at least (ms). */
+export const RIVEN_LISTS_WAIT_MS = 60_000;
+/** The longest that wait grows to while the failures go on (ms). */
+export const RIVEN_LISTS_WAIT_MAX_MS = 10 * 60_000;
+
+/**
+ * The wait after a failed read of the lists, for every page's ask (Orders, Rivens, Builds, a riven
+ * cycle; rivens.loadMeta): none is sent before it is over. A minute after the first failure, doubled
+ * after each one in a row up to RIVEN_LISTS_WAIT_MAX_MS, counted from when the read failed; a read
+ * that worked (whatever lists it brought) ends it. A riven trade's read counts here too, but is not
+ * held by it: the trade keeps its own tries (RivenListsTries).
+ */
+export class RivenListsWait {
+  private failures = 0;
+  private until = 0;
+  /** Why the last failed read failed; null after one that worked. */
+  reason: string | null = null;
+
+  /** A read failed at `now`, for `why`: the next waits a minute, or longer after more in a row. */
+  failed(why: string, now: number) {
+    this.failures++;
+    this.until = now + backoff(RIVEN_LISTS_WAIT_MS, this.failures - 1, RIVEN_LISTS_WAIT_MAX_MS);
+    this.reason = why;
+  }
+
+  /** A read worked: no wait. */
+  worked() {
+    this.failures = 0;
+    this.until = 0;
+    this.reason = null;
+  }
+
+  /** Whether a read asked for at `now` must wait. */
+  holds(now: number): boolean {
+    return now < this.until;
+  }
+}
 
 /**
  * Lists a riven can be told by: loaded, with at least one weapon. An empty weapon list would fit no
