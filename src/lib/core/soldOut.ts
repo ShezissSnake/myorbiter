@@ -9,8 +9,9 @@
 //   (`soldFailure`): warframe.market answered with a refusal; it wasn't sent; the listing was
 //   already gone; or the answer didn't come or couldn't be read, which says no more than "maybe".
 // The player is told once at the next start, with when the Sold was sent, and nothing is sent
-// again by itself. If the window stays after all (an update that stopped, its install or its
-// restart failed), a failure kept is let go (`soldStayed`): its row shows it.
+// again by itself. If the window stays after all (an update that stopped: no longer on offer, the
+// save before the install, the install or the restart failed), a failure kept is let go
+// (`soldStayed`): its row shows it.
 import { deferredUntil } from "./marketWait";
 
 export interface SoldOut {
@@ -61,7 +62,7 @@ export function soldFailure(why: string): SoldFailure {
   // A 4xx is a refusal; a 5xx (a server or gateway error) may come after the change was made.
   if (/^warframe\.market rejected the request: 5\d\d\b/.test(w)) return "unclear";
   if (/^warframe\.market rejected the request: 4\d\d\b/.test(w) || /^warframe\.market refused the sign-in\b/.test(w)) return "refused";
-  if (/^warframe\.market rejected the request: /.test(w) || /^warframe\.market asked us to wait until \d/.test(w) || /^Not signed in to warframe\.market\b/.test(w) || /^couldn't keep the warframe\.market sign-in\b/.test(w)) return "unsent";
+  if (/^warframe\.market rejected the request: /.test(w) || /^warframe\.market asked us to wait until\b/.test(w) || /^Not signed in to warframe\.market\b/.test(w) || /^couldn't keep the warframe\.market sign-in\b/.test(w)) return "unsent";
   return "unclear";
 }
 
@@ -98,9 +99,10 @@ export const withSoldOut = (list: SoldOut[], r: SoldOut): SoldOut[] => [r, ...li
 export function soldAnswered(list: SoldOut[], key: string, answer: { ok: boolean; why: string; leaving: boolean }): SoldOut[] {
   if (answer.ok) {
     // Marked sold: a failure kept earlier for the same listing (a Try again since, the window
-    // still open) is no longer worth telling.
-    const id = list.find((x) => x.key === key)?.id;
-    return list.filter((x) => x.key !== key && !(x.answer && x.id === id));
+    // still open) is no longer worth telling, when this Sold was of at least as many copies. A
+    // smaller one leaves the copies the failure was about unmarked: it is still told.
+    const r = list.find((x) => x.key === key);
+    return list.filter((x) => x.key !== key && !(r && x.answer && x.id === r.id && x.quantity <= r.quantity));
   }
   if (!answer.leaving) return list.filter((x) => x.key !== key);
   const why = answer.why.trim().slice(0, 300);
@@ -108,9 +110,10 @@ export function soldAnswered(list: SoldOut[], key: string, answer: { ok: boolean
 }
 
 /**
- * The list once the window stays after all (backend.ts › stayed: an update that stopped, its
- * install or its restart failed): a failure kept while MyOrbiter was leaving is on its row, with
- * Try again, so it isn't told again at the next start. A send still out keeps its record.
+ * The list once the window stays after all (backend.ts › stayed: an update that stopped, the save
+ * before the install, the install or the restart failed): a failure kept while MyOrbiter was
+ * leaving is on its row, with Try again, so it isn't told again at the next start. A send still
+ * out keeps its record.
  */
 export const soldStayed = (list: SoldOut[]): SoldOut[] => list.filter((x) => !x.answer);
 

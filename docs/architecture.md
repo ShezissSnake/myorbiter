@@ -165,8 +165,9 @@ no more than is known (`soldFailure`), with when it was sent, sending nothing ag
 restart makes what waits at the click before the install begins, on every system, and what was
 clicked since before the restart; a Sold clicked during the download is not made when the Windows
 installer closes MyOrbiter first, in the last seconds. When the update stops and the window stays
-(no longer on offer, the install or the restart failed: `stayed`), a failure kept is let go, its
-row showing it; so is one for a listing a later Sold marked sold.
+(no longer on offer, the save before the install, the install or the restart failed: `stayed`), a
+failure kept is let go, its row showing it; so is one for a listing a later Sold of at least as
+many copies marked sold. A quit that joins a leaving still held by a save counts as leaving again.
 
 ### 2.3 Inside the window: settings, model, pages
 

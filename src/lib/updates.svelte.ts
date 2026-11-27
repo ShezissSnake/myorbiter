@@ -574,7 +574,14 @@ export class Updates {
       u.from = { version: o.version, channel: o.channel };
       u.later = "";
       await tick();
-      await flushSettings();
+      try {
+        await flushSettings();
+      } catch (e) {
+        // The save failed before the install began: the update stops and the window stays.
+        stayed();
+        u.from = before;
+        throw e;
+      }
       try {
         await updater.install(o.channel, o.version, o.older, (done, total) => {
           job.fraction = total ? done / total : null;

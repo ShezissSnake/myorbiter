@@ -8,10 +8,11 @@
 import { effectRoot, flush } from "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { beforeLeaving, beforeUpdating, defaultSettings, leaving, flushSettings, LEAVE_CAP, LEAVE_WAIT, loadSettings, quit, stayed, updater, whenStaying, type Settings, type UpdateCheck } from "../src/lib/backend";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { beforeLeaving, beforeUpdating, defaultSettings, leaving, leavingOver, onSaveTrouble, flushSettings, LEAVE_CAP, LEAVE_WAIT, loadSettings, quit, stayed, updater, whenStaying, type Settings, type UpdateCheck } from "../src/lib/backend";
 import { NO_LONGER_LISTED, sentWhen, soldAnswered, soldFailure, soldOutNotice, soldOutOf, soldStayed, withSoldOut, type SoldOut } from "../src/lib/core/soldOut";
 import { clockTime, waitWords } from "../src/lib/core/marketWait";
-import { defaultUpdates } from "../src/lib/core/updates";
+import { defaultUpdates, type UpdateSettings } from "../src/lib/core/updates";
 
 const { SoldWaits } = await import("../src/lib/soldWait.svelte");
 const { UndoSlots } = await import("../src/lib/undo.svelte");
@@ -21,6 +22,28 @@ const { Updates } = await import("../src/lib/updates.svelte");
 // @ts-expect-error: Svelte's client internals have no type declarations
 const { proxy } = (await import("svelte/internal/client")) as { proxy: <T>(v: T) => T };
 const later = (ms: number) => new Promise((r) => setTimeout(r, ms));
+/** Waits until `ok()` holds, looking every few ms: a slow machine makes it take longer, never fail. Fails only after `ms`. */
+async function eventually(ok: () => boolean, what: string, ms = 15_000) {
+  const end = Date.now() + ms;
+  while (!ok()) {
+    if (Date.now() > end) assert.fail(`still not so after ${ms} ms: ${what}`);
+    await later(5);
+  }
+}
+/**
+ * How late timers run while a check runs, at worst (ms). A loaded machine runs every timer late, so
+ * a bound on a chain of timer turns (`slack(turns)`) allows that much for each: tight on a quiet
+ * machine, wider on a slow one. The caps that a hanging save would otherwise outlast are checked by
+ * order instead (a timer due just after the cap's), which no slowness changes.
+ */
+function lagWatch() {
+  const h = monitorEventLoopDelay({ resolution: 10 });
+  h.enable();
+  return (turns: number) => {
+    h.disable();
+    return turns * Math.ceil(h.max / 1e6);
+  };
+}
 
 /** The Rust side's words for each kind of failure (src-tauri/src/market.rs, MarketError's Display). */
 const REFUSED = "warframe.market rejected the request: 400 Example refusal";
@@ -30,10 +53,11 @@ const SERVER_ERROR = "warframe.market rejected the request: 504 Example gateway 
 
 /** Settings saved as App.svelte saves them, into a stand-in for the browser's storage. */
 async function saved() {
-  // A test that failed part-way may have left a leaving under way: the next starts once it's over,
-  // so one test's leaving never carries another's clicks.
-  for (let i = 0; leaving() && i < 300; i++) await later(10);
-  assert.equal(leaving(), false, "no leaving left from an earlier test");
+  // A test that failed part-way, or a slow machine, may have left a leaving under way (one the
+  // window stayed after counts as leaving no more, but still runs): the next test starts once it
+  // is over, so one test's leaving never joins or carries another's.
+  const over = await Promise.race([leavingOver().then(() => true), later(15_000).then(() => false)]);
+  assert.ok(over, "no leaving left from an earlier test");
   const stored: Record<string, string> = {};
   (globalThis as { localStorage?: unknown }).localStorage = { getItem: (k: string) => stored[k] ?? null, setItem: (k: string, v: string) => (stored[k] = v) };
   const settings = proxy(defaultSettings()) as Settings;
@@ -54,6 +78,8 @@ let unstay: (() => void) | null = null;
  */
 function orders(settings: Settings, close: (id: string, n: number) => Promise<true | string>, ms?: number) {
   const sent: [string, number][] = [];
+  /** How many of the sends were answered (warframe.market's answer, or its failure, taken in). */
+  const answered = { n: 0 };
   let k = 0;
   unstay?.();
   unstay = whenStaying(() => (settings.market.soldOut = soldStayed(settings.market.soldOut ?? [])));
@@ -64,12 +90,13 @@ function orders(settings: Settings, close: (id: string, n: number) => Promise<tr
     const p = close(id, n).then((a) => {
       const ok = a === true;
       settings.market.soldOut = soldAnswered(settings.market.soldOut ?? [], key, { ok, why: ok ? "" : a, leaving: leaving() });
+      answered.n++;
       return ok;
     });
     waits.track(p);
     if (await p) settings.market.sales = [{ at: Date.now(), item: "Example Prime Set", rank: null, quantity: n, platinum: 45 }, ...settings.market.sales];
   }, ms);
-  return { waits, sent };
+  return { waits, sent, answered };
 }
 const answers = (ms: number) => () => later(ms).then(() => true as const);
 const fails = (why: string, ms = 20) => () => later(ms).then(() => why);
@@ -136,10 +163,13 @@ test("a send that isn't answered doesn't hold the quit: the app leaves, and the 
   const late = unanswered();
   const { waits, sent } = orders(settings, late.close);
   waits.hold("listing-1", 2, 2);
+  const slack = lagWatch();
   try {
     const t0 = Date.now();
     await beforeLeaving(50);
-    assert.ok(Date.now() - t0 < 1000, "it waited only its moment");
+    const took = Date.now() - t0;
+    const allowed = 1000 + slack(4);
+    assert.ok(took < allowed, `it waited only its moment (${took} ms, allowed ${allowed})`);
     assert.deepEqual(sent, [["listing-1", 2]], "sent once");
     const f = file();
     assert.equal(f.market.sales.length, 0, "no sale logged");
@@ -185,11 +215,13 @@ test("quit, with no wait given, ends within its cap when warframe.market doesn't
   const late = unanswered();
   const { waits } = orders(settings, late.close);
   waits.hold("listing-1", 1, 1);
+  const slack = lagWatch();
   try {
     const t0 = Date.now();
     await quit();
     const took = Date.now() - t0;
-    assert.ok(took >= LEAVE_WAIT - 50 && took < LEAVE_WAIT + 700, `took ${took} ms`);
+    const allowed = LEAVE_WAIT + 700 + slack(4);
+    assert.ok(took >= LEAVE_WAIT - 50 && took < allowed, `took ${took} ms, allowed ${allowed}`);
   } finally {
     await late.end();
     stop();
@@ -339,13 +371,16 @@ test("a second quit while one runs joins it: both end together, the first's wait
   try {
     const t0 = Date.now();
     let firstAt = 0;
-    let secondAt = 0;
+    let secondDone = false;
     const first = beforeLeaving(300).then(() => (firstAt = Date.now() - t0));
     await later(100);
-    const second = beforeLeaving().then(() => (secondAt = Date.now() - t0));
-    await Promise.all([first, second]);
+    const second = beforeLeaving().then(() => (secondDone = true));
+    await first;
     assert.ok(firstAt >= 280, `the first waited its time (${firstAt} ms)`);
-    assert.ok(Math.abs(secondAt - firstAt) < 60, `the second ended with the first (${firstAt} and ${secondAt} ms)`);
+    // Ended together: the second is over in the same turn as the first, before any timer runs.
+    await later(0);
+    assert.equal(secondDone, true, "the second ended with the first");
+    await second;
     assert.deepEqual(sent, [["listing-1", 1]], "sent once");
   } finally {
     await late.end();
@@ -356,14 +391,15 @@ test("a second quit while one runs joins it: both end together, the first's wait
 test("a later Ctrl+Q isn't held by a save that hangs any longer than the first one's cap", async () => {
   await saved();
   const hang = hangingSave();
-  const t0 = Date.now();
   const first = beforeLeaving(50, hang.save);
+  // The first's cap ends no later than this (its start, plus its wait and the room for the saves).
+  const capEnds = Date.now() + 50 + (LEAVE_CAP - LEAVE_WAIT);
   try {
     await later(20);
-    const second = await Promise.race([beforeLeaving().then(() => "went"), later(50 + (LEAVE_CAP - LEAVE_WAIT) + 600).then(() => "held")]);
-    assert.equal(second, "went", "the second quit goes on");
-    const took = Date.now() - t0;
-    assert.ok(took < 50 + (LEAVE_CAP - LEAVE_WAIT) + 200, `within the first's cap (${took} ms)`);
+    // Checked by order: a timer due 300 ms after the cap's runs after it however late both run, so
+    // "went" means the second quit was let go at the first's cap, not at some later time.
+    const second = await Promise.race([beforeLeaving().then(() => "went"), later(Math.max(0, capEnds - Date.now()) + 300).then(() => "held")]);
+    assert.equal(second, "went", "the second quit goes on at the first's cap");
   } finally {
     hang.release();
     await first;
@@ -389,20 +425,19 @@ test("nothing is sent twice: the wait running out after a quit, or a second quit
 
 test("a Sold sent by its wait while the app stays open is sent once, after the wait, and leaves no hook behind", async () => {
   const { settings, stop, file } = await saved();
-  const { waits, sent } = orders(settings, answers(5), 30);
+  const { waits, sent, answered } = orders(settings, answers(5), 30);
   waits.hold("listing-1", 1, 1);
   try {
     await later(10);
     assert.deepEqual(sent, [], "still waiting");
-    await later(60);
+    await eventually(() => answered.n === 1, "the Sold sent by its wait and answered");
     assert.deepEqual(sent, [["listing-1", 1]]);
     flush();
     await flushSettings();
     assert.equal(file().market.sales.length, 1);
-    // Quitting now has nothing to wait for: as quick as with nothing ever clicked.
-    const t0 = Date.now();
-    await quit();
-    assert.ok(Date.now() - t0 < LEAVE_WAIT / 2, "no wait");
+    // Quitting now has nothing to wait for: as quick as with nothing ever clicked. Checked by
+    // order: it is over before a timer due at half the wait, however late that timer runs.
+    assert.equal(await Promise.race([quit().then(() => "quit"), later(LEAVE_WAIT / 2).then(() => "waited")]), "quit", "no wait");
     assert.deepEqual(sent, [["listing-1", 1]]);
   } finally {
     stop();
@@ -411,9 +446,8 @@ test("a Sold sent by its wait while the app stays open is sent once, after the w
 
 test("quitting with nothing waiting doesn't wait", async () => {
   await saved();
-  const t0 = Date.now();
-  await quit();
-  assert.ok(Date.now() - t0 < LEAVE_WAIT / 2);
+  // Checked by order: over before a timer due at half the wait, however late that timer runs.
+  assert.equal(await Promise.race([quit().then(() => "quit"), later(LEAVE_WAIT / 2).then(() => "waited")]), "quit");
 });
 
 // ---- rule 3: Update and restart
@@ -428,17 +462,18 @@ test("the step before an update's restart makes what waits, and is never held pa
   } finally {
     stop();
   }
-  // A save that hangs: the restart goes ahead at the cap.
+  // On a slow machine that step may have been let go at its cap: its leaving is over first.
+  await leavingOver();
+  // A save that hangs: the restart goes ahead at the cap. Checked by order: a timer due 300 ms
+  // after the cap's runs after it however late both run.
   const hang = hangingSave();
-  const t0 = Date.now();
   try {
-    const went = await Promise.race([beforeUpdating(hang.save).then(() => "went"), later(LEAVE_CAP + 800).then(() => "held")]);
-    assert.equal(went, "went", "the restart goes ahead");
-    const took = Date.now() - t0;
-    assert.ok(took < LEAVE_CAP + 300, `held ${took} ms`);
+    const step = beforeUpdating(hang.save).then(() => "went");
+    const went = await Promise.race([step, later(LEAVE_CAP + 300).then(() => "held")]);
+    assert.equal(went, "went", "the restart goes ahead at the cap");
   } finally {
     hang.release();
-    await later(5);
+    await leavingOver();
   }
   // A save that fails: the step ends, and the restart goes ahead.
   await assert.doesNotReject(beforeUpdating(() => Promise.reject(new Error("Example disk full"))));
@@ -448,7 +483,7 @@ test("the step before an update's restart makes what waits, and is never held pa
  * Update and restart, clicked (`click`) with the updater faked: `install` and `restart` stand in
  * for downloading and installing, and for the restart. Everything else is the real Updates.
  */
-async function updateAndRestart(install: () => Promise<void>, restart: () => Promise<void>, click: (u: InstanceType<typeof Updates>) => Promise<unknown>) {
+async function updateAndRestart(install: () => Promise<void>, restart: () => Promise<void>, click: (u: InstanceType<typeof Updates>) => Promise<unknown>, own?: UpdateSettings) {
   const real = { ...updater };
   const newer: UpdateCheck = { state: "newer", version: "0.2.150", notes: null, date: null };
   updater.info = async () => ({ version: "0.2.141", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
@@ -456,7 +491,7 @@ async function updateAndRestart(install: () => Promise<void>, restart: () => Pro
   updater.install = install;
   updater.restart = restart;
   const u = new Updates();
-  const us = { ...defaultUpdates(), channel: "beta" as const };
+  const us = own ?? { ...defaultUpdates(), channel: "beta" as const };
   try {
     u.start(() => us);
     // The build's own version read, as at a start; then Check now.
@@ -505,6 +540,7 @@ test("the step before the install never holds the install past the cap, even for
   const market = unanswered();
   const { waits, sent } = orders(settings, market.close);
   let began = 0;
+  const slack = lagWatch();
   const t0 = Date.now();
   try {
     await updateAndRestart(
@@ -516,7 +552,10 @@ test("the step before the install never holds the install past the cap, even for
       },
     );
     assert.deepEqual(sent, [["listing-1", 1]], "sent before the install");
-    assert.ok(began > 0 && began - t0 < LEAVE_CAP + 300, `the install began ${began - t0} ms after the click`);
+    // The cap itself is checked by order in the test before; here, that the install isn't held by
+    // a Sold never answered: a bound on the timer turns between the click and the install.
+    const allowed = LEAVE_CAP + 300 + slack(6);
+    assert.ok(began > 0 && began - t0 < allowed, `the install began ${began - t0} ms after the click (allowed ${allowed})`);
   } finally {
     await market.end();
     stop();
@@ -557,6 +596,51 @@ test("a Sold failing in the step before the install is kept while the update goe
   }
 });
 
+test("a save that fails before the install begins: the update stops, the window stays, and a Sold failing before it isn't told again", async () => {
+  const { settings, stop, file } = await saved();
+  settings.updates = { ...defaultUpdates(), channel: "beta" };
+  flush();
+  await flushSettings();
+  const { waits, sent, answered } = orders(settings, fails(REFUSED, 5));
+  // The save made just before installing (the update's own version recorded) fails, and so does
+  // what is told of it: the save step itself rejects.
+  const storage = (globalThis as { localStorage: { setItem: (k: string, v: string) => void } }).localStorage;
+  const setItem = storage.setItem;
+  storage.setItem = (k, v) => {
+    if ((JSON.parse(v) as Settings).updates?.from?.version === "0.2.150") throw new Error("Example disk full");
+    setItem(k, v);
+  };
+  onSaveTrouble((t) => {
+    if (t) throw new Error("Example failure while telling it");
+  });
+  let installed = false;
+  try {
+    const done = await updateAndRestart(
+      async () => void (installed = true),
+      async () => {},
+      (u) => {
+        waits.hold("listing-1", 1, 1);
+        return u.install();
+      },
+      settings.updates,
+    );
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    assert.equal(answered.n, 1);
+    assert.equal(installed, false, "the install never began");
+    assert.equal(done, false, "the update says it failed");
+    assert.equal(leaving(), false, "the window stays: nothing counts as leaving");
+    assert.equal(settings.updates.from, null, "not recorded as updating");
+    assert.deepEqual(settings.market.soldOut, [], "its row shows it: not told again");
+  } finally {
+    storage.setItem = setItem;
+    onSaveTrouble(() => {});
+    flush();
+    await flushSettings();
+    stop();
+  }
+  assert.deepEqual(file().market.soldOut, []);
+});
+
 test("an update no longer on offer once the check under way ends: the window stays, and a Sold failing before it isn't told again", async () => {
   const { settings, stop, file } = await saved();
   const { waits, sent } = orders(settings, fails(REFUSED, 5));
@@ -566,12 +650,18 @@ test("an update no longer on offer once the check under way ends: the window sta
       async () => void (installed = true),
       async () => {},
       async (u) => {
-        // Check now, still running at the click, ends with another build on offer.
-        updater.check = () => later(60).then((): UpdateCheck => ({ state: "newer", version: "0.2.151", notes: null, date: null }));
+        // Check now, still running at the click, ends with another build on offer once the
+        // install waits for it (after the step before the install), however slow the machine.
+        let answer!: () => void;
+        const held = new Promise<void>((r) => (answer = r));
+        updater.check = () => held.then((): UpdateCheck => ({ state: "newer", version: "0.2.151", notes: null, date: null }));
         const checking = u.checkNow();
         await later(5);
         waits.hold("listing-1", 1, 1);
-        const r = await u.install();
+        const installing = u.install();
+        await eventually(() => u.installJob.phase === "Checking", "the install waits for the check under way");
+        answer();
+        const r = await installing;
         await checking;
         return r;
       },
@@ -590,14 +680,14 @@ test("an update no longer on offer once the check under way ends: the window sta
 test("a Try again that marks the listing sold during the download lets go of the failure kept for it", async () => {
   const { settings, stop, file } = await saved();
   let calls = 0;
-  const { waits, sent } = orders(settings, (_id) => later(5).then(() => (++calls === 1 ? REFUSED : (true as const))), 10);
+  const { waits, sent, answered } = orders(settings, (_id) => later(5).then(() => (++calls === 1 ? REFUSED : (true as const))), 10);
   let after: unknown = null;
   try {
     await updateAndRestart(
       async () => {
         // The first Sold failed in the step before the install; Try again, during the download, is marked sold.
         waits.hold("listing-1", 1, 1);
-        await later(60);
+        await eventually(() => answered.n === 2, "the Try again answered");
         flush();
         await flushSettings();
         after = file().market.soldOut;
@@ -619,6 +709,16 @@ test("a Try again that marks the listing sold during the download lets go of the
   const mine: SoldOut = { ...other, key: "a|1", id: "a" };
   const again: SoldOut = { key: "a|2", id: "a", item: "Example Prime Set", rank: null, quantity: 1, platinum: 20, at: 2 };
   assert.deepEqual(soldAnswered([again, mine, other], "a|2", { ok: true, why: "", leaving: false }), [other]);
+});
+
+test("a failure kept is let go only by a later Sold of at least as many copies of that listing; a smaller one leaves it to be told", () => {
+  const kept: SoldOut = { key: "a|1", id: "a", item: "Example Prime Set", rank: null, quantity: 3, platinum: 20, at: 1, answer: "refused", why: REFUSED };
+  const sold = (quantity: number): SoldOut => ({ key: "a|2", id: "a", item: "Example Prime Set", rank: null, quantity, platinum: 20, at: 2 });
+  // A Sold of 1 marks one copy: the 3 the failure was about are not all marked, so it is still told.
+  assert.deepEqual(soldAnswered([sold(1), kept], "a|2", { ok: true, why: "", leaving: false }), [kept]);
+  // As many, or more: the listing is marked sold, nothing left to tell.
+  assert.deepEqual(soldAnswered([sold(3), kept], "a|2", { ok: true, why: "", leaving: false }), []);
+  assert.deepEqual(soldAnswered([sold(5), kept], "a|2", { ok: true, why: "", leaving: false }), []);
 });
 
 test("a restart that fails: a Sold failing in the restart's step, shown on its row, isn't told again at the next start", async () => {
@@ -653,7 +753,7 @@ test("a restart that fails: a Sold failing in the restart's step, shown on its r
 test("once the window stays, nothing counts as leaving, even while a leaving held by a save that hangs still runs", async () => {
   const { settings, stop } = await saved();
   const hang = hangingSave();
-  const { waits, sent } = orders(settings, fails(REFUSED, 5), 10);
+  const { waits, sent, answered } = orders(settings, fails(REFUSED, 5), 10);
   const going = beforeLeaving(LEAVE_WAIT, hang.save);
   try {
     assert.equal(leaving(), true);
@@ -661,12 +761,40 @@ test("once the window stays, nothing counts as leaving, even while a leaving hel
     assert.equal(leaving(), false);
     // A Sold clicked now waits for its Undo as usual, and its failure is said on its row: no record.
     waits.hold("listing-1", 1, 1);
-    await later(80);
+    await later(5);
+    assert.deepEqual(sent, [], "waits for its Undo");
+    await eventually(() => answered.n === 1, "the Sold sent after its wait and answered");
     assert.deepEqual(sent, [["listing-1", 1]]);
     assert.deepEqual(settings.market.soldOut, []);
   } finally {
     hang.release();
     await going;
+    stop();
+  }
+});
+
+test("a quit that joins a leaving still held by a save after the window stayed counts as leaving again", async () => {
+  const { settings, stop } = await saved();
+  const hang = hangingSave();
+  const { waits, sent, answered } = orders(settings, fails(REFUSED, 5));
+  const going = beforeLeaving(LEAVE_WAIT, hang.save);
+  let again: Promise<void> | null = null;
+  try {
+    stayed();
+    assert.equal(leaving(), false, "the window stayed");
+    // Ctrl+Q now joins the leaving still held by its save: MyOrbiter is leaving again.
+    again = beforeLeaving();
+    assert.equal(leaving(), true, "leaving again");
+    // So a Sold clicked now is sent at once, and its failure kept for the next start.
+    waits.hold("listing-1", 1, 1);
+    assert.deepEqual(sent, [["listing-1", 1]], "sent at the click");
+    await eventually(() => answered.n === 1, "the Sold answered");
+    assert.equal(settings.market.soldOut?.[0]?.answer, "refused", "kept for the next start");
+  } finally {
+    hang.release();
+    await going;
+    await again;
+    waits.flush();
     stop();
   }
 });
@@ -699,6 +827,8 @@ test("what a failure's words say is known: refused only when warframe.market ans
   assert.equal(soldFailure(NO_LONGER_LISTED), "gone");
   assert.equal(soldFailure("warframe.market asked us to wait until 1795744859843"), "unsent");
   assert.equal(soldFailure(waitWords("warframe.market asked us to wait until 1795744859843")), "unsent", "the form the page gets");
+  // Whatever form the clock's time takes: the day period first, other digits, a 12-hour clock.
+  for (const at of ["오후 02:05", "٢:٠٥ م", "۱۴:۰۵", "2:05 PM", "14:05:30"]) assert.equal(soldFailure(`warframe.market asked us to wait until ${at}`), "unsent", at);
   assert.equal(soldFailure("Not signed in to warframe.market"), "unsent");
   assert.equal(soldFailure("couldn't keep the warframe.market sign-in: Example"), "unsent");
   assert.equal(soldFailure("warframe.market rejected the request: bad order id"), "unsent", "MyOrbiter's own check, before sending");
@@ -783,10 +913,10 @@ test("not sent (a wait warframe.market asked for): not marked sold, without blam
 
 test("a refusal while the app stays open leaves no record: its row says so, with Try again", async () => {
   const { settings, stop, file } = await saved();
-  const { waits, sent } = orders(settings, fails(REFUSED, 5), 10);
+  const { waits, sent, answered } = orders(settings, fails(REFUSED, 5), 10);
   waits.hold("listing-1", 1, 1);
   try {
-    await later(60);
+    await eventually(() => answered.n === 1, "the Sold sent after its wait and answered");
     assert.deepEqual(sent, [["listing-1", 1]]);
     flush();
     await flushSettings();

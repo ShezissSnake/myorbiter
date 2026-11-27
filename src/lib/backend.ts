@@ -1775,14 +1775,17 @@ const onStay = new Set<() => void>();
  * settings are saved (flushSettings; a test gives one that hangs or fails).
  */
 export function beforeLeaving(wait = LEAVE_WAIT, save: () => Promise<void> = flushSettings): Promise<void> {
-  if (leavingNow) return heldAtMost(leavingNow, leaveEnds - Date.now());
+  // A quit joining a leaving still held (a save that hangs) after the window stayed: leaving again.
   stayedOn = false;
+  if (leavingNow) return heldAtMost(leavingNow, leaveEnds - Date.now());
   leaveEnds = Date.now() + wait + (LEAVE_CAP - LEAVE_WAIT);
   const p = leave(wait, save).finally(() => {
     if (leavingNow === p) leavingNow = null;
   });
   return (leavingNow = p);
 }
+/** Resolves once the leaving under way, if any, has ended, whatever became of it (the tests start each after the last one's). */
+export const leavingOver = (): Promise<void> => (leavingNow ? leavingNow.then(() => {}, () => {}) : Promise.resolve());
 /** MyOrbiter is quitting, reloading or restarting: a Sold that fails now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
 export const leaving = () => leavingNow != null && !stayedOn;
 /**
@@ -1801,9 +1804,9 @@ export function whenStaying(f: () => void): () => void {
   return () => void onStay.delete(f);
 }
 /**
- * The window stays after all: an update stopped (no longer on offer, its install or its restart
- * failed). From here on nothing counts as leaving, and a failure kept for the next start, which
- * its row shows, is let go (whenStaying).
+ * The window stays after all: an update stopped (no longer on offer, the save before the install,
+ * the install or the restart failed). From here on nothing counts as leaving, until a quit, and a
+ * failure kept for the next start, which its row shows, is let go (whenStaying).
  */
 export function stayed() {
   stayedOn = true;
