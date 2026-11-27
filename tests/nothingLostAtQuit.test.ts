@@ -534,7 +534,7 @@ test("a Sold failing in the step before the install is kept while the update goe
           // During the download: on Windows the installer may close MyOrbiter, so it is kept.
           flush();
           await flushSettings();
-          kept = file().market.soldOut[0]?.answer;
+          kept = file().market.soldOut?.[0]?.answer;
           if (!installs) throw new Error("Example download failure");
         },
         async () => {},
@@ -548,7 +548,7 @@ test("a Sold failing in the step before the install is kept while the update goe
       assert.equal(done, installs);
       flush();
       await flushSettings();
-      if (installs) assert.equal(file().market.soldOut[0]?.answer, "refused", "the update went on: told at the next start");
+      if (installs) assert.equal(file().market.soldOut?.[0]?.answer, "refused", "the update went on: told at the next start");
       else assert.deepEqual(file().market.soldOut, [], "the install failed and the window stays: not told again");
       assert.equal(leaving(), false);
     } finally {
@@ -632,7 +632,7 @@ test("a restart that fails: a Sold failing in the restart's step, shown on its r
         waits.hold("listing-1", 1, 1);
       },
       async () => {
-        atRestart = file().market.soldOut[0]?.answer;
+        atRestart = file().market.soldOut?.[0]?.answer;
         throw new Error("Example restart failure");
       },
       (u) => u.install(),
