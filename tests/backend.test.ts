@@ -45,7 +45,10 @@ test("one waiting removal that fails at quit stops neither the others, the save 
   }
   assert.equal(made, 1, "the other waiting removal is made");
   assert.equal(JSON.parse(stored["orbiter-settings"]).tab, "stats", "and the settings saved");
-  assert.equal(said.length, 1, "the failure is said once in the log");
+  // Told by what it says: anything else on the console meanwhile, such as a warning Node raises
+  // itself (it goes out through console.error), isn't a line of this failure.
+  const ofTheFailure = said.filter((a) => a.some((x) => x instanceof Error && x.message === "example failure"));
+  assert.equal(ofTheFailure.length, 1, `the failure is said once in the log: ${JSON.stringify(said.map((a) => a.map(String)))}`);
 });
 
 test("an unreachable worldstate is an error, so the last one read stays on screen", async () => {
