@@ -1748,7 +1748,7 @@ export function whenQuitting(f: () => void | Promise<unknown>): () => void {
  */
 export const LEAVE_WAIT = 1200;
 /**
- * The most a second quit (Ctrl+Q, then the window's X) or an update's restart is held by leaving,
+ * The most a second quit (Ctrl+Q, then the window's X) or an update's install or restart is held by leaving,
  * counted from when leaving began: the wait, and room for the saves around it. Still inside the
  * X's 2 s. The first quit or reload waits for its own save, as it always did.
  */
@@ -1764,6 +1764,9 @@ let leavingNow: Promise<void> | null = null;
 let leaveEnds = 0;
 /** Something was clicked while leaving (madeWhileLeaving): leaving takes it in. */
 let lateWork = false;
+/** The window stays after all (stayed), until the next leaving begins. */
+let stayedOn = false;
+const onStay = new Set<() => void>();
 /**
  * What quitting and Reload the window do before the page goes: everything waiting is made, a sale
  * being sent is waited for until `wait` ms after the start, and the settings are saved. A second
@@ -1773,6 +1776,7 @@ let lateWork = false;
  */
 export function beforeLeaving(wait = LEAVE_WAIT, save: () => Promise<void> = flushSettings): Promise<void> {
   if (leavingNow) return heldAtMost(leavingNow, leaveEnds - Date.now());
+  stayedOn = false;
   leaveEnds = Date.now() + wait + (LEAVE_CAP - LEAVE_WAIT);
   const p = leave(wait, save).finally(() => {
     if (leavingNow === p) leavingNow = null;
@@ -1780,22 +1784,43 @@ export function beforeLeaving(wait = LEAVE_WAIT, save: () => Promise<void> = flu
   return (leavingNow = p);
 }
 /** MyOrbiter is quitting, reloading or restarting: a Sold that fails now can't be shown on its row, so it is kept for the next start (core/soldOut.ts). */
-export const leaving = () => leavingNow != null;
+export const leaving = () => leavingNow != null && !stayedOn;
 /**
  * A Sold or an Undo removal clicked while MyOrbiter is already leaving: true then, and the caller
  * makes it at once rather than after its wait, which would outlast the window; leaving takes it in
  * (another round of what waits, and another save). False otherwise, and nothing changes.
  */
 export function madeWhileLeaving(): boolean {
-  if (!leavingNow) return false;
+  if (!leaving()) return false;
   lateWork = true;
   return true;
 }
+/** Runs `f` when the window stays after a leaving step after all (stayed); the returned function stops that. */
+export function whenStaying(f: () => void): () => void {
+  onStay.add(f);
+  return () => void onStay.delete(f);
+}
 /**
- * Update and restart: what waits is made as quitting does, but the restart is held no longer than
- * the cap, and goes ahead whatever becomes of this step.
+ * The window stays after all: the update's step before installing is over (the download goes on
+ * with the window open), or the restart failed. From here on nothing counts as leaving, and a
+ * failure kept for the next start, which its row shows, is let go (whenStaying).
  */
-export function beforeRestart(save: () => Promise<void> = flushSettings): Promise<void> {
+export function stayed() {
+  stayedOn = true;
+  for (const f of [...onStay]) {
+    try {
+      f();
+    } catch (e) {
+      console.error("letting go of what was kept for the next start failed", e);
+    }
+  }
+}
+/**
+ * Update and restart, before the install begins (on Windows the installer closes MyOrbiter
+ * itself) and again before the restart: what waits is made as quitting does, held no longer than
+ * the cap, and the update goes ahead whatever becomes of this step.
+ */
+export function beforeUpdating(save: () => Promise<void> = flushSettings): Promise<void> {
   let p: Promise<void>;
   try {
     p = beforeLeaving(LEAVE_WAIT, save);
@@ -1803,7 +1828,7 @@ export function beforeRestart(save: () => Promise<void> = flushSettings): Promis
     p = Promise.reject(e);
   }
   return heldAtMost(
-    p.catch((e) => console.error("making what waits before the restart failed", e)),
+    p.catch((e) => console.error("making what waits before the update failed", e)),
     leaveEnds - Date.now(),
   );
 }

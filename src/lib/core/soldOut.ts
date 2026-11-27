@@ -2,14 +2,15 @@
 // settings as the send goes out and takes it away when warframe.market answers, in the same turn
 // as the sale goes into the sales log (no save can come between them). Two kinds of record are
 // left for the next start:
-// - one still out when MyOrbiter went (quit, the window closed, a reload, an update's restart, a
-//   crash): the sale may or may not have gone through;
+// - one still out when MyOrbiter went (quit, the window closed, a reload, an update's install or
+//   restart, a crash): the sale may or may not have gone through;
 // - one that failed while MyOrbiter was leaving (`answer`, `why`): the row that would have said
 //   so, with Try again, is gone with the window. What is said depends on what is known
 //   (`soldFailure`): warframe.market answered with a refusal; it wasn't sent; the listing was
 //   already gone; or the answer didn't come or couldn't be read, which says no more than "maybe".
 // The player is told once at the next start, with when the Sold was sent, and nothing is sent
-// again by itself.
+// again by itself. If the window stays after all (an update's step before installing, a restart
+// that failed), a failure kept is let go (`soldStayed`): its row shows it.
 import { deferredUntil } from "./marketWait";
 
 export interface SoldOut {
@@ -100,6 +101,13 @@ export function soldAnswered(list: SoldOut[], key: string, answer: { ok: boolean
   return list.map((x) => (x.key === key ? { ...x, answer: why ? soldFailure(why) : "unclear", ...(why ? { why } : {}) } : x));
 }
 
+/**
+ * The list once the window stays after all (backend.ts › stayed: the update's step before
+ * installing, or a restart that failed): a failure kept while MyOrbiter was leaving is on its row,
+ * with Try again, so it isn't told again at the next start. A send still out keeps its record.
+ */
+export const soldStayed = (list: SoldOut[]): SoldOut[] => list.filter((x) => !x.answer);
+
 /** When the Sold was sent, for a record told maybe days later: "at 14:05" today, "on Tue 24 Nov at 14:05" another day. */
 export function sentWhen(at: number, now = Date.now()): string {
   const d = new Date(at);
@@ -132,7 +140,21 @@ export function soldOutNotice(r: SoldOut, now = Date.now()): { title: string; bo
     body = `The Sold of ${r.quantity} (${r.platinum}p each) ${when}, while MyOrbiter was closing, wasn't sent: the listing was already gone from your listings (sold or removed). ${log} Nothing was sent again: look at the listing on Orders and at Sales.`;
   } else {
     title = `${name}: maybe not marked sold`;
-    const how = r.answer === "unclear" ? `MyOrbiter closed while it was marking ${what}, sent ${when}, and warframe.market's answer didn't come through${why ? ` (${why})` : ""}.` : `MyOrbiter closed while it was marking ${what}, sent ${when}, before warframe.market answered.`;
+    const marking = `MyOrbiter closed while it was marking ${what}, sent ${when}`;
+    // Said as it happened: an answer that came is never said not to have come, and a server's
+    // error is said without the words of a refusal.
+    const w = (r.why ?? "").replace(/^Error:\s*/, "").trim();
+    const server = /^warframe\.market rejected the request: (5\d\d)\b/.exec(w);
+    const how =
+      r.answer !== "unclear"
+        ? `${marking}, before warframe.market answered.`
+        : server
+          ? `${marking}, and warframe.market answered with a server error (${server[1]}), which doesn't say whether it was made.`
+          : /^warframe\.market answered with something MyOrbiter couldn't read\b/.test(w)
+            ? `${marking}, and warframe.market answered, but MyOrbiter couldn't read the answer${why ? ` (${why})` : ""}.`
+            : /^warframe\.market is unreachable\b/.test(w)
+              ? `${marking}, and warframe.market's answer didn't come through (${why}).`
+              : `${marking}, and what warframe.market made of it isn't known${why ? ` (${why})` : ""}.`;
     body = `${how} It may or may not have gone through. ${log} Nothing was sent again: look at the listing on Orders before marking it sold again.`;
   }
   return { title, body, line: `${title}: ${body}` };

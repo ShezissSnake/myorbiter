@@ -1,5 +1,5 @@
 // A Sold clicked on Orders, and a removal inside its Undo time, are carried out before MyOrbiter
-// quits, its window reloads or an update restarts it (backend.ts › beforeLeaving, beforeRestart,
+// quits, its window reloads or an update restarts it (backend.ts › beforeLeaving, beforeUpdating,
 // soldWait.svelte.ts, undo.svelte.ts); a Sold whose send isn't answered in time, or fails while
 // MyOrbiter leaves, leaves a saved record, told at the next start in words that say no more than
 // is known, and never sent again (core/soldOut.ts). The page's side is driven as Orders drives it:
@@ -8,8 +8,9 @@
 import { effectRoot, flush } from "./support/runes";
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { beforeLeaving, beforeRestart, defaultSettings, leaving, flushSettings, LEAVE_CAP, LEAVE_WAIT, loadSettings, quit, updater, type Settings, type UpdateCheck } from "../src/lib/backend";
-import { NO_LONGER_LISTED, sentWhen, soldAnswered, soldFailure, soldOutNotice, soldOutOf, withSoldOut, type SoldOut } from "../src/lib/core/soldOut";
+import { beforeLeaving, beforeUpdating, defaultSettings, leaving, flushSettings, LEAVE_CAP, LEAVE_WAIT, loadSettings, quit, stayed, updater, whenStaying, type Settings, type UpdateCheck } from "../src/lib/backend";
+import { NO_LONGER_LISTED, sentWhen, soldAnswered, soldFailure, soldOutNotice, soldOutOf, soldStayed, withSoldOut, type SoldOut } from "../src/lib/core/soldOut";
+import { clockTime, waitWords } from "../src/lib/core/marketWait";
 import { defaultUpdates } from "../src/lib/core/updates";
 
 const { SoldWaits } = await import("../src/lib/soldWait.svelte");
@@ -25,6 +26,7 @@ const later = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const REFUSED = "warframe.market rejected the request: 400 Example refusal";
 const UNREACHABLE = "warframe.market is unreachable: Network Error: Example reset";
 const UNREADABLE = "warframe.market answered with something MyOrbiter couldn't read: expected value at line 1";
+const SERVER_ERROR = "warframe.market rejected the request: 504 Example gateway timeout";
 
 /** Settings saved as App.svelte saves them, into a stand-in for the browser's storage. */
 async function saved() {
@@ -42,14 +44,19 @@ async function saved() {
   return { settings, stop, file };
 }
 
+/** The stand-in's hook for a window that stays after all, one at a time (the latest test's). */
+let unstay: (() => void) | null = null;
 /**
  * Orders' Sold, step for step: the record goes in as the send goes out and comes away as it is
- * answered, the sale logged with it (Orders.svelte › soldOut, sendSale). `close` stands in for
+ * answered, the sale logged with it (Orders.svelte › soldOut, sendSale); a failure kept is let go
+ * when the window stays after all (Orders.svelte › whenStaying). `close` stands in for
  * warframe.market: true when it took the sale, or the failure's words.
  */
 function orders(settings: Settings, close: (id: string, n: number) => Promise<true | string>, ms?: number) {
   const sent: [string, number][] = [];
   let k = 0;
+  unstay?.();
+  unstay = whenStaying(() => (settings.market.soldOut = soldStayed(settings.market.soldOut ?? [])));
   const waits = new SoldWaits(async (id, n) => {
     const key = `${id}|${++k}`;
     settings.market.soldOut = withSoldOut(settings.market.soldOut ?? [], { key, id, item: "Example Prime Set", rank: null, quantity: n, platinum: 45, at: Date.now() });
@@ -416,7 +423,7 @@ test("the step before an update's restart makes what waits, and is never held pa
   const { waits, sent } = orders(settings, answers(10));
   waits.hold("listing-1", 1, 1);
   try {
-    await beforeRestart();
+    await beforeUpdating();
     assert.deepEqual(sent, [["listing-1", 1]], "the waiting Sold is sent before the restart");
   } finally {
     stop();
@@ -425,7 +432,7 @@ test("the step before an update's restart makes what waits, and is never held pa
   const hang = hangingSave();
   const t0 = Date.now();
   try {
-    const went = await Promise.race([beforeRestart(hang.save).then(() => "went"), later(LEAVE_CAP + 800).then(() => "held")]);
+    const went = await Promise.race([beforeUpdating(hang.save).then(() => "went"), later(LEAVE_CAP + 800).then(() => "held")]);
     assert.equal(went, "went", "the restart goes ahead");
     const took = Date.now() - t0;
     assert.ok(took < LEAVE_CAP + 300, `held ${took} ms`);
@@ -434,21 +441,20 @@ test("the step before an update's restart makes what waits, and is never held pa
     await later(5);
   }
   // A save that fails: the step ends, and the restart goes ahead.
-  await assert.doesNotReject(beforeRestart(() => Promise.reject(new Error("Example disk full"))));
+  await assert.doesNotReject(beforeUpdating(() => Promise.reject(new Error("Example disk full"))));
 });
 
-test("Update and restart sends a waiting Sold before restarting", async () => {
-  const { settings, stop } = await saved();
-  const order: string[] = [];
-  const waits = new SoldWaits(async (id) => {
-    order.push(`sent ${id}`);
-  });
+/**
+ * Update and restart, clicked (`click`) with the updater faked: `install` and `restart` stand in
+ * for downloading and installing, and for the restart. Everything else is the real Updates.
+ */
+async function updateAndRestart(install: () => Promise<void>, restart: () => Promise<void>, click: (u: InstanceType<typeof Updates>) => Promise<unknown>) {
   const real = { ...updater };
   const newer: UpdateCheck = { state: "newer", version: "0.2.150", notes: null, date: null };
   updater.info = async () => ({ version: "0.2.141", install: { how: "appImage", path: "/home/user/Apps/myorbiter.AppImage" } });
   updater.check = async () => newer;
-  updater.install = async () => void order.push("installed");
-  updater.restart = async () => void order.push("restart");
+  updater.install = install;
+  updater.restart = restart;
   const u = new Updates();
   const us = { ...defaultUpdates(), channel: "beta" as const };
   try {
@@ -457,15 +463,132 @@ test("Update and restart sends a waiting Sold before restarting", async () => {
     await later(20);
     await u.checkNow();
     assert.equal(u.offer?.version, "0.2.150");
-    waits.hold("listing-1", 1, 1);
-    await u.install();
-    assert.deepEqual(order, ["installed", "sent listing-1", "restart"]);
+    return await click(u);
   } finally {
     u.stop();
     Object.assign(updater, real);
+  }
+}
+
+test("Update and restart makes what waits at the click before the install begins, and one clicked during the download before the restart", async () => {
+  const { stop } = await saved();
+  const order: string[] = [];
+  const waits = new SoldWaits(async (id) => {
+    order.push(`sent ${id}`);
+  });
+  try {
+    await updateAndRestart(
+      async () => {
+        order.push("installing");
+        // Clicked during the download: the window stays open meanwhile, so it waits for its Undo.
+        assert.equal(leaving(), false, "the window stays open during the download");
+        waits.hold("listing-2", 1, 1);
+        await later(20);
+        order.push("installed");
+      },
+      async () => void order.push("restart"),
+      (u) => {
+        waits.hold("listing-1", 1, 1);
+        return u.install();
+      },
+    );
+    // On Windows the installer closes MyOrbiter during "installing": listing-1 was made before it began.
+    assert.deepEqual(order, ["sent listing-1", "installing", "installed", "sent listing-2", "restart"]);
+  } finally {
     waits.flush();
     stop();
   }
+});
+
+test("the step before the install never holds the install past the cap, even for a Sold never answered", async () => {
+  const { settings, stop } = await saved();
+  const market = unanswered();
+  const { waits, sent } = orders(settings, market.close);
+  let began = 0;
+  const t0 = Date.now();
+  try {
+    await updateAndRestart(
+      async () => void (began = Date.now()),
+      async () => {},
+      (u) => {
+        waits.hold("listing-1", 1, 1);
+        return u.install();
+      },
+    );
+    assert.deepEqual(sent, [["listing-1", 1]], "sent before the install");
+    assert.ok(began > 0 && began - t0 < LEAVE_CAP + 300, `the install began ${began - t0} ms after the click`);
+  } finally {
+    await market.end();
+    stop();
+  }
+});
+
+test("a Sold failing in the step before the install is said on its row, not kept for the next start: the window stays", async () => {
+  const { settings, stop, file } = await saved();
+  const { waits, sent } = orders(settings, fails(REFUSED, 5));
+  let kept: unknown = null;
+  try {
+    await updateAndRestart(
+      async () => {
+        // During the download: the failure's row shows it; nothing is kept for the next start.
+        flush();
+        await flushSettings();
+        kept = file().market.soldOut;
+      },
+      async () => {},
+      (u) => {
+        waits.hold("listing-1", 1, 1);
+        return u.install();
+      },
+    );
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    assert.deepEqual(kept, []);
+  } finally {
+    stop();
+  }
+});
+
+test("a restart that fails: a Sold failing in the restart's step, shown on its row, isn't told again at the next start", async () => {
+  const { settings, stop, file } = await saved();
+  const { waits, sent } = orders(settings, fails(REFUSED, 5));
+  let atRestart: unknown = null;
+  try {
+    const done = await updateAndRestart(
+      async () => {
+        // Clicked during the download: made by the restart's step, where it fails.
+        waits.hold("listing-1", 1, 1);
+      },
+      async () => {
+        atRestart = file().market.soldOut[0]?.answer;
+        throw new Error("Example restart failure");
+      },
+      (u) => u.install(),
+    );
+    assert.equal(atRestart, "refused", "kept while the window was going");
+    assert.equal(done, false, "the update says it failed");
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    assert.equal(leaving(), false, "the window stays: nothing counts as leaving");
+    flush();
+    await flushSettings();
+    assert.deepEqual(file().market.soldOut, [], "the row shows it: not told again");
+  } finally {
+    waits.flush();
+    stop();
+  }
+});
+
+test("a failure kept for the next start is let go when the window stays; a send still out keeps its record", () => {
+  const out: SoldOut = { key: "a|1", id: "a", item: "Example Prime Set", rank: null, quantity: 1, platinum: 20, at: 1 };
+  const failed: SoldOut = { ...out, key: "b|2", id: "b", answer: "refused", why: REFUSED };
+  assert.deepEqual(soldStayed([out, failed]), [out]);
+  // stayed() runs the hooks, and nothing counts as leaving afterwards.
+  let ran = 0;
+  const off = whenStaying(() => ran++);
+  stayed();
+  off();
+  stayed();
+  assert.equal(ran, 1);
+  assert.equal(leaving(), false);
 });
 
 // ---- rule 1: the words at the next start say no more than is known
@@ -481,6 +604,7 @@ test("what a failure's words say is known: refused only when warframe.market ans
   assert.equal(soldFailure("warframe.market answered too late"), "unclear", "words not known here");
   assert.equal(soldFailure(NO_LONGER_LISTED), "gone");
   assert.equal(soldFailure("warframe.market asked us to wait until 1795744859843"), "unsent");
+  assert.equal(soldFailure(waitWords("warframe.market asked us to wait until 1795744859843")), "unsent", "the form the page gets");
   assert.equal(soldFailure("Not signed in to warframe.market"), "unsent");
   assert.equal(soldFailure("couldn't keep the warframe.market sign-in: Example"), "unsent");
   assert.equal(soldFailure("warframe.market rejected the request: bad order id"), "unsent", "MyOrbiter's own check, before sending");
@@ -521,6 +645,20 @@ test("a network error or an unreadable answer while the app leaves is told as ma
     assert.match(words.body, /It may or may not have gone through/);
     assert.doesNotMatch(words.body, /refused|not marked sold/);
   }
+  // An answer that came but couldn't be read is never said not to have come.
+  const unread = soldOutNotice({ ...(await failedWhileLeaving(UNREADABLE)) });
+  assert.match(unread.body, /warframe\.market answered, but MyOrbiter couldn't read the answer/);
+  assert.doesNotMatch(unread.body, /didn't come/);
+});
+
+test("a server or gateway error while the app leaves is told as maybe, in no words of a refusal, and as an answer that came", async () => {
+  const r = await failedWhileLeaving(SERVER_ERROR);
+  assert.equal(r.answer, "unclear");
+  const words = soldOutNotice(r);
+  assert.equal(words.title, "Example Prime Set: maybe not marked sold");
+  assert.match(words.body, /warframe\.market answered with a server error \(504\), which doesn't say whether it was made\. It may or may not have gone through/);
+  assert.doesNotMatch(words.line, /refus|reject|didn't come/);
+  assert.doesNotMatch(words.body, /not marked sold/);
 });
 
 test("a listing already gone when the Sold went: told that nothing was sent, not blamed on warframe.market", async () => {
@@ -533,13 +671,16 @@ test("a listing already gone when the Sold went: told that nothing was sent, not
 });
 
 test("not sent (a wait warframe.market asked for): not marked sold, without blaming a refusal, the wait as the clock says it", async () => {
-  const until = Date.UTC(2026, 10, 27, 14, 5);
-  const r = await failedWhileLeaving(`warframe.market asked us to wait until ${until}`);
+  // The form the page gets: backend.ts's invoke turns the Rust side's milliseconds into the
+  // clock's time (core/marketWait.ts › waitWords) before Orders sees the failure.
+  const until = Date.now() + 10 * 60_000;
+  const why = waitWords(`warframe.market asked us to wait until ${until}`);
+  assert.equal(why, `warframe.market asked us to wait until ${clockTime(until)}`);
+  const r = await failedWhileLeaving(why);
   assert.equal(r.answer, "unsent");
   const words = soldOutNotice(r);
   assert.equal(words.title, "Example Prime Set: not marked sold");
-  assert.match(words.body, /didn't go through: warframe\.market asked us to wait until /);
-  assert.ok(words.body.includes(new Date(until).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })), words.body);
+  assert.ok(words.body.includes(`didn't go through: warframe.market asked us to wait until ${clockTime(until)}.`), words.body);
   assert.doesNotMatch(words.body, /refused|\d{12}/);
 });
 

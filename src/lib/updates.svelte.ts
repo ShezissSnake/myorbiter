@@ -22,7 +22,7 @@
 // offer, up to date, or why it failed. A failure is never a notification: it says so in that line,
 // and the app's log has the details (updates.rs).
 import { tick } from "svelte";
-import { beforeRestart, flushSettings, logLine, settingsMovedAside, settingsUnreadable, updater, type UpdateCheck, type UpdateInfo } from "./backend";
+import { beforeUpdating, flushSettings, logLine, settingsMovedAside, settingsUnreadable, stayed, updater, type UpdateCheck, type UpdateInfo } from "./backend";
 import { buildCounts, buildNumber, CHANNEL_LABEL, checkDue, checkHeadline, checkLine, emptyWords, followOrder, followStep, followWhy, installChecks, installInstalls, NEAREST, newInstallStep, newInstallWhy, noticeShows, SCHEDULE_TICK, settleChannel, settlesByAsking, START_WAIT, switchOffer, unsettledWords, versionLine, type Channel, type ChannelAnswer, type CheckOutcome, type UpdateSettings } from "./core/updates";
 import { Job, JobError } from "./job.svelte";
 import { whenIdle } from "./pane.svelte";
@@ -542,13 +542,21 @@ export class Updates {
   /**
    * Update and restart, or Switch to an older build: downloads it (the button fills), installs it
    * once its signature checks out, and restarts MyOrbiter into it. On Windows the installer takes
-   * over and restarts it.
+   * over and restarts it. A Sold or an Undo removal waiting at the click is made first
+   * (backend.ts › beforeUpdating); one clicked during the download is made before the restart, but
+   * on Windows not if the installer closes MyOrbiter first.
    */
   install() {
     const o = this.offer;
     const u = this.get?.();
     if (!o || !u) return Promise.resolve(false);
     return this.installJob.run(async (job) => {
+      // What waits at the click (a Sold, an Undo removal) is made first, on every system: on
+      // Windows the installer closes MyOrbiter itself, before the restart's own step. Held no
+      // longer than the cap; the update goes ahead whatever becomes of it, and the window stays
+      // open meanwhile (stayed), so a failure now is said on its row.
+      await beforeUpdating();
+      stayed();
       // A check under way may change what is on offer, and the app keeps the update of the last
       // check only: the click waits for that check (which, with this install under way, moves no
       // channel and reads the install's own last), then installs only the build still on offer.
@@ -580,10 +588,16 @@ export class Updates {
       }
       job.fraction = 1;
       job.phase = "Restarting";
-      // A Sold or an Undo removal still waiting is made first, as quitting does; held no longer
+      // A Sold or an Undo removal clicked since is made first, as quitting does; held no longer
       // than the cap, and the restart goes ahead whatever becomes of it.
-      await beforeRestart();
-      await updater.restart();
+      await beforeUpdating();
+      try {
+        await updater.restart();
+      } catch (e) {
+        // The window stays: a failure kept for the next start is on its row already.
+        stayed();
+        throw e;
+      }
       return "Restarting";
     });
   }

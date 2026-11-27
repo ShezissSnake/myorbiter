@@ -10,7 +10,7 @@
   import { until } from "../core/traders";
   import { onDestroy, untrack } from "svelte";
   import type { Model } from "../core/model";
-  import { leaving, MAX_SAVED_PRICE, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
+  import { leaving, MAX_SAVED_PRICE, whenStaying, type AdviceSettings, type MarketSettings, type OrderSortKey } from "../backend";
   import { heldFor, holdings, isPaused, listingKey, overAsked, overListed, floorTyped, typedFloor, withOwnFloor, wtsLines, type MyOrder, type Plan } from "../core/market";
   import { LISTING_LIMIT, minimumForItem } from "../core/bulk";
   import { KEEP_UNCHECKED_WARNING, keepUnchecked, offersMore } from "../core/listGuard";
@@ -50,7 +50,7 @@
   import type { MyAuction, RivenAuction } from "../core/rivens";
   import { estimateListed } from "../core/rivenModel";
   import { copiesToSend, markTradeSale, soldAfterUnmarked, soldAnswers, soldQuestion, type SoldListing } from "../core/soldMarks";
-  import { soldAnswered, withSoldOut } from "../core/soldOut";
+  import { soldAnswered, soldStayed, withSoldOut } from "../core/soldOut";
   import { SoldWaits } from "../soldWait.svelte";
   import { SvelteSet } from "svelte/reactivity";
 
@@ -684,6 +684,9 @@
    * moment for the answer (soldWait.svelte.ts › track). `trade`: "That sale", whose trade logged
    * the sale already.
    */
+  // The window stays after all (an update's step before installing, a restart that failed): a
+  // failure kept for the next start is on its row, with Try again, and isn't told again.
+  onDestroy(whenStaying(() => (settings.soldOut = soldStayed(settings.soldOut ?? []))));
   function soldOut(o: MyOrder, n: number, failed: (reason: string) => void, trade = false) {
     const cur = mkt.orders.find((x) => x.id === o.id) ?? o;
     const at = Date.now();
