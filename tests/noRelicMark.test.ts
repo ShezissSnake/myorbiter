@@ -42,7 +42,7 @@ test("the Guide's marks name No relic after the other three vault marks, with wh
   assert.deepEqual(order, ["farmable", "vaulted", "resurgence", "unknown"]);
   const line = legend.slice(legend.indexOf('<Avail v="unknown" />'));
   const text = line.slice(0, line.indexOf("</li>"));
-  assert.match(text, /no relic in the drop tables drops it, and Varzia doesn't sell it/);
+  assert.match(text, /no relic drops it, vaulted or not, and Varzia doesn't sell it/);
   assert.match(text, /buy it from other players/);
   assert.match(text, /when only some are, pointing at the mark says how many/);
 });

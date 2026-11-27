@@ -268,7 +268,7 @@
         <li><span class="k"><Avail v="farmable" /></span><span>a relic for it is still in the drop tables</span></li>
         <li><span class="k"><Avail v="vaulted" /></span><span>only vaulted relics drop it: no new copies</span></li>
         <li><span class="k"><Avail v="resurgence" /></span><span>vaulted, but Varzia sells it right now</span></li>
-        <li><span class="k"><Avail v="unknown" /></span><span>no relic in the drop tables drops it, and Varzia doesn't sell it: it comes some other way (a reward, or a new Prime Access whose relics aren't in the tables yet), or, if it trades, buy it from other players. On a prime in Mastery: at least one part you're missing is like that, and when only some are, pointing at the mark says how many</span></li>
+        <li><span class="k"><Avail v="unknown" /></span><span>no relic drops it, vaulted or not, and Varzia doesn't sell it: it comes some other way (a reward, or a new Prime Access whose relics aren't in the tables yet), or, if it trades, buy it from other players. On a prime in Mastery: at least one part you're missing is like that, and when only some are, pointing at the mark says how many</span></li>
         <li><span class="k"><span class="tag good">✓ mastered</span></span><span>you've mastered it, or the item the part builds</span></li>
         <li><span class="k"><span class="tag mastery">level it</span></span><span>you own it but haven't mastered it</span></li>
         <li><span class="k"><span class="tag warn">need</span></span><span>a part for something you haven't built or mastered, or for a weapon made from it (Akbronco Prime takes two Bronco Primes)</span></li>
