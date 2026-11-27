@@ -577,6 +577,27 @@ test("a restart that fails: a Sold failing in the restart's step, shown on its r
   }
 });
 
+test("once the window stays, nothing counts as leaving, even while a leaving held by a save that hangs still runs", async () => {
+  const { settings, stop } = await saved();
+  const hang = hangingSave();
+  const { waits, sent } = orders(settings, fails(REFUSED, 5), 10);
+  const going = beforeLeaving(LEAVE_WAIT, hang.save);
+  try {
+    assert.equal(leaving(), true);
+    stayed();
+    assert.equal(leaving(), false);
+    // A Sold clicked now waits for its Undo as usual, and its failure is said on its row: no record.
+    waits.hold("listing-1", 1, 1);
+    await later(80);
+    assert.deepEqual(sent, [["listing-1", 1]]);
+    assert.deepEqual(settings.market.soldOut, []);
+  } finally {
+    hang.release();
+    await going;
+    stop();
+  }
+});
+
 test("a failure kept for the next start is let go when the window stays; a send still out keeps its record", () => {
   const out: SoldOut = { key: "a|1", id: "a", item: "Example Prime Set", rank: null, quantity: 1, platinum: 20, at: 1 };
   const failed: SoldOut = { ...out, key: "b|2", id: "b", answer: "refused", why: REFUSED };
