@@ -25,7 +25,10 @@
 // (Orders' switches, the page head's Details, Sell spares' boxes, Home's ticks: each must take a
 // click all round a 24 px square); and opens the folded sidebar's More menu by keyboard, where no
 // focus tip may cover the menu; and reads the list pages' headings, none of which may jump a level
-// (keyboardExtras). Exits 1 when it finds any of these.
+// (keyboardExtras). In every view each walk looks at, the window's line that something went wrong
+// (App.svelte's `[data-banner="frame-failed"]`, shown for an error outside a page) is a finding with
+// the view's name (lineShows), as it is in the views the sorting and keyboard-count checks visit.
+// Exits 1 when it finds any of these.
 //
 //   npm run sweep [-- --port 1432] [-- --out <folder>] [-- --only 1280x800] [-- --coverage]
 //
@@ -659,6 +662,18 @@ function focusNow() {
 }
 
 const findings = [];
+/** The views that showed the window's line that something went wrong, and how many views were looked at for it. */
+const wentWrong = [];
+let wentWrongLooked = 0;
+/**
+ * Whether the window shows its line that something went wrong (an error outside a page), noted
+ * with the view's name if it does. The line stays until the page is opened again, so each view
+ * after the first one to show it shows it too.
+ */
+async function lineShows(p, size, view) {
+  wentWrongLooked++;
+  if (await p.locator('[data-banner="frame-failed"]').count()) wentWrong.push({ size: `${size.w}×${size.h}`, view });
+}
 /** Pictures drawn out of their own shape, and how many pictures were looked at. */
 const stretched = [];
 let picturesChecked = 0;
@@ -886,7 +901,10 @@ async function sortCheck(size) {
   const restless = heads ? await notAtRest(pages) : null;
   if (restless) {
     sortFindings.push(`Orders didn't come to rest in 30 s before the first sort (${restless}), not checked`);
-    for (const p of pages) await p.close();
+    for (const p of pages) {
+    await lineShows(p, size, p === calm ? "Orders, sorted with reduced motion" : "Orders, sorted");
+    await p.close();
+  }
     return;
   }
   const picture = (p) => p.locator(".pane.shown table.orders").screenshot();
@@ -923,7 +941,10 @@ async function sortCheck(size) {
       }
     }
   }
-  for (const p of pages) await p.close();
+  for (const p of pages) {
+    await lineShows(p, size, p === calm ? "Orders, sorted with reduced motion" : "Orders, sorted");
+    await p.close();
+  }
 }
 
 /**
@@ -1050,6 +1071,7 @@ async function keyboardExtras(size) {
   const go = async (label) => {
     await p.locator("button.nav", { hasText: label }).first().click();
     await pause(p, 2500);
+    await lineShows(p, size, `${label}, keyboard counts`);
   };
   const told = (r) => `${r.presses}${r.left ? "" : "+"}`;
   await go("Inventory");
@@ -1123,6 +1145,7 @@ async function keyboardExtras(size) {
     }
     await p.keyboard.press("Escape");
   } else menuTipFindings.push("no More button in the folded sidebar: not checked");
+  await lineShows(p, size, "More menu, by keyboard");
   await p.close();
 }
 
@@ -1140,7 +1163,12 @@ async function footItem(p, name) {
 /** Every view of the demo at one size, `look` called on each. Settings is one view per section
  *  (scrolled into view), or one view when `settingsOnce` (the keyboard walk: its Tab order is the
  *  same whichever section is in view). */
-async function walk(size, look, { settingsOnce = false, widePictures = true } = {}) {
+async function walk(size, lookAt, { settingsOnce = false, widePictures = true } = {}) {
+  // Each view looked at is also read for the window's line that something went wrong.
+  const look = async (p, size, view) => {
+    await lineShows(p, size, view);
+    await lookAt(p, size, view);
+  };
   const p = await open(size);
   const labels = await p.locator("button.nav").evaluateAll((els) => els.map((e) => e.querySelector(".lbl")?.textContent?.trim() ?? ""));
   for (const label of labels.filter(Boolean)) {
@@ -1376,6 +1404,9 @@ try {
   for (const f of helpUnknown) console.log(`UNKNOWN HELP ${f.size} ${f.view}: "${f.part}" is in no walk-through`);
   for (const [part, view] of [...helpPending].sort()) console.log(`PENDING HELP ${view}: "${part}" opens a page that isn't written`);
   console.log(`${missingSeen.size} parts without a "?", ${helpUnknown.length} unknown, ${helpPending.size} pending, ${helpMarks} "?" seen`);
+  // The window's line that something went wrong: an error outside a page, which a page error above may say more of.
+  for (const f of wentWrong) console.log(`WENT WRONG ${f.size} ${f.view}: the window shows its line that something went wrong`);
+  console.log(`${wentWrong.length} views showing the line that something went wrong, ${wentWrongLooked} looked at`);
   if (keys) {
     for (const f of sortFindings) console.log(`SORT ${f}`);
     console.log(`${sortFindings.length} sort findings, ${sortsTried} sorts on Orders tried both ways of motion`);
@@ -1386,6 +1417,7 @@ try {
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
   if (cache.failed || worldStateAsked.count || sortFindings.length || switchFindings.size || bugs.length || stretched.length || tagFindings.length || offLine.length || wideMissed.length || keyFindings.length || countFindings.length || targetFindings.length || menuTipFindings.length || headingFindings.length || nameFindings.length || missingSeen.size || helpUnknown.length || helpPending.size) process.exitCode = 1;
+  if (wentWrong.length) process.exitCode = 1;
 } catch (e) {
   console.error(hidePaths(e instanceof Error ? e.message : e));
   process.exitCode = 2;
