@@ -474,6 +474,8 @@ test("what a failure's words say is known: refused only when warframe.market ans
   assert.equal(soldFailure(REFUSED), "refused");
   assert.equal(soldFailure("Error: warframe.market rejected the request: 403 Example"), "refused");
   assert.equal(soldFailure("warframe.market refused the sign-in; sign in again"), "refused");
+  assert.equal(soldFailure("warframe.market rejected the request: 504 Example gateway timeout"), "unclear", "a server or gateway error: it may have gone through");
+  assert.equal(soldFailure("warframe.market rejected the request: 500 Example"), "unclear");
   assert.equal(soldFailure(UNREACHABLE), "unclear", "a network error: it may have gone through");
   assert.equal(soldFailure(UNREADABLE), "unclear", "an answer that couldn't be read");
   assert.equal(soldFailure("warframe.market answered too late"), "unclear", "words not known here");

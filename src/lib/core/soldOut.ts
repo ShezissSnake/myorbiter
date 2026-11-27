@@ -35,12 +35,12 @@ export interface SoldOut {
 
 /**
  * What a Sold's failure says is known:
- * - "refused": warframe.market answered no (an HTTP error status, or its refusal of the sign-in);
+ * - "refused": warframe.market answered no (a 4xx HTTP status, or its refusal of the sign-in);
  * - "unsent": MyOrbiter didn't send it, or warframe.market had asked to wait (not signed in, the
  *   sign-in couldn't be kept, a wait asked for, an id or count MyOrbiter itself turned down);
  * - "gone": nothing was sent, the listing was already gone from your listings (marketStore's sold);
- * - "unclear": anything else (unreachable, an answer that couldn't be read, words not known
- *   here): it may or may not have gone through.
+ * - "unclear": anything else (unreachable, a 5xx server or gateway error, an answer that couldn't
+ *   be read, words not known here): it may or may not have gone through.
  */
 export type SoldFailure = "refused" | "unsent" | "gone" | "unclear";
 const FAILURES: SoldFailure[] = ["refused", "unsent", "gone", "unclear"];
@@ -57,7 +57,9 @@ export function soldFailure(why: string): SoldFailure {
   const w = why.replace(/^Error:\s*/, "").trim();
   if (w === NO_LONGER_LISTED) return "gone";
   // Rejected after an answer carries its HTTP status first; the ones without are MyOrbiter's own checks, before sending.
-  if (/^warframe\.market rejected the request: \d{3}\b/.test(w) || /^warframe\.market refused the sign-in\b/.test(w)) return "refused";
+  // A 4xx is a refusal; a 5xx (a server or gateway error) may come after the change was made.
+  if (/^warframe\.market rejected the request: 5\d\d\b/.test(w)) return "unclear";
+  if (/^warframe\.market rejected the request: 4\d\d\b/.test(w) || /^warframe\.market refused the sign-in\b/.test(w)) return "refused";
   if (/^warframe\.market rejected the request: /.test(w) || /^warframe\.market asked us to wait until \d/.test(w) || /^Not signed in to warframe\.market\b/.test(w) || /^couldn't keep the warframe\.market sign-in\b/.test(w)) return "unsent";
   return "unclear";
 }
