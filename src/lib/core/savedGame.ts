@@ -41,17 +41,28 @@ const texts = (raw: unknown): string[] => (Array.isArray(raw) ? raw.filter((x): 
 const record = <T,>(raw: unknown, ok: (v: unknown) => boolean): Record<string, T> => (obj(raw) ? (Object.fromEntries(Object.entries(raw).filter(([, v]) => ok(v))) as Record<string, T>) : {});
 const numOrNull = (x: unknown) => (fine(x) ? x : null);
 
-/** The drops log (core/drops.ts): a time to count from, else a new log; inside it, odd entries left out. */
+/** A count the drops log holds of a part: a whole number, none below zero. */
+const tally = (n: unknown): n is number => fine(n) && Number.isInteger(n) && n >= 0;
+/** Counts read whole: an object whose every entry is a tally; null for anything else. */
+const tallies = (raw: unknown): Record<string, number> | null => (obj(raw) && Object.values(raw).every(tally) ? (raw as Record<string, number>) : null);
+
+/**
+ * The drops log (core/drops.ts): a time to count from, else a new log. Its counts (what was held
+ * of each part, and what was being built) are read whole or not at all: with one entry missing,
+ * the next read would take every copy of that part as a drop. Counts that cannot be read whole
+ * make the log a new baseline (at 0, the next read sets the counts and logs no drop); the drops
+ * already logged stay. Inside the rest, odd entries are left out.
+ */
 export function dropLogOf(raw: unknown): DropLog {
   if (!obj(raw) || !fine(raw.at)) return { at: 0, counts: {}, windows: [] };
-  const out: DropLog = {
-    at: raw.at,
-    counts: record<number>(raw.counts, fine),
-    windows: keep<DropWindow>(raw.windows, (w) => fine(w.from) && fine(w.at) && obj(w.gains)).map((w) => ({ ...w, gains: record<number>(w.gains, fine) })),
-  };
+  const windows = keep<DropWindow>(raw.windows, (w) => fine(w.from) && fine(w.at) && obj(w.gains)).map((w) => ({ ...w, gains: record<number>(w.gains, fine) }));
+  const counts = tallies(raw.counts);
+  const building = raw.building === undefined ? undefined : tallies(raw.building);
+  if (!counts || building === null) return { at: 0, counts: {}, windows };
+  const out: DropLog = { at: raw.at, counts: { ...counts }, windows };
   if (fine(raw.lowAt)) out.lowAt = raw.lowAt;
   if (Array.isArray(raw.gone)) out.gone = texts(raw.gone);
-  if (obj(raw.building)) out.building = record<number>(raw.building, fine);
+  if (building) out.building = { ...building };
   if (fine(raw.tracks)) out.tracks = raw.tracks;
   return out;
 }

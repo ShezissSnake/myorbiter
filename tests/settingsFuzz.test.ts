@@ -203,7 +203,7 @@ test("settings files: loading anything never throws, never turns on automatic re
   }
 });
 
-test("an odd entry in the saved game state, the notices or the drops log is left out, the rest kept, and the window's readers take what loads", async () => {
+test("an odd entry in the saved game state, the notices or the drops log is left out, the rest kept (drops counts that cannot be read whole start the log again), and the window's readers take what loads", async () => {
   const loadRaw = async (raw: unknown) => {
     (globalThis as { localStorage?: unknown }).localStorage = { getItem: () => JSON.stringify(raw), setItem: () => {} };
     return loadSettings();
@@ -218,7 +218,9 @@ test("an odd entry in the saved game state, the notices or the drops log is left
     ["savingFor", { game: { savingFor: { "/Lotus/A": { set: "A Prime Set", complete: 1 }, "/Lotus/B": null } } }, (s) => assert.deepEqual(s.game.savingFor, { "/Lotus/A": { set: "A Prime Set", complete: 1 } })],
     ["platinum", { game: { platinum: "lots", masteryRank: 12 } }, (s) => (assert.equal(s.game.platinum, null), assert.equal(s.game.masteryRank, 12))],
     ["rivenHistory", { game: { rivenHistory: { r1: [{ at: 1, rerolls: 2, buffs: [], curses: [] }, null], r2: 4 } } }, (s) => assert.deepEqual(s.game.rivenHistory, { r1: [{ at: 1, rerolls: 2, buffs: [], curses: [] }] })],
-    ["drops", { game: { drops: { at: 1, counts: { "A Prime Blueprint": 2, B: "x" }, windows: [null, { from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }, { at: 2 }] } } }, (s) => assert.deepEqual(s.game.drops, { at: 1, counts: { "A Prime Blueprint": 2 }, windows: [{ from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }] })],
+    ["drops", { game: { drops: { at: 1, counts: { "A Prime Blueprint": 2 }, windows: [null, { from: 0, at: 1, gains: { "A Prime Blueprint": 1, B: "x" } }, { at: 2 }] } } }, (s) => assert.deepEqual(s.game.drops, { at: 1, counts: { "A Prime Blueprint": 2 }, windows: [{ from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }] })],
+    // Counts that cannot be read whole: a new baseline, the drops logged kept (tests/dropsLogBaseline.test.ts).
+    ["drops counts", { game: { drops: { at: 1, counts: { "A Prime Blueprint": 2, B: "x" }, windows: [null, { from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }] } } }, (s) => assert.deepEqual(s.game.drops, { at: 0, counts: {}, windows: [{ from: 0, at: 1, gains: { "A Prime Blueprint": 1 } }] })],
     ["notices", { game: { notices: [good, { ...good, id: "n2", to: 5, rep: { key: 1 } }, { ...good, title: "again" }] } }, (s) => {
       assert.deepEqual(s.game.notices.map((n) => n.id), ["n1", "n2"], "each id once, the first kept");
       assert.equal(s.game.notices[0].to, "sales");
