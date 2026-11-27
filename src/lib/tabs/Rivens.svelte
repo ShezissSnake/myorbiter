@@ -113,8 +113,9 @@
   $effect(() => {
     void rivens.loadMeta();
   });
-  // The page stays open once opened: a list that failed to load is asked for again each minute,
-  // except while a proxy set can't be used (each ask would be refused, until MyOrbiter restarts).
+  // The page stays open once opened: a list that failed to load is asked for each minute, and sent
+  // once the wait after the last failure is over (a minute, growing to ten: rivens.loadMeta), except
+  // while a proxy set can't be used (each ask would be refused, until MyOrbiter restarts).
   $effect(() => {
     if (!rivens.metaError || proxy.problem) return;
     const t = setInterval(() => void rivens.loadMeta(), 60_000);
@@ -756,7 +757,7 @@
   <section class="finder">
     <div class="hmark"><h2 class="register lead">Find a riven</h2><HelpMark part="rivens.finder" /></div>
     {#if !meta}
-      <p class="dim small">{#if rivens.metaError && proxy.problem}{proxy.problem}{:else if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter tries again each minute. <button class="link" onclick={() => void rivens.loadMeta()}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
+      <p class="dim small">{#if rivens.metaError && proxy.problem}{proxy.problem}{:else if rivens.metaError}Couldn't load warframe.market's riven list ({rivens.metaError}); MyOrbiter waits a minute before trying again, longer after each failure in a row (up to 10 minutes). <button class="link" onclick={() => void rivens.loadMeta(true)}>Try now</button>{:else}Loading warframe.market's riven list…{/if}</p>
     {:else}
       <div class="form">
         <input list="riven-weapons" placeholder="Weapon" bind:value={weaponName} onfocus={() => (weaponsWanted = true)} aria-label="Weapon" />
