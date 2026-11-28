@@ -37,3 +37,13 @@ export function missingChip(parts: { availability: string }[]): "vaulted" | "res
   const has = (a: string) => parts.some((p) => p.availability === a);
   return has("vaulted") ? "vaulted" : has("resurgence") ? "resurgence" : has("unknown") ? "unknown" : "farmable";
 }
+
+/**
+ * The tip for that chip where it reads No relic though only some missing parts have no relic (the
+ * others drop from relics still in the drop tables); undefined where the chip's own tip holds.
+ */
+export function missingChipTip(parts: { availability: string }[]): string | undefined {
+  if (missingChip(parts) !== "unknown") return undefined;
+  const none = parts.filter((p) => p.availability === "unknown").length;
+  return none === parts.length ? undefined : `${none} of ${parts.length} missing parts not found in any relic; the others drop from relics still in the drop tables`;
+}
