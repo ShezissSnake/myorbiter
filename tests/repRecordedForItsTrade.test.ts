@@ -59,6 +59,8 @@ ${piece("  function repShown(", "\n  }\n")}
   {@const r = repShown(n)}
   {#if r}<div class="notice">${tag(/<RepButton partner=\{r\.partner\}[^\n]*?\/>/)}</div>{/if}
 {/each}
+<!-- A button whose props the test changes while it stays mounted (no caller of App.svelte's does). -->
+{#if page.direct}<div class="direct"><RepButton partner={page.direct.partner} text=":)" ongiven={page.direct.ongiven} /></div>{/if}
 `;
 const HARNESS = new URL("./repOffers.virtual.svelte", import.meta.url).href;
 register("./support/client-component-hooks.mjs", import.meta.url, { data: { virtual: { [HARNESS]: harness } } });
@@ -116,16 +118,17 @@ afterEach(async () => {
 });
 
 /** The page with `trades` (latest first) and `notices`, at START. */
-function open(trades: ReturnType<typeof trade>[], notices: { id: string; at: number; rep: { key: string; partner: string } }[] = []) {
+function open(trades: ReturnType<typeof trade>[], notices: { id: string; at: number; rep: { key: string; partner: string } }[] = [], direct: { partner: string; ongiven: () => void } | null = null) {
   const page = internal.proxy({
     settings: { market: { trades, rep: {} as Record<string, string>, repText: ":)", autoRep: false } },
     clock: Date.now(),
     notices: notices.map((n) => ({ ...n, kind: "sold", title: "Sold", body: "", read: false })),
+    direct,
   });
   const target = document.body.appendChild(document.createElement("div"));
   const shown = mount(Offers, { target, props: { page } });
   flush();
-  const buttons = (where: "strip" | "notice") => target.findAll((e) => e.localName === "div" && e.className === where).flatMap((d) => d.findAll((e) => e.localName === "button"));
+  const buttons = (where: "strip" | "notice" | "direct") => target.findAll((e) => e.localName === "div" && e.className === where).flatMap((d) => d.findAll((e) => e.localName === "button"));
   return {
     page,
     target,
@@ -391,5 +394,21 @@ test("the strip: a newer trade with the same partner while the give is on its wa
   assert.deepEqual(p.page.settings.market.rep, { t1: "given", t2: "given" });
   assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] }, "one read of the review and one give");
   assert.equal(p.buttons("strip").length, 0, "given: the strip goes");
+  p.close();
+});
+
+test("the record is the one handed at the click: a button whose record changes while its give is on its way records the clicked one", async () => {
+  const recorded: string[] = [];
+  const p = open([], [], { partner: "Alpha", ongiven: () => recorded.push("t1") });
+  const [b] = p.buttons("direct");
+  assert.ok(b, "the button offers +rep for Alpha");
+  await press(b);
+  assert.deepEqual(sent.giveRep, ["Alpha"], "on its way");
+  // The same button, still mounted, is handed another trade's record before warframe.market answers.
+  p.page.direct!.ongiven = () => recorded.push("t2");
+  flush();
+  await answered();
+  assert.deepEqual(recorded, ["t1"], "recorded for the trade clicked, not the record handed since");
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
   p.close();
 });

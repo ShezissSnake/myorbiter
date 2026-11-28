@@ -24,8 +24,8 @@
 
   // A click: the give is the clicked offer's. Its window is asked now, and the partner, the words and
   // the record are taken now, since the offer can change while the give is on its way (its window
-  // ends, a newer trade lands, and the strip keeps this button for it). giveAs's parameters stand
-  // for the props from here on.
+  // ends, or a newer trade lands: the strip then draws a fresh button for that trade, and this one's
+  // give still ends for its own). giveAs's parameters stand for the props from here on.
   function give() {
     if (!open(Date.now())) return; // its window is over: nothing given
     void giveAs(partner, text, open, ongiven);
