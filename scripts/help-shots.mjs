@@ -10,12 +10,14 @@
 // --check takes no pictures and writes nothing: it opens every page's picture as it would, runs its
 // steps, and lists every part or mark whose selector matches nothing (and every part that runs past
 // the window), then exits 1 if there was any. A step that matches nothing stops that picture's
-// check there, so it is the one miss listed for that picture. A picture whose check missed on a
-// wait that ran out (a click, a part or a mark not there in time, or its window not opening) is
-// checked again before its misses count, up to TRIES times in all: the second time in the same
-// window, the third in a fresh one. A busy machine can be slow enough to run a wait out once; a
-// part that isn't on the page misses every time. The run lists the pictures that needed another
-// try, and the misses each try saw.
+// check there, so it is the one miss listed for that picture. A picture whose check threw (its
+// window not opening, a page, click or field not there in time, or any other error on the way) or
+// missed a part or a mark is checked again before its misses count, up to TRIES times in all, each
+// try after the first in a fresh window. A busy machine can be slow enough to run a wait out once;
+// a part that isn't on the page misses every time, and a steady error costs its two more tries
+// before it is listed. Misses that come out the same on every try (a switch or field found by its
+// place, a part past the window) are not tried again. The run lists the pictures that needed
+// another try, and the misses each try saw.
 //
 // Item pictures come from the picture cache, and the cache's guard refuses the rest it is shown
 // off this machine (scripts/picture-cache.mjs says what it is shown, and what it leaves to the
@@ -69,15 +71,20 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
     const want = `${x.wt.id} ${w}x${h}${x.shot.startup ? ` ${x.shot.startup}` : ""}${x.shot.emptyChannel ? " empty" : ""}`;
     const where = `${x.wt.id}, page ${x.i + 1}`;
     if (check) {
-      // Each try's misses: [text, whether a wait ran out].
+      // Each try's misses: [text, whether a wait ran out]. The steady ones of the last try that got
+      // as far as looking, kept for a later try that throws before it looks.
       let found = [];
+      let steady = [];
+      let looked = false;
       let tries = 0;
       while (tries < TRIES) {
         tries++;
         found = [];
+        looked = false;
         try {
-          // A fresh window when the walk-through or size changes, for a start-up dialog, and from the third try on.
-          if (!p || want !== size || x.shot.startup || tries > 2) {
+          // A fresh window when the walk-through or size changes, for a start-up dialog, and for every
+          // try after the first: a step that toggles something would find it toggled in the old one.
+          if (!p || want !== size || x.shot.startup || tries > 1) {
             await p?.close().catch(() => {});
             p = null;
             p = await openApp(browser, url, w, h, x.shot);
@@ -85,15 +92,20 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
           }
           await reach(p, x.shot, where);
           for (const miss of await missing(p, x.shot)) found.push([`${where}: ${miss}`, waitedOut(miss)]);
+          looked = true;
+          steady = found.filter(([, waited]) => !waited);
         } catch (e) {
-          // reach and openApp throw when a click, a field, a page or the window wasn't there in time
-          // (Playwright's own timeouts too, which don't name the picture).
+          // reach and openApp throw mostly when a click, a field, a page or the window wasn't there
+          // in time (Playwright's own timeouts too, which don't name the picture); every throw is
+          // tried again.
           const m = hidePaths(e instanceof Error ? e.message : String(e));
           found.push([m.startsWith(`${where}:`) ? m : `${where}: ${m}`, true]);
         }
         if (!found.some(([, waited]) => waited)) break;
         if (tries < TRIES) console.log(`${where}: try ${tries} of ${TRIES} missed (${found.map(([m]) => m).join("; ")}); trying again`);
       }
+      // A last try that threw before it looked still lists the steady misses an earlier try saw.
+      if (!looked) found.push(...steady);
       for (const [m] of found) misses.push(m);
       if (tries > 1) again.push(`${where}: ${tries} tries, ${found.length ? `${found.length} misses on the last` : "clean on the last"}`);
       console.log(`checked ${where}`);
@@ -135,9 +147,19 @@ export async function takeHelp(browser, url, root, work, id = null, check = fals
   console.log(`${Object.keys(sorted).length} pictures, ${Math.round(total / 1024)} KB in all`);
 }
 
+/** A window with the app open; one that fails to open is closed before the error goes on. */
 async function openApp(browser, url, w, h, shot = {}) {
-  const startup = shot.startup ?? null;
   const p = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 2 });
+  try {
+    return await setUp(p, url, shot);
+  } catch (e) {
+    await p.close().catch(() => {});
+    throw e;
+  }
+}
+
+async function setUp(p, url, shot) {
+  const startup = shot.startup ?? null;
   // The guard: pictures come from the cache, the rest it is shown (warframe.market included) is refused.
   await guard(p);
   await stopWorldState(p);
