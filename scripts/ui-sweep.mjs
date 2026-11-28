@@ -569,6 +569,7 @@ for (const signal of ["SIGINT", "SIGTERM"]) {
 }
 
 const pause = (p, ms) => p.waitForTimeout(ms);
+let loadsAgain = 0;
 
 /** A page at one window size, the demo loaded, What's New and the Full mode question answered unless asked to show them. */
 async function open(size, { firstRun = false, noInventory = false, cardsUnread = false, widePictures = false, reducedMotion = "no-preference" } = {}) {
@@ -610,7 +611,18 @@ async function open(size, { firstRun = false, noInventory = false, cardsUnread =
       localStorage.setItem("orbiter-settings", JSON.stringify(s));
     } catch {}
   }, firstRun);
-  await p.goto(url);
+  // The first load compiles the app, and a busy machine can run the load's 30 s out: a load that
+  // timed out is tried again, up to three times in all, and said so.
+  for (let t = 1; ; t++) {
+    try {
+      await p.goto(url);
+      break;
+    } catch (e) {
+      if (t >= 3 || !/timeout/i.test(String(e))) throw e;
+      console.log(`  the page load timed out (try ${t} of 3); trying again`);
+      loadsAgain++;
+    }
+  }
   await pause(p, 6000);
   // Notifications come and go, and would be flagged or cover a view.
   await p.addStyleTag({ content: ".toasts { display: none !important; } [data-sweep] { outline: 2px solid #f00 !important; outline-offset: -1px; }" });
@@ -1421,6 +1433,7 @@ try {
   }
   for (const [b, view] of switchFindings) console.log(`SWITCH ${view}: ${b}`);
   console.log(`${switchFindings.size} switches without a name of their own, ${switchesSeen} seen`);
+  console.log(`${loadsAgain} page loads tried again after a timeout`);
   console.log(requestsLine());
   const cache = cacheEnd();
   for (const l of cache.lines) console.log(l);
