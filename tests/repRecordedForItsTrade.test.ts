@@ -9,7 +9,8 @@
 // until the test lets it go. The page around it is App.svelte's own: its +rep offers (`repDue`,
 // `repShown`), how it records a give (`markRep`, `givenFor`) and its two RepButton tags are taken
 // from App.svelte's source and put in a small component with the state they read (settings, the
-// page's clock, the notifications).
+// page's clock, the notifications). The strip's tag is taken with the `{#key}` around it, so a newer
+// trade gets the fresh button App.svelte gives it.
 import "./support/dom";
 import { flush, settle } from "./support/runes";
 import { register } from "node:module";
@@ -53,11 +54,13 @@ ${givenFor}
 ${piece("  function repShown(", "\n  }\n")}
 </script>
 
-{#if repDue}<div class="strip">${tag(/<RepButton partner=\{repDue\.t\.partner\}[^\n]*?\/>/)}</div>{/if}
+{#if repDue}<div class="strip">${tag(/(?:\{#key [^}\n]*\})?<RepButton partner=\{repDue\.t\.partner\}[^\n]*?\/>(?:\{\/key\})?/)}</div>{/if}
 {#each page.notices as n (n.id)}
   {@const r = repShown(n)}
   {#if r}<div class="notice">${tag(/<RepButton partner=\{r\.partner\}[^\n]*?\/>/)}</div>{/if}
 {/each}
+<!-- A button whose props the test changes while it stays mounted (no caller of App.svelte's does). -->
+{#if page.direct}<div class="direct"><RepButton partner={page.direct.partner} text=":)" ongiven={page.direct.ongiven} /></div>{/if}
 `;
 const HARNESS = new URL("./repOffers.virtual.svelte", import.meta.url).href;
 register("./support/client-component-hooks.mjs", import.meta.url, { data: { virtual: { [HARNESS]: harness } } });
@@ -78,12 +81,27 @@ const real = { ...market };
 let sent: { user: string[]; myReview: string[]; giveRep: string[] };
 /** Lets the give on its way answer (warframe.market's reply). */
 let answer: () => void;
+/** Makes the give on its way fail, with warframe.market's error. */
+let refuse: (why: string) => void;
+/** One's review of each player as warframe.market has it (-1: a report); none by default. */
+let reviews: Record<string, number>;
+/** Lets the read of one's review on its way answer, when `holdReview` holds it. */
+let review: () => void;
+let holdReview: boolean;
 beforeEach(() => {
   sent = { user: [], myReview: [], giveRep: [] };
   answer = () => {};
+  refuse = () => {};
+  reviews = {};
+  review = () => {};
+  holdReview = false;
   market.user = (async (name: string) => (sent.user.push(name), null)) as never;
-  market.myReview = (async (name: string) => (sent.myReview.push(name), 0)) as never;
-  market.giveRep = ((name: string) => new Promise<void>((r) => (sent.giveRep.push(name), (answer = r)))) as never;
+  market.myReview = (async (name: string) => {
+    sent.myReview.push(name);
+    if (holdReview) await new Promise<void>((r) => (review = r));
+    return reviews[name] ?? 0;
+  }) as never;
+  market.giveRep = ((name: string) => new Promise<void>((r, j) => (sent.giveRep.push(name), (answer = r), (refuse = (why) => j(new Error(why)))))) as never;
   mkt.account = { linked: true, backing: "keyring", profile: { id: "me", ingameName: "ExamplePlayer", platform: "pc", crossplay: true }, error: null } as never;
   mkt.users = { alpha: user("Alpha"), bravo: user("Bravo") };
   mock.timers.enable({ apis: ["Date"], now: START });
@@ -91,6 +109,8 @@ beforeEach(() => {
 afterEach(async () => {
   // A give still waiting (a test that failed before its answer) ends here, so the next test's give
   // isn't joined to it (mkt.giveRep joins a give already going to the same player).
+  review();
+  await settle();
   answer();
   await settle();
   mock.timers.reset();
@@ -98,16 +118,17 @@ afterEach(async () => {
 });
 
 /** The page with `trades` (latest first) and `notices`, at START. */
-function open(trades: ReturnType<typeof trade>[], notices: { id: string; at: number; rep: { key: string; partner: string } }[] = []) {
+function open(trades: ReturnType<typeof trade>[], notices: { id: string; at: number; rep: { key: string; partner: string } }[] = [], direct: { partner: string; ongiven: () => void } | null = null) {
   const page = internal.proxy({
     settings: { market: { trades, rep: {} as Record<string, string>, repText: ":)", autoRep: false } },
     clock: Date.now(),
     notices: notices.map((n) => ({ ...n, kind: "sold", title: "Sold", body: "", read: false })),
+    direct,
   });
   const target = document.body.appendChild(document.createElement("div"));
   const shown = mount(Offers, { target, props: { page } });
   flush();
-  const buttons = (where: "strip" | "notice") => target.findAll((e) => e.localName === "div" && e.className === where).flatMap((d) => d.findAll((e) => e.localName === "button"));
+  const buttons = (where: "strip" | "notice" | "direct") => target.findAll((e) => e.localName === "div" && e.className === where).flatMap((d) => d.findAll((e) => e.localName === "button"));
   return {
     page,
     target,
@@ -267,6 +288,127 @@ test("a give with nothing changing on the way records its trade, as before", asy
   await answered();
   assert.deepEqual(p.page.settings.market.rep, { t1: "given" });
   assert.equal(p.buttons("strip").length, 0, "given: the strip goes");
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
+  p.close();
+});
+
+// A newer trade that takes the strip starts with a fresh button: what the button said about the
+// earlier trade's partner (Giving…, You reported them, an error and its Try again) is not shown beside
+// the newer partner's name, whether it was said before the newer trade landed or after.
+
+/** The strip offers a fresh +rep for Bravo: its own words, nothing left from Alpha's. */
+function freshForBravo(p: ReturnType<typeof open>, when: string) {
+  const strip = p.target.findAll((e) => e.localName === "div" && e.className === "strip")[0];
+  assert.ok(strip, `${when}: the strip shows`);
+  const [b] = p.buttons("strip");
+  assert.ok(b, `${when}: the strip offers +rep for Bravo`);
+  assert.equal(b.textContent, "+rep", when);
+  assert.equal(b.getAttribute("disabled"), null, `${when}: not disabled`);
+  assert.match(b.getAttribute("title") ?? "", /^Give Bravo \+rep/, when);
+  for (const said of ["reported", "Try again", "Couldn", "Giving", "refused"]) assert.equal(strip.textContent.includes(said), false, `${when}: no "${said}"`);
+}
+
+test("the strip: a newer trade starts fresh after the earlier partner turned out reported", async () => {
+  reviews = { Alpha: -1 };
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  assert.equal(p.target.textContent.includes("You reported them"), true, "Alpha: reported");
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  freshForBravo(p, "Bravo's trade");
+  assert.deepEqual(p.page.settings.market.rep, {}, "nothing recorded");
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: [] }, "nothing given");
+  p.close();
+});
+
+test("the strip: a newer trade starts fresh after the earlier give failed", async () => {
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  refuse("warframe.market refused it");
+  await settle();
+  flush();
+  assert.equal(p.buttons("strip")[0]?.textContent, "Try again", "Alpha: the error and Try again");
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  freshForBravo(p, "Bravo's trade");
+  assert.deepEqual(p.page.settings.market.rep, {});
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
+  p.close();
+});
+
+test("the strip: a newer trade lands while the earlier give is on its way: not Giving… for it", async () => {
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  assert.equal(p.buttons("strip")[0]?.textContent, "Giving…");
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  freshForBravo(p, "while Alpha's give is on its way");
+  await answered();
+  freshForBravo(p, "once it is given");
+  assert.deepEqual(p.page.settings.market.rep, { t1: "given" }, "recorded for the trade clicked");
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] }, "sent once, to the partner clicked");
+  p.close();
+});
+
+test("the strip: the earlier give fails after a newer trade landed: the error stays with it", async () => {
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  refuse("warframe.market refused it");
+  await settle();
+  flush();
+  freshForBravo(p, "after Alpha's give failed");
+  assert.deepEqual(p.page.settings.market.rep, {}, "nothing recorded");
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
+  p.close();
+});
+
+test("the strip: the earlier partner turns out reported after a newer trade landed: not said of the newer one", async () => {
+  reviews = { Alpha: -1 };
+  holdReview = true;
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  assert.deepEqual(sent.myReview, ["Alpha"], "Alpha's review being read");
+  p.page.settings.market.trades = [trade("t2", "Bravo", START), ...p.page.settings.market.trades];
+  flush();
+  review();
+  await settle();
+  flush();
+  freshForBravo(p, "after Alpha turned out reported");
+  assert.deepEqual(p.page.settings.market.rep, {});
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: [] }, "nothing given");
+  p.close();
+});
+
+test("the strip: a newer trade with the same partner while the give is on its way: one give, both trades recorded", async () => {
+  const p = open([trade("t1", "Alpha", START - MIN)]);
+  await press(p.buttons("strip")[0]);
+  p.page.settings.market.trades = [trade("t2", "Alpha", START), ...p.page.settings.market.trades];
+  flush();
+  const [b] = p.buttons("strip");
+  assert.ok(b, "the newer trade is offered");
+  assert.equal(b.textContent, "+rep", "with a fresh button");
+  await press(b); // joins the give already going to Alpha
+  await answered();
+  assert.deepEqual(p.page.settings.market.rep, { t1: "given", t2: "given" });
+  assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] }, "one read of the review and one give");
+  assert.equal(p.buttons("strip").length, 0, "given: the strip goes");
+  p.close();
+});
+
+test("the record is the one handed at the click: a button whose record changes while its give is on its way records the clicked one", async () => {
+  const recorded: string[] = [];
+  const p = open([], [], { partner: "Alpha", ongiven: () => recorded.push("t1") });
+  const [b] = p.buttons("direct");
+  assert.ok(b, "the button offers +rep for Alpha");
+  await press(b);
+  assert.deepEqual(sent.giveRep, ["Alpha"], "on its way");
+  // The same button, still mounted, is handed another trade's record before warframe.market answers.
+  p.page.direct!.ongiven = () => recorded.push("t2");
+  flush();
+  await answered();
+  assert.deepEqual(recorded, ["t1"], "recorded for the trade clicked, not the record handed since");
   assert.deepEqual(sent, { user: [], myReview: ["Alpha"], giveRep: ["Alpha"] });
   p.close();
 });

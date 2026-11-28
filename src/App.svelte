@@ -3530,7 +3530,9 @@
       {#if repDue && !toasts.list.some((n) => n.rep?.key === repDue.t.key)}
         <div class="bannerfold reveal" out:unfold={{ always: true }}><div><div class="stale repdue" role="status">
           <span>Traded with <b>{repDue.t.partner}</b>, who's on warframe.market ({repDue.u.reputation} reputation).</span>
-          <RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={givenFor(repDue.t.key)} />
+          <!-- One button per trade: a newer trade gets a fresh one, so nothing said about the earlier
+               partner (Giving…, You reported them, an error) stands beside the newer one's name. -->
+          {#key repDue.t.key}<RepButton partner={repDue.t.partner} text={settings.market.repText} open={(now) => !!repDue && repStripOpen(repDue.t.at, now)} ongiven={givenFor(repDue.t.key)} />{/key}
           <IconButton icon="close" tone="quiet" label="Not now" title="Not now: no +rep for this trade" onclick={() => markRep(repDue.t.key, "skipped")} />
         </div></div></div>
       {/if}
